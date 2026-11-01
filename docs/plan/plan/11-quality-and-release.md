@@ -9,8 +9,10 @@ One public GitHub monorepo, MIT license, and a CI pipeline that blocks merges on
 - [x] Name chosen: Argus Table (npm names `argus-table` and `@argus-table/*` were free on 28 Oct 2026)
 - [ ] Check GitHub org and domain availability
 - [ ] Reserve the npm scope `@argus-table` and publish a placeholder `argus-table` package
-- [ ] Add LICENSE (MIT), CODE_OF_CONDUCT, CONTRIBUTING, SECURITY.md
-- [ ] Issue templates (bug with StackBlitz repro link, feature request) and a public roadmap
+- [x] CODE_OF_CONDUCT, CONTRIBUTING, SECURITY.md (CoC contact email still to fill in)
+- [ ] Add LICENSE (MIT)
+- [x] Issue templates (bug with StackBlitz repro link, feature request)
+- [ ] Public roadmap (GitHub Project or issue)
 
 ## Quality gates on every pull request
 
