@@ -1,0 +1,24 @@
+# Render cycle
+
+[← Back to contents](../README.md)
+
+Any number of changes in the same frame collapse into one Lit update; measuring can trigger at most one extra pass.
+
+**One update per frame: derive, virtualize, render, measure.**
+
+```mermaid
+flowchart LR
+    change["Input changes<br/>props, scroll, resize, new data"] --> request["requestUpdate()<br/>Lit batches changes into one update"]
+    request --> will["willUpdate()<br/>resolve columns, TanStack row model"]
+    will --> virt["Virtualizer<br/>visible rows and columns + overscan"]
+    virt --> render["render()<br/>pinned rows, window keyed by row id"]
+    render --> measure["updated()<br/>measure heights, autosize widths"]
+    measure --> sizes{"Sizes changed?"}
+    sizes -- "yes: re-run once, then stop" --> virt
+    sizes -- no --> events["Fire events<br/>argus-range-change and friends"]
+
+    classDef main stroke-width:2px
+    class events main
+```
+
+The one-extra-pass limit prevents layout loops when auto row heights and auto column widths affect each other. Expensive work (row models, column resolution) is memoised, so a pure scroll only re-runs the virtualizer and render.
