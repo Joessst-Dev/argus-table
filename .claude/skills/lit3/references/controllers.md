@@ -54,7 +54,7 @@ render() {
 ```
 
 - Pass **stable references** (`columns`, `data`, callbacks); new arrays every render make TanStack recompute row models.
-- Pinning offsets for sticky columns: `column.getStart('left')`, `column.getAfter('right')`; mark the last pinned column with `data-last-pinned` / the `cell-pinned-edge` part.
+- Pinning offsets for sticky columns: `column.getStart('left')`, `column.getAfter('right')`; give the pinned cell next to the scrolling columns the `cell-pinned-edge` part, plus a private `data-pin="start|end"` so the component can mirror the shadow. The public `pin` value is `'start' | 'end'`; map it to TanStack's `left`/`right` inside core's adapter.
 - Server-side sorting and filtering: set `manualSorting` / `manualFiltering` and pass the state to `dataSource.getRows`.
 
 ### Virtualizer (`@tanstack/lit-virtual`)

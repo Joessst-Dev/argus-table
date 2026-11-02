@@ -49,9 +49,9 @@ Use **experimental decorators** with `useDefineForClassFields: false`:
 "strict": true
 ```
 
-Lit 3 also supports standard (TC39) decorators, but those need the `accessor` keyword on every decorated field and produce more code. Experimental decorators are what the Lit docs, the Custom Elements Manifest analyzer and most examples assume. Use one style across the whole repo; mixing them breaks the build. So write `@property() rowHeight = 40;` without `accessor`, unless the repo's tsconfig already uses standard decorators. In that case, follow it everywhere.
+Lit 3 also supports standard (TC39) decorators, but those need the `accessor` keyword on every decorated field and produce more code. Experimental decorators are what the Lit docs, the Custom Elements Manifest analyzer and most examples assume. Use one style across the whole repo; mixing them breaks the build. So write `@property() overscan = 6;` without `accessor`, unless the repo's tsconfig already uses standard decorators. In that case, follow it everywhere.
 
-The reason for `useDefineForClassFields: false`: with `true`, a class field such as `rowHeight = 40` is defined on the instance with `Object.defineProperty`. That shadows the reactive accessor Lit put on the prototype, so setting the property never triggers an update, and nothing warns you.
+The reason for `useDefineForClassFields: false`: with `true`, a class field such as `overscan = 6` is defined on the instance with `Object.defineProperty`. That shadows the reactive accessor Lit put on the prototype, so setting the property never triggers an update, and nothing warns you.
 
 ## Element skeleton
 
@@ -73,9 +73,9 @@ import { baseStyles } from './styles/base.js';
 export class ArgusTable<T = unknown> extends LitElement {
   static override styles = baseStyles;
 
-  /** Row height in px, or `'auto'` to measure rows. */
+  /** Row height in px, or `'auto'` to measure rows. Unset: the density decides. */
   @property({ attribute: 'row-height', converter: rowHeightConverter })
-  rowHeight: number | 'auto' = 40;
+  rowHeight?: number | 'auto';
 
   /** Column definitions. Property only: functions can't be attributes. */
   @property({ attribute: false })

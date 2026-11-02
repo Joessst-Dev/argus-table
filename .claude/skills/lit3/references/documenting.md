@@ -37,8 +37,8 @@
 ## Members
 
 ```ts
-/** Row height in px, or `'auto'` to measure each row. @default 40 */
-@property({ attribute: 'row-height' }) rowHeight: number | 'auto' = 40;
+/** Row height in px, or `'auto'` to measure each row. Unset: the density decides (40px at comfortable). */
+@property({ attribute: 'row-height' }) rowHeight?: number | 'auto';
 
 /** Scrolls so that the row at `index` is visible. Resolves after render. */
 async scrollToRow(index: number): Promise<void> { … }
