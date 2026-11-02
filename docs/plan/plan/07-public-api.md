@@ -7,15 +7,15 @@ One element, `<argus-table>`, configured through JS properties; attributes only 
 ## Basic usage
 
 ```html
-<argus-table id="orders" row-height="40" density="compact"></argus-table>
+<argus-table id="orders" density="compact"></argus-table>
 <script type="module">
   import 'argus-table';
   const table = document.querySelector('#orders');
   table.columns = [
-    { id: 'id', header: 'Order', accessor: 'id', width: 90, pin: 'left' },
+    { id: 'id', header: 'Order', accessor: 'id', width: 90, pin: 'start' },
     { id: 'customer', header: 'Customer', accessor: 'customer.name', width: 'auto' },
     { id: 'total', header: 'Total', accessor: 'total', align: 'end', sortable: true },
-    { id: 'actions', header: '', width: 64, pin: 'right', cell: (row) => html`<button>…</button>` },
+    { id: 'actions', header: '', width: 64, pin: 'end', cell: (row) => html`<button>…</button>` },
   ];
   table.data = orders; // or: table.dataSource = { getRows }
 </script>
@@ -27,10 +27,10 @@ Columns can also be written as `<argus-column>` children. They are data-only ele
 
 ```html
 <argus-table>
-  <argus-column id="id" header="Order" accessor="id" width="90" pin="left"></argus-column>
+  <argus-column id="id" header="Order" accessor="id" width="90" pin="start"></argus-column>
   <argus-column id="customer" header="Customer" accessor="customer.name" width="auto"></argus-column>
   <argus-column id="total" header="Total" accessor="total" align="end" sortable></argus-column>
-  <argus-column id="actions" width="64" pin="right">
+  <argus-column id="actions" width="64" pin="end">
     <template><button>…</button></template>
   </argus-column>
 </argus-table>
@@ -52,7 +52,7 @@ Columns can also be written as `<argus-column>` children. They are data-only ele
 | `cell` | template fn | Custom cell renderer (rendered into light DOM) |
 | `width` | number \| `'auto'` \| `{ flex }` | Width mode |
 | `minWidth` / `maxWidth` | number | Resize bounds |
-| `pin` | `'left'` \| `'right'` | Fixed column |
+| `pin` | `'start'` \| `'end'` | Fixed column. Logical sides: `'start'` is the left in LTR and the right in RTL. (TanStack's `left`/`right` stay internal.) |
 | `resizable` / `sortable` | boolean | Feature flags per column |
 | `align` | `'start'` \| `'center'` \| `'end'` | Text alignment |
 
@@ -64,7 +64,7 @@ Columns can also be written as `<argus-column>` children. They are data-only ele
 | `data` | — | `T[]` | `[]` |
 | `dataSource` | — | `{ getRows(req) }` | — |
 | `pinnedRows` | — | `{ top?: T[], bottom?: T[] }` | — |
-| `rowHeight` | `row-height` | number \| `'auto'` | 40 |
+| `rowHeight` | `row-height` | number \| `'auto'` | unset: the density decides (40px at `comfortable`). A number set explicitly wins over density; `'auto'` measures rows |
 | `density` | `density` | `'compact'` \| `'comfortable'` \| `'spacious'` | `'comfortable'` |
 | `sorting` | — | `SortState` (controlled or uncontrolled) | — |
 | `columnSizing` | — | `Record<id, px>` | — |
@@ -90,8 +90,14 @@ All `CustomEvent`, bubbling and composed. See [State and events](../code-archite
 
 ## Parts
 
-`table`, `header`, `header-row`, `header-cell`, `resize-handle`, `body`, `row`, `row-pinned`, `row-even`, `row-odd`, `row-selected`, `cell`, `cell-pinned`, `cell-pinned-edge`, `cell-sorted`, `footer`, `skeleton`, `empty`.
+`table`, `header`, `header-row`, `header-cell`, `header-cell-sorted`, `resize-handle`, `body`, `row`, `row-pinned`, `row-even`, `row-odd`, `row-selected`, `cell`, `cell-pinned`, `cell-pinned-edge`, `cell-sorted`, `footer`, `skeleton`, `empty`.
+
+- `header-cell-sorted` is added next to `header-cell` on the sorted column's header. `cell-sorted` is for body cells in that column. They are separate so that `::part(cell-sorted)` never matches headers. The direction is exposed through `aria-sort` only; attribute selectors can't follow `::part()`, so styling per direction is left out until a theme needs it.
+- `cell-pinned` is on every pinned cell on either side, and `cell-pinned-edge` is added on the pinned cell next to the scrolling columns. There are no per-side parts; the component mirrors the edge shadow itself.
 
 ## Tokens (first set)
 
 `--argus-bg`, `--argus-fg`, `--argus-header-bg`, `--argus-header-fg`, `--argus-border-color`, `--argus-border-width`, `--argus-row-hover-bg`, `--argus-row-stripe-bg`, `--argus-row-selected-bg`, `--argus-cell-padding-inline`, `--argus-row-height`, `--argus-font`, `--argus-pinned-shadow`, `--argus-resize-handle-color`, `--argus-focus-ring`.
+
+- `--argus-row-height` and `--argus-cell-padding-inline` each have a default per density; see [Styling and theming](06-styling-and-theming.md).
+- `--argus-pinned-shadow` takes a `box-shadow` value written for a shadow falling toward the end side, for example `4px 0 6px -4px rgb(0 0 0 / .2)`. The component mirrors it for the end edge and in RTL. `none` removes it.
