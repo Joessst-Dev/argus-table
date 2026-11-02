@@ -1,0 +1,243 @@
+# Managed by faehigkeiten (https://github.com/Joessst-Dev/faehigkeiten). Do not edit by hand.
+version: 1
+skills:
+  - name: accessibility-compliance
+    source: https://github.com/wshobson/agents
+    path: plugins/ui-design/skills/accessibility-compliance
+    ref: main
+    commit: 7e2fb559cf4b824b27f1fec49fe88f7511066d26
+    agents:
+      - claude-code
+    tracking: hash
+    hash: sha256:49d9957c65a2ae93ee98ff4b900d273d7a57ffc7dee7a0fef07f718b53f3409a
+    license: MIT
+    license_file: LICENSE
+    installed_at: 2026-11-02T20:30:52Z
+  - name: brainstorming
+    source: https://github.com/obra/superpowers
+    path: skills/brainstorming
+    ref: main
+    commit: 2ce8aa15d05bd57213e6f746f953aafb7ded7a8b
+    agents:
+      - claude-code
+    tracking: hash
+    hash: sha256:c7df2e2fbd0ee30184f631f0ae196a6b591cec122b75a40c93455d947f215a67
+    license: MIT
+    license_file: LICENSE
+    installed_at: 2026-11-02T20:30:50Z
+  - name: changesets
+    source: https://github.com/oakoss/agent-skills
+    path: skills/changesets
+    ref: main
+    commit: 85e3a3919d9e0ec7f7302a5143ec4b3e66f5f6ad
+    agents:
+      - claude-code
+    tracking: version
+    version: "1.2"
+    hash: sha256:7b20eef0c5df7cc5a41d42f9b9bfffbcdec117b7af47c15fff2fa871a6f81778
+    license: MIT
+    installed_at: 2026-11-02T20:30:51Z
+  - name: design-system-patterns
+    source: https://github.com/wshobson/agents
+    path: plugins/ui-design/skills/design-system-patterns
+    ref: main
+    commit: 7e2fb559cf4b824b27f1fec49fe88f7511066d26
+    agents:
+      - claude-code
+    tracking: hash
+    hash: sha256:ec610ad219072b07dd67a087671fea212dd39e73fb0178ac3209a9badf3fd9bf
+    license: MIT
+    license_file: LICENSE
+    installed_at: 2026-11-02T20:30:52Z
+  - name: github-actions-templates
+    source: https://github.com/wshobson/agents
+    path: plugins/cicd-automation/skills/github-actions-templates
+    ref: main
+    commit: 7e2fb559cf4b824b27f1fec49fe88f7511066d26
+    agents:
+      - claude-code
+    tracking: hash
+    hash: sha256:1333e048feba98203574cad3d85e45bceaca2be8f407dd02a07fea45bdf4f132
+    license: MIT
+    license_file: LICENSE
+    installed_at: 2026-11-02T20:30:52Z
+  - name: nx-workspace-patterns
+    source: https://github.com/wshobson/agents
+    path: plugins/developer-essentials/skills/nx-workspace-patterns
+    ref: main
+    commit: 7e2fb559cf4b824b27f1fec49fe88f7511066d26
+    agents:
+      - claude-code
+    tracking: hash
+    hash: sha256:7c37a207789f1b18846d4ee6f65d83e2db8650eecf28050e82976064042230b1
+    license: MIT
+    license_file: LICENSE
+    installed_at: 2026-11-02T20:30:52Z
+  - name: package-publishing
+    source: https://github.com/oakoss/agent-skills
+    path: skills/package-publishing
+    ref: main
+    commit: 85e3a3919d9e0ec7f7302a5143ec4b3e66f5f6ad
+    agents:
+      - claude-code
+    tracking: version
+    version: "1.0"
+    hash: sha256:e86ff061812cabacdf76b3f849572d419b1da14009ed0e54b965c967b228bbec
+    license: MIT
+    installed_at: 2026-11-02T20:30:51Z
+  - name: pnpm-workspace
+    source: https://github.com/oakoss/agent-skills
+    path: skills/pnpm-workspace
+    ref: main
+    commit: 85e3a3919d9e0ec7f7302a5143ec4b3e66f5f6ad
+    agents:
+      - claude-code
+    tracking: version
+    version: "1.2"
+    hash: sha256:38f26668afffc918d44c55890bd40d2282a07c007b1ee811d783c006d7a3ffd8
+    license: MIT
+    installed_at: 2026-11-02T20:30:51Z
+  - name: requesting-code-review
+    source: https://github.com/obra/superpowers
+    path: skills/requesting-code-review
+    ref: main
+    commit: 2ce8aa15d05bd57213e6f746f953aafb7ded7a8b
+    agents:
+      - claude-code
+    tracking: hash
+    hash: sha256:da21da5cdf7894945c3990bdea317b1be4e2cf553831d22027558ca45a6cc45b
+    license: MIT
+    license_file: LICENSE
+    installed_at: 2026-11-02T20:30:50Z
+  - name: screen-reader-testing
+    source: https://github.com/wshobson/agents
+    path: plugins/accessibility-compliance/skills/screen-reader-testing
+    ref: main
+    commit: 7e2fb559cf4b824b27f1fec49fe88f7511066d26
+    agents:
+      - claude-code
+    tracking: hash
+    hash: sha256:85cb88e08f9fc1076baad63d5778f7ab62df6a3cfd791c3b7c18ebafdf99f4da
+    license: MIT
+    license_file: LICENSE
+    installed_at: 2026-11-02T20:30:52Z
+  - name: storybook-stories
+    source: https://github.com/oakoss/agent-skills
+    path: skills/storybook-stories
+    ref: main
+    commit: 85e3a3919d9e0ec7f7302a5143ec4b3e66f5f6ad
+    agents:
+      - claude-code
+    tracking: version
+    version: "1.1"
+    hash: sha256:9a86386d4cc3953d4e6ef658220f0b4d1c78bee99d1f438d26ee8533c95f662f
+    license: MIT
+    installed_at: 2026-11-02T20:30:51Z
+  - name: systematic-debugging
+    source: https://github.com/obra/superpowers
+    path: skills/systematic-debugging
+    ref: main
+    commit: 2ce8aa15d05bd57213e6f746f953aafb7ded7a8b
+    agents:
+      - claude-code
+    tracking: hash
+    hash: sha256:7c2628773e52f1687e74f9d802f2ea1c2cbae24ef5ca3fda0b8f21340f50d590
+    license: MIT
+    license_file: LICENSE
+    installed_at: 2026-11-02T20:30:50Z
+  - name: tanstack-table
+    source: https://github.com/oakoss/agent-skills
+    path: skills/tanstack-table
+    ref: main
+    commit: 85e3a3919d9e0ec7f7302a5143ec4b3e66f5f6ad
+    agents:
+      - claude-code
+    tracking: version
+    version: "1.1"
+    hash: sha256:25bd4e8962ccf881ef4b5a7ea5fab38232882a1c789dafacd339433e3ffb842a
+    license: MIT
+    installed_at: 2026-11-02T20:30:51Z
+  - name: tanstack-virtual
+    source: https://github.com/oakoss/agent-skills
+    path: skills/tanstack-virtual
+    ref: main
+    commit: 85e3a3919d9e0ec7f7302a5143ec4b3e66f5f6ad
+    agents:
+      - claude-code
+    tracking: version
+    version: "1.1"
+    hash: sha256:5547915044669fa56b5058f918cb2b42a7dca0d2e3c3c73e9df677bf6ea0b8c8
+    license: MIT
+    installed_at: 2026-11-02T20:30:51Z
+  - name: test-driven-development
+    source: https://github.com/obra/superpowers
+    path: skills/test-driven-development
+    ref: main
+    commit: 2ce8aa15d05bd57213e6f746f953aafb7ded7a8b
+    agents:
+      - claude-code
+    tracking: hash
+    hash: sha256:8e8772822d25e4dfc9295cf4526c6251a10458c7417ac50c4b42e5d9fc91e0b0
+    license: MIT
+    license_file: LICENSE
+    installed_at: 2026-11-02T20:30:50Z
+  - name: vite
+    source: https://github.com/oakoss/agent-skills
+    path: skills/vite
+    ref: main
+    commit: 85e3a3919d9e0ec7f7302a5143ec4b3e66f5f6ad
+    agents:
+      - claude-code
+    tracking: version
+    version: "1.0"
+    hash: sha256:949af3cb5a0c3b1f31b41dcb5c39d8dd00d680af294f9ea15188a2871a2c7d2f
+    license: MIT
+    installed_at: 2026-11-02T20:30:51Z
+  - name: vitest-testing
+    source: https://github.com/oakoss/agent-skills
+    path: skills/vitest-testing
+    ref: main
+    commit: 85e3a3919d9e0ec7f7302a5143ec4b3e66f5f6ad
+    agents:
+      - claude-code
+    tracking: version
+    version: "1.2"
+    hash: sha256:fb34d290953fc47ba51760b080c390d769582133c2c9bc6101b4f289d5cfd534
+    license: MIT
+    installed_at: 2026-11-02T20:30:51Z
+  - name: wcag-audit-patterns
+    source: https://github.com/wshobson/agents
+    path: plugins/accessibility-compliance/skills/wcag-audit-patterns
+    ref: main
+    commit: 7e2fb559cf4b824b27f1fec49fe88f7511066d26
+    agents:
+      - claude-code
+    tracking: hash
+    hash: sha256:47e93738b7b1c13921d16f0aaf1cffffac28c92ad765798e458d774f1469f074
+    license: MIT
+    license_file: LICENSE
+    installed_at: 2026-11-02T20:30:52Z
+  - name: webapp-testing
+    source: https://github.com/anthropics/skills
+    path: skills/webapp-testing
+    ref: main
+    commit: ca45fc496a3436251f191354091d557da31c15b5
+    agents:
+      - claude-code
+    tracking: hash
+    hash: sha256:abfaf4cc6cf572346e22fed42dc0cfaacd2f64c5d9667f44a94b02ea0d3b1342
+    license: Apache-2.0
+    license_file: skills/webapp-testing/LICENSE.txt
+    installed_at: 2026-11-02T20:30:53Z
+  - name: writing-plans
+    source: https://github.com/obra/superpowers
+    path: skills/writing-plans
+    ref: main
+    commit: 2ce8aa15d05bd57213e6f746f953aafb7ded7a8b
+    agents:
+      - claude-code
+    tracking: hash
+    hash: sha256:b96f84fcdd4fc87bf3264e960e7a423bf6d3612e2b3355b4d6cd5f61ef7fe45d
+    license: MIT
+    license_file: LICENSE
+    installed_at: 2026-11-02T20:30:50Z

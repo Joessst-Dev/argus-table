@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: pinned-cells-styling
+expected_outcome: |
+  Pinned columns render with position sticky using logical inset-inline-start/end offsets, expose state-bearing part names (cell cell-pinned cell-pinned-edge), take shadow and background from --argus-* tokens with fallbacks inside @layer argus-base, and document the parts and tokens in JSDoc.
