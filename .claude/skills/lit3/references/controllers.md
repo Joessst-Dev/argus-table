@@ -78,9 +78,12 @@ render() {
   const v = this.#virtual?.getVirtualizer();
   const items = v?.getVirtualItems() ?? [];
   return html`
-    <div part="body" class="scroller">
-      <div style=${styleMap({ height: `${v?.getTotalSize() ?? 0}px` })}></div>
-      ${repeat(items, (it) => it.key, (it) => this.renderRow(it))}
+    <div part="table" role="presentation">          <!-- the one scroll container -->
+      ${renderHeader(…)}
+      <div part="body" role="rowgroup">
+        <div style=${styleMap({ height: `${v?.getTotalSize() ?? 0}px` })}></div>
+        ${repeat(items, (it) => it.key, (it) => this.renderRow(it))}
+      </div>
     </div>`;
 }
 ```

@@ -34,17 +34,17 @@ const rows = el.shadowRoot!.querySelectorAll('[part~="row"]:not([part~="row-pinn
 expect(rows.length).toBeLessThan(40); // ~400px / 40px + overscan
 ```
 
-**Scrolling** (wait for the scroll event, then the update)
+**Scrolling** (wait for the scroll event, then the update). The plan has **one** scroll container shared by header, body and footer, so scroll that element (the `table` part), not `body`:
 ```ts
-const body = el.shadowRoot!.querySelector<HTMLElement>('[part~="body"]')!;
-body.scrollTop = 40 * 5000;
-await new Promise((r) => body.addEventListener('scroll', r, { once: true }));
+const scroller = el.shadowRoot!.querySelector<HTMLElement>('[part~="table"]')!;
+scroller.scrollTop = 40 * 5000;
+await new Promise((r) => scroller.addEventListener('scroll', r, { once: true }));
 await new Promise(requestAnimationFrame);
 await el.updateComplete;
 expect(firstRenderedRow(el).getAttribute('aria-rowindex')).toBe(String(5000 + 2)); // +1 header, 1-based
 ```
 
-**Keyboard and focus**: use `userEvent` from `@vitest/browser/context` (real key events), then check `el.shadowRoot!.activeElement`.
+**Keyboard and focus**: use `userEvent` for real key events, imported from `vitest/browser` in Vitest 4 (`@vitest/browser/context` in Vitest 3; check the installed version), then check `el.shadowRoot!.activeElement`.
 
 **Controlled vs uncontrolled**: test both. Uncontrolled: click header → event fires and the header shows `aria-sort`. Controlled (`el.sorting = []` first): click → event fires, but `aria-sort` doesn't change until the test sets `el.sorting`.
 

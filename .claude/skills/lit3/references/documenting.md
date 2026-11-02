@@ -51,7 +51,7 @@ async scrollToRow(index: number): Promise<void> { … }
 ## Checklist when adding public API
 
 1. Name matches the plan's conventions (`argus-` events, `--argus-` tokens, kebab-case parts with state suffix).
-2. Added to `docs/plan/plan/07-public-api.md` (or flagged as a proposal there).
+2. Already in `docs/plan/plan/07-public-api.md`, or listed under "Proposed public names" in your summary for a human to approve (don't edit the plan's API list on your own).
 3. JSDoc tag added.
 4. Story in Storybook showing it (Features or Styling group).
 5. Changeset added (`changesets` skill), since public API changed.

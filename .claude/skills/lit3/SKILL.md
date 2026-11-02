@@ -9,6 +9,19 @@ argus-table is a framework-agnostic data table built as Lit 3 custom elements (`
 
 The plan in `docs/plan/` is the source of truth for names and behaviour. Before adding public surface, check `docs/plan/plan/07-public-api.md` (properties, events, parts, tokens), `06-styling-and-theming.md`, `08-accessibility.md` and `docs/plan/code-architecture/`. When this skill and the plan disagree, follow the plan and mention the conflict.
 
+## Public names: reuse first, propose the rest
+
+Every property, attribute, event, part, token and slot that ships is something themes, wrappers and apps code against. After 1.0 a rename is a breaking change. So:
+
+- **Reuse the planned names**, even when a more specific one is tempting. Body cells in a pinned column are `cell cell-pinned`, and the edge one adds `cell-pinned-edge`. That's the whole set: don't add `cell-pinned-left` or `cell-pinned-start` because one side might need different styling. Themes can tell the sides apart through the cell's position or a private `data-` attribute styled internally.
+- **Keep what a planned name means.** A token named `--argus-pinned-shadow` takes a `box-shadow` value, because that's what its name promises and what themes will pass in. If your implementation wants something else (a gradient, a background image), keep the public token a box-shadow and translate internally, or put the extra knob in a private `--_` property.
+- **When something new is truly needed**, add as few names as possible and list each one under a "Proposed public names" heading in your summary, with a one-line reason, so a human approves it before it reaches the plan. Don't silently add names in code.
+- **Private names are free.** `--_row-surface`, `data-pin="start"` and internal classes can change at any time, so use them for implementation details.
+
+## Build what was asked
+
+Write the smallest change that does the task well within this architecture. If you notice a follow-up the task will eventually need (a measuring controller, multi-column sort, header pinning), describe it under "Follow-ups" in your summary rather than building it now. Unrequested infrastructure is code the human has to review, test and maintain before the design for it has been discussed.
+
 ## How the element is organised
 
 The element is thin. Work lives in **reactive controllers**, and logic with no DOM lives in `@argus-table/core`:
@@ -36,7 +49,7 @@ Use **experimental decorators** with `useDefineForClassFields: false`:
 "strict": true
 ```
 
-Lit 3 also supports standard (TC39) decorators, but those need the `accessor` keyword on every decorated field and produce more code. Experimental decorators are what the Lit docs, the Custom Elements Manifest analyzer and most examples assume. If the repo's tsconfig already uses standard decorators, follow it and write `@property() accessor rowHeight = 40;`.
+Lit 3 also supports standard (TC39) decorators, but those need the `accessor` keyword on every decorated field and produce more code. Experimental decorators are what the Lit docs, the Custom Elements Manifest analyzer and most examples assume. Use one style across the whole repo; mixing them breaks the build. So write `@property() rowHeight = 40;` without `accessor`, unless the repo's tsconfig already uses standard decorators. In that case, follow it everywhere.
 
 The reason for `useDefineForClassFields: false`: with `true`, a class field such as `rowHeight = 40` is defined on the instance with `Object.defineProperty`. That shadows the reactive accessor Lit put on the prototype, so setting the property never triggers an update, and nothing warns you.
 
@@ -70,7 +83,7 @@ export class ArgusTable<T = unknown> extends LitElement {
 
   @state() private activeCell: CellId | null = null;
 
-  @query('[part~="body"]') private body!: HTMLElement;
+  @query('[part~="table"]') private scroller!: HTMLElement;
 
   protected override willUpdate(changed: PropertyValues<this>) {
     // derive state here, before render
@@ -276,6 +289,7 @@ The manifest (from `@custom-elements-manifest/analyzer`) feeds Storybook control
 - **Class JSDoc tags:** `@summary`, `@fires name - description`, `@csspart name - description`, `@cssprop [--name=default] - description`, `@slot name - description`.
 - **Property JSDoc:** one sentence per public property: what it does, its units, its default. The analyzer reads types and defaults from the code.
 - Keep internals `private` or `#private`, so they stay out of the manifest.
+- **If the element class isn't part of your change** (for example, you're writing render functions or styles before `argus-table.ts` exists), write the exact `@csspart` and `@cssprop` lines it needs into your summary, ready to paste. Otherwise new parts and tokens silently go undocumented.
 
 Full tag list and examples: `references/documenting.md`.
 
@@ -319,6 +333,8 @@ More patterns (scroll, virtualization, focus, fake data sources, Storybook stori
 - `repeat` without a key, or with the index as the key, in the virtual window.
 - Events fired in `render()`, or without `composed: true`.
 - Hard-coded colours or sizes instead of tokens; physical `left` and `right` instead of logical properties.
-- A new public property, event, part or token missing from JSDoc and the plan's API list.
+- A new public property, event, part or token missing from JSDoc, or not listed as a proposal.
+- A planned token whose meaning changed (for example `--argus-pinned-shadow` no longer taking a box-shadow).
+- `accessor` decorators mixed with experimental ones.
 - TanStack types in a public signature or event `detail`.
 - Unbounded measure-then-render loops in `updated()`.
