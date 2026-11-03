@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  actions: read # nrwl/nx-set-shas looks up the last successful run on main
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+# Every job runs on every event (no path filters) and `nx affected` exits 0
+# when nothing is affected, so required checks always report.
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      base: ${{ steps.shas.outputs.base }}
+      head: ${{ steps.shas.outputs.head }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - id: shas
+        uses: nrwl/nx-set-shas@e602fada7ad5987b0f7b1905e7a99ea1c661514c # v5.1.0
+
+  lint:
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - name: Prettier
+        run: pnpm format:check
+      - name: ESLint and type check
+        run: pnpm nx affected -t lint typecheck --base=${{ needs.setup.outputs.base }} --head=${{ needs.setup.outputs.head }}
+
+  unit:
+    needs: setup
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    name: unit (${{ matrix.browser }})
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+
+      - name: Read Playwright version
+        id: playwright
+        run: echo "version=$(pnpm --filter argus-table exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: browser-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ matrix.browser }}-${{ steps.playwright.outputs.version }}
+
+      - name: Install ${{ matrix.browser }}
+        if: steps.browser-cache.outputs.cache-hit != 'true'
+        run: pnpm --filter argus-table exec playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Install ${{ matrix.browser }} system dependencies
+        if: steps.browser-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter argus-table exec playwright install-deps ${{ matrix.browser }}
+
+      - name: Vitest browser tests
+        env:
+          BROWSERS: ${{ matrix.browser }}
+        run: pnpm nx affected -t test --base=${{ needs.setup.outputs.base }} --head=${{ needs.setup.outputs.head }}
+
+  build:
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - name: Build
+        run: pnpm nx affected -t build --base=${{ needs.setup.outputs.base }} --head=${{ needs.setup.outputs.head }}
