@@ -1,6 +1,6 @@
 name: Feature request
 description: Suggest an improvement or a new feature.
-labels: ["enhancement", "triage"]
+labels: ['enhancement', 'triage']
 body:
   - type: markdown
     attributes:
@@ -37,11 +37,11 @@ body:
       label: Package
       options:
         - argus-table (the element itself)
-        - "@argus-table/themes"
-        - "@argus-table/react"
-        - "@argus-table/vue"
-        - "@argus-table/angular"
-        - "@argus-table/formulas"
+        - '@argus-table/themes'
+        - '@argus-table/react'
+        - '@argus-table/vue'
+        - '@argus-table/angular'
+        - '@argus-table/formulas'
         - Docs / Storybook
         - Not sure
     validations:
@@ -54,7 +54,7 @@ body:
       options:
         - "Yes, I'd like to open a pull request"
         - Maybe, with some guidance
-        - "No"
+        - 'No'
     validations:
       required: true
 

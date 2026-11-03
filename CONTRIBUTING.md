@@ -2,7 +2,7 @@
 
 Thanks for your interest in helping. This guide explains how to propose changes and what a good pull request looks like.
 
-> **Status:** Argus Table is in the planning phase and there is no code yet. Until Phase 0 lands, the most useful contributions are feedback on the [project plan](docs/plan/README.md), especially the [public API draft](docs/plan/plan/07-public-api.md), and discussion in GitHub Discussions.
+> **Status:** Phase 0. The workspace, CI and a skeleton `<argus-table>` element are in place; the rendering spike is next. Until the table has real features, the most useful contributions are feedback on the [project plan](docs/plan/README.md), especially the [public API draft](docs/plan/plan/07-public-api.md), and discussion in GitHub Discussions.
 
 ## Ways to help
 
@@ -15,14 +15,14 @@ For anything bigger than a small fix, open an issue or discussion before writing
 
 ## Development setup
 
-The repository is a pnpm + Nx monorepo. Once the tooling from Phase 0 is in place:
+The repository is a pnpm + Nx monorepo:
 
 ```bash
 corepack enable          # gives you the pinned pnpm version
 pnpm install
-pnpm dev                 # Storybook with hot reload
-pnpm play                # Vite playground for quick manual tests
-pnpm test                # Vitest browser tests
+pnpm lint                # ESLint + type check (pnpm format:check for Prettier)
+pnpm test                # Vitest browser tests (Chromium; BROWSERS=all for all three)
+pnpm build               # build every package
 pnpm affected            # what CI will run for your branch
 ```
 
@@ -38,7 +38,7 @@ The full command list is in [Local development commands](docs/plan/repo-and-ci/0
 
 ### What CI checks
 
-Every pull request runs lint and type checks, unit tests in Chromium, Firefox and WebKit, e2e tests, visual screenshot tests per theme, axe accessibility checks on every story, and a bundle size budget. All of them must pass before merging. See [GitHub Actions workflows](docs/plan/repo-and-ci/03-github-actions.md).
+Every pull request runs Prettier, lint and type checks, unit tests in Chromium, Firefox and WebKit, and the package build. E2e tests, visual screenshot tests per theme, axe accessibility checks on every story and a bundle size budget join as the table grows. All checks must pass before merging. See [GitHub Actions workflows](docs/plan/repo-and-ci/03-github-actions.md).
 
 ### Visual changes
 
@@ -62,4 +62,4 @@ Everyone taking part is expected to follow the [Code of Conduct](CODE_OF_CONDUCT
 
 ## License
 
-Argus Table will be released under the MIT license. By contributing, you agree that your contributions are licensed under the same terms.
+Argus Table is released under the [MIT license](LICENSE). By contributing, you agree that your contributions are licensed under the same terms.

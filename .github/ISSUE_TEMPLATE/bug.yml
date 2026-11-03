@@ -1,6 +1,6 @@
 name: Bug report
 description: Something in Argus Table doesn't work as documented.
-labels: ["bug", "triage"]
+labels: ['bug', 'triage']
 body:
   - type: markdown
     attributes:
@@ -13,7 +13,7 @@ body:
     attributes:
       label: Version
       description: The `argus-table` version you're using.
-      placeholder: "0.1.0"
+      placeholder: '0.1.0'
     validations:
       required: true
 
@@ -24,11 +24,11 @@ body:
       description: Where does the problem show up?
       options:
         - argus-table (the element itself)
-        - "@argus-table/themes"
-        - "@argus-table/react"
-        - "@argus-table/vue"
-        - "@argus-table/angular"
-        - "@argus-table/formulas"
+        - '@argus-table/themes'
+        - '@argus-table/react'
+        - '@argus-table/vue'
+        - '@argus-table/angular'
+        - '@argus-table/formulas'
         - Not sure
     validations:
       required: true
