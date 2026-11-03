@@ -1,0 +1,25 @@
+{
+  "name": "@argus-table/storybook",
+  "private": true,
+  "type": "module",
+  "nx": {
+    "name": "storybook"
+  },
+  "scripts": {
+    "storybook": "storybook dev --port 6006",
+    "build": "storybook build --output-dir dist",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "argus-table": "workspace:*",
+    "lit": "^3.3.3"
+  },
+  "devDependencies": {
+    "@storybook/addon-docs": "^10.6.5",
+    "@storybook/web-components": "^10.6.5",
+    "@storybook/web-components-vite": "^10.6.5",
+    "storybook": "^10.6.5",
+    "vite": "^8.3.5"
+  }
+}

@@ -8,6 +8,7 @@
     "pnpm": ">=10.28"
   },
   "scripts": {
+    "dev": "nx run storybook:storybook",
     "lint": "nx run-many -t lint typecheck",
     "test": "nx run-many -t test",
     "build": "nx run-many -t build",

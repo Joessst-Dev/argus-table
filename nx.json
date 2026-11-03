@@ -36,8 +36,19 @@
     },
     "test": {
       "dependsOn": ["^build"],
-      "inputs": ["default", "^production", { "env": "BROWSERS" }],
+      "inputs": [
+        "default",
+        "^production",
+        {
+          "env": "BROWSERS"
+        }
+      ],
       "cache": true
+    },
+    "storybook": {
+      "dependsOn": ["^build"],
+      "continuous": true
     }
-  }
+  },
+  "neverConnectToCloud": true
 }
