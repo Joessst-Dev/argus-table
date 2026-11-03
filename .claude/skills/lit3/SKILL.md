@@ -145,7 +145,9 @@ html`
 
 - Binding kinds: `attr=${v}` (string attribute), `.prop=${v}` (property, for objects and arrays), `?hidden=${bool}` (boolean attribute), `@event=${fn}` (listener, with `this` bound to the host automatically).
 - Use `nothing` to render nothing or to remove an attribute (`aria-sort=${sorted ? dir : nothing}`). An empty string is still an attribute.
-- **Key every virtualized list with `repeat(items, key, template)`** using the row id (`getRowId`) or the column id. Without keys, Lit reuses DOM by position. Then focus, measured heights and slotted content follow the wrong row when the window scrolls.
+- **Key every virtualized list with `repeat(items, key, template)`.** Without keys, Lit reuses DOM by position, and then focus, measured heights and slotted content follow the wrong row. What the key is depends on the list:
+  - **Body rows are keyed by their row-pool slot, not by row id.** Each rendered row holds a pool index while it is in the range (a row keeps its index as long as it stays rendered, and freed indices are reused). A row entering the window takes over the DOM of one that left, and Lit only updates text and attributes. Keying body rows by row id recreates their DOM and slots on every scroll. The rendering spike measured that at 2× slower in Chromium and Firefox and up to 17× in WebKit ([ADR 0001](../../../docs/adr/0001-shadow-vs-light-dom.md)). Render the rows in pool order, and position them with `transform` and `aria-rowindex`.
+  - **Cells within a row are keyed by column id; header cells by header id; pinned rows** (few, outside the window) **may stay keyed by row id.**
 - Keep callbacks stable. Write handlers as class fields (`private onRowClick = (e: MouseEvent) => { … }`) rather than inline arrows inside `repeat`, so Lit doesn't rebind listeners on every row of every update.
 - Don't build new arrays or objects for `.prop` bindings in `render()` when nothing changed: child elements with `hasChanged` would update anyway. Memoise in `willUpdate`.
 - Split large templates into functions in `render/` that take plain data and return `TemplateResult`, for example `renderHeader(model, handlers)`. They are easier to read and test than deep methods on the element.
@@ -185,26 +187,26 @@ export const baseStyles = css`
 - **State goes in the part name**, for example `part="cell cell-pinned cell-sorted"`. The reason: parts can't be chained (`::part(row) ::part(cell)` is invalid), and attribute or class selectors after a part aren't allowed (`::part(cell)[data-pinned]` is invalid). User-action pseudo-classes such as `::part(row):hover` do work. Users write `argus-table::part(cell-pinned)`. Build part strings with a small helper (`parts({ cell: true, 'cell-pinned': pinned })`) so names stay consistent. Select them internally with `[part~='cell']`.
 - **New part or token? Add it to the plan's list and to the JSDoc** (`@csspart`, `@cssprop`). It becomes API once it ships.
 - **Use logical properties** (`inset-inline-start`, `padding-inline`, `border-block-end`) so RTL works. Pinned columns use `position: sticky` with `inset-inline-start/end` offsets from the table model.
-- **About `@layer argus-base`.** Rules from the page (theme files, `::part()` rules, styles on the host) already beat shadow-root styles for normal declarations, whatever their specificity, because the outer tree wins in the cascade. The layer keeps the component's own rules low-specificity and makes a move to light DOM painless. Whether cells stay in shadow DOM or move to light DOM inside `@layer` is still open until the rendering spike decides. Keep base rules inside the layer either way.
+- **About `@layer argus-base`.** Rules from the page (theme files, `::part()` rules, styles on the host) already beat shadow-root styles for normal declarations, whatever their specificity, because the outer tree wins in the cascade. The layer keeps the component's own rules low-specificity and makes a move to light DOM painless. The spike settled the structure: cells stay in shadow DOM, with their content slotted from the light DOM ([ADR 0001](../../../docs/adr/0001-shadow-vs-light-dom.md)). Keep base rules inside the layer anyway, so user rules always win.
 - Respect `prefers-reduced-motion`: no smooth scrolling or transitions under `reduce`.
 - Share styles as `css` exports. Lit turns them into constructable stylesheets shared by all instances, so put no per-instance values in `static styles`. Per-instance values go in custom properties set via `styleMap`.
 
 ## Slots and light-DOM cell content
 
-Cell and header content is meant to live in the **light DOM** (the Vaadin Grid pattern), so page CSS, utility classes and the page's own components work inside cells. The shadow-DOM cell holds a named `<slot>`, and the table renders the user's content into a light-DOM container with matching `slot` names:
+Cell and header content lives in the **light DOM** (the Vaadin Grid pattern), so page CSS, utility classes and the page's own components work inside cells. This was decided by the Phase 0 spike ([ADR 0001](../../../docs/adr/0001-shadow-vs-light-dom.md)), on the condition that body rows use pooled DOM (see Templates). The shadow-DOM cell holds a named `<slot>`, and the table renders the content as light-DOM children of the host with matching `slot` names:
 
 ```ts
 // shadow DOM, inside the cell
 html`<div part="cell" role="gridcell"><slot name=${slotName}></slot></div>`;
 
-// light DOM, in one dedicated container the element owns
-render(cellContent, this.cellHost, { host: this });
+// light DOM: direct children of the host, in a part Lit manages for the element
+render(repeat(pooledRows, (r) => r.pool, (r) => cellContents(r)), this, { host: this });
 ```
 
-- Generated cell content goes into **one container the element owns**, never mixed with `<argus-column>` children.
-- Use `render(template, container, { host: this })` from `lit` for the light-DOM part, so `@event` bindings in user templates get the table as `this`.
-- Slot names derive from row id and column id and must be unique within the window. Recycle them when rows leave the virtual range, or the light DOM grows without bound.
-- The rendering risk is real: slotted light-DOM cells may be too slow at 100k rows, and the fallback is shadow-DOM cells with tokens and parts only. Keep slot plumbing behind the render functions so the spike's outcome is a local change.
+- **Slotted nodes must be direct children of the host.** A `<slot>` only takes the host's own children, so a wrapper `<div>` in the light DOM can't hold the cell content. `render(template, this, { host: this })` gives the element its own managed part at the end of its children. That part leaves `<argus-column>` and other user-authored children alone, and `@event` bindings in user templates get the table as `this`.
+- **Slot names come from the row pool, not the row id:** `pool index + column index`. They stay stable while a row is rendered and get reused when a new row takes the slot. The number of slots and light-DOM nodes stays bounded by the pool size, however far the user scrolls.
+- **Render the light DOM in pool order**, keyed by pool index. A recycled slot then updates its content in place instead of moving. Moving slotted nodes forces slot reassignment, which WebKit in particular pays heavily for.
+- **Slot names are private** and can change at any time. Users style through tokens, parts and their own light-DOM content, never through slot names.
 
 ## Reactive controllers
 
@@ -277,7 +279,8 @@ The table follows the WAI-ARIA **grid** pattern from the first release (`08-acce
 - Rendered rows and cells inside the shadow root carry `role="row"` and `role="gridcell"` (or `columnheader`) plus `aria-rowindex` and `aria-colindex`, which are 1-based and include header rows. That way screen readers see the virtual position, not the DOM position.
 - `aria-sort` goes on sorted headers only (`nothing` elsewhere).
 - **Use roving tabindex, not `aria-activedescendant`.** ID references don't cross shadow roots, so `aria-activedescendant` pointing into another tree fails silently. Give one tab stop into the grid (the active cell has `tabindex="0"`, the others `-1`), and move focus with the arrow keys.
-- Focus has to survive virtualization. Track the active cell by row id plus column id, keep that row rendered even outside the range, and restore focus after re-render with `await this.updateComplete`.
+- Focus has to survive virtualization. Track the active cell by row id plus column id, keep that row rendered (and holding its pool slot) even outside the range, so recycling never hands its DOM to another row, and restore focus after re-render with `await this.updateComplete`.
+- With pooled rows the body's DOM order isn't the visual order. Rows carry `aria-rowindex`; confirm with screen-reader tests that this is enough. Otherwise keep the DOM sorted by row index while keeping identity per pool slot (moving existing nodes is far cheaper than recreating them).
 - Visible focus ring via `--argus-focus-ring` on `:focus-visible`.
 
 For audits and screen-reader checks, use the `accessibility-compliance`, `wcag-audit-patterns` and `screen-reader-testing` skills.
@@ -330,7 +333,7 @@ More patterns (scroll, virtualization, focus, fake data sources, Storybook stori
 - A class field shadowing a reactive property (`useDefineForClassFields`, or a field redeclared in a subclass without `declare`).
 - Mutating an array or object property in place (`this.columns.push(…)`). Lit compares by identity, so nothing updates. Assign a new value, or call `requestUpdate('columns')`.
 - A missing `super.connectedCallback()` or `super.disconnectedCallback()`.
-- `repeat` without a key, or with the index as the key, in the virtual window.
+- `repeat` without a key or with the array index as the key in the virtual window, or body rows keyed by row id instead of their pool slot.
 - Events fired in `render()`, or without `composed: true`.
 - Hard-coded colours or sizes instead of tokens; physical `left` and `right` instead of logical properties.
 - A new public property, event, part or token missing from JSDoc, or not listed as a proposal.

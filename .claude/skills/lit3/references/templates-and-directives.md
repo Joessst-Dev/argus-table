@@ -6,7 +6,7 @@ Directives live in `lit/directives/*.js`; import each one separately so unused o
 
 | Directive | Import | Use in argus-table |
 |---|---|---|
-| `repeat(items, keyFn, template)` | `lit/directives/repeat.js` | Every virtualized list: rows by row id, cells by column id. Moves DOM with the item instead of reusing by position. |
+| `repeat(items, keyFn, template)` | `lit/directives/repeat.js` | Every virtualized list: body rows by row-pool slot (ADR 0001), cells by column id, slotted light-DOM content by pool slot. Moves DOM with the key instead of reusing by position. |
 | `classMap({...})` | `lit/directives/class-map.js` | Internal-only classes. Prefer parts for anything users might style. |
 | `styleMap({...})` | `lit/directives/style-map.js` | Per-row `transform`, per-cell `inset-inline-start`, grid template, custom properties (`'--_col-width': '120px'`). Only touches changed keys. |
 | `ifDefined(v)` | `lit/directives/if-defined.js` | Attribute that should disappear when `undefined`. `nothing` does the same for any falsy branch you choose. |

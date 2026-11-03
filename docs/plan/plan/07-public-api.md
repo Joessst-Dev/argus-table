@@ -52,7 +52,7 @@ Columns can also be written as `<argus-column>` children. They are data-only ele
 | `cell` | template fn | Custom cell renderer (rendered into light DOM) |
 | `width` | number \| `'auto'` \| `{ flex }` | Width mode |
 | `minWidth` / `maxWidth` | number | Resize bounds |
-| `pin` | `'start'` \| `'end'` | Fixed column. Logical sides: `'start'` is the left in LTR and the right in RTL. (TanStack's `left`/`right` stay internal.) |
+| `pin` | `'start'` \| `'end'` | Fixed column. Logical sides: `'start'` is the left in LTR and the right in RTL. (TanStack v9 uses the same logical names, so no mapping is needed.) |
 | `resizable` / `sortable` | boolean | Feature flags per column |
 | `align` | `'start'` \| `'center'` \| `'end'` | Text alignment |
 
