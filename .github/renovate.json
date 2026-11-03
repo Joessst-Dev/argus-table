@@ -1,0 +1,53 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigests", ":semanticCommitsDisabled"],
+  "schedule": ["before 6am on monday"],
+  "labels": ["dependencies"],
+  "rangeStrategy": "bump",
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on monday"]
+  },
+  "packageRules": [
+    {
+      "description": "Dev dependencies: one grouped PR, merged automatically when CI is green",
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "groupName": "dev dependencies",
+      "automerge": true
+    },
+    {
+      "description": "GitHub Actions: one grouped PR, merged automatically when CI is green",
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions",
+      "automerge": true
+    },
+    {
+      "description": "Lit gets its own PR and a human review",
+      "matchPackageNames": ["lit", "@lit/**"],
+      "groupName": "Lit",
+      "automerge": false
+    },
+    {
+      "description": "TanStack gets its own PR and a human review",
+      "matchPackageNames": ["@tanstack/**"],
+      "groupName": "TanStack",
+      "automerge": false
+    },
+    {
+      "description": "Storybook packages move together",
+      "matchPackageNames": ["storybook", "@storybook/**"],
+      "groupName": "Storybook"
+    },
+    {
+      "description": "Playwright is pinned to the browsers in the cloud dev container; bump by hand",
+      "matchPackageNames": ["playwright"],
+      "enabled": false
+    },
+    {
+      "description": "TypeScript 7 (the Go port) waits until typescript-eslint supports it",
+      "matchPackageNames": ["typescript"],
+      "allowedVersions": "<6.1.0"
+    }
+  ]
+}
