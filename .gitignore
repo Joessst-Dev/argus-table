@@ -3,3 +3,11 @@ dist/
 .nx/
 custom-elements.json
 .DS_Store
+coverage/
+test-results/
+playwright-report/
+storybook-static/
+.vitest-attachments/
+__screenshots__/**/*-diff.png
+__screenshots__/**/*-actual.png
+*.tsbuildinfo

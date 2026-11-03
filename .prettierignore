@@ -1,0 +1,14 @@
+# Generated or tool-owned
+pnpm-lock.yaml
+dist/
+coverage/
+storybook-static/
+custom-elements.json
+.nx/
+
+# Installed and updated by faehigkeiten; do not reformat
+.claude/skills/
+.faehigkeiten.lock.yaml
+
+# Exported from the living plan doc; re-exports would fight Prettier's table padding
+docs/plan/
