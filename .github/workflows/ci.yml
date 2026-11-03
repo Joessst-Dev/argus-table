@@ -2,6 +2,7 @@ name: CI
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   push:
     branches: [main]
 
@@ -91,3 +92,16 @@ jobs:
       - uses: ./.github/actions/setup
       - name: Build
         run: pnpm nx affected -t build --base=${{ needs.setup.outputs.base }} --head=${{ needs.setup.outputs.head }}
+
+  changeset:
+    # Docs-, CI- and tooling-only pull requests skip this with the `no-changeset` label.
+    if: github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'no-changeset')
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - name: Every changed package has a changeset
+        run: pnpm changeset status --since=origin/${{ github.base_ref }}
