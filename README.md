@@ -8,15 +8,15 @@ Named after Argus Panoptes, the hundred-eyed giant of Greek myth who never slept
 
 ## Planned packages
 
-| Package | Purpose |
-| --- | --- |
-| `argus-table` | The `<argus-table>` and `<argus-column>` elements |
-| `@argus-table/themes` | Optional themes (default, Material-inspired, minimal, …) |
-| `@argus-table/react`, `/vue`, `/angular` | Typed framework wrappers |
-| `@argus-table/formulas` | Optional formula columns (post-launch) |
+| Package                                  | Purpose                                                  |
+| ---------------------------------------- | -------------------------------------------------------- |
+| `argus-table`                            | The `<argus-table>` and `<argus-column>` elements        |
+| `@argus-table/themes`                    | Optional themes (default, Material-inspired, minimal, …) |
+| `@argus-table/react`, `/vue`, `/angular` | Typed framework wrappers                                 |
+| `@argus-table/formulas`                  | Optional formula columns (post-launch)                   |
 
 ## Project plan
 
 Everything is in [`docs/plan`](docs/plan/README.md): vision, tech stack, rendering strategy, styling system, public API draft, roadmap, repo and CI setup, and code architecture with diagrams.
 
-Planned license: MIT (to be added with the first code).
+License: [MIT](LICENSE).
