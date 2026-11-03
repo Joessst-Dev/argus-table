@@ -14,6 +14,7 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./custom-elements.json": "./dist/custom-elements.json",
     "./package.json": "./package.json"
   },
   "types": "./dist/index.d.ts",
@@ -21,10 +22,11 @@
     "dist"
   ],
   "sideEffects": [
+    "./dist/index.js",
     "./dist/argus-table.js"
   ],
   "scripts": {
-    "build": "vite build && tsc -p tsconfig.build.json",
+    "build": "vite build && tsc -p tsconfig.build.json && cem analyze",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
     "test": "vitest run"
@@ -33,9 +35,11 @@
     "lit": "^3.3.3"
   },
   "devDependencies": {
+    "@custom-elements-manifest/analyzer": "^0.11.0",
     "@vitest/browser-playwright": "^5.1.0",
     "playwright": "1.63.0",
     "vite": "^8.3.5",
     "vitest": "^5.1.0"
-  }
+  },
+  "customElements": "dist/custom-elements.json"
 }

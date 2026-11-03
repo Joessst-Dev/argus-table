@@ -20,6 +20,7 @@ The repository is a pnpm + Nx monorepo:
 ```bash
 corepack enable          # gives you the pinned pnpm version
 pnpm install
+pnpm dev                 # Storybook with hot reload
 pnpm lint                # ESLint + type check (pnpm format:check for Prettier)
 pnpm test                # Vitest browser tests (Chromium; BROWSERS=all for all three)
 pnpm build               # build every package
