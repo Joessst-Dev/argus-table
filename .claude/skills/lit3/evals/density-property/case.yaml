@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: density-property
+expected_outcome: |
+  A density property on argus-table with a kebab-case reflected attribute, row height and padding driven by --argus-* tokens with fallbacks (no hard-coded colours), documented with JSDoc for the Custom Elements Manifest, plus a browser-mode test.

@@ -14,7 +14,7 @@ The table renders as a div-based CSS grid with ARIA grid roles, not a native `<t
 
 - `position: sticky` with `inset-inline-start` / `inset-inline-end` offsets from TanStack (`column.getStart('left')`, `getAfter('right')`). Logical properties make RTL work.
 - Pinned columns are always rendered, even when column virtualization is on.
-- A `data-last-pinned` marker draws the shadow edge.
+- The pinned cell next to the scrolling columns gets the public `cell-pinned-edge` part, which themes target, and draws the `--argus-pinned-shadow` edge. A private `data-pin="start|end"` attribute tells the component which way to point the shadow; themes don't use it.
 
 ## Fixed rows
 

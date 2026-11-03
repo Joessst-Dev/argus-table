@@ -13,7 +13,7 @@ Styling works in three layers, from easiest to most powerful; a theme is just a 
 - Base styles live in `@layer argus-base` so any user rule wins without specificity tricks.
 - No hard-coded colours in the component: every value reads a token with a neutral fallback.
 - Dark mode via `light-dark()` and `color-scheme`; themes can also offer `[data-argus-theme="dark"]`.
-- Density as one token (`--argus-density`: compact / comfortable / spacious) that scales row height and padding.
+- Density comes from the reflected `density` attribute (compact / comfortable / spacious). Each density sets its own defaults for the existing tokens `--argus-row-height` and `--argus-cell-padding-inline`. A theme redefines one density with an attribute selector, for example `argus-table[density="compact"] { --argus-row-height: 28px; }`. A token set without a density selector applies to every density. There is no `--argus-density` token: CSS can't switch styles on a keyword stored in a custom property without container style queries, which don't work everywhere yet and can't style the host itself.
 
 ## Theme packages
 

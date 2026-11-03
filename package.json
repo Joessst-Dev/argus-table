@@ -1,0 +1,32 @@
+{
+  "name": "argus-table-monorepo",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22.12",
+    "pnpm": ">=10.28"
+  },
+  "scripts": {
+    "lint": "nx run-many -t lint typecheck",
+    "test": "nx run-many -t test",
+    "build": "nx run-many -t build",
+    "affected": "nx affected -t lint test build",
+    "graph": "nx graph",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.20.5",
+    "eslint": "^10.14.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-lit": "^2.3.1",
+    "eslint-plugin-wc": "^3.1.0",
+    "globals": "^17.14.0",
+    "nx": "~24.0.3",
+    "prettier": "^3.9.10",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.72.1"
+  }
+}
