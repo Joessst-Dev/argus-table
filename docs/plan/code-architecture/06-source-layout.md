@@ -16,7 +16,7 @@ packages/table/src/
 ├─ argus-table.ts        the element: creates controllers, renders
 ├─ argus-column.ts       data-only element read by the column controller
 ├─ controllers/          column · data · table · virtual · interaction
-├─ render/               header.ts · body.ts · pinned-rows.ts · skeleton.ts
+├─ render/               header.ts · body.ts · pinned-rows.ts · skeleton.ts · row-pool.ts (pool slots for rows and slotted content, ADR 0001)
 ├─ styles/               base.ts (@layer argus-base, default tokens)
 └─ events.ts             event names + typed detail objects
 

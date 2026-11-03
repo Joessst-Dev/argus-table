@@ -8,11 +8,12 @@ The table renders as a div-based CSS grid with ARIA grid roles, not a native `<t
 
 - One scroll container; header, body and footer share the same column template (`grid-template-columns` from TanStack column sizes).
 - Rows positioned with `transform: translateY()` from the virtualizer; a spacer sets total scroll height.
+- Body row DOM is pooled: each rendered row holds a pool slot, and a row entering the window reuses the DOM (and the slots) of one that left. Keying rows by row id was measured at 2–17× slower ([ADR 0001](../../adr/0001-shadow-vs-light-dom.md)).
 - Column virtualization only for wide tables (e.g. more than 30 columns); off by default.
 
 ## Fixed columns
 
-- `position: sticky` with `inset-inline-start` / `inset-inline-end` offsets from TanStack (`column.getStart('left')`, `getAfter('right')`). Logical properties make RTL work.
+- `position: sticky` with `inset-inline-start` / `inset-inline-end` offsets from TanStack v9, which pins by logical position (`column.getStart('start')`, `getAfter('end')`). Logical properties make RTL work.
 - Pinned columns are always rendered, even when column virtualization is on.
 - The pinned cell next to the scrolling columns gets the public `cell-pinned-edge` part, which themes target, and draws the `--argus-pinned-shadow` edge. A private `data-pin="start|end"` attribute tells the component which way to point the shadow; themes don't use it.
 

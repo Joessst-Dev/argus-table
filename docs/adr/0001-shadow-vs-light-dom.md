@@ -100,6 +100,6 @@ Across every engine, keying, variant and run, there were **0 blank-row frames** 
 
 - [ ] **Absolute check in real Safari** (needed before v0.1): on a Mac, run `BROWSERS=webkit pnpm --filter @argus-table/spike bench`, and scroll `apps/spike` (`pnpm --filter @argus-table/spike dev`, then `?variant=slotted&keying=pool`) in Safari with the Web Inspector timeline open.
 - [ ] Re-measure Firefox fast scrolling on real hardware, where vsync is more stable.
-- [ ] A docs PR that updates the lit3 skill (body rows keyed by pool index, not row id; slotted nodes as direct host children) and `code-architecture/02-render-cycle.md` and `06-source-layout.md` (row pool).
+- [x] A docs PR that updates the lit3 skill (body rows keyed by pool index, not row id; slotted nodes as direct host children; TanStack v9 API), the rendering, public API and accessibility plan pages, and the code-architecture pages (row pool).
 - [ ] Phase 1: choose between the two DOM-order options above, with screen-reader tests.
 - [ ] Phase 1: delete `apps/spike` and `spike-bench.yml`. If the harness is still useful, move it to `benchmarks/`.

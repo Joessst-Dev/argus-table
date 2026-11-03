@@ -29,32 +29,42 @@ render() reads: TableController (row model) + VirtualController (range) + Intera
 
 ## TanStack adapters
 
-The project pins **TanStack Table v9** (check whether it's on the stable or beta tag) and uses the official Lit adapters. Check the installed version's docs before copying shapes below; v8 and v9 differ (v9 registers features explicitly). Whatever the version, **wrap it in `@argus-table/core`'s adapter** (`core/src/table/create-table.ts`) and export argus-table's own types, so TanStack types never reach the public API.
+The project pins **TanStack Table v9** (9.3 is on the stable `latest` tag) and uses the official Lit adapters. The installed package ships its own guides in `node_modules/@tanstack/lit-table/skills/`; check them before copying the shapes below. Whatever the version, **wrap it in `@argus-table/core`'s adapter** (`core/src/table/create-table.ts`) and export argus-table's own types, so TanStack types never reach the public API.
 
 ### Table (`@tanstack/lit-table`)
 
 ```ts
-import { TableController } from '@tanstack/lit-table';
+import {
+  TableController,
+  tableFeatures,
+  columnPinningFeature,
+  columnSizingFeature,
+  rowPinningFeature,
+} from '@tanstack/lit-table';
 
-#table = new TableController<Row>(this);
+// Features are registered explicitly in v9; keep this a module constant.
+const features = tableFeatures({ columnPinningFeature, columnSizingFeature, rowPinningFeature });
+
+#table = new TableController<typeof features, Row>(this);   // one per host, takes only the host
 
 render() {
-  const table = this.#table.table({
+  const table = this.#table.table({                       // options on every render
+    features,
     columns: this.resolvedColumns,   // memoised in willUpdate
     data: this.rows,
-    state: { sorting: this.sortingState, columnPinning, columnSizing },
-    onSortingChange: this.onSortingChange,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    columnResizeMode: 'onChange',
     getRowId: this.getRowId,
+    initialState: { columnPinning: { start: ['name'], end: ['actions'] } },
   });
+  const rows = table.getCenterRows();   // virtualize these; pinned rows come from getTopRows()/getBottomRows()
   …
 }
 ```
 
 - Pass **stable references** (`columns`, `data`, callbacks); new arrays every render make TanStack recompute row models.
-- Pinning offsets for sticky columns: `column.getStart('left')`, `column.getAfter('right')`; give the pinned cell next to the scrolling columns the `cell-pinned-edge` part, plus a private `data-pin="start|end"` so the component can mirror the shadow. The public `pin` value is `'start' | 'end'`; map it to TanStack's `left`/`right` inside core's adapter.
+- **Pinning is logical in v9:** positions are `'start' | 'end'` (column pinning state is `{ start: [], end: [] }`), the same names as the public `pin` value, so core's adapter needs no left/right mapping.
+  - Offsets for sticky columns come from `column.getStart('start')` and `column.getAfter('end')`; cells from `row.getStartVisibleCells()`, `getCenterVisibleCells()` and `getEndVisibleCells()`.
+  - Give the pinned cell next to the scrolling columns the `cell-pinned-edge` part, plus a private `data-pin="start|end"` so the component can mirror the shadow.
+  - Row pinning is `'top' | 'bottom'`.
 - Server-side sorting and filtering: set `manualSorting` / `manualFiltering` and pass the state to `dataSource.getRows`.
 
 ### Virtualizer (`@tanstack/lit-virtual`)
@@ -82,12 +92,13 @@ render() {
       ${renderHeader(…)}
       <div part="body" role="rowgroup">
         <div style=${styleMap({ height: `${v?.getTotalSize() ?? 0}px` })}></div>
-        ${repeat(items, (it) => it.key, (it) => this.renderRow(it))}
+        ${repeat(this.pooled(items), (p) => p.pool, (p) => this.renderRow(p))}   <!-- keyed by row-pool slot -->
       </div>
     </div>`;
 }
 ```
 
+- Body rows are keyed by their **row-pool slot**, not by `it.key`, so DOM is recycled instead of recreated (see "Templates" in SKILL.md and ADR 0001). `getItemKey` still matters: it keeps the virtualizer's measurements attached to the right row.
 - The scroll element only exists after the first render, so create the controller in `firstUpdated` (or construct early and return the element lazily from `getScrollElement`).
 - When `count` or sizes change, update options: `v.setOptions({ ...v.options, count })` then `v.measure()` if estimates changed, in `willUpdate`.
 - Auto row heights: attach `v.measureElement` via the `ref` directive on rows with `data-index`; this can trigger the one allowed extra pass.

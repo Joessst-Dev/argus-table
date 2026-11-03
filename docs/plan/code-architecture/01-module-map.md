@@ -19,7 +19,7 @@ flowchart TD
         data["DataController<br/>array or pages, row cache"]
         inter["InteractionController<br/>focus, keys, sort, resize"]
         table["TableController (TanStack Table)<br/>row models, sorting, pinning, sizing"]
-        virt["VirtualController<br/>TanStack Virtual: ranges"]
+        virt["VirtualController<br/>TanStack Virtual: ranges + row pool"]
         render["Renderer (Lit templates)<br/>header, pinned rows, visible window, footer, parts"]
     end
 
