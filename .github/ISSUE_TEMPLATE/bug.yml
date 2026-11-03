@@ -1,0 +1,100 @@
+name: Bug report
+description: Something in Argus Table doesn't work as documented.
+labels: ['bug', 'triage']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. A minimal reproduction is the fastest way to a fix:
+        fork a StackBlitz starter, reproduce the problem with as little code as possible, and paste the link below.
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The `argus-table` version you're using.
+      placeholder: '0.1.0'
+    validations:
+      required: true
+
+  - type: dropdown
+    id: package
+    attributes:
+      label: Package
+      description: Where does the problem show up?
+      options:
+        - argus-table (the element itself)
+        - '@argus-table/themes'
+        - '@argus-table/react'
+        - '@argus-table/vue'
+        - '@argus-table/angular'
+        - '@argus-table/formulas'
+        - Not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: browsers
+    attributes:
+      label: Browsers
+      description: Which browsers show the problem?
+      multiple: true
+      options:
+        - Chrome
+        - Edge
+        - Firefox
+        - Safari
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: reproduction
+    attributes:
+      label: Reproduction link
+      description: StackBlitz, CodeSandbox or a small public repo that shows the bug.
+      placeholder: https://stackblitz.com/edit/...
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Scroll to row 5,000
+        2. Resize the "Customer" column
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console output
+      description: Errors or warnings from the browser console, if any.
+      render: shell
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this hasn't been reported yet.
+          required: true
+        - label: I agree to follow the project's Code of Conduct.
+          required: true

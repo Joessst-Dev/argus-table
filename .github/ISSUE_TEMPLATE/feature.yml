@@ -1,0 +1,69 @@
+name: Feature request
+description: Suggest an improvement or a new feature.
+labels: ['enhancement', 'triage']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Argus Table aims to stay a small, fast, styleable table. Before requesting a feature, please check the
+        [goals and non-goals](https://github.com/Joessst-Dev/argus-table/blob/main/docs/plan/plan/02-goals-and-non-goals.md)
+        and the [roadmap](https://github.com/Joessst-Dev/argus-table/blob/main/docs/plan/plan/12-roadmap.md).
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do, and what gets in the way today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How you'd like it to work. API sketches are welcome.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds you tried, or how other libraries solve it.
+
+  - type: dropdown
+    id: package
+    attributes:
+      label: Package
+      options:
+        - argus-table (the element itself)
+        - '@argus-table/themes'
+        - '@argus-table/react'
+        - '@argus-table/vue'
+        - '@argus-table/angular'
+        - '@argus-table/formulas'
+        - Docs / Storybook
+        - Not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: contribute
+    attributes:
+      label: Would you like to work on this?
+      options:
+        - "Yes, I'd like to open a pull request"
+        - Maybe, with some guidance
+        - 'No'
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and discussions for this idea.
+          required: true
+        - label: I agree to follow the project's Code of Conduct.
+          required: true
