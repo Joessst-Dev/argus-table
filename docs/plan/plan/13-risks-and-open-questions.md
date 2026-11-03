@@ -6,7 +6,7 @@ The biggest risk is the rendering combo (virtualization + sticky + slotted conte
 
 | Risk | Impact | Mitigation |
 | --- | --- | --- |
-| Slotted light-DOM cells are slow at 100k rows | High | Spike measures it; fallback = render cells in shadow DOM with tokens/parts only, keep slots for custom cells |
+| Slotted light-DOM cells are slow at 100k rows | High → Low | Measured in the Phase 0 spike: as fast as shadow-only cells when row DOM is pooled; row-id keying is 2–17× slower and ruled out. See [ADR 0001](../../adr/0001-shadow-vs-light-dom.md). Real-Safari absolute check still due before v0.1 |
 | `auto` width wrong for unloaded rows | Medium | Sample-based measuring, explicit `min`/`max`, document the limit |
 | TanStack v9 API changes before stable | Medium | Wrap TanStack behind an internal adapter; never expose its types directly |
 | Scope creep (editing, grouping requests) | Medium | Public roadmap and non-goals; plugin hooks instead of core features |
@@ -16,7 +16,7 @@ The biggest risk is the rendering combo (virtualization + sticky + slotted conte
 ## Open questions
 
 - [x] Final name and npm scope: decided, Argus Table (`argus-table` + `@argus-table/*`)
-- [ ] Shadow DOM + slotted cells vs. full light DOM inside `@layer` (decided by the spike)
+- [x] Shadow DOM + slotted cells vs. full light DOM inside `@layer`: decided, shadow DOM with slotted light-DOM cells on pooled row DOM ([ADR 0001](../../adr/0001-shadow-vs-light-dom.md))
 - [x] Framework wrappers at launch: decided, React, Vue and Angular wrappers all ship with v0.2
 - [ ] Row selection in v1 or v2?
 - [ ] Expose TanStack's table instance as an escape hatch, or keep it private?

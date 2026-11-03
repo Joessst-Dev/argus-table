@@ -6,7 +6,7 @@ Named after Argus Panoptes, the hundred-eyed giant of Greek myth who never slept
 
 - **npm:** `argus-table` (the element) plus `@argus-table/*` (wrappers, themes, formulas)
 - **Elements:** `<argus-table>` and `<argus-column>`
-- **Status:** planning, Phase 0 not started
+- **Status:** Phase 0 gate passed ([ADR 0001](../adr/0001-shadow-vs-light-dom.md)); real-Safari absolute check pending; Phase 1 next
 - **Live versions:** [Project plan (Claude doc)](https://claude.ai/artifact/EV7nT4ziNFQusMxxiydWFt) · [UI mockups (design canvas)](https://claude.ai/artifact/6tB5SCnXBD2szrqk2kmaWw)
 
 Exported 1 November 2026. Diagrams are written in Mermaid, so they render directly on GitHub.
