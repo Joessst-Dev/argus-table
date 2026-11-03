@@ -6,7 +6,10 @@
   "commit": false,
   "fixed": [["argus-table"]],
   "linked": [],
-  "ignore": ["@argus-table/storybook"],
+  "ignore": ["@argus-table/spike", "@argus-table/storybook"],
   "updateInternalDependencies": "patch",
-  "privatePackages": { "version": false, "tag": false }
+  "privatePackages": {
+    "version": false,
+    "tag": false
+  }
 }
