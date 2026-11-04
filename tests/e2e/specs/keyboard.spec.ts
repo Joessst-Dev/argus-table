@@ -57,6 +57,26 @@ test.describe('keyboard navigation', () => {
     expect(await activeId()).toBe('before');
   });
 
+  test('Enter on a body cell fires the click events', async ({ page }) => {
+    await page.evaluate(() => {
+      const w = window as unknown as { seen: string[] };
+      w.seen = [];
+      const table = document.querySelector('argus-table');
+      table?.addEventListener('argus-cell-click', (e) => w.seen.push(`cell:${e.detail.columnId}`));
+      table?.addEventListener('argus-row-click', (e) =>
+        w.seen.push(`row:${String(e.detail.index)}`),
+      );
+    });
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('ArrowRight');
+    await settle(page);
+    await page.keyboard.press('Enter');
+    const seen = await page.evaluate(() => (window as unknown as { seen: string[] }).seen);
+    expect(seen).toEqual(['cell:name', 'row:1']);
+  });
+
   test('focus survives scrolling the focused row out of the window', async ({ page }) => {
     await page.keyboard.press('Tab');
     for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowDown');

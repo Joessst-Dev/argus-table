@@ -987,6 +987,38 @@ describe('click events', () => {
     ]);
   });
 
+  test('Enter on a focused body cell fires them too', async () => {
+    const data = people(10);
+    const el = await fixture({ columns, data, getRowId: (p) => p.id });
+    const seen: [string, unknown][] = [];
+    el.addEventListener('argus-cell-click', (e) => seen.push(['cell', e.detail]));
+    el.addEventListener('argus-row-click', (e) => seen.push(['row', e.detail]));
+    const cell = rowsInOrder(el)[2]?.querySelector<HTMLElement>('[data-col="name"]');
+    if (!cell) throw new Error('no cell');
+    cell.focus();
+    const enter = (target: Element, init: KeyboardEventInit = {}) => {
+      const event = new KeyboardEvent('keydown', {
+        key: 'Enter',
+        bubbles: true,
+        composed: true,
+        cancelable: true,
+        ...init,
+      });
+      target.dispatchEvent(event);
+      return event;
+    };
+    expect(enter(cell).defaultPrevented).toBe(true);
+    expect(seen).toEqual([
+      ['cell', { row: data[2], columnId: 'name', value: data[2]?.name }],
+      ['row', { row: data[2], rowId: 'p2', index: 2 }],
+    ]);
+    // With a modifier, or from content inside the cell: left alone.
+    enter(cell, { shiftKey: true });
+    const content = slotted(cell);
+    if (content) enter(content);
+    expect(seen).toHaveLength(2);
+  });
+
   test('header clicks fire neither', async () => {
     const el = await fixture({ columns, data: people(3) });
     const seen: string[] = [];
