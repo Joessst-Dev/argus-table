@@ -127,6 +127,7 @@ function track<T>(column: ColumnView<T, CellContent>): string {
  * @cssprop [--argus-resize-handle-color] - Colour of the resize handle's line, shown on hover, focus and drag.
  * @cssprop [--argus-focus-ring=2px solid Highlight] - Outline of the focused header or cell.
  * @cssprop [--argus-row-hover-bg] - Background of the hovered row. Default: no change.
+ * @cssprop [--argus-row-selected-bg] - Reserved for row selection, which comes after v0.1. The table doesn't read it yet.
  */
 @customElement('argus-table')
 export class ArgusTable<T = unknown> extends LitElement {

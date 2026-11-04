@@ -1,0 +1,41 @@
+{
+  "name": "@argus-table/themes",
+  "version": "0.0.1",
+  "description": "Themes for argus-table: CSS files that set its tokens and ::part() rules.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Joessst-Dev/argus-table.git",
+    "directory": "packages/themes"
+  },
+  "type": "module",
+  "nx": {
+    "name": "themes",
+    "implicitDependencies": [
+      "argus-table"
+    ]
+  },
+  "exports": {
+    "./default.css": "./dist/default.css",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": [
+    "*.css"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs && publint --strict",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "lightningcss": "1.33.0",
+    "publint": "^0.3.25",
+    "vitest": "^5.1.0"
+  }
+}

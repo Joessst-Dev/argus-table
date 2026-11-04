@@ -13,6 +13,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@argus-table/themes": "workspace:*",
     "argus-table": "workspace:*",
     "lit": "^3.3.3"
   },

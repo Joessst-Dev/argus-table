@@ -114,4 +114,5 @@ All `CustomEvent`, bubbling and composed. See [State and events](../code-archite
 
 - `--argus-row-height` and `--argus-cell-padding-inline` each have a default per density: 32 / 40 / 52 px rows and 8 / 12 / 16 px padding for compact / comfortable / spacious; see [Styling and theming](06-styling-and-theming.md).
 - The element is 400 px tall by default, because a virtualized table needs a bounded height; set `height` (or `block-size`) on it.
+- `--argus-row-selected-bg` is reserved for row selection (after v0.1). The table doesn't read it yet; themes may set it already.
 - `--argus-pinned-shadow` takes a `box-shadow` value written for a shadow falling toward the end side, for example `4px 0 6px -4px rgb(0 0 0 / .2)`. The component mirrors it for the end edge and in RTL. `none` removes it.

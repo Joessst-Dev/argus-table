@@ -5,9 +5,14 @@ import { EXTRA_COLUMNS, makePeople, type Person } from './data.js';
 import { installBenchHooks } from './bench-hooks.js';
 
 // Query parameters: rows (default 100000), cols (default 20), density, dir=rtl,
-// overscan, bench (installs window.__argusBench for benchmarks/run.ts), and
-// pin=none to drop the pins (the floor when measuring what pinning costs).
+// overscan, bench (installs window.__argusBench for benchmarks/run.ts),
+// pin=none to drop the pins (the floor when measuring what pinning costs),
+// theme=default to load @argus-table/themes/default.css, and scheme=dark|light
+// to force a colour scheme through data-argus-theme.
 const params = new URLSearchParams(location.search);
+if (params.get('theme') === 'default') await import('@argus-table/themes/default.css');
+const scheme = params.get('scheme');
+if (scheme === 'dark' || scheme === 'light') document.documentElement.dataset.argusTheme = scheme;
 const rowCount = Number(params.get('rows') ?? 100_000);
 const colCount = Number(params.get('cols') ?? 20);
 const density = (params.get('density') ?? 'comfortable') as Density;
