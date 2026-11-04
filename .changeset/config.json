@@ -6,7 +6,13 @@
   "commit": false,
   "fixed": [["argus-table"]],
   "linked": [],
-  "ignore": ["@argus-table/benchmarks", "@argus-table/playground", "@argus-table/storybook"],
+  "ignore": [
+    "@argus-table/benchmarks",
+    "@argus-table/e2e",
+    "@argus-table/playground",
+    "@argus-table/storybook",
+    "@argus-table/visual"
+  ],
   "updateInternalDependencies": "patch",
   "privatePackages": {
     "version": false,
