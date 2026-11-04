@@ -78,3 +78,4 @@ jobs:
           -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json'
           "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/dispatches"
           -d "{\"ref\":\"$BRANCH\"}"
+          || echo "::warning::Couldn't start CI on the new commit. ci.yml needs its workflow_dispatch trigger on the default branch; until then, push a commit or change a label to run CI."
