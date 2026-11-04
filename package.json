@@ -9,6 +9,8 @@
   },
   "scripts": {
     "dev": "nx run storybook:storybook",
+    "play": "nx run playground:dev",
+    "bench": "pnpm --filter @argus-table/benchmarks bench",
     "lint": "nx run-many -t lint typecheck",
     "test": "nx run-many -t test",
     "build": "nx run-many -t build",

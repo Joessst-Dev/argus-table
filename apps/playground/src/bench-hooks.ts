@@ -1,7 +1,7 @@
-// In-page measurement for run.ts. Scenarios run from the page so they are
-// deterministic and identical in every engine.
-import { seeded } from './data.js';
-import type { SpikeGrid } from './spike-grid.js';
+// In-page measurement for benchmarks/run.ts. Scenarios run inside the page so
+// they are deterministic and identical in every engine.
+import type { ArgusTable } from 'argus-table';
+import { seeded, type Person } from './data.js';
 
 export interface ScenarioResult {
   frames: number[];
@@ -9,25 +9,23 @@ export interface ScenarioResult {
   longTasks: number[];
   shadowNodes: number;
   lightNodes: number;
-  poolSize: number;
+  renderedRows: number;
   heapMB: number | null;
   /** jumps only: the slowest frame right after each jump (ms). */
   jumpFrames?: number[];
   mismatches?: number;
 }
 
-const ROW_HEIGHT = 36;
+const nextFrame = () => new Promise<number>((resolve) => requestAnimationFrame(resolve));
+const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-function nextFrame(): Promise<number> {
-  return new Promise((resolve) => requestAnimationFrame(resolve));
-}
-
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-export function installBenchHooks(grid: SpikeGrid): void {
-  const scroller = () => grid.shadowRoot?.querySelector<HTMLElement>('[part~="table"]') ?? null;
+export function installBenchHooks(table: ArgusTable<Person>): void {
+  const root = () => table.shadowRoot;
+  const scroller = () => root()?.querySelector<HTMLElement>('[part~="table"]') ?? null;
+  const rows = () => [...(root()?.querySelectorAll<HTMLElement>('[part~="row"]') ?? [])];
+  const rowHeight = () => rows()[0]?.getBoundingClientRect().height ?? 40;
+  const headerHeight = () =>
+    root()?.querySelector('[part~="header"]')?.getBoundingClientRect().height ?? 0;
 
   let recording = false;
   let frames: number[] = [];
@@ -35,23 +33,26 @@ export function installBenchHooks(grid: SpikeGrid): void {
   let longTasks: number[] = [];
   let last = 0;
 
-  const supportsLongTasks = PerformanceObserver.supportedEntryTypes.includes('longtask');
-  if (supportsLongTasks) {
+  if (PerformanceObserver.supportedEntryTypes.includes('longtask')) {
     new PerformanceObserver((list) => {
       if (!recording) return;
       for (const entry of list.getEntries()) longTasks.push(entry.duration);
     }).observe({ type: 'longtask', buffered: false });
   }
 
-  /** A frame is blank if the rendered window doesn't cover the visible body area. */
+  /** A frame is blank if the rendered rows don't cover the visible body area. */
   const isBlank = (el: HTMLElement): boolean => {
-    const top = el.scrollTop; // body starts after header + 2 pinned rows, which are sticky above it
-    const visibleStart = Math.max(0, top - 0);
-    const visibleEnd = top + el.clientHeight - ROW_HEIGHT * 4; // header, 2 top, 1 bottom pinned
-    const { start, end } = grid.renderedRange;
-    return (
-      start > visibleStart + 1 || end < Math.min(visibleEnd, el.scrollHeight - ROW_HEIGHT * 4) - 1
+    const indices = rows().map((r) => Number(r.getAttribute('aria-rowindex')) - 2);
+    if (indices.length === 0) return true;
+    const h = rowHeight();
+    const start = Math.min(...indices) * h;
+    const end = (Math.max(...indices) + 1) * h;
+    const visibleStart = el.scrollTop;
+    const visibleEnd = Math.min(
+      el.scrollTop + el.clientHeight - headerHeight(),
+      table.data.length * h,
     );
+    return start > visibleStart + 1 || end < visibleEnd - 1;
   };
 
   const tick = (now: number) => {
@@ -79,9 +80,9 @@ export function installBenchHooks(grid: SpikeGrid): void {
       frames,
       blankFrames,
       longTasks,
-      shadowNodes: grid.shadowRoot?.querySelectorAll('*').length ?? 0,
-      lightNodes: grid.querySelectorAll('*').length,
-      poolSize: grid.poolSize,
+      shadowNodes: root()?.querySelectorAll('*').length ?? 0,
+      lightNodes: table.querySelectorAll('*').length,
+      renderedRows: rows().length,
       heapMB: memory ? Math.round(memory.usedJSHeapSize / 1e5) / 10 : null,
     };
   };
@@ -97,7 +98,7 @@ export function installBenchHooks(grid: SpikeGrid): void {
   };
 
   const api = {
-    ready: grid.updateComplete.then(() => nextFrame()),
+    ready: table.updateComplete.then(() => nextFrame()),
     start,
     stop,
     reset,
@@ -126,13 +127,13 @@ export function installBenchHooks(grid: SpikeGrid): void {
       const jumpFrames: number[] = [];
       start();
       for (let i = 0; i < count; i++) {
-        const row = 2 + Math.floor(rand() * (grid.rows.length - 3));
+        const row = Math.floor(rand() * (table.data.length - 1));
         const before = frames.length;
-        el.scrollTop = (row - 2) * ROW_HEIGHT;
+        el.scrollTop = row * rowHeight();
         await wait(holdMs);
         // The jump's re-render lands in one of the next few frames.
         jumpFrames.push(Math.max(0, ...frames.slice(before, before + 3)));
-        mismatches += checkContent(grid);
+        mismatches += checkContent(table);
       }
       return { ...stop(), mismatches, jumpFrames };
     },
@@ -142,42 +143,38 @@ export function installBenchHooks(grid: SpikeGrid): void {
       await reset();
       const el = scroller();
       if (!el) throw new Error('no scroller');
-      el.scrollTop = 5000 * ROW_HEIGHT;
-      // Let the jump's re-render (and its long task) finish before recording.
+      el.scrollTop = 5000 * rowHeight();
+      // Let the jump's re-render finish before recording.
       await wait(300);
       start();
       const t0 = performance.now();
       const max = el.scrollWidth - el.clientWidth;
+      const sign = document.dir === 'rtl' ? -1 : 1;
       while (performance.now() - t0 < ms) {
         const phase = ((performance.now() - t0) / ms) * 2;
-        el.scrollLeft = (phase <= 1 ? phase : 2 - phase) * max;
+        el.scrollLeft = (phase <= 1 ? phase : 2 - phase) * max * sign;
         await nextFrame();
       }
       return stop();
     },
   };
 
-  (window as Window & { __spike?: typeof api }).__spike = api;
+  (window as Window & { __argusBench?: typeof api }).__argusBench = api;
 }
 
 /**
- * Check that the visible "#" cells show the row index of their own row. In the slotted
- * variant this proves slot recycling put content in the right row. Returns mismatches.
+ * Checks that each rendered row's "#" cell shows that row's index, which proves slot
+ * recycling put the content into the right row. Returns the number of mismatches.
  */
-function checkContent(grid: SpikeGrid): number {
+function checkContent(table: ArgusTable<Person>): number {
   let mismatches = 0;
-  const rows = grid.shadowRoot?.querySelectorAll<HTMLElement>('.body > .row') ?? [];
-  for (const row of rows) {
+  for (const row of table.shadowRoot?.querySelectorAll<HTMLElement>('[part~="row"]') ?? []) {
     const expected = String(Number(row.getAttribute('aria-rowindex')) - 2);
-    const first = row.querySelector<HTMLElement>('[role="gridcell"]');
-    if (!first) continue;
-    const slot = first.querySelector('slot');
-    const text = slot
-      ? slot
-          .assignedElements()
-          .map((e) => e.textContent.trim())
-          .join('')
-      : first.textContent.trim();
+    const text = row
+      .querySelector<HTMLSlotElement>('[role="gridcell"] slot')
+      ?.assignedElements()
+      .map((e) => e.textContent.trim())
+      .join('');
     if (text !== expected) mismatches++;
   }
   return mismatches;

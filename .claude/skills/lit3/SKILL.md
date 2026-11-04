@@ -241,7 +241,7 @@ export class DataController<T> implements ReactiveController {
 - A controller fires its own `argus-*` events through the host (`this.host.dispatchEvent(…)`), which keeps the element class small.
 - `hostDisconnected` must undo everything `hostConnected` did. Elements get moved in the DOM (disconnect, then reconnect), so `hostConnected` must work again afterwards.
 
-The TanStack Lit adapters (`TableController` from `@tanstack/lit-table`, `VirtualizerController` from `@tanstack/lit-virtual`), memoisation and the one-extra-pass guard: `references/controllers.md`.
+The table model (core's adapter over `@tanstack/table-core`, wrapped by `TableController`), the virtualizer (`VirtualizerController` from `@tanstack/lit-virtual`, wrapped with the row pool by `VirtualController`), memoisation and the one-extra-pass guard: `references/controllers.md`.
 
 ## Events
 
