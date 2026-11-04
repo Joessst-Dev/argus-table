@@ -378,3 +378,173 @@ describe('pinned columns', () => {
     expect(pinned && getComputedStyle(pinned).backgroundColor).toBe('rgb(1, 2, 3)');
   });
 });
+
+describe('sorting', () => {
+  const sortColumns: ColumnDef<Person>[] = [
+    { id: 'name', header: 'Name', accessor: 'name', width: 200, sortable: true },
+    { id: 'age', header: 'Age', accessor: 'age', width: 80, sortable: true },
+    { id: 'city', header: 'City', accessor: 'address.city', width: 120 },
+  ];
+  const headerCell = (el: HTMLElement, i: number) => {
+    const h = shadow(el).querySelectorAll<HTMLElement>('[part~="header-cell"]')[i];
+    if (!h) throw new Error(`no header ${String(i)}`);
+    return h;
+  };
+  const ages = (el: HTMLElement) => rowsInOrder(el).map((r) => rowText(r)[1]);
+  const data = [
+    { id: 'a', name: 'Ann', age: 30, address: { city: 'X' } },
+    { id: 'b', name: 'Bob', age: 10, address: { city: 'Y' } },
+    { id: 'c', name: 'Cid', age: 20, address: { city: 'Z' } },
+  ];
+
+  test('cycles a sortable header asc → desc → unsorted on click (uncontrolled)', async () => {
+    const el = await fixture({ columns: sortColumns, data });
+    const events: unknown[] = [];
+    el.addEventListener('argus-sort-change', (e) => events.push(e.detail.sorting));
+
+    headerCell(el, 1).click();
+    await settle(el);
+    expect(ages(el)).toEqual(['10', '20', '30']);
+    expect(el.sorting).toEqual([{ id: 'age', desc: false }]);
+
+    headerCell(el, 1).click();
+    await settle(el);
+    expect(ages(el)).toEqual(['30', '20', '10']);
+
+    headerCell(el, 1).click();
+    await settle(el);
+    expect(ages(el)).toEqual(['30', '10', '20']);
+    expect(events).toEqual([[{ id: 'age', desc: false }], [{ id: 'age', desc: true }], []]);
+  });
+
+  test('fires argus-sort-change after the update, with sorted rows in place', async () => {
+    const el = await fixture({ columns: sortColumns, data });
+    const seen = new Promise<(string | undefined)[]>((resolve) => {
+      el.addEventListener(
+        'argus-sort-change',
+        () => {
+          resolve(ages(el));
+        },
+        { once: true },
+      );
+    });
+    headerCell(el, 1).click();
+    expect(await seen).toEqual(['10', '20', '30']);
+  });
+
+  test('ignores clicks on headers that are not sortable', async () => {
+    const el = await fixture({ columns: sortColumns, data });
+    const events: unknown[] = [];
+    el.addEventListener('argus-sort-change', (e) => events.push(e.detail));
+    headerCell(el, 2).click();
+    await settle(el);
+    expect(events).toEqual([]);
+    expect(headerCell(el, 2).hasAttribute('tabindex')).toBe(false);
+  });
+
+  test('sorts from a click on slotted header content', async () => {
+    const el = await fixture({ columns: sortColumns, data });
+    const content = slotted(headerCell(el, 1)) as HTMLElement;
+    content.click();
+    await settle(el);
+    expect(el.sorting).toEqual([{ id: 'age', desc: false }]);
+  });
+
+  test('sorts with Enter and Space on a focused header', async () => {
+    const el = await fixture({ columns: sortColumns, data });
+    const age = headerCell(el, 1);
+    expect(age.tabIndex).toBe(0);
+    age.focus();
+    age.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, composed: true }),
+    );
+    await settle(el);
+    expect(el.sorting).toEqual([{ id: 'age', desc: false }]);
+    const space = new KeyboardEvent('keydown', {
+      key: ' ',
+      bubbles: true,
+      composed: true,
+      cancelable: true,
+    });
+    age.dispatchEvent(space);
+    await settle(el);
+    expect(space.defaultPrevented).toBe(true);
+    expect(el.sorting).toEqual([{ id: 'age', desc: true }]);
+  });
+
+  test('controlled: a click only proposes; the host applies it', async () => {
+    const el = await fixture({ columns: sortColumns, data, sorting: [] });
+    const proposed: unknown[] = [];
+    el.addEventListener('argus-sort-change', (e) => proposed.push(e.detail.sorting));
+
+    headerCell(el, 0).click();
+    await settle(el);
+    expect(proposed).toEqual([[{ id: 'name', desc: false }]]);
+    expect(el.sorting).toEqual([]);
+    expect(ages(el)).toEqual(['30', '10', '20']);
+
+    el.sorting = [{ id: 'age', desc: true }];
+    await settle(el);
+    expect(ages(el)).toEqual(['30', '20', '10']);
+
+    // Handing it back keeps the last order; the table owns it again and applies
+    // the next click (age desc → unsorted).
+    el.sorting = undefined;
+    expect(el.sorting).toEqual([{ id: 'age', desc: true }]);
+    headerCell(el, 1).click();
+    await settle(el);
+    expect(el.sorting).toEqual([]);
+    expect(ages(el)).toEqual(['30', '10', '20']);
+  });
+
+  test('sets aria-sort and the sorted parts on the sorted column only', async () => {
+    const el = await fixture({ columns: sortColumns, data, sorting: [{ id: 'age', desc: true }] });
+    expect(headerCell(el, 1).getAttribute('aria-sort')).toBe('descending');
+    expect(headerCell(el, 1).getAttribute('part')).toBe('header-cell header-cell-sorted');
+    expect(headerCell(el, 0).hasAttribute('aria-sort')).toBe(false);
+    for (const row of bodyRows(el)) {
+      const parts = [...row.querySelectorAll('[part~="cell"]')].map((c) => c.getAttribute('part'));
+      expect(parts).toEqual(['cell', 'cell cell-sorted', 'cell']);
+    }
+    el.sorting = [{ id: 'age', desc: false }];
+    await settle(el);
+    expect(headerCell(el, 1).getAttribute('aria-sort')).toBe('ascending');
+  });
+
+  test('puts empty values last in both directions', async () => {
+    const withGaps = [
+      { id: 'a', name: 'Ann', age: 2, address: { city: 'X' } },
+      { id: 'b', name: 'Bob', age: undefined as unknown as number, address: { city: 'Y' } },
+      { id: 'c', name: 'Cid', age: 1, address: { city: 'Z' } },
+    ];
+    const el = await fixture({
+      columns: sortColumns,
+      data: withGaps,
+      sorting: [{ id: 'age', desc: false }],
+    });
+    expect(ages(el)).toEqual(['1', '2', '']);
+    el.sorting = [{ id: 'age', desc: true }];
+    await settle(el);
+    expect(ages(el)).toEqual(['2', '1', '']);
+  });
+
+  test('sorts 100k rows and shows the right content after a jump', async () => {
+    const el = await fixture({
+      columns: sortColumns,
+      data: people(100_000),
+      getRowId: (p) => p.id,
+    });
+    el.sorting = [{ id: 'age', desc: true }];
+    await settle(el);
+    // age = i % 90, so the first 1112 rows (ceil(100000 / 90)) all have age 89.
+    expect(
+      rowsInOrder(el)
+        .map((r) => rowText(r)[1])
+        .slice(0, 3),
+    ).toEqual(['89', '89', '89']);
+    await el.scrollToRow(99_990);
+    await settle(el);
+    const last = rowsInOrder(el).at(-1);
+    expect(last && rowText(last)[1]).toBe('0');
+  });
+});

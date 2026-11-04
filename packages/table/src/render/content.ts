@@ -25,9 +25,17 @@ interface Pinnable {
 }
 
 /** Part list of a body cell: state is in the part name (`::part()` can't take attribute selectors). */
-export function cellParts(column: Pinnable): string {
-  if (!column.pin) return 'cell';
-  return column.pinEdge ? 'cell cell-pinned cell-pinned-edge' : 'cell cell-pinned';
+export function cellParts(column: Pinnable & { sorted: 'asc' | 'desc' | false }): string {
+  let parts = 'cell';
+  if (column.pin) parts += column.pinEdge ? ' cell-pinned cell-pinned-edge' : ' cell-pinned';
+  if (column.sorted) parts += ' cell-sorted';
+  return parts;
+}
+
+/** `aria-sort` for a header: only the sorted column carries it (WAI-ARIA APG). */
+export function ariaSort(sorted: 'asc' | 'desc' | false): 'ascending' | 'descending' | undefined {
+  if (!sorted) return undefined;
+  return sorted === 'asc' ? 'ascending' : 'descending';
 }
 
 /** Inline style of a pinned cell: its sticky inset, from the start or the end edge. */
