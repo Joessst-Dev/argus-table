@@ -11,3 +11,4 @@ storybook-static/
 __screenshots__/**/*-diff.png
 __screenshots__/**/*-actual.png
 *.tsbuildinfo
+benchmarks/results/
