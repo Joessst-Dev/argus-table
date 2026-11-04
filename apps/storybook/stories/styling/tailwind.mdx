@@ -1,0 +1,59 @@
+import { Meta } from '@storybook/addon-docs/blocks';
+
+<Meta title="Styling/Tailwind recipe" />
+
+# Tailwind recipe
+
+Cell and header content lives in the light DOM, so Tailwind's utility classes work in `cell` and `header` templates as they do anywhere on the page. The table's own structure is in its shadow DOM, where utilities can't reach. Style that with tokens, which can come from your Tailwind theme.
+
+## Utilities in cells
+
+```js
+import { html } from 'lit';
+
+table.columns = [
+  {
+    id: 'status',
+    header: 'Status',
+    cell: (order) =>
+      html`<span class="rounded-full bg-emerald-50 px-2 text-sm text-emerald-700"
+        >${order.status}</span
+      >`,
+  },
+];
+```
+
+Tailwind scans your source files for class names, so classes written in column definitions are picked up like any others.
+
+## Tokens from the Tailwind theme
+
+```css
+@import 'tailwindcss';
+
+argus-table {
+  --argus-font: inherit;
+  --argus-bg: var(--color-white);
+  --argus-header-bg: var(--color-gray-50);
+  --argus-border-color: var(--color-gray-200);
+  --argus-row-hover-bg: var(--color-gray-50);
+  --argus-focus-ring: 2px solid var(--color-indigo-600);
+}
+
+@media (prefers-color-scheme: dark) {
+  argus-table {
+    --argus-bg: var(--color-gray-950);
+    --argus-header-bg: var(--color-gray-900);
+    --argus-border-color: var(--color-gray-800);
+  }
+}
+```
+
+## Parts
+
+`::part()` selectors work in plain CSS. Tailwind's `@apply` works inside them:
+
+```css
+argus-table::part(header-cell) {
+  @apply text-xs tracking-wide text-gray-500 uppercase;
+}
+```

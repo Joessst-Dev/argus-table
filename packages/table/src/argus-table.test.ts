@@ -145,6 +145,18 @@ describe('accessibility', () => {
     expect(root.querySelectorAll('[role="columnheader"]')).toHaveLength(3);
   });
 
+  test('has role="grid" as an attribute, unless the page set its own role', async () => {
+    const el = await fixture({ columns, data: people(3) });
+    expect(el.getAttribute('role')).toBe('grid');
+
+    const own = document.createElement('argus-table');
+    own.setAttribute('role', 'treegrid');
+    document.body.append(own);
+    await own.updateComplete;
+    expect(own.getAttribute('role')).toBe('treegrid');
+    own.remove();
+  });
+
   test.runIf('ariaRowCount' in ElementInternals.prototype)(
     'reports the full size through ElementInternals',
     async () => {
@@ -509,6 +521,21 @@ describe('sorting', () => {
     el.sorting = [{ id: 'age', desc: false }];
     await settle(el);
     expect(headerCell(el, 1).getAttribute('aria-sort')).toBe('ascending');
+  });
+
+  test('draws the sort chevron the same way in RTL', async () => {
+    const el = await fixture({ columns: sortColumns, data, sorting: [{ id: 'age', desc: false }] });
+    const chevron = () => {
+      const indicator = headerCell(el, 1).querySelector('.sort-indicator');
+      if (!indicator) throw new Error('no sort indicator');
+      const style = getComputedStyle(indicator);
+      return [style.borderRightWidth, style.borderLeftWidth, style.transform];
+    };
+    const ltr = chevron();
+    el.dir = 'rtl';
+    await settle(el);
+    expect(chevron()).toEqual(ltr);
+    expect(ltr[0]).not.toBe('0px');
   });
 
   test('puts empty values last in both directions', async () => {

@@ -1,0 +1,63 @@
+import { Meta, Canvas } from '@storybook/addon-docs/blocks';
+import * as Rendering from './argus-table.stories';
+
+<Meta title="Getting started" />
+
+# Getting started
+
+`<argus-table>` is a data table web component. It works in any framework, or none: virtualized rows, pinned columns, sorting, resizing and keyboard navigation, styled with plain CSS.
+
+## Install
+
+```bash
+npm i argus-table @argus-table/themes
+```
+
+Or from a CDN, with every dependency bundled:
+
+```html
+<script
+  type="module"
+  src="https://cdn.jsdelivr.net/npm/argus-table/dist/cdn/argus-table.js"
+></script>
+```
+
+## A first table
+
+```html
+<argus-table id="orders" aria-label="Orders" style="height: 400px"></argus-table>
+
+<script type="module">
+  import 'argus-table';
+  import '@argus-table/themes/default.css';
+
+  const table = document.querySelector('#orders');
+  table.columns = [
+    { id: 'id', header: 'Order', accessor: 'id', width: 90, pin: 'start' },
+    {
+      id: 'customer',
+      header: 'Customer',
+      accessor: 'customer.name',
+      width: { flex: 1 },
+      sortable: true,
+    },
+    { id: 'total', header: 'Total', accessor: 'total', width: 110, align: 'end', sortable: true },
+  ];
+  table.data = await (await fetch('/api/orders')).json();
+  table.getRowId = (order) => order.id;
+  table.addEventListener('argus-row-click', (e) => console.log(e.detail.row));
+</script>
+```
+
+- **Height:** the table virtualizes its rows, so it needs a bounded height. Its default is 400 px.
+- **Label:** give it a name with `aria-label` or `aria-labelledby`. It has `role="grid"`.
+- **Columns and data** are JavaScript properties, because they hold objects and functions.
+
+<Canvas of={Rendering.HundredThousandRows} />
+
+## Next
+
+- **Features:** one story per feature, each with the code it needs.
+- **Styling:** tokens, parts, slotted content and a Tailwind recipe.
+- **Themes:** the default theme. The toolbar switches the theme, colour scheme, density and direction for every story.
+- **API:** every property, event, slot, part and token.

@@ -140,8 +140,9 @@ export const baseStyles = css`
       inline-size: 0.35em;
       block-size: 0.35em;
       margin-inline-start: 0.4em;
-      border-inline-end: 0.12em solid currentColor;
-      border-block-end: 0.12em solid currentColor;
+      /* Physical sides on purpose: the chevron is rotated, so it must not mirror in RTL. */
+      border-right: 0.12em solid currentColor;
+      border-bottom: 0.12em solid currentColor;
       visibility: hidden;
     }
     [aria-sort] .sort-indicator {

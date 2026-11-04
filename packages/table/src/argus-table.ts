@@ -25,8 +25,9 @@ import type { CellContent, ColumnDef, ColumnSizingState, Density, SortState } fr
 
 /**
  * The host carries the grid role, so rows rendered in the shadow root become
- * its children in the accessibility tree. Set through ElementInternals (not an
- * attribute) so users can still override it with their own `role`.
+ * its children in the accessibility tree. ElementInternals sets the default;
+ * `connectedCallback` also adds a `role` attribute, because tools such as
+ * axe-core can't see the ElementInternals role. A `role` the page sets wins.
  */
 function attachGridInternals(host: HTMLElement): ElementInternals {
   const internals = host.attachInternals();
@@ -207,6 +208,7 @@ export class ArgusTable<T = unknown> extends LitElement {
 
   override connectedCallback(): void {
     super.connectedCallback();
+    if (!this.hasAttribute('role')) this.setAttribute('role', 'grid');
     if (this.hasUpdated) this.#observeProbe();
   }
 
