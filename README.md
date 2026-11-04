@@ -4,16 +4,36 @@ A framework-agnostic data table web component built with Lit and TanStack: infin
 
 Named after Argus Panoptes, the hundred-eyed giant of Greek myth who never slept: a table that keeps watch over every row.
 
-> **Status:** Phase 0. Repo, CI, docs and release pipeline are in place, and the rendering spike passed its gate: slotted light-DOM cells are as fast as shadow-only cells when row DOM is pooled ([ADR 0001](docs/adr/0001-shadow-vs-light-dom.md)). A real-Safari check is still due; Phase 1 (MVP) is next.
+> **Status:** v0.1, the MVP. It has virtualized rows, pinned columns, sorting, resizing, keyboard navigation and the default theme. Infinite loading, pinned rows, auto widths, column reordering and the framework wrappers come in v0.2 ([roadmap](docs/plan/plan/12-roadmap.md)).
 
-## Planned packages
+**[Docs and live examples](https://joessst-dev.github.io/argus-table/)**
 
-| Package                                  | Purpose                                                  |
-| ---------------------------------------- | -------------------------------------------------------- |
-| `argus-table`                            | The `<argus-table>` and `<argus-column>` elements        |
-| `@argus-table/themes`                    | Optional themes (default, Material-inspired, minimal, …) |
-| `@argus-table/react`, `/vue`, `/angular` | Typed framework wrappers                                 |
-| `@argus-table/formulas`                  | Optional formula columns (post-launch)                   |
+```bash
+npm i argus-table @argus-table/themes
+```
+
+```js
+import 'argus-table';
+import '@argus-table/themes/default.css';
+
+const table = document.querySelector('argus-table');
+table.columns = [
+  { id: 'name', header: 'Name', accessor: 'name', sortable: true },
+  { id: 'city', header: 'City', accessor: 'address.city' },
+];
+table.data = rows;
+```
+
+The full example is in the [package README](packages/table/README.md).
+
+## Packages
+
+| Package                                  | Purpose                                          | Status       |
+| ---------------------------------------- | ------------------------------------------------ | ------------ |
+| `argus-table`                            | The `<argus-table>` element                      | v0.1         |
+| `@argus-table/themes`                    | Optional themes: `default.css` now; more planned | v0.1         |
+| `@argus-table/react`, `/vue`, `/angular` | Typed framework wrappers                         | v0.2         |
+| `@argus-table/formulas`                  | Optional formula columns                         | After launch |
 
 ## Project plan
 

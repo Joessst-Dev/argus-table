@@ -103,7 +103,7 @@ Across every engine, keying, variant and run, there were **0 blank-row frames** 
 - [ ] **Pinned columns in real Safari** (before v0.1): scroll the playground fast and sideways in Safari on a Mac, with and without `?pin=none`. Rebuild the pinning (a scroll-synced transform, or one sticky pane per side) only if the pinned version stutters. See the Pinned columns addendum.
 - [x] A docs PR that updates the lit3 skill (body rows keyed by pool index, not row id; slotted nodes as direct host children; TanStack v9 API), the rendering, public API and accessibility plan pages, and the code-architecture pages (row pool).
 - [x] Phase 1: choose between the two DOM-order options above. Pool order plus `aria-rowindex` was chosen; see the addendum below.
-- [ ] Screen-reader check (needed before v0.1): on the Phase 1 playground, test VoiceOver with Safari and NVDA with Firefox. Rows must be read in visual order, with the right row and column numbers, while scrolling.
+- [ ] Screen-reader check (needed before v0.1): on the Phase 1 playground, test VoiceOver with Safari and NVDA with Firefox. Rows must be read in visual order, with the right row and column numbers, while scrolling. The steps are in [Screen-reader check](../a11y/screen-reader-check.md).
 - [x] Phase 1: delete `apps/spike` and `spike-bench.yml`. The harness moved to `benchmarks/`.
 
 ## Addendum: sorted DOM (Phase 1)

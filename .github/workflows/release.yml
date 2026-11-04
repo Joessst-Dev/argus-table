@@ -23,9 +23,24 @@ jobs:
       pull-requests: write # the "Version packages" pull request
       id-token: write # npm trusted publishing (OIDC) and provenance
     steps:
+      # The "Version packages" PR needs CI, and a push made with GITHUB_TOKEN
+      # starts no workflows. A GitHub App token does. Set the repository
+      # variable RELEASE_APP_CLIENT_ID and the secret RELEASE_APP_KEY to use
+      # one; without them the job falls back to GITHUB_TOKEN.
+      - name: GitHub App token
+        id: app-token
+        if: vars.RELEASE_APP_CLIENT_ID != ''
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
       - uses: ./.github/actions/setup
 
       # Trusted publishing needs npm 11.5.1 or newer; Node 22 ships npm 10.
@@ -41,4 +56,4 @@ jobs:
           commit: Version packages
           createGithubReleases: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}

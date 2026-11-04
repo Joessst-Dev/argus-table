@@ -4,6 +4,8 @@
 
 Four phases, each closed by a gate; no phase starts until the gate before it is met.
 
+> **Status (November 2026):** Phase 0's gate is met. Phase 1's features are built and CI is green. v0.1 ships once the packages are on npm and the Safari and screen-reader checks are done.
+
 **Prove the hard rendering combo first, ship v0.1, then launch with v0.2.**
 
 ```mermaid
@@ -20,7 +22,7 @@ flowchart TD
     P0 --> G0 --> P1 --> G1 --> P2 --> G2 --> P3 --> G3
 
     classDef main stroke-width:2px
-    class P0 main
+    class P1 main
 ```
 
 | Phase | Scope | Exit gate |
