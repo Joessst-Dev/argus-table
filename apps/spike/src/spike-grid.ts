@@ -25,8 +25,12 @@ import { EXTRA_COLUMNS, type Person } from './data.js';
 import './spike-badge.js';
 
 export type Variant = 'slotted' | 'shadow';
-/** `row`: DOM keyed by row id (recreated for new rows). `pool`: DOM recycled per pool slot. */
-export type Keying = 'row' | 'pool';
+/**
+ * `row`: DOM keyed by row id (recreated for new rows). `pool`: DOM recycled per pool slot,
+ * rendered in pool order. `sorted`: recycled per pool slot, but rendered in row-index order
+ * (Lit moves the nodes), so DOM order matches visual order for assistive tech.
+ */
+export type Keying = 'row' | 'pool' | 'sorted';
 
 const features = tableFeatures({ columnPinningFeature, columnSizingFeature, rowPinningFeature });
 type F = typeof features;
@@ -220,7 +224,7 @@ export class SpikeGrid extends LitElement {
       end: items.at(-1)?.end ?? 0,
     };
     this.#renderedRows = [...top, ...windowRows.map((w) => w.row), ...bottom];
-    if (this.variant === 'slotted' || this.keying === 'pool') this.#assignPool();
+    if (this.variant === 'slotted' || this.keying !== 'row') this.#assignPool();
 
     const headers = [
       ...table.getStartLeafHeaders(),
@@ -254,7 +258,7 @@ export class SpikeGrid extends LitElement {
             this.keying === 'pool'
               ? [...windowRows].sort((a, b) => this.#poolOf(a.row) - this.#poolOf(b.row))
               : windowRows,
-            (w) => (this.keying === 'pool' ? this.#poolOf(w.row) : w.row.id),
+            (w) => (this.keying === 'row' ? w.row.id : this.#poolOf(w.row)),
             (w) => this.#renderRow(w.row, w.start),
           )}
         </div>
@@ -385,7 +389,7 @@ export class SpikeGrid extends LitElement {
     // In pool order, so a recycled slot updates in place instead of moving.
     const entries = this.#renderedRows
       .map((row) => ({ row, pool: this.#poolOf(row) }))
-      .sort((a, b) => (this.keying === 'pool' ? a.pool - b.pool : 0));
+      .sort((a, b) => (this.keying === 'row' ? 0 : a.pool - b.pool));
     render(
       repeat(
         entries,

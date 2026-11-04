@@ -56,6 +56,8 @@ jobs:
         env:
           BROWSERS: ${{ matrix.browser }}
           RUNS: ${{ inputs.runs || '5' }}
+          # P1 of Phase 1: compare sorted pooled DOM with pool order (row keying was measured in ADR 0001).
+          KEYING: pool,sorted
         run: pnpm --filter @argus-table/spike bench
 
       - name: Upload results

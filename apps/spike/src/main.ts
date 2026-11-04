@@ -7,7 +7,8 @@ const params = new URLSearchParams(location.search);
 const variant: Variant = params.get('variant') === 'slotted' ? 'slotted' : 'shadow';
 const rowCount = Number(params.get('rows') ?? 100_000);
 const overscan = Number(params.get('overscan') ?? 8);
-const keying: Keying = params.get('keying') === 'pool' ? 'pool' : 'row';
+const keyingParam = params.get('keying');
+const keying: Keying = keyingParam === 'pool' || keyingParam === 'sorted' ? keyingParam : 'row';
 document.documentElement.dir = params.get('dir') === 'rtl' ? 'rtl' : 'ltr';
 
 const grid = document.createElement('spike-grid');

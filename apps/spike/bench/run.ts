@@ -13,7 +13,7 @@ import os from 'node:os';
 import { chromium, firefox, webkit, type Browser, type BrowserType, type Page } from 'playwright';
 
 type Variant = 'shadow' | 'slotted';
-type Keying = 'row' | 'pool';
+type Keying = 'row' | 'pool' | 'sorted';
 type BrowserName = 'chromium' | 'firefox' | 'webkit';
 type Scenario = 'steady' | 'fast' | 'jumps' | 'horizontal' | 'wheel';
 
@@ -223,7 +223,7 @@ const scenarios: Scenario[] = ['steady', 'fast', 'jumps', 'horizontal', 'wheel']
 const variants: Variant[] = ['shadow', 'slotted'];
 const keyings: Keying[] = (process.env.KEYING ?? 'row,pool')
   .split(',')
-  .filter((k): k is Keying => k === 'row' || k === 'pool');
+  .filter((k): k is Keying => k === 'row' || k === 'pool' || k === 'sorted');
 
 async function main() {
   const { server, url } = await serve();
@@ -324,7 +324,7 @@ function toMarkdown(meta: Record<string, unknown>, results: Record<string, unkno
     '',
     `Gate: p95 ≤ ${String(GATE_P95)} ms and no long task > ${String(GATE_LONG_TASK)} ms (absolute); slotted ≤ ${String(GATE_RATIO)} × shadow (relative: p95, or the median jump frame for jumps).`,
     'Long tasks come from PerformanceObserver in Chromium; elsewhere "frames > 50 ms" stands in. `wheel` drives real input through Playwright and its frame pacing is limited by the harness, so it is a sanity check, not a gate.',
-    'Keying: row = row DOM keyed by row id (recreated when a row enters the window); pool = row DOM recycled per pool slot, light DOM in pool order.',
+    'Keying: row = row DOM keyed by row id (recreated when a row enters the window); pool = row DOM recycled per pool slot, light DOM in pool order; sorted = recycled per pool slot but row DOM kept in row-index order (light DOM in pool order).',
     'Scenarios: steady = 60 px/frame for 10 s; fast = 240 px/frame for 10 s; jumps = 20 random jumps held 500 ms; horizontal = full width and back over 5 s.',
     '',
     '| Browser | Keying | Scenario | Variant | p50 | p95 | p99 | max | jump frame p50 / max | frames > 50 ms | long tasks (max) | blank frames | wrong content | light-DOM nodes | heap MB | Absolute | slotted / shadow |',
