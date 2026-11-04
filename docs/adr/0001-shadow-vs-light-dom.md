@@ -100,6 +100,7 @@ Across every engine, keying, variant and run, there were **0 blank-row frames** 
 
 - [ ] **Absolute check in real Safari** (needed before v0.1): on a Mac, run the benchmark against the Phase 1 playground (`BROWSERS=webkit pnpm bench`, added with the rendering PR), and scroll the playground in Safari with the Web Inspector timeline open. The spike that produced the numbers above has been removed; its harness lives on in `benchmarks/`.
 - [ ] Re-measure Firefox fast scrolling on real hardware, where vsync is more stable.
+- [ ] **Pinned columns in real Safari** (before v0.1): scroll the playground fast and sideways in Safari on a Mac, with and without `?pin=none`. Rebuild the pinning (a scroll-synced transform, or one sticky pane per side) only if the pinned version stutters. See the Pinned columns addendum.
 - [x] A docs PR that updates the lit3 skill (body rows keyed by pool index, not row id; slotted nodes as direct host children; TanStack v9 API), the rendering, public API and accessibility plan pages, and the code-architecture pages (row pool).
 - [x] Phase 1: choose between the two DOM-order options above. Pool order plus `aria-rowindex` was chosen; see the addendum below.
 - [ ] Screen-reader check (needed before v0.1): on the Phase 1 playground, test VoiceOver with Safari and NVDA with Firefox. Rows must be read in visual order, with the right row and column numbers, while scrolling.
@@ -131,3 +132,29 @@ Across every engine, keying, variant and run, there were **0 blank-row frames** 
 
 - `RowPool` returns rows in pool order only; it has no row-index-order mode.
 - Before v0.1, a screen-reader check on the playground must confirm that `aria-rowindex` is enough (see Follow-ups). If it isn't, revisit this decision, for example by sorting only when the window settles after a jump or a scroll.
+
+## Addendum: pinned columns (Phase 1)
+
+Pinned columns (#16) make the pinned header and body cells `position: sticky` inside the pooled, absolutely positioned rows. In CI, WebKit got slower with them, while Chromium and Firefox didn't change. To find out whether the number of sticky boxes was the cost, the harness learned to run playground variants interleaved on one runner (`VARIANTS`). WebKit runs in CI vary by 40% or more between jobs, so only a same-job comparison is meaningful.
+
+Run 41877304706, 3 runs, all three variants interleaved in each run:
+
+- `cells`: every pinned cell is sticky (shipped).
+- `groups`: one sticky subgrid box per pinned side per row.
+- `none`: the same columns, unpinned.
+
+| WebKit p95 (ms)           |   cells |  groups |    none |
+| ------------------------- | ------: | ------: | ------: |
+| steady                    |      70 |      70 |      40 |
+| fast                      |      44 |      45 |      17 |
+| jumps (median jump frame) | 17 (49) | 35 (50) | 17 (19) |
+| horizontal                |      38 |      36 |      17 |
+
+Chromium is 16.7–16.8 ms in every variant and scenario, the real-input `wheel` check included, and Firefox is 17.1 ms. In Linux WebKit the cost comes from having any sticky box inside the rows, not from how many there are. Grouping didn't help, so `cells` stays: it's simpler and just as fast.
+
+**Decision:** keep sticky cells for v0.1, and check real Safari first. CI's WebKit is a software-rendered Linux build, so it doesn't show what Safari on macOS does. The alternatives cost more and have drawbacks:
+
+- **A scroll-synced `transform`:** pinned cells may lag a frame behind when scrolling sideways.
+- **One sticky pane per side:** this splits rows across containers, so each row needs `aria-owns` to hold its cells together, and VoiceOver supports that poorly.
+
+Build either one only if Safari shows the stutter (see Follow-ups).

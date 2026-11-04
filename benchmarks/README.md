@@ -5,7 +5,10 @@ The scroll benchmark, carried over from the Phase 0 rendering spike ([ADR 0001](
 ```sh
 pnpm bench                                       # Chromium, 5 runs
 BROWSERS=chromium,firefox,webkit RUNS=3 pnpm bench
+VARIANTS=pin=,pin=none BROWSERS=webkit pnpm bench  # compare playground variants
 ```
+
+- `VARIANTS` is a comma list of playground query strings. Each run goes through all of them in rotating order on the same browser, and the table gets a Variant column. Use it to compare two versions: CI runners differ too much between jobs for separate runs to be comparable. `pin=` stands for the default page; `pin=none` drops the pinned columns. On GitHub, run `benchmark.yml` by hand with the `variants` input.
 
 - `run.ts` builds nothing itself: `pnpm bench` first builds the playground through Nx, then `run.ts` serves `apps/playground/dist`, drives each scenario with Playwright and writes medians plus a gate verdict to `results/` (git-ignored) and, in CI, the job summary.
 - The in-page side (scenarios, frame timing, long tasks, blank-row and wrong-content checks) is `apps/playground/src/bench-hooks.ts`, loaded with `?bench`.
