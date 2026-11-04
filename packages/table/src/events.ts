@@ -1,4 +1,10 @@
-import type { ColumnResizeDetail, RangeChangeDetail, SortChangeDetail } from '@argus-table/core';
+import type {
+  CellClickDetail,
+  ColumnResizeDetail,
+  RangeChangeDetail,
+  RowClickDetail,
+  SortChangeDetail,
+} from '@argus-table/core';
 
 /** Fired after an update when the visible row range changed. */
 export const RANGE_CHANGE = 'argus-range-change';
@@ -9,11 +15,19 @@ export const SORT_CHANGE = 'argus-sort-change';
 /** Fired when a column was resized (uncontrolled), or with the proposed widths (controlled). */
 export const COLUMN_RESIZE = 'argus-column-resize';
 
+/** Fired when a body row was clicked, after `argus-cell-click`. */
+export const ROW_CLICK = 'argus-row-click';
+
+/** Fired when a body cell was clicked, before `argus-row-click`. */
+export const CELL_CLICK = 'argus-cell-click';
+
 declare global {
   interface HTMLElementEventMap {
     'argus-range-change': CustomEvent<RangeChangeDetail>;
     'argus-sort-change': CustomEvent<SortChangeDetail>;
     'argus-column-resize': CustomEvent<ColumnResizeDetail>;
+    'argus-row-click': CustomEvent<RowClickDetail<unknown>>;
+    'argus-cell-click': CustomEvent<CellClickDetail<unknown>>;
   }
 }
 

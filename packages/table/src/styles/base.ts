@@ -44,6 +44,9 @@ export const baseStyles = css`
       block-size: 100%;
       overflow: auto;
       overscroll-behavior: contain;
+      /* A cell moved to by keyboard scrolls clear of the sticky header and pinned columns. */
+      scroll-padding-block-start: var(--_row-height);
+      scroll-padding-inline: var(--_pin-start, 0) var(--_pin-end, 0);
     }
 
     .row {
@@ -126,7 +129,8 @@ export const baseStyles = css`
       cursor: pointer;
       user-select: none;
     }
-    [part~='header-cell']:focus-visible {
+    [part~='header-cell']:focus-visible,
+    [part~='cell']:focus-visible {
       outline: var(--argus-focus-ring, 2px solid Highlight);
       outline-offset: -2px;
     }

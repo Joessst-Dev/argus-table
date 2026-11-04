@@ -6,7 +6,6 @@ import { ariaSort, headerSlot, pinStyle } from './content.js';
 
 export interface HeaderHandlers {
   click: (event: MouseEvent) => void;
-  keydown: (event: KeyboardEvent) => void;
   pointerdown: (event: PointerEvent) => void;
 }
 
@@ -14,13 +13,15 @@ export interface HeaderHandlers {
  * The sticky header row. Header content is slotted from the light DOM. Pinned
  * header cells use the same private `data-pin` hooks as body cells, but no parts.
  * Every header carries `data-col` (its column id) and sortable ones also
- * `data-sort-col`; the element's delegated handlers on the header row read them.
+ * `data-sort-col`; the element's delegated handlers read them. Headers take part
+ * in the grid's roving tabindex: the active one is the tab stop (`activeCol`).
  * Resizable columns get a `resize-handle` on the header's inline-end edge. It is
  * not focusable: the focused header resizes with Alt+Arrow.
  */
 export function renderHeader<T>(
   columns: readonly ColumnView<T, CellContent>[],
   handlers: HeaderHandlers,
+  activeCol: string | undefined,
 ) {
   return html`<div part="header" role="rowgroup">
     <div
@@ -29,7 +30,6 @@ export function renderHeader<T>(
       role="row"
       aria-rowindex="1"
       @click=${handlers.click}
-      @keydown=${handlers.keydown}
       @pointerdown=${handlers.pointerdown}
     >
       ${repeat(
@@ -43,7 +43,7 @@ export function renderHeader<T>(
             aria-sort=${ariaSort(c.sorted) ?? nothing}
             data-col=${c.id}
             data-sort-col=${c.sortable ? c.id : nothing}
-            tabindex=${c.sortable ? 0 : nothing}
+            tabindex=${c.id === activeCol ? 0 : -1}
             data-align=${c.align}
             data-pin=${c.pin ?? nothing}
             ?data-pin-edge=${c.pinEdge}

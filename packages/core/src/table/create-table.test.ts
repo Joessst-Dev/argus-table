@@ -159,6 +159,15 @@ describe('createTableModel: sorting', () => {
     expect(m.rowAt(0)).toMatchObject({ id: 'p2', index: 0 });
   });
 
+  it('finds a row id in the sorted order', () => {
+    const m = model({ getRowId: (p) => p.id });
+    expect(m.indexOf('p3')).toBe(2);
+    m.update({ sorting: [{ id: 'name', desc: false }] });
+    expect(m.indexOf('p2')).toBe(0);
+    expect(m.indexOf('p3')).toBe(1);
+    expect(m.indexOf('nope')).toBeUndefined();
+  });
+
   it('proposes asc → desc → unsorted, one column at a time, without applying it', () => {
     const m = model();
     expect(m.nextSorting('name')).toEqual([{ id: 'name', desc: false }]);
