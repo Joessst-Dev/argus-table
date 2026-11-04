@@ -1,10 +1,10 @@
-import { html } from 'lit';
+import { html, nothing } from 'lit';
 import { repeat } from 'lit/directives/repeat.js';
 import { styleMap } from 'lit/directives/style-map.js';
 import type { ColumnView } from '@argus-table/core';
 import type { WindowRow } from '../controllers/virtual-controller.js';
 import type { CellContent } from '../types.js';
-import { cellSlot } from './content.js';
+import { cellParts, cellSlot, pinStyle } from './content.js';
 
 type Columns<T> = readonly ColumnView<T, CellContent>[];
 
@@ -39,7 +39,15 @@ function renderRow<T>(row: WindowRow, columns: Columns<T>) {
       columns,
       (c) => c.id,
       (c) =>
-        html`<div part="cell" role="gridcell" aria-colindex=${c.colIndex} data-align=${c.align}>
+        html`<div
+          part=${cellParts(c)}
+          role="gridcell"
+          aria-colindex=${c.colIndex}
+          data-align=${c.align}
+          data-pin=${c.pin ?? nothing}
+          ?data-pin-edge=${c.pinEdge}
+          style=${pinStyle(c) ?? nothing}
+        >
           <slot name=${cellSlot(row.slot, c.colIndex)}></slot>
         </div>`,
     )}
