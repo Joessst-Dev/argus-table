@@ -354,9 +354,14 @@ export class ArgusTable<T = unknown> extends LitElement {
       // its own between the grid and its rows.
       const scroller = event.currentTarget as HTMLElement;
       scroller.tabIndex = -1;
-      setTimeout(() => {
-        scroller.removeAttribute('tabindex');
-      });
+      // Put it back once focus has actually moved (a timer can run first).
+      cell.addEventListener(
+        'focusout',
+        () => {
+          scroller.removeAttribute('tabindex');
+        },
+        { once: true },
+      );
       return;
     }
     const inHeader = cell.getAttribute('role') === 'columnheader';
@@ -411,10 +416,16 @@ export class ArgusTable<T = unknown> extends LitElement {
   /** Focus that lands in a cell (a click, or content inside it) makes that cell active. */
   readonly #onFocusin = (event: FocusEvent) => {
     // Tab into the grid landed on the scroll container (Firefox makes it a tab
-    // stop): move on to the grid's one tab stop, the active cell.
-    if (event.composedPath()[0] === event.currentTarget) {
-      this.#focusPending = true;
-      this.requestUpdate();
+    // stop): move on to the grid's one tab stop, the active cell. Only when focus
+    // came from outside the grid: coming from inside means the user is leaving,
+    // and sending them back would trap the keyboard.
+    const scroller = event.currentTarget as HTMLElement;
+    if (event.composedPath()[0] === scroller) {
+      const from = event.relatedTarget;
+      if (!(from instanceof Node && scroller.contains(from))) {
+        this.#focusPending = true;
+        this.requestUpdate();
+      }
       return;
     }
     for (const target of event.composedPath()) {

@@ -805,6 +805,22 @@ describe('keyboard and focus', () => {
     expect(scroller?.hasAttribute('tabindex')).toBe(false);
   });
 
+  test('focus coming back out of the grid onto the scroll container stays there', async (ctx) => {
+    const el = await fixture({ columns, data: people(50) });
+    const scroller = shadow(el).querySelector<HTMLElement>('[part~="table"]');
+    // Can this engine focus the container at all? (From outside, it redirects.)
+    scroller?.focus();
+    await settle(el);
+    if (!shadow(el).activeElement) ctx.skip();
+
+    await focusFirstHeader(el);
+    // What Shift+Tab does in Firefox: focus moves from a cell to the container.
+    scroller?.focus();
+    await settle(el);
+    // No redirect back into the grid, so the keyboard isn't trapped.
+    expect(shadow(el).activeElement).toBe(scroller);
+  });
+
   test('has one tab stop, on the first header by default', async () => {
     const el = await fixture({ columns, data: people(50) });
     const stops = tabStops(el);
