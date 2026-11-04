@@ -1,0 +1,16 @@
+{
+  "name": "@argus-table/benchmarks",
+  "private": true,
+  "type": "module",
+  "nx": {
+    "name": "benchmarks"
+  },
+  "scripts": {
+    "bench": "nx run playground:build && node run.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}

@@ -1,6 +1,7 @@
 packages:
   - packages/*
   - apps/*
+  - benchmarks
 
 # Dependencies allowed to run install scripts (pnpm blocks the rest)
 onlyBuiltDependencies:

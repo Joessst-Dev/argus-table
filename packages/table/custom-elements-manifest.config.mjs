@@ -20,7 +20,7 @@ function dropPrivateMembers() {
 
 export default {
   globs: ['src/**/*.ts'],
-  exclude: ['src/**/*.test.ts', 'src/**/*.stories.ts'],
+  exclude: ['src/**/*.test.ts', 'src/**/*.stories.ts', 'src/test-utils.ts'],
   outdir: 'dist',
   litelement: true,
   plugins: [dropPrivateMembers()],
