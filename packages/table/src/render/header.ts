@@ -7,13 +7,16 @@ import { ariaSort, headerSlot, pinStyle } from './content.js';
 export interface HeaderHandlers {
   click: (event: MouseEvent) => void;
   keydown: (event: KeyboardEvent) => void;
+  pointerdown: (event: PointerEvent) => void;
 }
 
 /**
  * The sticky header row. Header content is slotted from the light DOM. Pinned
  * header cells use the same private `data-pin` hooks as body cells, but no parts.
- * Sortable headers carry `data-sort-col` with their column id; the element's
- * delegated handlers on the header row read it.
+ * Every header carries `data-col` (its column id) and sortable ones also
+ * `data-sort-col`; the element's delegated handlers on the header row read them.
+ * Resizable columns get a `resize-handle` on the header's inline-end edge. It is
+ * not focusable: the focused header resizes with Alt+Arrow.
  */
 export function renderHeader<T>(
   columns: readonly ColumnView<T, CellContent>[],
@@ -27,6 +30,7 @@ export function renderHeader<T>(
       aria-rowindex="1"
       @click=${handlers.click}
       @keydown=${handlers.keydown}
+      @pointerdown=${handlers.pointerdown}
     >
       ${repeat(
         columns,
@@ -37,6 +41,7 @@ export function renderHeader<T>(
             role="columnheader"
             aria-colindex=${c.colIndex}
             aria-sort=${ariaSort(c.sorted) ?? nothing}
+            data-col=${c.id}
             data-sort-col=${c.sortable ? c.id : nothing}
             tabindex=${c.sortable ? 0 : nothing}
             data-align=${c.align}
@@ -46,8 +51,26 @@ export function renderHeader<T>(
           >
             <slot name=${headerSlot(c.colIndex)}></slot>
             ${c.sortable ? html`<span class="sort-indicator" aria-hidden="true"></span>` : nothing}
+            ${c.resizable ? resizeHandle(c) : nothing}
           </div>`,
       )}
     </div>
   </div>`;
+}
+
+/**
+ * A vertical separator with the column's width as its value. A flex column has no
+ * fixed width until it is resized, so it reports none.
+ */
+function resizeHandle<T>(c: ColumnView<T, CellContent>) {
+  return html`<div
+    part="resize-handle"
+    role="separator"
+    aria-orientation="vertical"
+    aria-label="Resize column"
+    aria-valuenow=${c.flex === undefined ? Math.round(c.width) : nothing}
+    aria-valuemin=${c.minWidth}
+    aria-valuemax=${Number.isFinite(c.maxWidth) ? c.maxWidth : nothing}
+    data-resize-col=${c.id}
+  ></div>`;
 }

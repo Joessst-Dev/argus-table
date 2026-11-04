@@ -1,4 +1,4 @@
-import type { RangeChangeDetail, SortChangeDetail } from '@argus-table/core';
+import type { ColumnResizeDetail, RangeChangeDetail, SortChangeDetail } from '@argus-table/core';
 
 /** Fired after an update when the visible row range changed. */
 export const RANGE_CHANGE = 'argus-range-change';
@@ -6,10 +6,14 @@ export const RANGE_CHANGE = 'argus-range-change';
 /** Fired after the sort order changed (uncontrolled), or with the proposed order (controlled). */
 export const SORT_CHANGE = 'argus-sort-change';
 
+/** Fired when a column was resized (uncontrolled), or with the proposed widths (controlled). */
+export const COLUMN_RESIZE = 'argus-column-resize';
+
 declare global {
   interface HTMLElementEventMap {
     'argus-range-change': CustomEvent<RangeChangeDetail>;
     'argus-sort-change': CustomEvent<SortChangeDetail>;
+    'argus-column-resize': CustomEvent<ColumnResizeDetail>;
   }
 }
 

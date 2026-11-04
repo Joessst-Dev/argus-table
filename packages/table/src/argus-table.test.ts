@@ -548,3 +548,174 @@ describe('sorting', () => {
     expect(last && rowText(last)[1]).toBe('0');
   });
 });
+
+describe('column resizing', () => {
+  const resizeColumns: ColumnDef<Person>[] = [
+    { id: 'name', header: 'Name', accessor: 'name', width: 200, sortable: true },
+    { id: 'age', header: 'Age', accessor: 'age', width: 80, minWidth: 60, maxWidth: 160 },
+    { id: 'city', header: 'City', accessor: 'address.city', width: { flex: 1 }, minWidth: 120 },
+    { id: 'fixed', header: 'Fixed', accessor: 'id', width: 90, resizable: false },
+  ];
+  const header = (el: HTMLElement, i: number) => {
+    const h = shadow(el).querySelectorAll<HTMLElement>('[part~="header-cell"]')[i];
+    if (!h) throw new Error(`no header ${String(i)}`);
+    return h;
+  };
+  const handle = (el: HTMLElement, i: number) => {
+    const h = header(el, i).querySelector<HTMLElement>('[part~="resize-handle"]');
+    if (!h) throw new Error(`no handle ${String(i)}`);
+    return h;
+  };
+  const width = (el: HTMLElement, i: number) =>
+    Math.round(header(el, i).getBoundingClientRect().width);
+
+  async function drag(el: ArgusTable<Person>, i: number, dx: number) {
+    const h = handle(el, i);
+    const x = h.getBoundingClientRect().left + 4;
+    const opts = { bubbles: true, composed: true, pointerId: 1, button: 0 };
+    h.dispatchEvent(new PointerEvent('pointerdown', { ...opts, clientX: x }));
+    h.dispatchEvent(new PointerEvent('pointermove', { ...opts, clientX: x + dx / 2 }));
+    await new Promise(requestAnimationFrame);
+    h.dispatchEvent(new PointerEvent('pointermove', { ...opts, clientX: x + dx }));
+    h.dispatchEvent(new PointerEvent('pointerup', { ...opts, clientX: x + dx }));
+    await settle(el);
+  }
+
+  test('drags a column wider and narrower, clamped to minWidth and maxWidth', async () => {
+    const el = await fixture({ columns: resizeColumns, data: people(3) });
+    await drag(el, 0, 50);
+    expect(width(el, 0)).toBe(250);
+    expect(el.columnSizing).toEqual({ name: 250 });
+    await drag(el, 1, 500);
+    expect(width(el, 1)).toBe(160);
+    await drag(el, 1, -500);
+    expect(width(el, 1)).toBe(60);
+    // Body cells follow the header.
+    const cell = rowsInOrder(el)[0]?.querySelectorAll('[part~="cell"]')[1];
+    expect(Math.round(cell?.getBoundingClientRect().width ?? 0)).toBe(60);
+  });
+
+  test('turns a dragged flex column into a fixed width', async () => {
+    const el = await fixture({ columns: resizeColumns, data: people(1) });
+    const table = shadow(el).querySelector<HTMLElement>('[part~="table"]');
+    expect(table?.style.getPropertyValue('--_cols')).toContain('minmax(120px, 1fr)');
+    const before = width(el, 2);
+    await drag(el, 2, -100);
+    expect(width(el, 2)).toBe(before - 100);
+    expect(table?.style.getPropertyValue('--_cols')).toBe(
+      `200px 80px ${String(before - 100)}px 90px`,
+    );
+  });
+
+  test('grows toward the inline end in RTL', async () => {
+    const el = document.createElement('argus-table') as unknown as ArgusTable<Person>;
+    el.dir = 'rtl';
+    el.style.inlineSize = '800px';
+    el.style.blockSize = '400px';
+    Object.assign(el, { columns: resizeColumns, data: people(1) });
+    document.body.append(el);
+    await settle(el);
+    await drag(el, 0, -40); // leftward is toward the inline end in RTL
+    expect(width(el, 0)).toBe(240);
+  });
+
+  test('resizes with Alt+Arrow on a focused header, mirrored in RTL', async () => {
+    const el = await fixture({ columns: resizeColumns, data: people(1) });
+    const name = header(el, 0);
+    name.focus();
+    const key = (k: string) =>
+      new KeyboardEvent('keydown', {
+        key: k,
+        altKey: true,
+        bubbles: true,
+        composed: true,
+        cancelable: true,
+      });
+    const right = key('ArrowRight');
+    name.dispatchEvent(right);
+    await settle(el);
+    expect(right.defaultPrevented).toBe(true);
+    expect(width(el, 0)).toBe(210);
+    name.dispatchEvent(key('ArrowLeft'));
+    name.dispatchEvent(key('ArrowLeft'));
+    await settle(el);
+    expect(width(el, 0)).toBe(190);
+
+    el.dir = 'rtl';
+    await settle(el);
+    name.dispatchEvent(key('ArrowLeft'));
+    await settle(el);
+    expect(width(el, 0)).toBe(200);
+    // Alt+Arrow resizes; it never sorts.
+    expect(el.sorting).toEqual([]);
+  });
+
+  test('fires argus-column-resize after the update with columnId, width and sizing', async () => {
+    const el = await fixture({ columns: resizeColumns, data: people(1) });
+    const seen: { detail: unknown; width: number }[] = [];
+    el.addEventListener('argus-column-resize', (e) => {
+      seen.push({ detail: e.detail, width: width(el, 0) });
+    });
+    await drag(el, 0, 30);
+    const last = seen.at(-1);
+    expect(last?.detail).toEqual({ columnId: 'name', width: 230, sizing: { name: 230 } });
+    expect(last?.width).toBe(230);
+  });
+
+  test('controlled: a drag only proposes; the host applies it; undefined hands it back', async () => {
+    const el = await fixture({ columns: resizeColumns, data: people(1), columnSizing: {} });
+    const proposed: unknown[] = [];
+    el.addEventListener('argus-column-resize', (e) => proposed.push(e.detail.sizing));
+    await drag(el, 0, 40);
+    expect(proposed.at(-1)).toEqual({ name: 240 });
+    expect(width(el, 0)).toBe(200);
+
+    el.columnSizing = { name: 300 };
+    await settle(el);
+    expect(width(el, 0)).toBe(300);
+
+    el.columnSizing = undefined;
+    await drag(el, 0, 10);
+    expect(width(el, 0)).toBe(310);
+  });
+
+  test('exposes the width on the separator and has no handle when resizable is false', async () => {
+    const el = await fixture({ columns: resizeColumns, data: people(1) });
+    const h = handle(el, 1);
+    expect(h.getAttribute('role')).toBe('separator');
+    expect(h.getAttribute('aria-orientation')).toBe('vertical');
+    expect(h.getAttribute('aria-valuenow')).toBe('80');
+    expect(h.getAttribute('aria-valuemin')).toBe('60');
+    expect(h.getAttribute('aria-valuemax')).toBe('160');
+    expect(h.hasAttribute('tabindex')).toBe(false);
+    await drag(el, 1, 20);
+    expect(handle(el, 1).getAttribute('aria-valuenow')).toBe('100');
+    expect(header(el, 3).querySelector('[part~="resize-handle"]')).toBeNull();
+  });
+
+  test('a click on the handle does not sort', async () => {
+    const el = await fixture({ columns: resizeColumns, data: people(2) });
+    handle(el, 0).click();
+    await settle(el);
+    expect(el.sorting).toEqual([]);
+  });
+
+  test('moves the pinned columns after a resized pinned column', async () => {
+    const cols: ColumnDef<Person>[] = [
+      { id: 'a', header: 'A', accessor: 'name', width: 100, pin: 'start' },
+      { id: 'b', header: 'B', accessor: 'age', width: 100, pin: 'start' },
+      ...Array.from({ length: 8 }, (_, i) => ({
+        id: `c${String(i)}`,
+        header: 'C',
+        accessor: 'id',
+      })),
+    ];
+    const el = await fixture({ columns: cols, data: people(2) });
+    await drag(el, 0, 50);
+    const scroller = shadow(el).querySelector<HTMLElement>('[part~="table"]');
+    if (scroller) scroller.scrollLeft = 300;
+    await settle(el);
+    const left = (scroller?.getBoundingClientRect().left ?? 0) + (scroller?.clientLeft ?? 0);
+    expect(header(el, 1).getBoundingClientRect().left).toBeCloseTo(left + 150, 0);
+  });
+});
