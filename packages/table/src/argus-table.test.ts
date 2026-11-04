@@ -242,3 +242,139 @@ describe('row height and density', () => {
     expect(rowsInOrder(el)[1]?.style.transform).toBe('translateY(48px)');
   });
 });
+
+describe('pinned columns', () => {
+  // 2 start + 6 scrolling + 1 end = 120 + 80 + 6 * 150 + 60 = 1160px in an 800px table.
+  const pinnedColumns: ColumnDef<Person>[] = [
+    { id: 'name', header: 'Name', accessor: 'name', width: 120, pin: 'start' },
+    { id: 'age', header: 'Age', accessor: 'age', width: 80, pin: 'start' },
+    ...Array.from({ length: 6 }, (_, i) => ({
+      id: `c${String(i)}`,
+      header: `C${String(i)}`,
+      accessor: 'address.city',
+    })),
+    { id: 'actions', header: '', width: 60, pin: 'end', cell: () => 'act' },
+  ];
+
+  const scroller = (el: HTMLElement) => {
+    const s = shadow(el).querySelector<HTMLElement>('[part~="table"]');
+    if (!s) throw new Error('no scroller');
+    return s;
+  };
+
+  async function scrollInline(el: ArgusTable<Person>, left: number) {
+    const s = scroller(el);
+    const scrolled = new Promise((resolve) => {
+      s.addEventListener('scroll', resolve, { once: true });
+    });
+    s.scrollLeft = left;
+    await scrolled;
+    await settle(el);
+  }
+
+  /** Left and right of the scroller's visible area, without its scrollbar. */
+  const viewport = (el: HTMLElement) => {
+    const s = scroller(el);
+    const rect = s.getBoundingClientRect();
+    const left = rect.left + s.clientLeft;
+    return { left, right: left + s.clientWidth };
+  };
+
+  const cellRects = (row: Element) =>
+    [...row.querySelectorAll('[part~="cell"], [part~="header-cell"]')].map((c) =>
+      c.getBoundingClientRect(),
+    );
+
+  const rowsToCheck = (el: HTMLElement) => {
+    const header = shadow(el).querySelector('[part~="header-row"]');
+    const [first] = rowsInOrder(el);
+    if (!header || !first) throw new Error('no rows');
+    return [header, first];
+  };
+
+  test('marks pinned body cells with parts and one edge per side', async () => {
+    const el = await fixture({ columns: pinnedColumns, data: people(5) });
+    for (const row of bodyRows(el)) {
+      const parts = [...row.querySelectorAll('[part~="cell"]')].map((c) => c.getAttribute('part'));
+      expect(parts[0]).toBe('cell cell-pinned');
+      expect(parts[1]).toBe('cell cell-pinned cell-pinned-edge');
+      expect(parts.slice(2, 8).every((p) => p === 'cell')).toBe(true);
+      expect(parts[8]).toBe('cell cell-pinned cell-pinned-edge');
+      expect(row.querySelectorAll('[part~="cell-pinned-edge"]')).toHaveLength(2);
+    }
+    // Header cells pin too, without new parts.
+    const headers = [...shadow(el).querySelectorAll('[part~="header-cell"]')];
+    expect(headers.map((h) => h.getAttribute('part'))).toEqual(headers.map(() => 'header-cell'));
+    expect(headers.map((h) => h.getAttribute('data-pin'))).toEqual([
+      'start',
+      'start',
+      ...Array<null>(6).fill(null),
+      'end',
+    ]);
+  });
+
+  test('keeps pinned cells in place while scrolling sideways (LTR)', async () => {
+    const el = await fixture({ columns: pinnedColumns, data: people(5) });
+    await scrollInline(el, 200);
+    const { left, right } = viewport(el);
+    for (const row of rowsToCheck(el)) {
+      const rects = cellRects(row);
+      expect(rects[0]?.left).toBeCloseTo(left, 0);
+      expect(rects[1]?.left).toBeCloseTo(left + 120, 0);
+      expect(rects[8]?.right).toBeCloseTo(right, 0);
+      // A scrolling column has moved under the pinned ones.
+      expect(rects[2]?.left).toBeLessThan(left + 200);
+    }
+  });
+
+  test('pins to the mirrored sides in RTL', async () => {
+    const el = document.createElement('argus-table') as unknown as ArgusTable<Person>;
+    el.dir = 'rtl';
+    el.style.inlineSize = '800px';
+    el.style.blockSize = '400px';
+    Object.assign(el, { columns: pinnedColumns, data: people(5) });
+    document.body.append(el);
+    await settle(el);
+    // Scrolling toward the end is negative in RTL.
+    await scrollInline(el, -200);
+    const { left, right } = viewport(el);
+    for (const row of rowsToCheck(el)) {
+      const rects = cellRects(row);
+      expect(rects[0]?.right).toBeCloseTo(right, 0);
+      expect(rects[1]?.right).toBeCloseTo(right - 120, 0);
+      expect(rects[8]?.left).toBeCloseTo(left, 0);
+    }
+  });
+
+  test('mirrors the edge shadow for the end side and in RTL; none removes it', async () => {
+    const el = await fixture({ columns: pinnedColumns, data: people(1) });
+    const edges = (table: HTMLElement) =>
+      [...(rowsInOrder(table)[0]?.querySelectorAll('[part~="cell-pinned-edge"]') ?? [])].map((c) =>
+        getComputedStyle(c, '::after'),
+      );
+    const scaleX = (style: CSSStyleDeclaration | undefined) =>
+      new DOMMatrixReadOnly(style?.transform === 'none' ? undefined : style?.transform).a;
+
+    const [start, end] = edges(el);
+    expect(start?.boxShadow).not.toBe('none');
+    expect(scaleX(start)).toBe(1);
+    expect(scaleX(end)).toBe(-1);
+
+    el.dir = 'rtl';
+    await settle(el);
+    const [rtlStart, rtlEnd] = edges(el);
+    expect(scaleX(rtlStart)).toBe(-1);
+    expect(scaleX(rtlEnd)).toBe(1);
+
+    el.style.setProperty('--argus-pinned-shadow', 'none');
+    expect(edges(el).map((s) => s.boxShadow)).toEqual(['none', 'none']);
+  });
+
+  test('paints pinned cells with the row surface so scrolling content stays hidden', async () => {
+    const el = await fixture({ columns: pinnedColumns, data: people(2) });
+    el.style.setProperty('--argus-row-stripe-bg', 'rgb(1, 2, 3)');
+    const [, odd] = rowsInOrder(el);
+    const pinned = odd?.querySelector('[part~="cell-pinned"]');
+    expect(pinned && getComputedStyle(pinned).backgroundColor).toBe('rgb(1, 2, 3)');
+  });
+});

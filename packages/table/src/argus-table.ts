@@ -57,6 +57,8 @@ function track<T>(column: ColumnView<T, CellContent>): string {
  * @csspart row-even - Body rows with an even index (0-based).
  * @csspart row-odd - Body rows with an odd index.
  * @csspart cell - Every body cell.
+ * @csspart cell-pinned - Body cells in a pinned column, on either side.
+ * @csspart cell-pinned-edge - The pinned body cell next to the scrolling columns (one per pinned side).
  * @csspart empty - The empty-state container.
  *
  * @cssprop [--argus-bg=Canvas] - Background of the table and rows.
@@ -69,6 +71,7 @@ function track<T>(column: ColumnView<T, CellContent>): string {
  * @cssprop [--argus-row-height] - Height of a row. Default per density: 32px, 40px, 52px.
  * @cssprop [--argus-cell-padding-inline] - Inline padding of cells. Default per density: 8px, 12px, 16px.
  * @cssprop [--argus-row-stripe-bg] - Background of odd rows. Default: no stripes.
+ * @cssprop [--argus-pinned-shadow] - Shadow on the pinned edge, as a `box-shadow` falling toward the end side (`4px 0 6px -4px …`). Mirrored for the end edge and in RTL; `none` removes it.
  * @cssprop [--argus-row-hover-bg] - Background of the hovered row. Default: no change.
  */
 @customElement('argus-table')
