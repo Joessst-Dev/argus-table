@@ -7,15 +7,15 @@ import {
 } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { styleMap } from 'lit/directives/style-map.js';
-import type { ColumnView } from '@argus-table/core';
+import { controllable, type ColumnView } from '@argus-table/core';
 import { TableController } from './controllers/table-controller.js';
 import { VirtualController, type VirtualWindow } from './controllers/virtual-controller.js';
-import { fire, RANGE_CHANGE } from './events.js';
+import { fire, RANGE_CHANGE, SORT_CHANGE } from './events.js';
 import { renderBody } from './render/body.js';
 import { renderLightDom } from './render/cells.js';
 import { renderHeader } from './render/header.js';
 import { baseStyles } from './styles/base.js';
-import type { CellContent, ColumnDef, Density } from './types.js';
+import type { CellContent, ColumnDef, Density, SortState } from './types.js';
 
 /**
  * The host carries the grid role, so rows rendered in the shadow root become
@@ -26,6 +26,17 @@ function attachGridInternals(host: HTMLElement): ElementInternals {
   const internals = host.attachInternals();
   internals.role = 'grid';
   return internals;
+}
+
+/** The id of the sortable header an event came from, if any. Works for slotted content too. */
+function sortColumnOf(event: Event): string | undefined {
+  for (const target of event.composedPath()) {
+    if (!(target instanceof HTMLElement)) continue;
+    const id = target.dataset.sortCol;
+    if (id !== undefined) return id;
+    if (target.getAttribute('part') === 'header-row') return undefined;
+  }
+  return undefined;
 }
 
 /** CSS grid track for a column: fixed px, or a flex share with the min width as floor. */
@@ -44,6 +55,7 @@ function track<T>(column: ColumnView<T, CellContent>): string {
  *
  * @summary Data table with pinned rows and columns and infinite loading.
  *
+ * @fires argus-sort-change - A sortable header was clicked, or activated with Enter or Space. `detail: { sorting }`: the new order, or the proposed one when `sorting` is controlled.
  * @fires argus-range-change - The visible rows changed. `detail: { start, end }` (row indices, inclusive).
  *
  * @slot empty - Shown instead of the body when there are no rows. Default: "No rows".
@@ -52,11 +64,13 @@ function track<T>(column: ColumnView<T, CellContent>): string {
  * @csspart header - The sticky header row group.
  * @csspart header-row - The header row.
  * @csspart header-cell - Every header cell.
+ * @csspart header-cell-sorted - The header of the sorted column. The direction is in `aria-sort`.
  * @csspart body - The row group holding the rendered body rows.
  * @csspart row - Every body row.
  * @csspart row-even - Body rows with an even index (0-based).
  * @csspart row-odd - Body rows with an odd index.
  * @csspart cell - Every body cell.
+ * @csspart cell-sorted - Body cells in the sorted column.
  * @csspart cell-pinned - Body cells in a pinned column, on either side.
  * @csspart cell-pinned-edge - The pinned body cell next to the scrolling columns (one per pinned side).
  * @csspart empty - The empty-state container.
@@ -72,6 +86,7 @@ function track<T>(column: ColumnView<T, CellContent>): string {
  * @cssprop [--argus-cell-padding-inline] - Inline padding of cells. Default per density: 8px, 12px, 16px.
  * @cssprop [--argus-row-stripe-bg] - Background of odd rows. Default: no stripes.
  * @cssprop [--argus-pinned-shadow] - Shadow on the pinned edge, as a `box-shadow` falling toward the end side (`4px 0 6px -4px …`). Mirrored for the end edge and in RTL; `none` removes it.
+ * @cssprop [--argus-focus-ring=2px solid Highlight] - Outline of a focused header (and, later, cell).
  * @cssprop [--argus-row-hover-bg] - Background of the hovered row. Default: no change.
  */
 @customElement('argus-table')
@@ -102,6 +117,24 @@ export class ArgusTable<T = unknown> extends LitElement {
   @property({ type: Number })
   overscan = 6;
 
+  /**
+   * The sort order, e.g. `[{ id: 'total', desc: true }]`; `[]` when unsorted. Unset,
+   * the table keeps it itself and header clicks change it. Once set, it is
+   * controlled: a click only fires `argus-sort-change` with the proposed order,
+   * and nothing changes until you set the property. Set `undefined` to hand it back.
+   */
+  @property({ attribute: false })
+  get sorting(): SortState {
+    return this.#sorting.value;
+  }
+  set sorting(value: SortState | undefined) {
+    // Lit wraps this accessor and requests the update with the old value.
+    this.#sorting.set(value);
+  }
+
+  readonly #sorting = controllable<SortState>([]);
+  /** A sort the table applied itself; its event fires once the update is done. */
+  #appliedSort: SortState | undefined;
   readonly #internals = attachGridInternals(this);
   readonly #table = new TableController<T>();
   // Looked up lazily: the virtualizer's hostUpdated runs before firstUpdated.
@@ -131,11 +164,17 @@ export class ArgusTable<T = unknown> extends LitElement {
   }
 
   protected override willUpdate(changed: PropertyValues<this>): void {
-    if (changed.has('columns') || changed.has('data') || changed.has('getRowId')) {
+    if (
+      changed.has('columns') ||
+      changed.has('data') ||
+      changed.has('getRowId') ||
+      changed.has('sorting')
+    ) {
       this.#table.update({
         columns: this.columns,
         data: this.data,
         getRowId: this.getRowId,
+        sorting: this.#sorting.value,
       });
     }
     const model = this.#table.model;
@@ -161,7 +200,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       style['--_row-height'] = `${String(this.rowHeight)}px`;
     }
     return html`<div part="table" role="presentation" style=${styleMap(style)}>
-      ${renderHeader(columns)}
+      ${renderHeader(columns, this.#headerHandlers)}
       ${
         model.rowCount === 0
           ? html`<div part="empty"><slot name="empty">No rows</slot></div>`
@@ -179,11 +218,44 @@ export class ArgusTable<T = unknown> extends LitElement {
   protected override updated(changed: PropertyValues<this>): void {
     renderLightDom(this, this.#table.model, this.#window.rows);
     if (changed.has('density') || changed.has('rowHeight')) this.#measureRowHeight();
+    if (this.#appliedSort) {
+      const sorting = this.#appliedSort;
+      this.#appliedSort = undefined;
+      fire(this, SORT_CHANGE, { sorting });
+    }
     const { range } = this.#window;
     const key = range ? `${String(range.start)}:${String(range.end)}` : '';
     if (range && key !== this.#lastRange) {
       this.#lastRange = key;
       fire(this, RANGE_CHANGE, { start: range.start, end: range.end });
+    }
+  }
+
+  readonly #headerHandlers = {
+    click: (event: MouseEvent) => {
+      const id = sortColumnOf(event);
+      if (id !== undefined) this.#requestSort(id);
+    },
+    keydown: (event: KeyboardEvent) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      const id = sortColumnOf(event);
+      if (id === undefined) return;
+      event.preventDefault();
+      this.#requestSort(id);
+    },
+  };
+
+  /** asc → desc → unsorted, through the controlled/uncontrolled rules. */
+  #requestSort(columnId: string): void {
+    const next = this.#table.model.nextSorting(columnId);
+    if (!next) return;
+    const old = this.#sorting.value;
+    const { value, applied } = this.#sorting.request(next);
+    if (applied) {
+      this.#appliedSort = value;
+      this.requestUpdate('sorting', old);
+    } else {
+      fire(this, SORT_CHANGE, { sorting: value });
     }
   }
 

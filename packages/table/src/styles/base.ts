@@ -96,6 +96,37 @@ export const baseStyles = css`
       color: var(--argus-header-fg, inherit);
       font-weight: 600;
     }
+    [data-sort-col] {
+      cursor: pointer;
+      user-select: none;
+    }
+    [part~='header-cell']:focus-visible {
+      outline: var(--argus-focus-ring, 2px solid Highlight);
+      outline-offset: -2px;
+    }
+    /* A small chevron after the header content; only the sorted column shows it. */
+    .sort-indicator {
+      flex: none;
+      inline-size: 0.35em;
+      block-size: 0.35em;
+      margin-inline-start: 0.4em;
+      border-inline-end: 0.12em solid currentColor;
+      border-block-end: 0.12em solid currentColor;
+      visibility: hidden;
+    }
+    [aria-sort] .sort-indicator {
+      visibility: visible;
+    }
+    [aria-sort='ascending'] .sort-indicator {
+      transform: translateY(0.1em) rotate(-135deg);
+    }
+    [aria-sort='descending'] .sort-indicator {
+      transform: translateY(-0.1em) rotate(45deg);
+    }
+    [data-align='end'] .sort-indicator {
+      order: -1;
+      margin-inline: 0 0.4em;
+    }
     /*
      * Pinned columns: sticky inside the scroll container, with offsets from the
      * table model. Logical insets make RTL work without extra rules.

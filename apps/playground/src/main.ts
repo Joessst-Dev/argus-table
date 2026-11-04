@@ -24,9 +24,9 @@ function emailLink(person: Person): Node {
 
 const allColumns: ColumnDef<Person>[] = [
   { id: 'index', header: '#', accessor: 'index', width: 80, align: 'end', pin: 'start' },
-  { id: 'name', header: 'Name', accessor: 'name', width: 180, pin: 'start' },
+  { id: 'name', header: 'Name', accessor: 'name', width: 180, pin: 'start', sortable: true },
   { id: 'email', header: 'Email', width: 260, cell: emailLink },
-  { id: 'city', header: 'City', accessor: 'location.city', width: 120 },
+  { id: 'city', header: 'City', accessor: 'location.city', width: 120, sortable: true },
   { id: 'country', header: 'Country', accessor: 'location.country', width: 90 },
   {
     id: 'status',
@@ -37,8 +37,10 @@ const allColumns: ColumnDef<Person>[] = [
   {
     id: 'amount',
     header: 'Amount',
+    accessor: 'amount',
     width: 120,
     align: 'end',
+    sortable: true,
     cell: (p) => p.amount.toFixed(2),
   },
   { id: 'date', header: 'Date', accessor: 'date', width: 120 },

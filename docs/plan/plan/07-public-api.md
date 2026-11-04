@@ -87,6 +87,9 @@ All `CustomEvent`, bubbling and composed. See [State and events](../code-archite
 | `argus-range-change` | `{ start, end }` visible rows |
 | `argus-load-error` | `{ error, start, end }` |
 
+- The package exports each name as a constant (`SORT_CHANGE`, `RANGE_CHANGE`, …), and `HTMLElementEventMap` types each `detail`.
+- `argus-sort-change` fires on a click on a sortable header, or Enter or Space on a focused one; the order cycles ascending → descending → unsorted. When `sorting` is uncontrolled, it fires after the rows are re-sorted. When controlled, it carries the proposed order and nothing changes until the host sets `sorting`. v0.1 sorts by one column at a time.
+
 ## Methods
 
 `scrollToRow(index)`, `scrollToColumn(id)`, `refresh()`, `autosizeColumns(ids?)`, `getState()` / `setState()`.
