@@ -12,4 +12,4 @@ The table follows the WAI-ARIA grid pattern from the first release; retrofitting
 - Resize handles reachable by keyboard (focus header, then Alt+Arrow to resize), with `aria-valuenow`.
 - Visible focus ring via `--argus-focus-ring`; every theme must pass WCAG AA contrast.
 - `prefers-reduced-motion` turns off smooth scrolling and transitions.
-- Automated axe checks in CI, plus a manual screen-reader pass (NVDA, VoiceOver) before each minor release.
+- Automated axe checks in CI, plus a manual screen-reader pass (NVDA, VoiceOver) before each minor release, following the [screen-reader check](../../a11y/screen-reader-check.md).

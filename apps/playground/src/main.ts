@@ -75,6 +75,7 @@ const columns = allColumns
   .map((c) => (unpinned ? { ...c, pin: undefined } : c));
 
 const table = document.createElement('argus-table') as ArgusTable<Person>;
+table.setAttribute('aria-label', 'People');
 table.density = density;
 if (params.has('overscan')) table.overscan = Number(params.get('overscan'));
 table.columns = columns;

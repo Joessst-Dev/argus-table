@@ -2,7 +2,7 @@
 
 Thanks for your interest in helping. This guide explains how to propose changes and what a good pull request looks like.
 
-> **Status:** Phase 0. The workspace, CI and a skeleton `<argus-table>` element are in place; the rendering spike is next. Until the table has real features, the most useful contributions are feedback on the [project plan](docs/plan/README.md), especially the [public API draft](docs/plan/plan/07-public-api.md), and discussion in GitHub Discussions.
+> **Status:** v0.1. The table has virtualized rows, pinned columns, sorting, resizing, keyboard navigation and the default theme. Bug reports against v0.1 are the most useful contributions right now, along with feedback on the [public API](docs/plan/plan/07-public-api.md) before it freezes at 1.0. The [roadmap](docs/plan/plan/12-roadmap.md) lists what comes next.
 
 ## Ways to help
 
@@ -41,11 +41,11 @@ The full command list is in [Local development commands](docs/plan/repo-and-ci/0
 
 ### What CI checks
 
-Every pull request runs Prettier, lint and type checks, unit tests in Chromium, Firefox and WebKit, and the package build. E2e tests, visual screenshot tests per theme, axe accessibility checks on every story and a bundle size budget join as the table grows. All checks must pass before merging. See [GitHub Actions workflows](docs/plan/repo-and-ci/03-github-actions.md).
+Every pull request runs Prettier, lint and type checks, unit and e2e tests in Chromium, Firefox and WebKit, the package build with export checks, the bundle size budget, axe on every Storybook story, and visual screenshot tests of the default theme. All checks must pass before merging. See [GitHub Actions workflows](docs/plan/repo-and-ci/03-github-actions.md).
 
 ### Visual changes
 
-If your change intentionally alters how the table looks, the visual tests will fail. Add the `/update-snapshots` label (a maintainer can do this for you) and CI commits the new screenshots to your branch. Please don't update snapshots on your own machine: fonts render differently outside the CI image.
+If your change intentionally alters how the table looks, the visual tests will fail. Add the `update-snapshots` label (a maintainer can do this for you) and CI commits the new screenshots to your branch. Please don't update snapshots on your own machine: fonts render differently outside the CI image.
 
 ## Guidelines
 
