@@ -6,7 +6,7 @@ import { installBenchHooks } from './bench-hooks.js';
 
 // Query parameters: rows (default 100000), cols (default 20), density, dir=rtl,
 // overscan, bench (installs window.__argusBench for benchmarks/run.ts), and
-// pin=cells|groups|none to compare pinned-column layouts (none drops the pins).
+// pin=none to drop the pins (the floor when measuring what pinning costs).
 const params = new URLSearchParams(location.search);
 const rowCount = Number(params.get('rows') ?? 100_000);
 const colCount = Number(params.get('cols') ?? 20);
@@ -59,14 +59,13 @@ const allColumns: ColumnDef<Person>[] = [
 
 // Keep the pinned columns and trim scrolling ones to reach `cols`.
 const scrolling = allColumns.filter((c) => !c.pin).slice(0, Math.max(0, colCount - 3));
-const pinMode = params.get('pin') ?? 'groups';
+const unpinned = params.get('pin') === 'none';
 const columns = allColumns
   .filter((c) => c.pin === 'start' || scrolling.includes(c) || c.pin === 'end')
-  .map((c) => (pinMode === 'none' ? { ...c, pin: undefined } : c));
+  .map((c) => (unpinned ? { ...c, pin: undefined } : c));
 
 const table = document.createElement('argus-table') as ArgusTable<Person>;
 table.density = density;
-if (pinMode === 'cells') table.dataset.argusPinMode = 'cells';
 if (params.has('overscan')) table.overscan = Number(params.get('overscan'));
 table.columns = columns;
 table.data = makePeople(rowCount);

@@ -3,7 +3,7 @@
 //
 //   pnpm bench                                   # Chromium, 5 runs
 //   BROWSERS=chromium,firefox,webkit RUNS=3 pnpm bench
-//   VARIANTS=pin=cells,pin=groups pnpm bench      # compare playground variants, interleaved
+//   VARIANTS=pin=none,pin= pnpm bench            # compare playground variants, interleaved
 //
 // Headless numbers on shared machines are noisy: treat absolute values as a lower
 // bound and compare runs from the same machine.
@@ -58,7 +58,7 @@ const outDir = join(here, 'results');
 const RUNS = Number(process.env.RUNS ?? 5);
 const engines: Record<BrowserName, BrowserType> = { chromium, firefox, webkit };
 const requested = process.env.BROWSERS ?? 'chromium';
-// Playground query strings to compare in the same job, e.g. `pin=cells,pin=groups`.
+// Playground query strings to compare in the same job, e.g. `pin=none,density=compact`.
 // Runs interleave the variants, so they share the runner's state; CI runners vary
 // too much between jobs to compare separate runs.
 const VARIANTS = (process.env.VARIANTS ?? '')
