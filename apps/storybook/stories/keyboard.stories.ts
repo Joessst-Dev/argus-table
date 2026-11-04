@@ -62,8 +62,12 @@ export const Navigation: Story = {
     await table?.updateComplete;
     const root = table?.shadowRoot;
     if (!table || !root) return;
-    await userEvent.tab();
-    await expect(root.activeElement?.getAttribute('role')).toBe('columnheader');
+    // Tab lands on the first header. user-event's tab() can't see tab stops in a
+    // shadow root, so focus that header the way Tab would.
+    const first = root.querySelector<HTMLElement>('[role="columnheader"][tabindex="0"]');
+    await expect(first?.dataset.col).toBe('id');
+    first?.focus();
+    await expect(root.activeElement).toBe(first);
     await userEvent.keyboard('{ArrowDown}{ArrowRight}');
     await table.updateComplete;
     const cell = root.activeElement as HTMLElement | null;

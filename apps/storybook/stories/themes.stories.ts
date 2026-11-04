@@ -3,8 +3,6 @@ import { html } from 'lit';
 import { expect } from 'storybook/test';
 import type { ColumnDef } from 'argus-table';
 import 'argus-table';
-// As a string, so the theme only applies while this story is mounted.
-import defaultTheme from '@argus-table/themes/default.css?inline';
 
 interface Order {
   id: string;
@@ -36,6 +34,8 @@ interface Args {
 const meta = {
   title: 'Themes/Default',
   component: 'argus-table',
+  // The toolbar's theme switch stays on Default here.
+  globals: { theme: 'default' },
   args: { scheme: 'auto', density: 'comfortable' },
   argTypes: {
     scheme: {
@@ -46,17 +46,14 @@ const meta = {
     density: { control: 'inline-radio', options: ['compact', 'comfortable', 'spacious'] },
   },
   render: ({ scheme, density }) =>
-    html`<style>
-        ${defaultTheme}
-      </style>
-      <div data-argus-theme=${scheme === 'auto' ? '' : scheme}>
-        <argus-table
-          style="block-size: 360px"
-          density=${density}
-          .columns=${columns}
-          .data=${data}
-        ></argus-table>
-      </div>`,
+    html`<div data-argus-theme=${scheme === 'auto' ? '' : scheme}>
+      <argus-table
+        style="block-size: 360px"
+        density=${density}
+        .columns=${columns}
+        .data=${data}
+      ></argus-table>
+    </div>`,
 } satisfies Meta<Args>;
 
 export default meta;

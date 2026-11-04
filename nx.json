@@ -49,6 +49,17 @@
     "storybook": {
       "dependsOn": ["^build"],
       "continuous": true
+    },
+    "test-storybook": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "default",
+        "^production",
+        {
+          "env": "BROWSERS"
+        }
+      ],
+      "cache": true
     }
   },
   "neverConnectToCloud": true

@@ -82,6 +82,41 @@ jobs:
           BROWSERS: ${{ matrix.browser }}
         run: pnpm nx affected -t test --base=${{ needs.setup.outputs.base }} --head=${{ needs.setup.outputs.head }}
 
+  a11y:
+    # Every Storybook story runs as a test in Chromium: it renders, its play
+    # function runs, and axe checks it. A violation fails the story.
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+
+      - name: Read Playwright version
+        id: playwright
+        run: echo "version=$(pnpm --filter @argus-table/storybook exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: browser-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-chromium-${{ steps.playwright.outputs.version }}
+
+      - name: Install Chromium
+        if: steps.browser-cache.outputs.cache-hit != 'true'
+        run: pnpm --filter @argus-table/storybook exec playwright install --with-deps chromium
+
+      - name: Install Chromium system dependencies
+        if: steps.browser-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter @argus-table/storybook exec playwright install-deps chromium
+
+      - name: Stories with axe
+        env:
+          BROWSERS: chromium
+        run: pnpm nx affected -t test-storybook --base=${{ needs.setup.outputs.base }} --head=${{ needs.setup.outputs.head }}
+
   build:
     needs: setup
     runs-on: ubuntu-latest
