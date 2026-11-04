@@ -5,6 +5,9 @@ on:
     types: [opened, synchronize, reopened, labeled, unlabeled]
   push:
     branches: [main]
+  # visual-update.yml starts CI this way after it commits new snapshots: a push
+  # made with GITHUB_TOKEN doesn't start workflows, but a dispatch does.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -116,6 +119,85 @@ jobs:
         env:
           BROWSERS: chromium
         run: pnpm nx affected -t test-storybook --base=${{ needs.setup.outputs.base }} --head=${{ needs.setup.outputs.head }}
+
+  e2e:
+    needs: setup
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    name: e2e (${{ matrix.browser }})
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+
+      - name: Read Playwright version
+        id: playwright
+        run: echo "version=$(pnpm --filter @argus-table/e2e exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: browser-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ matrix.browser }}-${{ steps.playwright.outputs.version }}
+
+      - name: Install ${{ matrix.browser }}
+        if: steps.browser-cache.outputs.cache-hit != 'true'
+        run: pnpm --filter @argus-table/e2e exec playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Install ${{ matrix.browser }} system dependencies
+        if: steps.browser-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter @argus-table/e2e exec playwright install-deps ${{ matrix.browser }}
+
+      - name: Playwright e2e against the playground
+        env:
+          BROWSERS: ${{ matrix.browser }}
+        run: pnpm nx affected -t e2e --base=${{ needs.setup.outputs.base }} --head=${{ needs.setup.outputs.head }}
+
+      - name: Upload the report
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-${{ matrix.browser }}
+          path: |
+            tests/e2e/test-results
+            tests/e2e/playwright-report
+          retention-days: 14
+
+  visual:
+    # Inside the Playwright image, so fonts and rendering match the baselines in
+    # tests/visual/__screenshots__ (made by visual-update.yml in the same image).
+    needs: setup
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      options: --ipc=host
+    env:
+      PLAYWRIGHT_IMAGE: mcr.microsoft.com/playwright:v1.63.0-noble
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Trust the checkout (the container runs as another user)
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - uses: ./.github/actions/setup
+
+      - name: Screenshots
+        run: pnpm nx affected -t visual --base=${{ needs.setup.outputs.base }} --head=${{ needs.setup.outputs.head }}
+
+      - name: Upload the diffs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: visual-diffs
+          path: |
+            tests/visual/test-results
+            tests/visual/playwright-report
+          retention-days: 14
 
   build:
     needs: setup

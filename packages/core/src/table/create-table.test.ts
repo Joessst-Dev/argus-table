@@ -200,7 +200,10 @@ describe('createTableModel: sorting', () => {
     expect(m.rowCount).toBe(100_000);
     expect(m.valueAt(0, 'age')).toBe(0);
     expect(m.valueAt(99_999, 'age')).toBe(96);
-    expect(performance.now() - started).toBeLessThan(1000);
+    // A guard against a pathological (e.g. quadratic) sort, not a benchmark: that
+    // would take minutes on 100k rows. A tight limit fails on slow shared CI
+    // runners (1008 ms once against 1000); speed is measured in benchmarks/.
+    expect(performance.now() - started).toBeLessThan(5000);
   });
 });
 

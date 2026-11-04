@@ -53,7 +53,8 @@ type Story = StoryObj;
 /**
  * Tab into the table: it is one tab stop, starting on the first header. The arrow
  * keys move between cells and between the header and the body; Home and End jump
- * to the start or end of the row. Enter or Space sorts a focused sortable header,
+ * to the start or end of the row. Enter on a body cell fires the click events (see
+ * the log). Enter or Space sorts a focused sortable header,
  * and Alt+Arrow resizes it. Scroll away and press an arrow: focus comes back.
  */
 export const Navigation: Story = {

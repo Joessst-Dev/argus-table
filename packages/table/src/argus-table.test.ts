@@ -793,6 +793,34 @@ describe('keyboard and focus', () => {
     await settle(el);
   }
 
+  test('focus that lands on the scroll container moves on to the active cell', async (ctx) => {
+    const el = await fixture({ columns, data: people(50) });
+    const scroller = shadow(el).querySelector<HTMLElement>('[part~="table"]');
+    scroller?.focus();
+    await settle(el);
+    // Only engines that make scroll containers focusable (Firefox) get here.
+    if (!shadow(el).activeElement) ctx.skip();
+    expect(focused(el)?.getAttribute('role')).toBe('columnheader');
+    // No tabindex on the container: it would put a node between grid and rows.
+    expect(scroller?.hasAttribute('tabindex')).toBe(false);
+  });
+
+  test('focus coming back out of the grid onto the scroll container stays there', async (ctx) => {
+    const el = await fixture({ columns, data: people(50) });
+    const scroller = shadow(el).querySelector<HTMLElement>('[part~="table"]');
+    // Can this engine focus the container at all? (From outside, it redirects.)
+    scroller?.focus();
+    await settle(el);
+    if (!shadow(el).activeElement) ctx.skip();
+
+    await focusFirstHeader(el);
+    // What Shift+Tab does in Firefox: focus moves from a cell to the container.
+    scroller?.focus();
+    await settle(el);
+    // No redirect back into the grid, so the keyboard isn't trapped.
+    expect(shadow(el).activeElement).toBe(scroller);
+  });
+
   test('has one tab stop, on the first header by default', async () => {
     const el = await fixture({ columns, data: people(50) });
     const stops = tabStops(el);
@@ -957,6 +985,38 @@ describe('click events', () => {
       ['cell', { row: data[4], columnId: 'city', value: 'City 4' }],
       ['row', { row: data[4], rowId: 'p4', index: 4 }],
     ]);
+  });
+
+  test('Enter on a focused body cell fires them too', async () => {
+    const data = people(10);
+    const el = await fixture({ columns, data, getRowId: (p) => p.id });
+    const seen: [string, unknown][] = [];
+    el.addEventListener('argus-cell-click', (e) => seen.push(['cell', e.detail]));
+    el.addEventListener('argus-row-click', (e) => seen.push(['row', e.detail]));
+    const cell = rowsInOrder(el)[2]?.querySelector<HTMLElement>('[data-col="name"]');
+    if (!cell) throw new Error('no cell');
+    cell.focus();
+    const enter = (target: Element, init: KeyboardEventInit = {}) => {
+      const event = new KeyboardEvent('keydown', {
+        key: 'Enter',
+        bubbles: true,
+        composed: true,
+        cancelable: true,
+        ...init,
+      });
+      target.dispatchEvent(event);
+      return event;
+    };
+    expect(enter(cell).defaultPrevented).toBe(true);
+    expect(seen).toEqual([
+      ['cell', { row: data[2], columnId: 'name', value: data[2]?.name }],
+      ['row', { row: data[2], rowId: 'p2', index: 2 }],
+    ]);
+    // With a modifier, or from content inside the cell: left alone.
+    enter(cell, { shiftKey: true });
+    const content = slotted(cell);
+    if (content) enter(content);
+    expect(seen).toHaveLength(2);
   });
 
   test('header clicks fire neither', async () => {

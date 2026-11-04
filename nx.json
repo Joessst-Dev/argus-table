@@ -50,6 +50,28 @@
       "dependsOn": ["^build"],
       "continuous": true
     },
+    "e2e": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "default",
+        "^production",
+        {
+          "env": "BROWSERS"
+        }
+      ],
+      "cache": true
+    },
+    "visual": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "default",
+        "^production",
+        {
+          "env": "PLAYWRIGHT_IMAGE"
+        }
+      ],
+      "cache": true
+    },
     "test-storybook": {
       "dependsOn": ["^build"],
       "inputs": [

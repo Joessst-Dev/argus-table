@@ -31,4 +31,4 @@ Run in parallel after one shared install job with the pnpm store cached.
 
 Every job always runs and reports success when nothing is affected, so required checks in branch protection never hang waiting for a skipped job.
 
-Visual snapshots are updated by a `workflow_dispatch` (or `/update-snapshots` label) that commits new images back to the PR branch, never by hand on a laptop.
+Visual snapshots are updated by `visual-update.yml`, never by hand on a laptop. Start it from the Actions tab on the PR branch (Run workflow), or add the `update-snapshots` label to a pull request from this repository. It runs the visual tests with `--update-snapshots` in the same Playwright image, commits `tests/visual/__screenshots__` to the branch, removes the label and starts `ci.yml` on the new commit through `workflow_dispatch` (a push made with `GITHUB_TOKEN` starts no workflows by itself). Fork pull requests can't take that push; a maintainer updates their snapshots. `pnpm test:visual` runs the same image locally through Docker.

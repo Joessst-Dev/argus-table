@@ -1,0 +1,44 @@
+// Types only: brings in the 'argus-table' entry of HTMLElementTagNameMap.
+import type {} from 'argus-table';
+import { expect, test, type Page } from '@playwright/test';
+
+/** Opens the playground and waits until the table and the theme have rendered. */
+async function open(page: Page, query: Record<string, string>): Promise<void> {
+  await page.goto(`/?${new URLSearchParams({ rows: '40', cols: '8', ...query }).toString()}`);
+  await page.locator('argus-table [part~="row"]').first().waitFor();
+  // Leave a strip below the table and park the mouse there, so no header or
+  // row shows its hover state.
+  await page.addStyleTag({ content: 'argus-table { block-size: 360px; }' });
+  await page.mouse.move(8, 410);
+  await page.evaluate(async () => {
+    await document.querySelector('argus-table')?.updateComplete;
+    await document.fonts.ready;
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  });
+}
+
+for (const density of ['compact', 'comfortable', 'spacious']) {
+  for (const scheme of ['light', 'dark']) {
+    test(`default theme, ${density}, ${scheme}`, async ({ page }) => {
+      await open(page, { theme: 'default', density, scheme });
+      await expect(page).toHaveScreenshot(`default-${density}-${scheme}.png`);
+    });
+  }
+}
+
+test('default theme, RTL, pinned and scrolled sideways', async ({ page }) => {
+  await open(page, { theme: 'default', scheme: 'light', dir: 'rtl', cols: '14' });
+  await page.evaluate(async () => {
+    const table = document.querySelector('argus-table');
+    const scroller = table?.shadowRoot?.querySelector<HTMLElement>('[part~="table"]');
+    if (scroller) scroller.scrollLeft = -400;
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    await table?.updateComplete;
+  });
+  await expect(page).toHaveScreenshot('default-rtl-pinned.png');
+});
+
+test('no theme (base styles), light', async ({ page }) => {
+  await open(page, { scheme: 'light' });
+  await expect(page).toHaveScreenshot('base-light.png');
+});

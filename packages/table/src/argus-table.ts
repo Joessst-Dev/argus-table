@@ -92,8 +92,8 @@ function track<T>(column: ColumnView<T, CellContent>): string {
  *
  * @fires argus-sort-change - A sortable header was clicked, or activated with Enter or Space. `detail: { sorting }`: the new order, or the proposed one when `sorting` is controlled.
  * @fires argus-column-resize - A column was resized by dragging its handle or with Alt+Arrow on its header. `detail: { columnId, width, sizing }`: the new widths, or the proposed ones when `columnSizing` is controlled. Fires on every frame of a drag.
- * @fires argus-cell-click - A body cell was clicked. `detail: { row, columnId, value }`. Fires before `argus-row-click`.
- * @fires argus-row-click - A body row was clicked. `detail: { row, rowId, index }`.
+ * @fires argus-cell-click - A body cell was clicked, or Enter was pressed on it. `detail: { row, columnId, value }`. Fires before `argus-row-click`.
+ * @fires argus-row-click - A body row was clicked, or Enter was pressed on one of its cells. `detail: { row, rowId, index }`.
  * @fires argus-range-change - The visible rows changed. `detail: { start, end }` (row indices, inclusive).
  *
  * @slot empty - Shown instead of the body when there are no rows. Default: "No rows".
@@ -347,6 +347,23 @@ export class ArgusTable<T = unknown> extends LitElement {
     const cell = gridCell(event.composedPath()[0] ?? event.target ?? this);
     const id = cell?.dataset.col;
     if (!cell || id === undefined) return;
+    if (event.key === 'Tab' && event.shiftKey) {
+      // Firefox makes the scroll container a tab stop, so Shift+Tab would stop
+      // on it before leaving the grid. Take it out of the tab order for this
+      // one move only: a tabindex there for good would expose it as a node of
+      // its own between the grid and its rows.
+      const scroller = event.currentTarget as HTMLElement;
+      scroller.tabIndex = -1;
+      // Put it back once focus has actually moved (a timer can run first).
+      cell.addEventListener(
+        'focusout',
+        () => {
+          scroller.removeAttribute('tabindex');
+        },
+        { once: true },
+      );
+      return;
+    }
     const inHeader = cell.getAttribute('role') === 'columnheader';
     const { key } = event;
     if (inHeader && event.altKey && (key === 'ArrowLeft' || key === 'ArrowRight')) {
@@ -365,6 +382,12 @@ export class ArgusTable<T = unknown> extends LitElement {
       return;
     }
     if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    if (!inHeader && key === 'Enter') {
+      // Enter on a body cell does what a click does.
+      event.preventDefault();
+      this.#activate(event.composedPath());
+      return;
+    }
     const model = this.#table.model;
     const columns = model.columns;
     let row = inHeader ? -1 : rowIndexOf(cell.parentElement);
@@ -398,6 +421,19 @@ export class ArgusTable<T = unknown> extends LitElement {
 
   /** Focus that lands in a cell (a click, or content inside it) makes that cell active. */
   readonly #onFocusin = (event: FocusEvent) => {
+    // Tab into the grid landed on the scroll container (Firefox makes it a tab
+    // stop): move on to the grid's one tab stop, the active cell. Only when focus
+    // came from outside the grid: coming from inside means the user is leaving,
+    // and sending them back would trap the keyboard.
+    const scroller = event.currentTarget as HTMLElement;
+    if (event.composedPath()[0] === scroller) {
+      const from = event.relatedTarget;
+      if (!(from instanceof Node && scroller.contains(from))) {
+        this.#focusPending = true;
+        this.requestUpdate();
+      }
+      return;
+    }
     for (const target of event.composedPath()) {
       const cell = gridCell(target);
       if (cell?.dataset.col !== undefined) {
@@ -416,8 +452,16 @@ export class ArgusTable<T = unknown> extends LitElement {
 
   /** `argus-cell-click`, then `argus-row-click`, for clicks in the body. */
   readonly #onClick = (event: MouseEvent) => {
+    this.#activate(event.composedPath());
+  };
+
+  /**
+   * Fires `argus-cell-click` (when a cell is on the path), then `argus-row-click`,
+   * for the body row on an event path. Clicks and Enter on a body cell use it.
+   */
+  #activate(path: EventTarget[]): void {
     let columnId: string | undefined;
-    for (const target of event.composedPath()) {
+    for (const target of path) {
       if (!(target instanceof HTMLElement)) continue;
       const role = target.getAttribute('role');
       if (role === 'gridcell') columnId = target.dataset.col;
@@ -436,7 +480,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       fire(this, ROW_CLICK, { row: row.original, rowId: row.id, index });
       return;
     }
-  };
+  }
 
   /** Makes a cell active and focuses it after the update. The keep-rendered rule renders its row. */
   #moveTo(index: number, col: string, model: TableModel<T, CellContent>): void {

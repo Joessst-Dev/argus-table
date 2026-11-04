@@ -12,7 +12,10 @@ import { installBenchHooks } from './bench-hooks.js';
 const params = new URLSearchParams(location.search);
 if (params.get('theme') === 'default') await import('@argus-table/themes/default.css');
 const scheme = params.get('scheme');
-if (scheme === 'dark' || scheme === 'light') document.documentElement.dataset.argusTheme = scheme;
+if (scheme === 'dark' || scheme === 'light') {
+  document.documentElement.dataset.argusTheme = scheme;
+  document.documentElement.style.colorScheme = scheme;
+}
 const rowCount = Number(params.get('rows') ?? 100_000);
 const colCount = Number(params.get('cols') ?? 20);
 const density = (params.get('density') ?? 'comfortable') as Density;

@@ -24,6 +24,8 @@ pnpm dev                 # Storybook with hot reload
 pnpm lint                # ESLint + type check (pnpm format:check for Prettier)
 pnpm test                # Vitest browser tests (Chromium; BROWSERS=all for all three)
 pnpm build               # build every package
+pnpm test:e2e            # Playwright e2e against the playground (BROWSERS=chromium for one engine)
+pnpm test:visual         # screenshots in the Playwright Docker image (needs Docker)
 pnpm affected            # what CI will run for your branch
 ```
 

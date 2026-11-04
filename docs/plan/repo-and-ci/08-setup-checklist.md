@@ -14,7 +14,8 @@ Do these in order during Phase 0; each step is small, and CI should be green bef
 - [x] Issue/PR templates, CODEOWNERS, CONTRIBUTING, CODE_OF_CONDUCT, SECURITY (CoC contact email still to fill in)
 - [x] Renovate + CodeQL (Renovate app still to install)
 - [x] `size` job: size-limit on the CDN build, plus publint, attw and the bundled `.d.ts` in `build`
-- [ ] Add `e2e`, `visual`, `a11y`, `examples` jobs as the table grows
+- [x] `e2e`, `visual` and `a11y` jobs
+- [ ] `examples` job, with the wrappers
 - [ ] Wrapper packages + `scripts/generate-wrappers.ts` once the element API is drafted
 - [ ] When CI gets slow: connect Nx Cloud (Hobby), read-write token as a `main`-only secret, read-only token for PRs
 - [ ] At public launch: apply for the Nx Cloud open-source plan
