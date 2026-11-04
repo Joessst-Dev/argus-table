@@ -14,6 +14,7 @@
     "lint": "nx run-many -t lint typecheck",
     "test": "nx run-many -t test",
     "build": "nx run-many -t build",
+    "size": "nx run argus-table:build && pnpm --filter argus-table size",
     "affected": "nx affected -t lint test build",
     "graph": "nx graph",
     "format": "prettier --write .",

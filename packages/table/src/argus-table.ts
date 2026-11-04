@@ -1,4 +1,10 @@
-import { LitElement, html, type PropertyValues } from 'lit';
+import {
+  LitElement,
+  html,
+  type CSSResultGroup,
+  type PropertyValues,
+  type TemplateResult,
+} from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { styleMap } from 'lit/directives/style-map.js';
 import type { ColumnView } from '@argus-table/core';
@@ -67,7 +73,7 @@ function track<T>(column: ColumnView<T, CellContent>): string {
  */
 @customElement('argus-table')
 export class ArgusTable<T = unknown> extends LitElement {
-  static override styles = baseStyles;
+  static override styles: CSSResultGroup = baseStyles;
 
   /** Column definitions. Property only: functions can't be attributes. */
   @property({ attribute: false })
@@ -140,7 +146,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     });
   }
 
-  protected override render() {
+  protected override render(): TemplateResult {
     const model = this.#table.model;
     const columns = model.columns;
     this.#window = this.#virtual.computeWindow();

@@ -18,6 +18,8 @@
     "./package.json": "./package.json"
   },
   "types": "./dist/index.d.ts",
+  "jsdelivr": "./dist/cdn/argus-table.js",
+  "unpkg": "./dist/cdn/argus-table.js",
   "files": [
     "dist",
     "README.md",
@@ -25,10 +27,13 @@
   ],
   "sideEffects": [
     "./dist/index.js",
-    "./dist/argus-table.js"
+    "./dist/argus-table.js",
+    "./dist/cdn/argus-table.js"
   ],
   "scripts": {
-    "build": "vite build && tsc -p tsconfig.build.json && cem analyze",
+    "build": "vite build && vite build -c vite.cdn.config.ts && rollup -c rollup.dts.config.mjs && cem analyze && pnpm check-exports",
+    "check-exports": "node scripts/check-dist.mjs && publint --strict && attw --pack . --profile esm-only",
+    "size": "size-limit",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
     "test": "vitest run"
@@ -39,10 +44,16 @@
     "lit": "^3.3.3"
   },
   "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
     "@argus-table/core": "workspace:*",
     "@custom-elements-manifest/analyzer": "^0.11.0",
+    "@size-limit/file": "^14.3.0",
     "@vitest/browser-playwright": "^5.1.0",
     "playwright": "1.63.0",
+    "publint": "^0.3.25",
+    "rollup": "~4.64.12",
+    "rollup-plugin-dts": "^6.5.1",
+    "size-limit": "^14.3.0",
     "vite": "^8.3.5",
     "vitest": "^5.1.0"
   },

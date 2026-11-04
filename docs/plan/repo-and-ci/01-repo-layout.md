@@ -32,7 +32,7 @@ argus-table/
 │  ├─ e2e/                  Playwright: scroll, resize, keyboard, infinite loading
 │  └─ visual/               Playwright screenshots per theme × density × dark mode
 ├─ benchmarks/              10k / 100k / 1M rows, FPS + memory
-├─ scripts/                 generate-wrappers.ts · check-exports.ts
+├─ scripts/                 generate-wrappers.ts
 ├─ docs/adr/                architecture decision records (e.g. 0001-shadow-vs-light-dom.md)
 ├─ .nx/                     local Nx cache + workspace data (git-ignored)
 ├─ nx.json                  targetDefaults, named inputs, plugins (no access token in here)
@@ -41,7 +41,6 @@ argus-table/
 ├─ pnpm-workspace.yaml
 ├─ tsconfig.base.json
 ├─ eslint.config.js · .prettierrc · .editorconfig · .nvmrc
-├─ .size-limit.json
 └─ LICENSE · README.md · CONTRIBUTING.md · CODE_OF_CONDUCT.md · SECURITY.md
 ```
 

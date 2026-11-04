@@ -93,6 +93,17 @@ jobs:
       - name: Build
         run: pnpm nx affected -t build --base=${{ needs.setup.outputs.base }} --head=${{ needs.setup.outputs.head }}
 
+  size:
+    # Always runs (not `affected`): the budget is a gate, and a dependency bump
+    # can grow the bundle without touching packages/table.
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup
+      - name: Size budget (CDN build, min+gzip)
+        run: pnpm size
+
   changeset:
     # Docs-, CI- and tooling-only pull requests skip this with the `no-changeset` label.
     if: github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'no-changeset')
