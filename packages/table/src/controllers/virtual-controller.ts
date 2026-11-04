@@ -24,6 +24,11 @@ export interface VirtualConfig {
   overscan: number;
   /** Row id at an index of the row model; pool slots follow row ids. */
   rowIdAt: (index: number) => string;
+  /**
+   * The row to keep rendered outside the range (the one holding the grid's tab
+   * stop), so its DOM and focus survive scrolling. `undefined`: none.
+   */
+  keep?: { id: string; index: number } | undefined;
 }
 
 /**
@@ -68,6 +73,12 @@ export class VirtualController {
     for (const item of items) {
       byId.set(this.#config.rowIdAt(item.index), { index: item.index, start: item.start });
     }
+    const { keep } = this.#config;
+    this.#pool.pin(keep?.id);
+    if (keep && !byId.has(keep.id)) {
+      // Fixed row heights: the virtualizer would place it here too.
+      byId.set(keep.id, { index: keep.index, start: keep.index * this.#config.rowHeight });
+    }
     const rows: WindowRow[] = [];
     for (const { id, slot } of this.#pool.update(byId.keys())) {
       const item = byId.get(id);
@@ -86,7 +97,8 @@ export class VirtualController {
     return this.#pool.size;
   }
 
-  scrollToIndex(index: number): void {
-    this.#virtual.getVirtualizer().scrollToIndex(index, { align: 'start' });
+  /** `'start'` puts the row at the top; `'auto'` scrolls only as far as needed to show it. */
+  scrollToIndex(index: number, align: 'start' | 'auto' = 'start'): void {
+    this.#virtual.getVirtualizer().scrollToIndex(index, { align });
   }
 }

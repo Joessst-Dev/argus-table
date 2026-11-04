@@ -109,6 +109,8 @@ export interface TableModel<TData, TContent> {
   readonly totalWidth: number;
   /** The row at an index of the current row model. */
   rowAt(index: number): RowView<TData> | undefined;
+  /** The index of a row id in the current row model (after sorting), or `undefined`. */
+  indexOf(rowId: string): number | undefined;
   /** The value a column reads from the row at `index`. */
   valueAt(index: number, columnId: string): unknown;
   /** What a column's `cell` function receives for the row at `index`. */
@@ -156,6 +158,8 @@ export function createTableModel<TData, TContent>(
   let tanStackColumns = resolved.map(toTanStack);
   let views: ColumnView<TData, TContent>[] | undefined;
   const rowViews = new WeakMap<Row<Features, AnyRow>, RowView<TData>>();
+  // Built lazily per row model (sorting or new data gives a new array).
+  let indexById: { rows: readonly Row<Features, AnyRow>[]; map: Map<string, number> } | undefined;
 
   const tableOptions = (): TableOptions<Features, AnyRow> => ({
     features,
@@ -260,6 +264,14 @@ export function createTableModel<TData, TContent>(
         rowViews.set(row, view);
       }
       return view;
+    },
+
+    indexOf(rowId) {
+      const current = rows();
+      if (indexById?.rows !== current) {
+        indexById = { rows: current, map: new Map(current.map((r, i) => [r.id, i])) };
+      }
+      return indexById.map.get(rowId);
     },
 
     valueAt(index, columnId) {

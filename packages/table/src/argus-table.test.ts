@@ -439,7 +439,6 @@ describe('sorting', () => {
     headerCell(el, 2).click();
     await settle(el);
     expect(events).toEqual([]);
-    expect(headerCell(el, 2).hasAttribute('tabindex')).toBe(false);
   });
 
   test('sorts from a click on slotted header content', async () => {
@@ -453,8 +452,9 @@ describe('sorting', () => {
   test('sorts with Enter and Space on a focused header', async () => {
     const el = await fixture({ columns: sortColumns, data });
     const age = headerCell(el, 1);
-    expect(age.tabIndex).toBe(0);
     age.focus();
+    await settle(el);
+    expect(age.tabIndex).toBe(0);
     age.dispatchEvent(
       new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, composed: true }),
     );
@@ -717,5 +717,227 @@ describe('column resizing', () => {
     await settle(el);
     const left = (scroller?.getBoundingClientRect().left ?? 0) + (scroller?.clientLeft ?? 0);
     expect(header(el, 1).getBoundingClientRect().left).toBeCloseTo(left + 150, 0);
+  });
+});
+
+describe('keyboard and focus', () => {
+  const columns: ColumnDef<Person>[] = [
+    { id: 'name', header: 'Name', accessor: 'name', sortable: true },
+    { id: 'age', header: 'Age', accessor: 'age', sortable: true },
+    { id: 'city', header: 'City', accessor: 'address.city' },
+  ];
+
+  const press = (target: Element, key: string, init: KeyboardEventInit = {}) => {
+    const event = new KeyboardEvent('keydown', {
+      key,
+      bubbles: true,
+      composed: true,
+      cancelable: true,
+      ...init,
+    });
+    target.dispatchEvent(event);
+    return event;
+  };
+
+  /** The element holding focus inside the shadow root. */
+  const focused = (el: HTMLElement) => shadow(el).activeElement as HTMLElement | null;
+
+  /** Row index (in the row model) and column id of the focused cell; -1 is the header. */
+  const position = (el: HTMLElement) => {
+    const cell = focused(el);
+    return cell
+      ? [Number(cell.parentElement?.getAttribute('aria-rowindex')) - 2, cell.dataset.col]
+      : undefined;
+  };
+
+  const tabStops = (el: HTMLElement) => [...shadow(el).querySelectorAll('[tabindex="0"]')];
+
+  /** Presses a key on the focused cell and waits for focus to move. */
+  async function key(el: ArgusTable<Person>, name: string, init?: KeyboardEventInit) {
+    const cell = focused(el);
+    if (!cell) throw new Error('nothing focused');
+    const event = press(cell, name, init);
+    await settle(el);
+    return event;
+  }
+
+  async function focusFirstHeader(el: ArgusTable<Person>) {
+    shadow(el).querySelector<HTMLElement>('[part~="header-cell"]')?.focus();
+    await settle(el);
+  }
+
+  test('has one tab stop, on the first header by default', async () => {
+    const el = await fixture({ columns, data: people(50) });
+    const stops = tabStops(el);
+    expect(stops).toHaveLength(1);
+    expect(stops[0]?.getAttribute('role')).toBe('columnheader');
+    expect((stops[0] as HTMLElement).dataset.col).toBe('name');
+    // Every other header and cell is focusable by click, not by Tab.
+    const cell = shadow(el).querySelector<HTMLElement>('[part~="cell"]');
+    expect(cell?.tabIndex).toBe(-1);
+  });
+
+  test('moves by cell with the arrows, by row with Home and End, and stops at the edges', async () => {
+    const el = await fixture({ columns, data: people(50) });
+    await focusFirstHeader(el);
+    expect(position(el)).toEqual([-1, 'name']);
+    expect((await key(el, 'ArrowUp')).defaultPrevented).toBe(true);
+    expect(position(el)).toEqual([-1, 'name']);
+    await key(el, 'ArrowDown');
+    expect(position(el)).toEqual([0, 'name']);
+    await key(el, 'ArrowDown');
+    await key(el, 'ArrowRight');
+    expect(position(el)).toEqual([1, 'age']);
+    await key(el, 'End');
+    expect(position(el)).toEqual([1, 'city']);
+    await key(el, 'ArrowRight');
+    expect(position(el)).toEqual([1, 'city']);
+    await key(el, 'Home');
+    expect(position(el)).toEqual([1, 'name']);
+    await key(el, 'ArrowLeft');
+    expect(position(el)).toEqual([1, 'name']);
+    await key(el, 'ArrowUp');
+    await key(el, 'ArrowUp');
+    expect(position(el)).toEqual([-1, 'name']);
+    // Still exactly one tab stop, and it is the focused cell.
+    expect(tabStops(el)).toEqual([focused(el)]);
+  });
+
+  test('stops at the last row', async () => {
+    const el = await fixture({ columns, data: people(2) });
+    await focusFirstHeader(el);
+    await key(el, 'ArrowDown');
+    await key(el, 'ArrowDown');
+    await key(el, 'ArrowDown');
+    expect(position(el)).toEqual([1, 'name']);
+  });
+
+  test('mirrors left and right in RTL', async () => {
+    const el = await fixture({ columns, data: people(5) });
+    el.dir = 'rtl';
+    await focusFirstHeader(el);
+    await key(el, 'ArrowLeft');
+    expect(position(el)).toEqual([-1, 'age']);
+    await key(el, 'ArrowRight');
+    expect(position(el)).toEqual([-1, 'name']);
+  });
+
+  test('keeps the focused row rendered while it scrolls out of range, and comes back to it', async () => {
+    const el = await fixture({ columns, data: people(100_000) });
+    await focusFirstHeader(el);
+    await key(el, 'ArrowDown');
+    const cell = focused(el);
+    expect(position(el)).toEqual([0, 'name']);
+    await scrollTo(el, 2_000_000);
+    expect(focused(el)).toBe(cell);
+    expect(cell?.isConnected).toBe(true);
+    expect(slotted(cell as Element)?.textContent).toBe('Person 0');
+    // The pinned row is the only one outside the window.
+    const indices = bodyRows(el).map((r) => Number(r.getAttribute('aria-rowindex')));
+    expect(indices.filter((i) => i < 1000)).toEqual([2]);
+    // A key brings the focused cell back into view.
+    await key(el, 'ArrowDown');
+    expect(position(el)).toEqual([1, 'name']);
+    const scroller = shadow(el).querySelector<HTMLElement>('[part~="table"]');
+    const box = scroller?.getBoundingClientRect();
+    const rect = focused(el)?.getBoundingClientRect();
+    expect(rect && box && rect.top >= box.top && rect.bottom <= box.bottom).toBe(true);
+  });
+
+  test('a click on a cell makes it the tab stop', async () => {
+    const el = await fixture({ columns, data: people(10) });
+    const row = rowsInOrder(el)[3];
+    const cell = row?.querySelector<HTMLElement>('[data-col="age"]');
+    cell?.focus();
+    await settle(el);
+    expect(tabStops(el)).toEqual([cell]);
+    await key(el, 'ArrowDown');
+    expect(position(el)).toEqual([4, 'age']);
+  });
+
+  test('focus stays on the same row when the order changes', async () => {
+    const el = await fixture({ columns, data: people(10) });
+    await focusFirstHeader(el);
+    await key(el, 'ArrowDown');
+    await key(el, 'ArrowDown');
+    expect(slotted(focused(el) as Element)?.textContent).toBe('Person 1');
+    el.sorting = [{ id: 'age', desc: true }];
+    await settle(el);
+    expect(slotted(focused(el) as Element)?.textContent).toBe('Person 1');
+    expect(position(el)).toEqual([8, 'name']);
+    await key(el, 'ArrowDown');
+    expect(slotted(focused(el) as Element)?.textContent).toBe('Person 0');
+  });
+
+  test('moves to the nearest row when the focused one is removed', async () => {
+    const el = await fixture({ columns, data: people(10) });
+    await focusFirstHeader(el);
+    for (let i = 0; i < 6; i++) await key(el, 'ArrowDown');
+    expect(position(el)).toEqual([5, 'name']);
+    el.data = people(3);
+    await settle(el);
+    expect(position(el)).toEqual([2, 'name']);
+    expect(tabStops(el)).toHaveLength(1);
+  });
+
+  test('leaves keys inside cell content to that content', async () => {
+    const cols: ColumnDef<Person>[] = [
+      ...columns,
+      { id: 'edit', header: 'Edit', cell: () => html`<input aria-label="Note" />` },
+    ];
+    const el = await fixture({ columns: cols, data: people(5) });
+    const input = el.querySelector('input');
+    input?.focus();
+    await settle(el);
+    const event = press(input as Element, 'ArrowDown');
+    await settle(el);
+    expect(event.defaultPrevented).toBe(false);
+    expect(document.activeElement).toBe(input);
+  });
+
+  test('sorts and resizes from the focused header, as before', async () => {
+    const el = await fixture({
+      columns: columns.map((c) => ({ ...c, width: 100 })),
+      data: people(5),
+    });
+    await focusFirstHeader(el);
+    await key(el, 'ArrowRight');
+    await key(el, 'Enter');
+    expect(el.sorting).toEqual([{ id: 'age', desc: false }]);
+    await key(el, 'ArrowRight', { altKey: true });
+    expect(el.columnSizing).toEqual({ age: 110 });
+    expect(position(el)).toEqual([-1, 'age']);
+  });
+});
+
+describe('click events', () => {
+  const columns: ColumnDef<Person>[] = [
+    { id: 'name', header: 'Name', accessor: 'name' },
+    { id: 'city', header: 'City', accessor: 'address.city' },
+  ];
+
+  test('fires argus-cell-click, then argus-row-click, with the row and value', async () => {
+    const data = people(10);
+    const el = await fixture({ columns, data, getRowId: (p) => p.id });
+    const seen: [string, unknown][] = [];
+    el.addEventListener('argus-cell-click', (e) => seen.push(['cell', e.detail]));
+    el.addEventListener('argus-row-click', (e) => seen.push(['row', e.detail]));
+    const cell = rowsInOrder(el)[4]?.querySelector('[data-col="city"]');
+    const content = cell ? slotted(cell) : undefined;
+    if (!(content instanceof HTMLElement)) throw new Error('no cell content');
+    content.click();
+    expect(seen).toEqual([
+      ['cell', { row: data[4], columnId: 'city', value: 'City 4' }],
+      ['row', { row: data[4], rowId: 'p4', index: 4 }],
+    ]);
+  });
+
+  test('header clicks fire neither', async () => {
+    const el = await fixture({ columns, data: people(3) });
+    const seen: string[] = [];
+    el.addEventListener('argus-cell-click', () => seen.push('cell'));
+    el.addEventListener('argus-row-click', () => seen.push('row'));
+    shadow(el).querySelector<HTMLElement>('[part~="header-cell"]')?.click();
+    expect(seen).toEqual([]);
   });
 });
