@@ -11,6 +11,9 @@ on:
       runs:
         description: Runs per browser
         default: '5'
+      variants:
+        description: Playground query strings to compare in the same job, comma-separated (e.g. pin=cells,pin=groups)
+        default: ''
   pull_request:
     types: [labeled, opened, synchronize, reopened]
 
@@ -60,6 +63,7 @@ jobs:
         env:
           BROWSERS: ${{ matrix.browser }}
           RUNS: ${{ inputs.runs || '5' }}
+          VARIANTS: ${{ inputs.variants || '' }}
         run: pnpm bench
 
       - name: Upload results

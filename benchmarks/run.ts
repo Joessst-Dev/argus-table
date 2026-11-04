@@ -3,6 +3,7 @@
 //
 //   pnpm bench                                   # Chromium, 5 runs
 //   BROWSERS=chromium,firefox,webkit RUNS=3 pnpm bench
+//   VARIANTS=pin=cells,pin=groups pnpm bench      # compare playground variants, interleaved
 //
 // Headless numbers on shared machines are noisy: treat absolute values as a lower
 // bound and compare runs from the same machine.
@@ -57,6 +58,14 @@ const outDir = join(here, 'results');
 const RUNS = Number(process.env.RUNS ?? 5);
 const engines: Record<BrowserName, BrowserType> = { chromium, firefox, webkit };
 const requested = process.env.BROWSERS ?? 'chromium';
+// Playground query strings to compare in the same job, e.g. `pin=cells,pin=groups`.
+// Runs interleave the variants, so they share the runner's state; CI runners vary
+// too much between jobs to compare separate runs.
+const VARIANTS = (process.env.VARIANTS ?? '')
+  .split(',')
+  .map((v) => v.trim())
+  .filter(Boolean);
+const variants = VARIANTS.length ? VARIANTS : [''];
 const browsers = (requested === 'all' ? 'chromium,firefox,webkit' : requested)
   .split(',')
   .map((b) => b.trim())
@@ -149,9 +158,9 @@ function medianStats(runs: Stats[]): Stats {
   };
 }
 
-async function open(browser: Browser, url: string, dir = 'ltr'): Promise<Page> {
+async function open(browser: Browser, url: string, dir = 'ltr', variant = ''): Promise<Page> {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-  await page.goto(`${url}/?dir=${dir}&bench`);
+  await page.goto(`${url}/?dir=${dir}&bench${variant ? `&${variant}` : ''}`);
   await page.waitForFunction(() => '__argusBench' in window);
   await page.evaluate(
     () => (window as unknown as { __argusBench: { ready: Promise<unknown> } }).__argusBench.ready,
@@ -217,31 +226,36 @@ const scenarios: Scenario[] = ['steady', 'fast', 'jumps', 'horizontal', 'wheel']
 async function main() {
   const { server, url } = await serve();
   await mkdir(join(outDir, 'screens'), { recursive: true });
-  const results: { browser: BrowserName; scenario: Scenario; stats: Stats }[] = [];
+  const results: { browser: BrowserName; variant: string; scenario: Scenario; stats: Stats }[] = [];
   const versions: Record<string, string> = {};
 
   for (const name of browsers) {
     const browser = await engines[name].launch();
     versions[name] = browser.version();
-    const collected: Record<Scenario, Stats[]> = {
-      steady: [],
-      fast: [],
-      jumps: [],
-      horizontal: [],
-      wheel: [],
-    };
+    const collected = new Map<string, Stats[]>();
+    const key = (variant: string, s: Scenario) => `${variant}|${s}`;
     for (let run = 0; run < RUNS; run++) {
-      const page = await open(browser, url);
-      const longTasksSupported = await page.evaluate(() =>
-        PerformanceObserver.supportedEntryTypes.includes('longtask'),
-      );
-      const raw = await runScenarios(page, name);
-      for (const s of scenarios) {
-        const r = raw[s];
-        if (r) collected[s].push(stats(r, longTasksSupported));
+      // Rotate the order each run so no variant always goes first.
+      for (let i = 0; i < variants.length; i++) {
+        const variant = variants[(run + i) % variants.length] ?? '';
+        const page = await open(browser, url, 'ltr', variant);
+        const longTasksSupported = await page.evaluate(() =>
+          PerformanceObserver.supportedEntryTypes.includes('longtask'),
+        );
+        const raw = await runScenarios(page, name);
+        for (const s of scenarios) {
+          const r = raw[s];
+          if (!r) continue;
+          const list = collected.get(key(variant, s)) ?? [];
+          list.push(stats(r, longTasksSupported));
+          collected.set(key(variant, s), list);
+        }
+        if (run === 0) {
+          const suffix = variant ? `-${variant.replace(/[^\w-]+/g, '_')}` : '';
+          await screenshot(page, join(outDir, 'screens', `${name}${suffix}.png`));
+        }
+        await page.close();
       }
-      if (run === 0) await screenshot(page, join(outDir, 'screens', `${name}.png`));
-      await page.close();
       process.stdout.write(`${name} run ${String(run + 1)}/${String(RUNS)} done\n`);
     }
     const rtl = await open(browser, url, 'rtl');
@@ -249,9 +263,12 @@ async function main() {
     await rtl.close();
     await browser.close();
 
-    for (const s of scenarios) {
-      if (collected[s].length)
-        results.push({ browser: name, scenario: s, stats: medianStats(collected[s]) });
+    for (const variant of variants) {
+      for (const s of scenarios) {
+        const list = collected.get(key(variant, s));
+        if (list?.length)
+          results.push({ browser: name, variant, scenario: s, stats: medianStats(list) });
+      }
     }
   }
   server.close();
@@ -263,6 +280,7 @@ async function main() {
     cpu: `${os.cpus()[0]?.model ?? 'unknown'} × ${String(os.cpus().length)}`,
     versions,
     runs: RUNS,
+    variants: VARIANTS,
     gate: { p95: GATE_P95, longTask: GATE_LONG_TASK },
   };
   const stamp = meta.date.slice(0, 16).replace(/[:T]/g, '-');
@@ -287,9 +305,11 @@ function toMarkdown(
     cpu: string;
     versions: Record<string, string>;
     runs: number;
+    variants: string[];
   },
-  results: { browser: BrowserName; scenario: Scenario; stats: Stats }[],
+  results: { browser: BrowserName; variant: string; scenario: Scenario; stats: Stats }[],
 ): string {
+  const withVariant = meta.variants.length > 0;
   const lines = [
     `## argus-table scroll benchmark`,
     '',
@@ -303,14 +323,14 @@ function toMarkdown(
     'Long tasks come from PerformanceObserver in Chromium; elsewhere "frames > 50 ms" stands in. `wheel` drives real input through Playwright and its frame pacing is limited by the harness, so it is a sanity check, not a gate.',
     'Page: apps/playground, 100,000 rows × 20 columns, slotted cell content, pooled rows. Scenarios: steady = 60 px/frame for 10 s; fast = 240 px/frame for 10 s; jumps = 20 random jumps held 500 ms; horizontal = full width and back over 5 s.',
     '',
-    '| Browser | Scenario | p50 | p95 | p99 | max | jump frame p50 / max | frames > 50 ms | long tasks (max) | blank frames | wrong content | rendered rows | light-DOM nodes | heap MB | Gate |',
-    '| --- | --- | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --- |',
+    `| Browser |${withVariant ? ' Variant |' : ''} Scenario | p50 | p95 | p99 | max | jump frame p50 / max | frames > 50 ms | long tasks (max) | blank frames | wrong content | rendered rows | light-DOM nodes | heap MB | Gate |`,
+    `| --- |${withVariant ? ' --- |' : ''} --- | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --- |`,
   ];
-  for (const { browser, scenario, stats: s } of results) {
+  for (const { browser, variant, scenario, stats: s } of results) {
     const lt = s.longTasks === null ? 'n/a' : `${String(s.longTasks)} (${String(s.longTaskMax)})`;
     const jump = s.jumpP50 === null ? '' : `${String(s.jumpP50)} / ${String(s.jumpMax)}`;
     lines.push(
-      `| ${browser} | ${scenario} | ${String(s.p50)} | ${String(s.p95)} | ${String(s.p99)} | ${String(s.max)} | ${jump} | ${String(s.over50)} | ${lt} | ${String(s.blankFrames)} | ${String(s.mismatches)} | ${String(s.renderedRows)} | ${String(s.lightNodes)} | ${String(s.heapMB ?? 'n/a')} | ${verdict(s)} |`,
+      `| ${browser} |${withVariant ? ` ${variant} |` : ''} ${scenario} | ${String(s.p50)} | ${String(s.p95)} | ${String(s.p99)} | ${String(s.max)} | ${jump} | ${String(s.over50)} | ${lt} | ${String(s.blankFrames)} | ${String(s.mismatches)} | ${String(s.renderedRows)} | ${String(s.lightNodes)} | ${String(s.heapMB ?? 'n/a')} | ${verdict(s)} |`,
     );
   }
   return `${lines.join('\n')}\n`;

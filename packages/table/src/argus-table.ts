@@ -152,6 +152,9 @@ export class ArgusTable<T = unknown> extends LitElement {
   protected override render(): TemplateResult {
     const model = this.#table.model;
     const columns = model.columns;
+    // Temporary: `data-argus-pin-mode="cells"` selects the per-cell sticky layout for the
+    // benchmark comparison. Removed with that layout once the numbers are in.
+    const grouped = this.dataset.argusPinMode !== 'cells';
     this.#window = this.#virtual.computeWindow();
     const style: Record<string, string> = {
       '--_cols': columns.map(track).join(' '),
@@ -161,11 +164,11 @@ export class ArgusTable<T = unknown> extends LitElement {
       style['--_row-height'] = `${String(this.rowHeight)}px`;
     }
     return html`<div part="table" role="presentation" style=${styleMap(style)}>
-      ${renderHeader(columns)}
+      ${renderHeader(columns, grouped)}
       ${
         model.rowCount === 0
           ? html`<div part="empty"><slot name="empty">No rows</slot></div>`
-          : renderBody(this.#window.rows, columns, this.#window.totalSize)
+          : renderBody(this.#window.rows, columns, this.#window.totalSize, grouped)
       }
       <div class="probe" aria-hidden="true"></div>
     </div>`;

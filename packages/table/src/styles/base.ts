@@ -100,16 +100,32 @@ export const baseStyles = css`
      * Pinned columns: sticky inside the scroll container, with offsets from the
      * table model. Logical insets make RTL work without extra rules.
      */
-    [data-pin] {
+    .pin-group {
+      display: grid;
+      grid-template-columns: subgrid;
       position: sticky;
       z-index: 1;
+    }
+    .pin-group[data-pin='start'] {
+      inset-inline-start: 0;
+    }
+    .pin-group[data-pin='end'] {
+      inset-inline-end: 0;
+    }
+    [data-pin]:not(.pin-group) {
+      position: relative;
       /* Visible so the edge shadow isn't clipped; slotted content still clips itself. */
       overflow: visible;
     }
-    [data-pin='start'] {
+    /* Per-cell sticky layout: benchmark comparison only, removed after it. */
+    :host([data-argus-pin-mode='cells']) [data-pin] {
+      position: sticky;
+      z-index: 1;
+    }
+    :host([data-argus-pin-mode='cells']) [data-pin='start'] {
       inset-inline-start: var(--_pin-offset);
     }
-    [data-pin='end'] {
+    :host([data-argus-pin-mode='cells']) [data-pin='end'] {
       inset-inline-end: var(--_pin-offset);
     }
     [part~='cell-pinned'] {
