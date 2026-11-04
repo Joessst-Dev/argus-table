@@ -21,7 +21,8 @@ Run in parallel after one shared install job with the pnpm store cached.
 | `setup` | Install with the pnpm store cached; `nrwl/nx-set-shas` sets the base/head commits for `affected` | — |
 | `lint` | `nx affected -t lint typecheck` (ESLint, Prettier, `tsc --noEmit`) | — |
 | `unit` | `nx affected -t test` — Vitest browser mode | Chromium, Firefox, WebKit |
-| `build` | `nx affected -t build` — packages, manifest, generated wrappers, publint/attw, size-limit budget | — |
+| `build` | `nx affected -t build` — packages, manifest, generated wrappers, the bundled `.d.ts`, and the export checks (no `@argus-table/core` import left in `dist/`, publint, attw) | — |
+| `size` | `pnpm size` — size-limit on the CDN build (`dist/cdn/argus-table.js`, everything inlined, min+gzip). Always runs, because a dependency bump can grow the bundle | — |
 | `e2e` | `nx affected -t e2e` — Playwright tests in `tests/e2e` against the playground | Chromium, Firefox, WebKit |
 | `visual` | `nx affected -t visual` inside the official Playwright Docker image so fonts match | Chromium |
 | `a11y` | `nx affected -t test-storybook` — axe on every story | Chromium |

@@ -8,7 +8,7 @@ import type { ColumnDef as CoreColumnDef } from '@argus-table/core';
  */
 export type CellContent = TemplateResult | Node | string | number;
 
-/** One column of `<argus-table>`. See `@argus-table/core` for each field. */
+/** One column of `<argus-table>`: what it shows, how wide it is, and how it behaves. */
 export type ColumnDef<T = unknown> = CoreColumnDef<T, CellContent>;
 
 /** Row density. Each one sets defaults for `--argus-row-height` and `--argus-cell-padding-inline`. */
