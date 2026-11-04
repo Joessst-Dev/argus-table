@@ -1,4 +1,4 @@
-// In-page measurement for bench/run.ts. Scenarios run from the page so they are
+// In-page measurement for run.ts. Scenarios run from the page so they are
 // deterministic and identical in every engine.
 import { seeded } from './data.js';
 import type { SpikeGrid } from './spike-grid.js';

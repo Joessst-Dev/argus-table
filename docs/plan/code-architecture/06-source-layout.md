@@ -9,14 +9,16 @@ packages/core/src/
 ├─ columns/      resolve-columns.ts (property or <argus-column> → ColumnDef[]) · auto-width.ts
 ├─ data/         data-source.ts (paging, debounce, abort) · row-cache.ts
 ├─ table/        create-table.ts (TanStack adapter; its types stay private)
+├─ types.ts      public types (ColumnDef, SortState, event details), re-exported by argus-table
 ├─ state/        controllable.ts (controlled / uncontrolled helper)
+├─ virtual/      row-pool.ts (pool slots for rendered rows, ADR 0001)
 └─ index.ts
 
 packages/table/src/
 ├─ argus-table.ts        the element: creates controllers, renders
 ├─ argus-column.ts       data-only element read by the column controller
 ├─ controllers/          column · data · table · virtual · interaction
-├─ render/               header.ts · body.ts · pinned-rows.ts · skeleton.ts · row-pool.ts (pool slots for rows and slotted content, ADR 0001)
+├─ render/               header.ts · body.ts · pinned-rows.ts · skeleton.ts (rows and slotted content rendered in pool order, ADR 0001)
 ├─ styles/               base.ts (@layer argus-base, default tokens)
 └─ events.ts             event names + typed detail objects
 

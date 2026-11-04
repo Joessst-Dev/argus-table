@@ -8,7 +8,7 @@ The table follows the WAI-ARIA grid pattern from the first release; retrofitting
 - Sorting announced via `aria-sort` on headers.
 - One tab stop into the grid, then roving focus: arrows move by cell, Home/End by row, Ctrl+Home/End to corners, PageUp/PageDown by viewport.
 - Focus survives virtualization: the focused cell is tracked by row id + column id and kept rendered, holding its row-pool slot so its DOM is never recycled.
-- Body rows are pooled, so DOM order can differ from visual order. Rows carry `aria-rowindex`; screen-reader tests decide whether that is enough or whether the DOM is kept sorted ([ADR 0001](../../adr/0001-shadow-vs-light-dom.md)).
+- Body rows are pooled and stay in pool order, so DOM order can differ from visual order. Keeping the DOM sorted cost too much (the ADR 0001 [addendum](../../adr/0001-shadow-vs-light-dom.md#addendum-sorted-dom-phase-1)), so row positions come from `aria-rowindex` alone, and keyboard navigation moves by row index, never by DOM sibling. A screen-reader check (VoiceOver with Safari, NVDA with Firefox) before v0.1 confirms this is enough.
 - Resize handles reachable by keyboard (focus header, then Alt+Arrow to resize), with `aria-valuenow`.
 - Visible focus ring via `--argus-focus-ring`; every theme must pass WCAG AA contrast.
 - `prefers-reduced-motion` turns off smooth scrolling and transitions.

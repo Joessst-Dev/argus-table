@@ -1,0 +1,26 @@
+{
+  "name": "@argus-table/core",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Framework-free logic for argus-table: column resolution, the TanStack Table adapter, state helpers and the row pool. Bundled into argus-table; not published.",
+  "license": "MIT",
+  "type": "module",
+  "nx": {
+    "name": "core"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@tanstack/table-core": "9.3.1"
+  },
+  "devDependencies": {
+    "vitest": "^5.1.0"
+  }
+}
