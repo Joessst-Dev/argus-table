@@ -2,4 +2,4 @@
 'argus-table': patch
 ---
 
-The scroll container is no longer a separate tab stop in Firefox, so Tab goes straight to the grid's active cell in every browser.
+The grid is one tab stop in Firefox too. Firefox makes the scroll container a tab stop of its own; Tab into the grid now moves straight on to the active cell, and Shift+Tab leaves the grid without stopping on the container.

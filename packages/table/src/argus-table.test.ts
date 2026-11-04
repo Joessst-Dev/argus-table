@@ -793,11 +793,16 @@ describe('keyboard and focus', () => {
     await settle(el);
   }
 
-  test('keeps the scroll container out of the tab order', async () => {
-    // Firefox makes a scroll container a tab stop unless it opts out.
+  test('focus that lands on the scroll container moves on to the active cell', async (ctx) => {
     const el = await fixture({ columns, data: people(50) });
-    // The attribute, not .tabIndex: a plain div reports -1 either way.
-    expect(shadow(el).querySelector('[part~="table"]')?.getAttribute('tabindex')).toBe('-1');
+    const scroller = shadow(el).querySelector<HTMLElement>('[part~="table"]');
+    scroller?.focus();
+    await settle(el);
+    // Only engines that make scroll containers focusable (Firefox) get here.
+    if (!shadow(el).activeElement) ctx.skip();
+    expect(focused(el)?.getAttribute('role')).toBe('columnheader');
+    // No tabindex on the container: it would put a node between grid and rows.
+    expect(scroller?.hasAttribute('tabindex')).toBe(false);
   });
 
   test('has one tab stop, on the first header by default', async () => {

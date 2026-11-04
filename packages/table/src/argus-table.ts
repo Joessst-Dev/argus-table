@@ -273,12 +273,9 @@ export class ArgusTable<T = unknown> extends LitElement {
     if (this.rowHeight !== undefined && this.rowHeight > 0) {
       style['--_row-height'] = `${String(this.rowHeight)}px`;
     }
-    // tabindex=-1: Firefox makes a scroll container a tab stop of its own; the
-    // grid keeps a single tab stop (the active cell).
     return html`<div
       part="table"
       role="presentation"
-      tabindex="-1"
       style=${styleMap(style)}
       @keydown=${this.#onKeydown}
       @focusin=${this.#onFocusin}
@@ -350,6 +347,18 @@ export class ArgusTable<T = unknown> extends LitElement {
     const cell = gridCell(event.composedPath()[0] ?? event.target ?? this);
     const id = cell?.dataset.col;
     if (!cell || id === undefined) return;
+    if (event.key === 'Tab' && event.shiftKey) {
+      // Firefox makes the scroll container a tab stop, so Shift+Tab would stop
+      // on it before leaving the grid. Take it out of the tab order for this
+      // one move only: a tabindex there for good would expose it as a node of
+      // its own between the grid and its rows.
+      const scroller = event.currentTarget as HTMLElement;
+      scroller.tabIndex = -1;
+      setTimeout(() => {
+        scroller.removeAttribute('tabindex');
+      });
+      return;
+    }
     const inHeader = cell.getAttribute('role') === 'columnheader';
     const { key } = event;
     if (inHeader && event.altKey && (key === 'ArrowLeft' || key === 'ArrowRight')) {
@@ -401,6 +410,13 @@ export class ArgusTable<T = unknown> extends LitElement {
 
   /** Focus that lands in a cell (a click, or content inside it) makes that cell active. */
   readonly #onFocusin = (event: FocusEvent) => {
+    // Tab into the grid landed on the scroll container (Firefox makes it a tab
+    // stop): move on to the grid's one tab stop, the active cell.
+    if (event.composedPath()[0] === event.currentTarget) {
+      this.#focusPending = true;
+      this.requestUpdate();
+      return;
+    }
     for (const target of event.composedPath()) {
       const cell = gridCell(target);
       if (cell?.dataset.col !== undefined) {

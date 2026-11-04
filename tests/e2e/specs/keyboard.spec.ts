@@ -27,6 +27,20 @@ test.describe('keyboard navigation', () => {
     expect(await focused(page)).toEqual({ role: 'columnheader', col: 'index', rowIndex: 1 });
   });
 
+  test('the grid is one tab stop in both directions', async ({ page }) => {
+    await page.keyboard.press('Tab');
+    expect((await focused(page))?.role).toBe('columnheader');
+    await page.keyboard.press('ArrowDown');
+    await settle(page);
+    // Shift+Tab from a cell leaves the grid, with no stop on the scroll container.
+    await page.keyboard.press('Shift+Tab');
+    expect(await focused(page)).toBeNull();
+    // Tab comes back to the cell that was active.
+    await page.keyboard.press('Tab');
+    await settle(page);
+    expect(await focused(page)).toEqual({ role: 'gridcell', col: 'index', rowIndex: 2 });
+  });
+
   test('focus survives scrolling the focused row out of the window', async ({ page }) => {
     await page.keyboard.press('Tab');
     for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowDown');
