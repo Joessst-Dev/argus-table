@@ -96,6 +96,32 @@ export const baseStyles = css`
       color: var(--argus-header-fg, inherit);
       font-weight: 600;
     }
+    [part~='header-cell'] {
+      position: relative;
+    }
+    [part~='resize-handle'] {
+      position: absolute;
+      inset-block: 0;
+      inset-inline-end: 0;
+      inline-size: 8px;
+      z-index: 1;
+      cursor: col-resize;
+      touch-action: none;
+    }
+    [part~='resize-handle']::after {
+      content: '';
+      position: absolute;
+      inset-block: 25%;
+      inset-inline-end: 0;
+      inline-size: 2px;
+      background: var(--argus-resize-handle-color, light-dark(#9ca3af, #6b7280));
+      opacity: 0;
+    }
+    [part~='header-cell']:hover [part~='resize-handle']::after,
+    [part~='header-cell']:focus-visible [part~='resize-handle']::after,
+    [part~='resize-handle'][data-active]::after {
+      opacity: 1;
+    }
     [data-sort-col] {
       cursor: pointer;
       user-select: none;

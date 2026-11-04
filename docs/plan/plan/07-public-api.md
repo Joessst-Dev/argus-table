@@ -87,8 +87,9 @@ All `CustomEvent`, bubbling and composed. See [State and events](../code-archite
 | `argus-range-change` | `{ start, end }` visible rows |
 | `argus-load-error` | `{ error, start, end }` |
 
-- The package exports each name as a constant (`SORT_CHANGE`, `RANGE_CHANGE`, …), and `HTMLElementEventMap` types each `detail`.
+- The package exports each name as a constant (`SORT_CHANGE`, `COLUMN_RESIZE`, `RANGE_CHANGE`, …), and `HTMLElementEventMap` types each `detail`.
 - `argus-sort-change` fires on a click on a sortable header, or Enter or Space on a focused one; the order cycles ascending → descending → unsorted. When `sorting` is uncontrolled, it fires after the rows are re-sorted. When controlled, it carries the proposed order and nothing changes until the host sets `sorting`. v0.1 sorts by one column at a time.
+- `argus-column-resize` fires when a column is resized by dragging its `resize-handle` or with Alt+Arrow on its focused header (10 px; the arrow toward the inline end grows it). During a drag it fires once per animation frame, so a controlled host can follow the drag; `width` is already clamped to `minWidth`/`maxWidth`.
 
 ## Methods
 
