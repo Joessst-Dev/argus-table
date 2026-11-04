@@ -101,5 +101,33 @@ Across every engine, keying, variant and run, there were **0 blank-row frames** 
 - [ ] **Absolute check in real Safari** (needed before v0.1): on a Mac, run `BROWSERS=webkit pnpm --filter @argus-table/spike bench`, and scroll `apps/spike` (`pnpm --filter @argus-table/spike dev`, then `?variant=slotted&keying=pool`) in Safari with the Web Inspector timeline open.
 - [ ] Re-measure Firefox fast scrolling on real hardware, where vsync is more stable.
 - [x] A docs PR that updates the lit3 skill (body rows keyed by pool index, not row id; slotted nodes as direct host children; TanStack v9 API), the rendering, public API and accessibility plan pages, and the code-architecture pages (row pool).
-- [ ] Phase 1: choose between the two DOM-order options above, with screen-reader tests.
+- [x] Phase 1: choose between the two DOM-order options above. Pool order plus `aria-rowindex` was chosen; see the addendum below.
+- [ ] Screen-reader check (needed before v0.1): on the Phase 1 playground, test VoiceOver with Safari and NVDA with Firefox. Rows must be read in visual order, with the right row and column numbers, while scrolling.
 - [ ] Phase 1: delete `apps/spike` and `spike-bench.yml`. If the harness is still useful, move it to `benchmarks/`.
+
+## Addendum: sorted DOM (Phase 1)
+
+**Question.** Can pooled body rows stay in row-index order in the DOM (nodes are moved, not recreated) at little cost? If so, screen readers that follow DOM order would read rows in visual order without relying on `aria-rowindex`.
+
+**Method.** The spike gained `keying=sorted`. Rows are keyed by pool slot as before, but `repeat` receives them in row-index order, so Lit moves the existing row nodes into place. The light DOM stays in pool order: slotted content follows its slot in the flat tree, so its own order doesn't matter. `spike-bench` ran `pool` and `sorted` for both variants in all three engines on GitHub-hosted runners, with the same scenarios as above and the median of 5 runs ([run 41806791518](https://github.com/Joessst-Dev/argus-table/actions/runs/41806791518)).
+
+**Rule, set before measuring.** Ship sorted only if its p95 and its median jump frame are within 10% of pool order in every engine.
+
+**Results** (slotted variant, pool → sorted, ms):
+
+| Engine       |         Steady p95 |           Fast p95 |      Median jump frame | Frames > 50 ms (jumps) |
+| ------------ | -----------------: | -----------------: | ---------------------: | ---------------------: |
+| Chromium 153 |        16.7 → 16.7 |        16.7 → 16.8 | **16.7 → 33.3** (2.0×) |                  0 → 0 |
+| Firefox 155  |        17.1 → 17.1 |    **17.1 → 33.3** | **17.1 → 50.3** (2.9×) |                 0 → 12 |
+| WebKit 26.6  | **57 → 97** (1.7×) | **58 → 91** (1.6×) |     **71 → 88** (1.2×) |                20 → 19 |
+
+- In the shadow variant, sorted is free in Chromium. In Firefox, its fast-scroll p95 still rises from 17.1 to 33.2 ms. In WebKit, its median jump frame rises from 70 to 77.5 ms.
+- Moving nodes is cheaper than recreating them, as with row-id keying, but it is not free. A jump shuffles most of the window, and every moved row carries slots, which triggers slot assignment again. WebKit pays for that during ordinary scrolling as well.
+- As above, WebKit's absolute numbers come from the runner. Its relative numbers fail the rule regardless.
+
+**Decision.** Sorted fails the rule in every engine. Body rows stay in **pool order**, and every row carries `aria-rowindex` (and every cell `aria-colindex`), with `ariaRowCount`/`ariaColCount` on the host for the full size. Keyboard navigation moves by row index through the row model, never by DOM siblings.
+
+**Consequences.**
+
+- `RowPool` returns rows in pool order only; it has no row-index-order mode.
+- Before v0.1, a screen-reader check on the playground must confirm that `aria-rowindex` is enough (see Follow-ups). If it isn't, revisit this decision, for example by sorting only when the window settles after a jump or a scroll.
