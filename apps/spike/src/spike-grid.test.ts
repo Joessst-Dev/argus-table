@@ -39,6 +39,8 @@ describe.each<[Variant, Keying]>([
   ['slotted', 'row'],
   ['shadow', 'pool'],
   ['slotted', 'pool'],
+  ['shadow', 'sorted'],
+  ['slotted', 'sorted'],
 ])('%s variant, %s keying', (variant, keying) => {
   test('renders a bounded window of 100k rows', async () => {
     const el = await mount(variant, keying);
@@ -88,3 +90,18 @@ test('slotted light DOM stays bounded while scrolling', async () => {
   }
   expect(el.poolSize).toBeLessThan(80);
 });
+
+test.each<Variant>(['shadow', 'slotted'])(
+  '%s variant, sorted keying keeps body DOM in row order',
+  async (variant) => {
+    const el = await mount(variant, 'sorted');
+    for (const top of [0, 36_000, 1_800_000, 900_000]) {
+      await scrollTo(el, top);
+      const indices = [...(el.shadowRoot?.querySelectorAll('.body > .row') ?? [])].map((r) =>
+        Number(r.getAttribute('aria-rowindex')),
+      );
+      expect(indices.length).toBeGreaterThan(5);
+      expect(indices).toEqual([...indices].sort((a, b) => a - b));
+    }
+  },
+);
