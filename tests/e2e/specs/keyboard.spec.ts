@@ -28,17 +28,33 @@ test.describe('keyboard navigation', () => {
   });
 
   test('the grid is one tab stop in both directions', async ({ page }) => {
+    // Something to tab to on either side; without it, Firefox wraps Shift+Tab
+    // around the page and lands back in the grid.
+    await page.evaluate(() => {
+      const table = document.querySelector('argus-table');
+      const button = (id: string) =>
+        Object.assign(document.createElement('button'), { id, textContent: id });
+      table?.before(button('before'));
+      table?.after(button('after'));
+    });
+    const activeId = () => page.evaluate(() => document.activeElement?.id ?? '');
+
+    await page.locator('#before').focus();
     await page.keyboard.press('Tab');
     expect((await focused(page))?.role).toBe('columnheader');
     await page.keyboard.press('ArrowDown');
     await settle(page);
-    // Shift+Tab from a cell leaves the grid, with no stop on the scroll container.
-    await page.keyboard.press('Shift+Tab');
-    expect(await focused(page)).toBeNull();
-    // Tab comes back to the cell that was active.
+
+    // Forward: one stop in the grid, then out.
     await page.keyboard.press('Tab');
+    expect(await activeId()).toBe('after');
+    // Back in lands on the cell that was active.
+    await page.keyboard.press('Shift+Tab');
     await settle(page);
     expect(await focused(page)).toEqual({ role: 'gridcell', col: 'index', rowIndex: 2 });
+    // Backward: out of the grid with no stop on the scroll container.
+    await page.keyboard.press('Shift+Tab');
+    expect(await activeId()).toBe('before');
   });
 
   test('focus survives scrolling the focused row out of the window', async ({ page }) => {
