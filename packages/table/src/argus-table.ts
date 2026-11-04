@@ -273,9 +273,12 @@ export class ArgusTable<T = unknown> extends LitElement {
     if (this.rowHeight !== undefined && this.rowHeight > 0) {
       style['--_row-height'] = `${String(this.rowHeight)}px`;
     }
+    // tabindex=-1: Firefox makes a scroll container a tab stop of its own; the
+    // grid keeps a single tab stop (the active cell).
     return html`<div
       part="table"
       role="presentation"
+      tabindex="-1"
       style=${styleMap(style)}
       @keydown=${this.#onKeydown}
       @focusin=${this.#onFocusin}

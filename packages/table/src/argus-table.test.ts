@@ -793,6 +793,13 @@ describe('keyboard and focus', () => {
     await settle(el);
   }
 
+  test('keeps the scroll container out of the tab order', async () => {
+    // Firefox makes a scroll container a tab stop unless it opts out.
+    const el = await fixture({ columns, data: people(50) });
+    // The attribute, not .tabIndex: a plain div reports -1 either way.
+    expect(shadow(el).querySelector('[part~="table"]')?.getAttribute('tabindex')).toBe('-1');
+  });
+
   test('has one tab stop, on the first header by default', async () => {
     const el = await fixture({ columns, data: people(50) });
     const stops = tabStops(el);
