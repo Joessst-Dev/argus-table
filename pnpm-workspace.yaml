@@ -7,3 +7,8 @@ packages:
 # Dependencies allowed to run install scripts (pnpm blocks the rest)
 onlyBuiltDependencies:
   - nx
+
+# Install scripts we skip on purpose: both ship prebuilt binaries that work without them
+ignoredBuiltDependencies:
+  - esbuild
+  - rs-module-lexer
