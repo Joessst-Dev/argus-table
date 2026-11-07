@@ -87,9 +87,26 @@ export interface RowView<TData> {
   original: TData;
 }
 
+/**
+ * Rows that live outside the model, loaded page by page (`dataSource`). The
+ * source sorts them, so the model reads them as they are. `PageCache` implements it.
+ */
+export interface RemoteRows<TData> {
+  readonly rowCount: number;
+  /** The loaded row at an index, with its id; `undefined` while it isn't loaded. */
+  entryAt(index: number): { id: string; row: TData } | undefined;
+  /** The index of a loaded row's id, or `undefined`. */
+  indexOf(rowId: string): number | undefined;
+}
+
 export interface TableModelOptions<TData, TContent> {
   columns: readonly ColumnDef<TData, TContent>[];
   data: readonly TData[];
+  /**
+   * Remote rows. When set, rows come from here instead of `data`, and the model
+   * doesn't sort them (the source does).
+   */
+  remote?: RemoteRows<TData> | undefined;
   /** Row id function. Default: the row's index in `data`, as a string. */
   getRowId: ((row: TData, index: number) => string) | undefined;
   /** Current sort state; its owner is the caller (see `controllable`). */
@@ -107,7 +124,7 @@ export interface TableModel<TData, TContent> {
   readonly rowCount: number;
   /** Sum of all column widths in px (flex columns count their minimum). */
   readonly totalWidth: number;
-  /** The row at an index of the current row model. */
+  /** The row at an index of the current row model; `undefined` for a remote row not loaded yet. */
   rowAt(index: number): RowView<TData> | undefined;
   /** The index of a row id in the current row model (after sorting), or `undefined`. */
   indexOf(rowId: string): number | undefined;
@@ -164,7 +181,8 @@ export function createTableModel<TData, TContent>(
   const tableOptions = (): TableOptions<Features, AnyRow> => ({
     features,
     columns: tanStackColumns,
-    data: options.data as AnyRow[],
+    // Remote rows bypass TanStack's row models; it still handles columns and state.
+    data: (options.remote ? [] : options.data) as AnyRow[],
     getRowId: (options.getRowId ?? defaultRowId) as (row: AnyRow, index: number) => string,
     state: {
       sorting: options.sorting,
@@ -248,7 +266,7 @@ export function createTableModel<TData, TContent>(
     },
 
     get rowCount() {
-      return rows().length;
+      return options.remote?.rowCount ?? rows().length;
     },
 
     get totalWidth() {
@@ -256,6 +274,10 @@ export function createTableModel<TData, TContent>(
     },
 
     rowAt(index) {
+      if (options.remote) {
+        const entry = options.remote.entryAt(index);
+        return entry && { id: entry.id, index, original: entry.row };
+      }
       const row = rows()[index];
       if (!row) return undefined;
       let view = rowViews.get(row);
@@ -267,6 +289,7 @@ export function createTableModel<TData, TContent>(
     },
 
     indexOf(rowId) {
+      if (options.remote) return options.remote.indexOf(rowId);
       const current = rows();
       if (indexById?.rows !== current) {
         indexById = { rows: current, map: new Map(current.map((r, i) => [r.id, i])) };
@@ -275,10 +298,26 @@ export function createTableModel<TData, TContent>(
     },
 
     valueAt(index, columnId) {
+      if (options.remote) {
+        const entry = options.remote.entryAt(index);
+        return entry && byId.get(columnId)?.getValue(entry.row, index);
+      }
       return rows()[index]?.getValue(columnId);
     },
 
     cellContext(index, columnId) {
+      if (options.remote) {
+        const entry = options.remote.entryAt(index);
+        const column = byId.get(columnId);
+        if (!entry || !column) return undefined;
+        return {
+          row: entry.row,
+          rowId: entry.id,
+          index,
+          columnId,
+          value: column.getValue(entry.row, index),
+        };
+      }
       const row = rows()[index];
       if (!row || !byId.has(columnId)) return undefined;
       return {

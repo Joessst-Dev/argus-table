@@ -1,7 +1,8 @@
-import { afterEach, describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { html } from 'lit';
 import { ArgusTable } from './index.js';
-import type { ColumnDef } from './types.js';
+import { LOAD_DEBOUNCE_MS } from './controllers/data-controller.js';
+import type { ColumnDef, DataSource, LoadErrorDetail, RowsRequest } from './types.js';
 import {
   bodyRows,
   fixture,
@@ -1189,5 +1190,356 @@ describe('click events', () => {
     el.addEventListener('argus-row-click', () => seen.push('row'));
     shadow(el).querySelector<HTMLElement>('[part~="header-cell"]')?.click();
     expect(seen).toEqual([]);
+  });
+});
+
+describe('dataSource (infinite loading)', () => {
+  const sortColumns: ColumnDef<Person>[] = [
+    { id: 'name', header: 'Name', accessor: 'name', width: 200, sortable: true },
+    { id: 'age', header: 'Age', accessor: 'age', width: 80 },
+    { id: 'city', header: 'City', accessor: 'address.city', width: 120 },
+  ];
+
+  interface Call {
+    request: RowsRequest;
+    resolve: () => void;
+    reject: (error: unknown) => void;
+  }
+
+  /**
+   * A data source over `count` people whose pages answer when the test says so.
+   * `total: false` leaves the total out of the answers.
+   */
+  function server(count: number, { pageSize = 20, total = true } = {}) {
+    const all = people(count);
+    const calls: Call[] = [];
+    const source: DataSource<Person> = {
+      pageSize,
+      getRows(request) {
+        return new Promise((resolve, reject) => {
+          calls.push({
+            request,
+            resolve: () => {
+              resolve({
+                rows: all.slice(request.start, request.end),
+                total: total ? count : undefined,
+              });
+            },
+            reject,
+          });
+        });
+      },
+    };
+    return { source, calls };
+  }
+
+  beforeEach(() => {
+    // Only timers: the virtualizer and settle() still need real animation frames.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** Lets the load debounce run out and the table catch up. */
+  async function load(el: ArgusTable<Person>) {
+    await settle(el);
+    vi.advanceTimersByTime(LOAD_DEBOUNCE_MS);
+    await settle(el);
+  }
+
+  /** Answers the given calls and waits for the rows to render. */
+  async function answer(el: ArgusTable<Person>, calls: Call[]) {
+    for (const call of calls) call.resolve();
+    await Promise.resolve();
+    await load(el);
+  }
+
+  const firstRow = (el: HTMLElement) => rowsInOrder(el)[0];
+
+  test('requests only the pages of the rendered rows, end exclusive', async () => {
+    const { source, calls } = server(1000);
+    const el = await fixture({ columns, dataSource: source });
+    expect(calls).toHaveLength(0);
+    await load(el);
+    expect(calls.map((c) => [c.request.start, c.request.end, c.request.sorting])).toEqual([
+      [0, 20, []],
+    ]);
+  });
+
+  test('shows skeleton rows while loading, then the rows', async () => {
+    const { source, calls } = server(1000);
+    const el = await fixture({ columns, dataSource: source });
+    await load(el);
+    const row = firstRow(el);
+    expect(row?.getAttribute('part')).toContain('row-loading');
+    expect(row?.getAttribute('aria-busy')).toBe('true');
+    expect(row?.querySelectorAll('[part~="skeleton"]')).toHaveLength(3);
+    expect(rowText(row as Element)).toEqual(['', '', '']);
+
+    await answer(el, calls);
+    const loaded = firstRow(el) as Element;
+    expect(loaded.getAttribute('part')).not.toContain('row-loading');
+    expect(loaded.hasAttribute('aria-busy')).toBe(false);
+    expect(loaded.querySelector('[part~="skeleton"]')).toBeNull();
+    expect(rowText(loaded)).toEqual(['Person 0', '0', 'City 0']);
+  });
+
+  test('sizes the body from the total the server sends', async () => {
+    const { source, calls } = server(1000);
+    const el = await fixture({ columns, dataSource: source });
+    await load(el);
+    await answer(el, calls);
+    const body = shadow(el).querySelector<HTMLElement>('[part~="body"]');
+    expect(body?.style.blockSize).toBe('40000px');
+  });
+
+  test('grows with an unknown total and stops at a short page', async () => {
+    const { source, calls } = server(30, { total: false });
+    const el = await fixture({ columns, dataSource: source });
+    await load(el);
+    await answer(el, calls);
+    const body = () => shadow(el).querySelector<HTMLElement>('[part~="body"]');
+    // 20 rows loaded, one page of skeletons below.
+    expect(body()?.style.blockSize).toBe('1600px');
+
+    await scrollTo(el, 1600);
+    await load(el);
+    expect(calls[1]?.request).toMatchObject({ start: 20, end: 40 });
+    await answer(el, calls.slice(1));
+    expect(body()?.style.blockSize).toBe('1200px');
+    const last = rowsInOrder(el).at(-1);
+    expect(last?.getAttribute('aria-rowindex')).toBe('31');
+    expect(rowText(last as Element)[0]).toBe('Person 29');
+  });
+
+  test('loads only where fast scrolling stops', async () => {
+    const { source, calls } = server(10_000);
+    const el = await fixture({ columns, dataSource: source });
+    await load(el);
+    await answer(el, calls);
+    calls.length = 0;
+
+    await scrollTo(el, 40 * 1000);
+    await scrollTo(el, 40 * 3000);
+    await scrollTo(el, 40 * 5000);
+    await load(el);
+    expect(calls.length).toBeGreaterThan(0);
+    for (const { request } of calls) {
+      expect(request.start).toBeGreaterThanOrEqual(4980);
+      expect(request.end).toBeLessThanOrEqual(5040);
+    }
+  });
+
+  test('aborts pages that scrolled away and drops their late answers', async () => {
+    const { source, calls } = server(10_000);
+    const el = await fixture({ columns, dataSource: source });
+    await load(el);
+    await answer(el, calls);
+    await scrollTo(el, 40 * 2000);
+    await load(el);
+    const away = calls.slice(1);
+    expect(away.length).toBeGreaterThan(0);
+
+    await scrollTo(el, 40 * 5000);
+    await load(el);
+    expect(away.every((c) => c.request.signal.aborted)).toBe(true);
+    for (const call of away) call.resolve();
+    await Promise.resolve();
+    await scrollTo(el, 40 * 2000);
+    // The aborted pages ask again rather than taking the late answers.
+    expect(rowsInOrder(el)[0]?.getAttribute('part')).toContain('row-loading');
+    const before = calls.length;
+    await load(el);
+    expect(calls.slice(before).map((c) => c.request.start)).toEqual(
+      away.map((c) => c.request.start),
+    );
+  });
+
+  test('sorts on the server: a new order aborts, reloads and scrolls to the top', async () => {
+    const { source, calls } = server(1000);
+    const el = await fixture({ columns: sortColumns, dataSource: source });
+    await load(el);
+    await answer(el, calls);
+    await scrollTo(el, 400);
+    await load(el);
+    const inFlight = calls.filter((c) => !c.request.signal.aborted).at(-1);
+
+    shadow(el).querySelector<HTMLElement>('[data-sort-col="name"]')?.click();
+    await settle(el);
+    const scroller = shadow(el).querySelector<HTMLElement>('[part~="table"]');
+    expect(scroller?.scrollTop).toBe(0);
+    await load(el);
+    if (inFlight && inFlight !== calls[0]) expect(inFlight.request.signal.aborted).toBe(true);
+    const sorted = calls.at(-1);
+    expect(sorted?.request).toMatchObject({
+      start: 0,
+      end: 20,
+      sorting: [{ id: 'name', desc: false }],
+    });
+    // Rows from before the sort are gone until the new page answers.
+    expect(firstRow(el)?.getAttribute('part')).toContain('row-loading');
+    await answer(el, calls.slice(-1));
+    expect(rowText(firstRow(el) as Element)[0]).toBe('Person 0');
+  });
+
+  test('fires argus-load-error and offers Retry on a failed page', async () => {
+    const { source, calls } = server(1000);
+    const el = await fixture({ columns, dataSource: source });
+    const errors: LoadErrorDetail[] = [];
+    el.addEventListener('argus-load-error', (e) => errors.push(e.detail));
+    await load(el);
+    const failure = new Error('offline');
+    calls[0]?.reject(failure);
+    await Promise.resolve();
+    await settle(el);
+    expect(errors).toEqual([{ error: failure, start: 0, end: 20 }]);
+
+    const row = firstRow(el) as Element;
+    expect(row.getAttribute('part')).toContain('row-loading');
+    expect(row.hasAttribute('aria-busy')).toBe(false);
+    expect(row.querySelectorAll('[part~="skeleton-error"]')).toHaveLength(2);
+    const retry = row.querySelector<HTMLButtonElement>('[part~="retry"]');
+    expect(retry?.getAttribute('aria-label')).toBe('Retry loading rows 1 to 20');
+    // One Retry per failed page.
+    expect(shadow(el).querySelectorAll('[part~="retry"]')).toHaveLength(1);
+    // A failed page isn't asked for again on its own.
+    await load(el);
+    expect(calls).toHaveLength(1);
+
+    retry?.click();
+    await load(el);
+    expect(calls).toHaveLength(2);
+    await answer(el, calls.slice(1));
+    expect(rowText(firstRow(el) as Element)[0]).toBe('Person 0');
+  });
+
+  test('treats a getRows that throws, or answers without rows, as a failed page', async () => {
+    const el = await fixture({
+      columns,
+      dataSource: {
+        getRows: () => {
+          throw new Error('bad');
+        },
+      },
+    });
+    const errors: unknown[] = [];
+    el.addEventListener('argus-load-error', (e) => errors.push(e.detail.error));
+    await load(el);
+    await settle(el);
+    expect(errors).toHaveLength(1);
+
+    el.dataSource = { getRows: () => Promise.resolve({} as { rows: Person[] }) };
+    await load(el);
+    await settle(el);
+    expect(errors[1]).toBeInstanceOf(TypeError);
+  });
+
+  test('Enter on a failed row retries its page; clicks on unloaded rows fire nothing', async () => {
+    const { source, calls } = server(1000);
+    const el = await fixture({ columns, dataSource: source });
+    const clicks: unknown[] = [];
+    el.addEventListener('argus-cell-click', (e) => clicks.push(e.detail));
+    el.addEventListener('argus-row-click', (e) => clicks.push(e.detail));
+    await load(el);
+    const cell = firstRow(el)?.querySelector<HTMLElement>('[data-col="age"]');
+    cell?.click();
+    calls[0]?.reject(new Error('offline'));
+    await Promise.resolve();
+    await settle(el);
+    cell?.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, composed: true }),
+    );
+    await load(el);
+    expect(calls).toHaveLength(2);
+    expect(clicks).toEqual([]);
+  });
+
+  test('keeps focus on a skeleton cell when its row loads', async () => {
+    const { source, calls } = server(1000, { total: false });
+    const el = await fixture({ columns, dataSource: source, getRowId: (p: Person) => p.id });
+    await load(el);
+    const cell = rowsInOrder(el)[2]?.querySelector<HTMLElement>('[data-col="age"]');
+    cell?.focus();
+    await settle(el);
+    await answer(el, calls);
+    const active = shadow(el).activeElement as HTMLElement | null;
+    expect(active?.dataset.col).toBe('age');
+    expect(active?.parentElement?.getAttribute('aria-rowindex')).toBe('4');
+    expect(rowText(active?.parentElement as Element)[0]).toBe('Person 2');
+  });
+
+  test.runIf('ariaRowCount' in ElementInternals.prototype)(
+    'sets aria-rowcount to -1 while the total is unknown, then to the total',
+    async () => {
+      // ElementInternals can't be read from outside, so watch what the table sets.
+      const counts: string[] = [];
+      const spy = vi
+        .spyOn(ElementInternals.prototype, 'ariaRowCount', 'set')
+        .mockImplementation((value: string | null) => {
+          counts.push(String(value));
+        });
+      try {
+        const { source, calls } = server(30, { total: false });
+        const el = await fixture({ columns, dataSource: source });
+        expect(counts.at(-1)).toBe('-1');
+        await load(el);
+        await answer(el, calls);
+        expect(counts.at(-1)).toBe('-1');
+        await scrollTo(el, 1600);
+        await load(el);
+        await answer(el, calls.slice(1));
+        // 30 rows plus the header row.
+        expect(counts.at(-1)).toBe('31');
+      } finally {
+        spy.mockRestore();
+      }
+    },
+  );
+
+  test('refresh() reloads the rendered pages and keeps the scroll position', async () => {
+    const { source, calls } = server(1000);
+    const el = await fixture({ columns, dataSource: source });
+    await load(el);
+    await answer(el, calls);
+    await scrollTo(el, 400);
+    await load(el);
+    await answer(el, calls.slice(1));
+    const before = calls.length;
+
+    await el.refresh();
+    const scroller = shadow(el).querySelector<HTMLElement>('[part~="table"]');
+    expect(scroller?.scrollTop).toBe(400);
+    expect(firstRow(el)?.getAttribute('part')).toContain('row-loading');
+    await load(el);
+    expect(calls.length).toBeGreaterThan(before);
+    expect(calls.slice(before).every((c) => c.request.start <= 20)).toBe(true);
+  });
+
+  test('goes back to data when dataSource is unset', async () => {
+    const { source } = server(1000);
+    const el = await fixture({ columns, dataSource: source });
+    await load(el);
+    el.dataSource = undefined;
+    el.data = people(3);
+    await settle(el);
+    expect(bodyRows(el)).toHaveLength(3);
+    expect(rowText(firstRow(el) as Element)[0]).toBe('Person 0');
+  });
+
+  test('shows the empty slot when the source has no rows', async () => {
+    const { source, calls } = server(0);
+    const el = await fixture({ columns, dataSource: source });
+    await load(el);
+    await answer(el, calls);
+    expect(shadow(el).querySelector('[part~="empty"]')).not.toBeNull();
+  });
+
+  test('aborts requests when the table is removed', async () => {
+    const { source, calls } = server(1000);
+    const el = await fixture({ columns, dataSource: source });
+    await load(el);
+    el.remove();
+    expect(calls[0]?.request.signal.aborted).toBe(true);
   });
 });

@@ -65,14 +65,38 @@ Columns can also be written as `<argus-column>` children. They are data-only ele
 | --- | --- | --- | --- |
 | `columns` | — | `ColumnDef[]` | `[]` |
 | `data` | — | `T[]` | `[]` |
-| `dataSource` | — | `{ getRows(req) }` | — |
+| `dataSource` | — | `{ getRows(request), pageSize? }` | — (wins over `data` while set; see [Data source](#data-source)) |
 | `pinnedRows` | — | `{ top?: T[], bottom?: T[] }` | — |
 | `rowHeight` | `row-height` | number \| `'auto'` | unset: the density (or the `--argus-row-height` token) decides (40px at `comfortable`). A number set explicitly wins over density; `'auto'` (Phase 2) measures rows |
 | `density` | `density` | `'compact'` \| `'comfortable'` \| `'spacious'` | `'comfortable'` |
 | `sorting` | — | `SortState` (controlled or uncontrolled) | — |
 | `columnSizing` | — | `Record<id, px>` | — |
-| `getRowId` | — | `(row) => string` | index |
+| `getRowId` | — | `(row, index) => string` | index (among all rows, for a `dataSource`) |
 | `overscan` | `overscan` | number | 6 |
+
+## Data source
+
+`dataSource` loads rows page by page as they scroll into view, instead of `data`. The table owns the cache; the host only answers requests.
+
+```ts
+table.dataSource = {
+  pageSize: 100, // default
+  async getRows({ start, end, sorting, signal }) {
+    const res = await fetch(`/api/orders?offset=${start}&limit=${end - start}&sort=${encode(sorting)}`, { signal });
+    const { rows, total } = await res.json();
+    return { rows, total }; // total is optional
+  },
+};
+```
+
+- `start` is inclusive and `end` exclusive, like `Array.prototype.slice`, so `end - start` is the limit. (`argus-range-change` reports inclusive indices; the two answer different questions.)
+- Only pages in view (plus `overscan`) are requested, once the range has been quiet for 50 ms, so fast scrolling loads where it stops. Pages that scroll more than a page away are aborted through `signal`; answers for an old source, order or `refresh()` are dropped. Pages far from the view (more than 10 pages away) are evicted, so memory stays bounded.
+- With `total`, the table has exactly that many rows. Without it, the table keeps one page of skeleton rows below the last row it has, and a page with fewer rows than asked for marks the end. `aria-rowcount` is `-1` while the total is unknown.
+- Sorting happens on the server: `sorting` arrives in every request, and a new order clears the cache, aborts what's in flight and scrolls to the top. The `sorting` property keeps its controlled and uncontrolled rules. A `filter` field joins the request once the table has filtering.
+- Rows not loaded yet render as skeletons: part `row-loading` on the row (with `aria-busy="true"`), part `skeleton` on a bar in each cell, coloured by `--argus-skeleton-bg`. The bars pulse unless `prefers-reduced-motion` is set.
+- A page that fails (rejects or throws) fires `argus-load-error` and shows its rows with `skeleton skeleton-error` bars. Its first visible row gets a Retry button (part `retry`, labelled "Retry loading rows 201 to 300"); Enter on any cell of a failed row retries too. A failed page isn't requested again on its own until it scrolls far away and back.
+- Clicks and Enter on rows that haven't loaded fire no `argus-cell-click` or `argus-row-click`. Focus can rest on a skeleton cell and stays there when the row arrives.
+- `refresh()` drops every page and loads the rows in view again, keeping the scroll position. Replace the `dataSource` object to change `getRows` or `pageSize`.
 
 ## Events
 
@@ -85,7 +109,7 @@ All `CustomEvent`, bubbling and composed. See [State and events](../code-archite
 | `argus-row-click` | `{ row, rowId, index }` |
 | `argus-cell-click` | `{ row, columnId, value }` |
 | `argus-range-change` | `{ start, end }` visible rows |
-| `argus-load-error` | `{ error, start, end }` |
+| `argus-load-error` | `{ error, start, end }`: a `dataSource` page failed; `end` exclusive |
 
 - The package exports each name as a constant (`SORT_CHANGE`, `COLUMN_RESIZE`, `CELL_CLICK`, `ROW_CLICK`, `RANGE_CHANGE`, …), and `HTMLElementEventMap` types each `detail`.
 - `argus-sort-change` fires on a click on a sortable header, or Enter or Space on a focused one; the order cycles ascending → descending → unsorted. When `sorting` is uncontrolled, it fires after the rows are re-sorted. When controlled, it carries the proposed order and nothing changes until the host sets `sorting`. v0.1 sorts by one column at a time.
@@ -96,6 +120,8 @@ All `CustomEvent`, bubbling and composed. See [State and events](../code-archite
 
 `scrollToRow(index)`, `scrollToColumn(id)`, `refresh()`, `autosizeColumns(ids?)`, `getState()` / `setState()`.
 
+- `refresh()` (v0.2): with a `dataSource`, drops every loaded page and loads the rows in view again; with `data`, re-renders the cells. Resolves once the table has re-rendered.
+
 ## Slots
 
 - `empty`: shown instead of the body when there are no rows. Default text: "No rows".
@@ -103,14 +129,18 @@ All `CustomEvent`, bubbling and composed. See [State and events](../code-archite
 
 ## Parts
 
-`table`, `header`, `header-row`, `header-cell`, `header-cell-sorted`, `resize-handle`, `body`, `row`, `row-pinned`, `row-even`, `row-odd`, `row-selected`, `cell`, `cell-pinned`, `cell-pinned-edge`, `cell-sorted`, `footer`, `skeleton`, `empty`.
+`table`, `header`, `header-row`, `header-cell`, `header-cell-sorted`, `resize-handle`, `body`, `row`, `row-pinned`, `row-even`, `row-odd`, `row-selected`, `row-loading`, `cell`, `cell-pinned`, `cell-pinned-edge`, `cell-sorted`, `footer`, `skeleton`, `skeleton-error`, `retry`, `empty`.
+
+- `row-loading`, `skeleton`, `skeleton-error` and `retry` belong to `dataSource` loading; see [Data source](#data-source).
 
 - `header-cell-sorted` is added next to `header-cell` on the sorted column's header. `cell-sorted` is for body cells in that column. They are separate so that `::part(cell-sorted)` never matches headers. The direction is exposed through `aria-sort` only; attribute selectors can't follow `::part()`, so styling per direction is left out until a theme needs it.
 - `cell-pinned` is on every pinned cell on either side, and `cell-pinned-edge` is added on the pinned cell next to the scrolling columns. There are no per-side parts; the component mirrors the edge shadow itself.
 
 ## Tokens (first set)
 
-`--argus-bg`, `--argus-fg`, `--argus-header-bg`, `--argus-header-fg`, `--argus-border-color`, `--argus-border-width`, `--argus-row-hover-bg`, `--argus-row-stripe-bg`, `--argus-row-selected-bg`, `--argus-cell-padding-inline`, `--argus-row-height`, `--argus-font`, `--argus-pinned-shadow`, `--argus-resize-handle-color`, `--argus-focus-ring`.
+`--argus-bg`, `--argus-fg`, `--argus-header-bg`, `--argus-header-fg`, `--argus-border-color`, `--argus-border-width`, `--argus-row-hover-bg`, `--argus-row-stripe-bg`, `--argus-row-selected-bg`, `--argus-cell-padding-inline`, `--argus-row-height`, `--argus-font`, `--argus-pinned-shadow`, `--argus-resize-handle-color`, `--argus-focus-ring`, `--argus-skeleton-bg`.
+
+- `--argus-skeleton-bg` colours the skeleton bars of rows still loading. Default: the text colour at 12% opacity.
 
 - `--argus-row-height` and `--argus-cell-padding-inline` each have a default per density: 32 / 40 / 52 px rows and 8 / 12 / 16 px padding for compact / comfortable / spacious; see [Styling and theming](06-styling-and-theming.md).
 - The element is 400 px tall by default, because a virtualized table needs a bounded height; set `height` (or `block-size`) on it.

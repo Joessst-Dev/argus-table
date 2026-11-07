@@ -1,6 +1,7 @@
 import type {
   CellClickDetail,
   ColumnResizeDetail,
+  LoadErrorDetail,
   RangeChangeDetail,
   RowClickDetail,
   SortChangeDetail,
@@ -21,6 +22,9 @@ export const ROW_CLICK = 'argus-row-click';
 /** Fired when a body cell was clicked, before `argus-row-click`. */
 export const CELL_CLICK = 'argus-cell-click';
 
+/** Fired after the update when a `dataSource` page failed to load. */
+export const LOAD_ERROR = 'argus-load-error';
+
 declare global {
   interface HTMLElementEventMap {
     'argus-range-change': CustomEvent<RangeChangeDetail>;
@@ -28,6 +32,7 @@ declare global {
     'argus-column-resize': CustomEvent<ColumnResizeDetail>;
     'argus-row-click': CustomEvent<RowClickDetail<unknown>>;
     'argus-cell-click': CustomEvent<CellClickDetail<unknown>>;
+    'argus-load-error': CustomEvent<LoadErrorDetail>;
   }
 }
 

@@ -9,6 +9,7 @@ export {
 export {
   createTableModel,
   type ColumnView,
+  type RemoteRows,
   type RowView,
   type SortDirection,
   type TableModel,
@@ -16,3 +17,10 @@ export {
 } from './table/create-table.js';
 export { controllable, type Controllable } from './state/controllable.js';
 export { RowPool, type PoolEntry } from './virtual/row-pool.js';
+export {
+  KEEP_PAGES,
+  PageCache,
+  type CachedRow,
+  type PageCacheOptions,
+  type RowState,
+} from './data/page-cache.js';

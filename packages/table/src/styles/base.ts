@@ -248,6 +248,35 @@ export const baseStyles = css`
       text-overflow: ellipsis;
     }
 
+    /* Rows of a data source that haven't loaded: a bar per cell, pulsing gently. */
+    [part~='skeleton'] {
+      flex: none;
+      inline-size: min(60%, 8em);
+      block-size: 0.6em;
+      border-radius: 0.3em;
+      background: var(--argus-skeleton-bg, color-mix(in srgb, currentColor 12%, transparent));
+      animation: argus-skeleton-pulse 1.6s ease-in-out infinite;
+    }
+    [part~='skeleton-error'] {
+      animation: none;
+      opacity: 0.5;
+    }
+    @keyframes argus-skeleton-pulse {
+      50% {
+        opacity: 0.45;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      [part~='skeleton'] {
+        animation: none;
+      }
+    }
+    [part~='retry'] {
+      font: inherit;
+      color: inherit;
+      cursor: pointer;
+    }
+
     [part~='empty'] {
       display: flex;
       align-items: center;

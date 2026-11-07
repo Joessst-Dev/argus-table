@@ -27,6 +27,7 @@ argus-table {
   --argus-pinned-shadow: 4px 0 6px -4px light-dark(rgb(0 0 0 / 0.16), rgb(0 0 0 / 0.55));
   --argus-resize-handle-color: light-dark(#2f5bd3, #8aa6f2);
   --argus-focus-ring: 2px solid light-dark(#2f5bd3, #8aa6f2);
+  --argus-skeleton-bg: light-dark(#e6e9ee, #2a303a);
 
   /* Numbers line up in columns. */
   &::part(cell) {

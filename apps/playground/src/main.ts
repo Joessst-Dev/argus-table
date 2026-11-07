@@ -1,5 +1,5 @@
 import { html } from 'lit';
-import type { ArgusTable, ColumnDef, Density } from 'argus-table';
+import type { ArgusTable, ColumnDef, DataSource, Density, RowsRequest } from 'argus-table';
 import 'argus-table';
 import { EXTRA_COLUMNS, makePeople, type Person } from './data.js';
 import { installBenchHooks } from './bench-hooks.js';
@@ -9,6 +9,10 @@ import { installBenchHooks } from './bench-hooks.js';
 // pin=none to drop the pins (the floor when measuring what pinning costs),
 // theme=default to load @argus-table/themes/default.css, and scheme=dark|light
 // to force a colour scheme through data-argus-theme.
+// source=remote loads the rows through a pretend server (dataSource) instead of
+// data, with latency=<ms> (default 100), total=unknown to leave the total out,
+// and fail=<page> to fail that page's first request. Requests are logged in
+// window.__argusRequests.
 const params = new URLSearchParams(location.search);
 if (params.get('theme') === 'default') await import('@argus-table/themes/default.css');
 const scheme = params.get('scheme');
@@ -79,8 +83,70 @@ table.setAttribute('aria-label', 'People');
 table.density = density;
 if (params.has('overscan')) table.overscan = Number(params.get('overscan'));
 table.columns = columns;
-table.data = makePeople(rowCount);
 table.getRowId = (p) => p.id;
+if (params.get('source') === 'remote') table.dataSource = remoteSource(makePeople(rowCount));
+else table.data = makePeople(rowCount);
 document.body.append(table);
 
 if (params.has('bench')) installBenchHooks(table);
+
+declare global {
+  interface Window {
+    __argusRequests?: RowsRequest[];
+  }
+}
+
+/** A pretend server over the people: sorts, waits, honours `signal`, can fail a page once. */
+function remoteSource(people: Person[]): DataSource<Person> {
+  const latency = Number(params.get('latency') ?? 100);
+  const withTotal = params.get('total') !== 'unknown';
+  const failing = new Set(params.has('fail') ? [Number(params.get('fail'))] : []);
+  const pageSize = 100;
+  const sortedBy = new Map<string, Person[]>();
+  const log: RowsRequest[] = (window.__argusRequests = []);
+  return {
+    pageSize,
+    getRows: ({ start, end, sorting, signal }) => {
+      log.push({ start, end, sorting, signal });
+      return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          if (failing.delete(Math.floor(start / pageSize))) {
+            reject(new Error('Server error'));
+            return;
+          }
+          const [by] = sorting;
+          let rows = people;
+          if (by) {
+            const key = `${by.id}:${String(by.desc)}`;
+            let sorted = sortedBy.get(key);
+            if (!sorted) {
+              const column = columns.find((c) => c.id === by.id);
+              const read = (p: Person): unknown =>
+                typeof column?.accessor === 'function'
+                  ? column.accessor(p, 0)
+                  : column?.accessor
+                      ?.split('.')
+                      .reduce<unknown>(
+                        (v, k) => (v as Record<string, unknown> | undefined)?.[k],
+                        p,
+                      );
+              const dir = by.desc ? -1 : 1;
+              sorted = [...people].sort((a, b) => {
+                const x = read(a) as string | number;
+                const y = read(b) as string | number;
+                return x < y ? -dir : x > y ? dir : 0;
+              });
+              sortedBy.set(key, sorted);
+            }
+            rows = sorted;
+          }
+          resolve({ rows: rows.slice(start, end), total: withTotal ? people.length : undefined });
+        }, latency);
+        signal.addEventListener('abort', () => {
+          clearTimeout(timer);
+          reject(signal.reason as Error);
+        });
+      });
+    },
+  };
+}
