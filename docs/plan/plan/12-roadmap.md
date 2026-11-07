@@ -4,7 +4,7 @@
 
 Four phases, each closed by a gate; no phase starts until the gate before it is met.
 
-> **Status (November 2026):** Phase 0's gate is met. Phase 1's features are built and CI is green. v0.1 ships once the packages are on npm and the Safari and screen-reader checks are done.
+> **Status (November 2026):** Phase 0's gate is met. Phase 1's features are built and CI is green. The Safari checks are done and the VoiceOver check passed; the NVDA check was skipped for v0.1 (see ADR 0001). v0.1 ships once the packages are on npm.
 
 **Prove the hard rendering combo first, ship v0.1, then launch with v0.2.**
 
