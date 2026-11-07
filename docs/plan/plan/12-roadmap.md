@@ -4,7 +4,7 @@
 
 Four phases, each closed by a gate; no phase starts until the gate before it is met.
 
-> **Status (November 2026):** Phase 0's gate is met. Phase 1's features are built and CI is green. The Safari checks are done and the VoiceOver check passed; the NVDA check was skipped for v0.1 (see ADR 0001). v0.1 ships once the packages are on npm.
+> **Status (November 2026):** Phase 0's and Phase 1's gates are met. v0.1 is on npm (`argus-table` and `@argus-table/themes` 0.1.0, 7 November 2026, with provenance). The Safari checks are done and the VoiceOver check passed; the NVDA check was skipped for v0.1 (see ADR 0001). Phase 2 is next.
 
 **Prove the hard rendering combo first, ship v0.1, then launch with v0.2.**
 
