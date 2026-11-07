@@ -1,10 +1,12 @@
 import { defineConfig } from 'vite';
+import { minifyLitCss } from './scripts/minify-lit-css.js';
 
 // Library build: ESM only, one output file per source module so that
 // `sideEffects` in package.json can name the file that registers the element.
 // Dependencies (lit, TanStack) stay external; consumers' bundlers dedupe them.
 // The private @argus-table/core is bundled from source (it lands in dist/core/).
 export default defineConfig({
+  plugins: [minifyLitCss()],
   build: {
     target: 'es2022',
     sourcemap: true,
