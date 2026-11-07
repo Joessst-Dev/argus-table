@@ -1543,3 +1543,320 @@ describe('dataSource (infinite loading)', () => {
     expect(calls[0]?.request.signal.aborted).toBe(true);
   });
 });
+
+describe('pinned rows', () => {
+  const columns: ColumnDef<Person>[] = [
+    { id: 'name', header: 'Name', accessor: 'name', width: 200, sortable: true, pin: 'start' },
+    { id: 'age', header: 'Age', accessor: 'age', width: 80 },
+    { id: 'city', header: 'City', accessor: 'address.city', width: 900 },
+  ];
+  const totals: Person = { id: 'total', name: 'Total', age: 999, address: { city: '' } };
+  const average: Person = { id: 'avg', name: 'Average', age: 45, address: { city: '' } };
+  const pinnedRows = { top: [average], bottom: [totals] };
+
+  const pinned = (el: HTMLElement, side: 'top' | 'bottom') => [
+    ...shadow(el).querySelectorAll<HTMLElement>(`[part~="row-pinned-${side}"]`),
+  ];
+  const dataRows = (el: HTMLElement) =>
+    rowsInOrder(el).filter((r) => !r.getAttribute('part')?.includes('row-pinned'));
+
+  const press = (target: Element, key: string, init: KeyboardEventInit = {}) => {
+    const event = new KeyboardEvent('keydown', {
+      key,
+      bubbles: true,
+      composed: true,
+      cancelable: true,
+      ...init,
+    });
+    target.dispatchEvent(event);
+    return event;
+  };
+  const focused = (el: HTMLElement) => shadow(el).activeElement as HTMLElement | null;
+  /** aria-rowindex and column of the focused cell. */
+  const at = (el: HTMLElement) => {
+    const cell = focused(el);
+    return cell
+      ? [Number(cell.parentElement?.getAttribute('aria-rowindex')), cell.dataset.col]
+      : [];
+  };
+  async function key(el: ArgusTable<Person>, name: string, init?: KeyboardEventInit) {
+    const cell = focused(el);
+    if (!cell) throw new Error('nothing focused');
+    const event = press(cell, name, init);
+    await settle(el);
+    return event;
+  }
+  async function focusFirstHeader(el: ArgusTable<Person>) {
+    shadow(el).querySelector<HTMLElement>('[part~="header-cell"]')?.focus();
+    await settle(el);
+  }
+  const scroller = (el: HTMLElement) => {
+    const found = shadow(el).querySelector<HTMLElement>('[part~="table"]');
+    if (!found) throw new Error('no scroll container');
+    return found;
+  };
+
+  test('renders top and bottom rows with their parts and content', async () => {
+    const el = await fixture({ columns, data: people(100), pinnedRows });
+    const [top] = pinned(el, 'top');
+    const [bottom] = pinned(el, 'bottom');
+    expect(top?.getAttribute('part')).toBe('row row-pinned row-pinned-top');
+    expect(bottom?.getAttribute('part')).toBe('row row-pinned row-pinned-bottom');
+    expect(top?.getAttribute('role')).toBe('row');
+    expect(top && rowText(top)).toEqual(['Average', '45', '']);
+    expect(bottom && rowText(bottom)).toEqual(['Total', '999', '']);
+    const cell = bottom?.querySelector('[data-col="name"]');
+    expect(cell?.getAttribute('part')).toBe('cell cell-pinned-row cell-pinned cell-pinned-edge');
+    expect(bottom?.querySelector('[data-col="age"]')?.getAttribute('part')).toBe(
+      'cell cell-pinned-row',
+    );
+    // Both groups are row groups of the grid.
+    expect(top?.parentElement?.getAttribute('role')).toBe('rowgroup');
+    expect(bottom?.parentElement?.getAttribute('role')).toBe('rowgroup');
+  });
+
+  test('numbers rows header, top, body, bottom, and counts them all', async () => {
+    const counts: string[] = [];
+    const spy = vi
+      .spyOn(ElementInternals.prototype, 'ariaRowCount', 'set')
+      .mockImplementation((value: string | null) => {
+        counts.push(String(value));
+      });
+    const el = await fixture({
+      columns,
+      data: people(100),
+      pinnedRows: { top: [average, average], bottom: [totals] },
+    }).finally(() => {
+      spy.mockRestore();
+    });
+    // Header, two top rows, 100 body rows, one bottom row.
+    expect(counts.at(-1)).toBe('104');
+    expect(pinned(el, 'top').map((r) => r.getAttribute('aria-rowindex'))).toEqual(['2', '3']);
+    expect(dataRows(el)[0]?.getAttribute('aria-rowindex')).toBe('4');
+    expect(pinned(el, 'bottom')[0]?.getAttribute('aria-rowindex')).toBe('104');
+  });
+
+  test('pinned rows are not sorted and not counted as data rows', async () => {
+    const el = await fixture({ columns, data: people(5), pinnedRows });
+    shadow(el).querySelector<HTMLElement>('[data-sort-col="name"]')?.click();
+    await settle(el);
+    shadow(el).querySelector<HTMLElement>('[data-sort-col="name"]')?.click();
+    await settle(el);
+    expect(dataRows(el).map((r) => rowText(r)[0])).toEqual([
+      'Person 4',
+      'Person 3',
+      'Person 2',
+      'Person 1',
+      'Person 0',
+    ]);
+    expect(rowText(pinned(el, 'top')[0] as Element)[0]).toBe('Average');
+    expect(rowText(pinned(el, 'bottom')[0] as Element)[0]).toBe('Total');
+  });
+
+  test('stay in place while the body scrolls', async () => {
+    const el = await fixture({ columns, data: people(1000), pinnedRows });
+    await scrollTo(el, 5000);
+    const box = scroller(el).getBoundingClientRect();
+    const header = shadow(el).querySelector('[part~="header-row"]')?.getBoundingClientRect();
+    const top = pinned(el, 'top')[0]?.getBoundingClientRect();
+    const bottom = pinned(el, 'bottom')[0]?.getBoundingClientRect();
+    const sb = scroller(el).offsetHeight - scroller(el).clientHeight;
+    expect(top?.top).toBeCloseTo(header?.bottom ?? -1, 0);
+    expect(bottom?.bottom).toBeCloseTo(box.bottom - sb, 0);
+    // The first visible body row starts below the top block.
+    expect(rowText(pinned(el, 'top')[0] as Element)[0]).toBe('Average');
+  });
+
+  test('passes pinned to cell functions, with the index in its list', async () => {
+    const seen: unknown[] = [];
+    const cols: ColumnDef<Person>[] = [
+      {
+        id: 'name',
+        header: 'Name',
+        accessor: 'name',
+        cell: (row, ctx) => {
+          if (ctx.pinned) seen.push({ ...ctx });
+          return ctx.pinned ? html`<b>${row.name}</b>` : row.name;
+        },
+      },
+    ];
+    const el = await fixture({
+      columns: cols,
+      data: people(3),
+      pinnedRows: { bottom: [totals, average] },
+    });
+    expect(seen).toContainEqual({
+      row: average,
+      rowId: 'bottom-1',
+      index: 1,
+      columnId: 'name',
+      value: 'Average',
+      pinned: 'bottom',
+    });
+    const cell = pinned(el, 'bottom')[0]?.querySelector('[data-col="name"]');
+    expect(cell && slotted(cell)?.querySelector('b')?.textContent).toBe('Total');
+  });
+
+  test('clicks and Enter fire the click events with pinned', async () => {
+    const el = await fixture({ columns, data: people(5), pinnedRows });
+    const seen: [string, unknown][] = [];
+    el.addEventListener('argus-cell-click', (e) => seen.push(['cell', e.detail]));
+    el.addEventListener('argus-row-click', (e) => seen.push(['row', e.detail]));
+    const cell = pinned(el, 'bottom')[0]?.querySelector<HTMLElement>('[data-col="age"]');
+    if (!cell) throw new Error('no cell');
+    cell.click();
+    expect(seen).toEqual([
+      ['cell', { row: totals, columnId: 'age', value: 999, pinned: 'bottom' }],
+      ['row', { row: totals, rowId: 'bottom-0', index: 0, pinned: 'bottom' }],
+    ]);
+    seen.length = 0;
+    const topCell = pinned(el, 'top')[0]?.querySelector<HTMLElement>('[data-col="name"]');
+    topCell?.focus();
+    if (topCell) press(topCell, 'Enter');
+    expect(seen).toEqual([
+      ['cell', { row: average, columnId: 'name', value: 'Average', pinned: 'top' }],
+      ['row', { row: average, rowId: 'top-0', index: 0, pinned: 'top' }],
+    ]);
+  });
+
+  test('the arrows move header → top → body → bottom', async () => {
+    const el = await fixture({ columns, data: people(3), pinnedRows });
+    await focusFirstHeader(el);
+    expect(at(el)).toEqual([1, 'name']);
+    await key(el, 'ArrowDown');
+    expect(at(el)).toEqual([2, 'name']);
+    expect(focused(el)?.closest('[part~="row-pinned-top"]')).not.toBeNull();
+    await key(el, 'ArrowDown');
+    expect(at(el)).toEqual([3, 'name']);
+    await key(el, 'ArrowRight');
+    await key(el, 'ArrowDown');
+    await key(el, 'ArrowDown');
+    await key(el, 'ArrowDown');
+    expect(at(el)).toEqual([6, 'age']);
+    expect(focused(el)?.closest('[part~="row-pinned-bottom"]')).not.toBeNull();
+    await key(el, 'ArrowDown');
+    expect(at(el)).toEqual([6, 'age']);
+    await key(el, 'ArrowUp');
+    expect(at(el)).toEqual([5, 'age']);
+    // One tab stop.
+    expect([...shadow(el).querySelectorAll('[tabindex="0"]')]).toEqual([focused(el)]);
+  });
+
+  test('Ctrl+End goes to the last pinned row and scrolls to the end; Ctrl+Home back', async () => {
+    const el = await fixture({ columns, data: people(10_000), pinnedRows });
+    await focusFirstHeader(el);
+    await key(el, 'End', { ctrlKey: true });
+    expect(at(el)).toEqual([10_003, 'city']);
+    const s = scroller(el);
+    expect(s.scrollTop).toBeGreaterThanOrEqual(s.scrollHeight - s.clientHeight - 1);
+    await key(el, 'ArrowUp');
+    expect(at(el)).toEqual([10_002, 'city']);
+    // The last body row, Person 9999.
+    expect(slotted(focused(el) as Element)?.textContent).toBe('City 3');
+    await key(el, 'Home', { ctrlKey: true });
+    expect(at(el)).toEqual([1, 'name']);
+    expect(s.scrollTop).toBe(0);
+  });
+
+  test('PageDown and PageUp page through the body only, by the rows that fit between the pinned rows', async () => {
+    // 400px: header, one top and one bottom row of 40px leave 7 whole body rows.
+    const el = await fixture({ columns, data: people(1000), pinnedRows });
+    await focusFirstHeader(el);
+    await key(el, 'ArrowDown');
+    await key(el, 'PageDown');
+    // Body index 6.
+    expect(at(el)).toEqual([9, 'name']);
+    await key(el, 'PageDown');
+    expect(at(el)).toEqual([16, 'name']);
+    await key(el, 'PageUp');
+    expect(at(el)).toEqual([9, 'name']);
+    // From the bottom row, PageUp goes a page up into the body.
+    await key(el, 'End', { ctrlKey: true });
+    await key(el, 'Home');
+    await key(el, 'PageUp');
+    expect(at(el)).toEqual([1002 - 7 + 1, 'name']);
+    await key(el, 'PageDown');
+    // Stops at the last body row.
+    expect(at(el)).toEqual([1002, 'name']);
+    await key(el, 'PageDown');
+    expect(at(el)).toEqual([1002, 'name']);
+  });
+
+  test('a body row focused from the keyboard scrolls clear of the pinned rows', async () => {
+    const el = await fixture({
+      columns,
+      data: people(1000),
+      pinnedRows: { top: [average, average], bottom: [totals] },
+    });
+    await focusFirstHeader(el);
+    await key(el, 'ArrowDown');
+    await key(el, 'ArrowDown');
+    await scrollTo(el, 4000);
+    await key(el, 'ArrowDown');
+    expect(at(el)).toEqual([4, 'name']);
+    const rect = focused(el)?.getBoundingClientRect();
+    const topBlock = pinned(el, 'top')[1]?.getBoundingClientRect();
+    expect(rect && topBlock && rect.top >= topBlock.bottom - 0.5).toBe(true);
+    // And clear of the bottom row when moving down past the view.
+    for (let i = 0; i < 8; i++) await key(el, 'ArrowDown');
+    const below = focused(el)?.getBoundingClientRect();
+    const bottomBlock = pinned(el, 'bottom')[0]?.getBoundingClientRect();
+    expect(below && bottomBlock && below.bottom <= bottomBlock.top + 0.5).toBe(true);
+  });
+
+  test('a focused pinned cell keeps its DOM while the body scrolls', async () => {
+    const el = await fixture({ columns, data: people(100_000), pinnedRows });
+    const cell = pinned(el, 'bottom')[0]?.querySelector<HTMLElement>('[data-col="age"]');
+    cell?.focus();
+    await settle(el);
+    await scrollTo(el, 2_000_000);
+    expect(focused(el)).toBe(cell);
+    expect(slotted(cell as Element)?.textContent).toBe('999');
+  });
+
+  test('shows pinned rows around the empty state', async () => {
+    const el = await fixture({ columns, data: [], pinnedRows });
+    expect(shadow(el).querySelector('[part~="empty"]')).not.toBeNull();
+    expect(pinned(el, 'top')).toHaveLength(1);
+    expect(pinned(el, 'bottom')).toHaveLength(1);
+    expect(pinned(el, 'bottom')[0]?.getAttribute('aria-rowindex')).toBe('3');
+  });
+
+  test('focus moves on when its pinned row goes away', async () => {
+    const el = await fixture({
+      columns,
+      data: people(5),
+      pinnedRows: { bottom: [totals, average] },
+    });
+    const cell = pinned(el, 'bottom')[1]?.querySelector<HTMLElement>('[data-col="name"]');
+    cell?.focus();
+    await settle(el);
+    el.pinnedRows = { bottom: [totals] };
+    await settle(el);
+    expect(at(el)).toEqual([7, 'name']);
+    el.pinnedRows = undefined;
+    await settle(el);
+    expect(pinned(el, 'bottom')).toHaveLength(0);
+    expect(focused(el)?.getAttribute('role')).toBe('columnheader');
+  });
+
+  test('accepts rows on one side only, and replacing the object updates them', async () => {
+    const el = await fixture({ columns, data: people(5), pinnedRows: { bottom: [totals] } });
+    expect(pinned(el, 'top')).toHaveLength(0);
+    expect(dataRows(el)[0]?.getAttribute('aria-rowindex')).toBe('2');
+    el.pinnedRows = { top: [average], bottom: [totals, average] };
+    await settle(el);
+    expect(pinned(el, 'top')).toHaveLength(1);
+    expect(pinned(el, 'bottom').map((r) => rowText(r)[0])).toEqual(['Total', 'Average']);
+  });
+
+  test('uses --argus-pinned-row-bg for the whole row, pinned columns included', async () => {
+    const el = await fixture({ columns, data: people(5), pinnedRows });
+    el.style.setProperty('--argus-pinned-row-bg', 'rgb(1, 2, 3)');
+    await settle(el);
+    const row = pinned(el, 'bottom')[0];
+    const cell = row?.querySelector('[data-col="name"]');
+    expect(row && getComputedStyle(row).backgroundColor).toBe('rgb(1, 2, 3)');
+    expect(cell && getComputedStyle(cell).backgroundColor).toBe('rgb(1, 2, 3)');
+  });
+});

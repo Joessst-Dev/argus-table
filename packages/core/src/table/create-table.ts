@@ -23,6 +23,8 @@ import type {
   ColumnDef,
   ColumnPin,
   ColumnSizingState,
+  PinnedRows,
+  RowPin,
   SortState,
 } from '../types.js';
 
@@ -113,6 +115,8 @@ export interface TableModelOptions<TData, TContent> {
   sorting: SortState;
   /** Current resized widths; its owner is the caller. */
   columnSizing: ColumnSizingState;
+  /** Rows fixed above or below the body. They stay out of the row model: never sorted, not counted. */
+  pinnedRows?: PinnedRows<TData> | undefined;
 }
 
 export interface TableModel<TData, TContent> {
@@ -142,6 +146,17 @@ export interface TableModel<TData, TContent> {
    * `undefined` if the column can't be resized.
    */
   nextSizing(columnId: string, width: number): ColumnSizingState | undefined;
+  /** Number of rows pinned to a side. */
+  pinnedCount(side: RowPin): number;
+  /**
+   * A pinned row, `index` counted within its side. Its id comes from `getRowId`,
+   * else it is `'top-{index}'` or `'bottom-{index}'`, apart from the data rows' index ids.
+   */
+  pinnedRowAt(side: RowPin, index: number): RowView<TData> | undefined;
+  /** The value a column reads from a pinned row. */
+  pinnedValueAt(side: RowPin, index: number, columnId: string): unknown;
+  /** What a column's `cell` function receives for a pinned row (with `pinned` set). */
+  pinnedCellContext(side: RowPin, index: number, columnId: string): CellContext<TData> | undefined;
 }
 
 const defaultRowId = (_row: unknown, index: number) => String(index);
@@ -201,6 +216,7 @@ export function createTableModel<TData, TContent>(
   const table: Table<Features, AnyRow> = constructTable(tableOptions());
 
   const rows = () => table.getRowModel().rows;
+  const pinned = (side: RowPin): readonly TData[] => options.pinnedRows?.[side] ?? [];
 
   const buildViews = (): ColumnView<TData, TContent>[] => {
     const start = table.getStartLeafColumns();
@@ -341,6 +357,36 @@ export function createTableModel<TData, TContent>(
       if (!column?.resizable || !Number.isFinite(width)) return undefined;
       const clamped = Math.round(Math.min(column.maxWidth, Math.max(column.minWidth, width)));
       return { ...options.columnSizing, [columnId]: clamped };
+    },
+
+    pinnedCount(side) {
+      return pinned(side).length;
+    },
+
+    pinnedRowAt(side, index) {
+      if (index < 0 || index >= pinned(side).length) return undefined;
+      const row = pinned(side)[index] as TData;
+      const id = options.getRowId ? options.getRowId(row, index) : `${side}-${String(index)}`;
+      return { id, index, original: row };
+    },
+
+    pinnedValueAt(side, index, columnId) {
+      if (index < 0 || index >= pinned(side).length) return undefined;
+      return byId.get(columnId)?.getValue(pinned(side)[index] as TData, index);
+    },
+
+    pinnedCellContext(side, index, columnId) {
+      const row = this.pinnedRowAt(side, index);
+      const column = byId.get(columnId);
+      if (!row || !column) return undefined;
+      return {
+        row: row.original,
+        rowId: row.id,
+        index,
+        columnId,
+        value: column.getValue(row.original, index),
+        pinned: side,
+      };
     },
   };
 }

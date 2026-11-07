@@ -16,16 +16,27 @@ export interface ScenarioResult {
   mismatches?: number;
 }
 
+/** Body rows only: pinned rows (`pinned=…`) also carry the `row` part. */
+const BODY_ROWS = '[part~="body"] > [part~="row"]';
+
+/** A body row's index: `aria-rowindex` after the header and the rows pinned to the top. */
+const bodyIndex = (table: ArgusTable<Person>, row: Element) =>
+  Number(row.getAttribute('aria-rowindex')) - 2 - (table.pinnedRows?.top?.length ?? 0);
+
 const nextFrame = () => new Promise<number>((resolve) => requestAnimationFrame(resolve));
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 export function installBenchHooks(table: ArgusTable<Person>): void {
   const root = () => table.shadowRoot;
   const scroller = () => root()?.querySelector<HTMLElement>('[part~="table"]') ?? null;
-  const rows = () => [...(root()?.querySelectorAll<HTMLElement>('[part~="row"]') ?? [])];
+  const rows = () => [...(root()?.querySelectorAll<HTMLElement>(BODY_ROWS) ?? [])];
   const rowHeight = () => rows()[0]?.getBoundingClientRect().height ?? 40;
+  // The sticky header and pinned rows cover the body.
   const headerHeight = () =>
-    root()?.querySelector('[part~="header"]')?.getBoundingClientRect().height ?? 0;
+    [...(root()?.querySelectorAll('[part~="header"], .pinned') ?? [])].reduce(
+      (sum, el) => sum + el.getBoundingClientRect().height,
+      0,
+    );
 
   let recording = false;
   let frames: number[] = [];
@@ -42,7 +53,7 @@ export function installBenchHooks(table: ArgusTable<Person>): void {
 
   /** A frame is blank if the rendered rows don't cover the visible body area. */
   const isBlank = (el: HTMLElement): boolean => {
-    const indices = rows().map((r) => Number(r.getAttribute('aria-rowindex')) - 2);
+    const indices = rows().map((r) => bodyIndex(table, r));
     if (indices.length === 0) return true;
     const h = rowHeight();
     const start = Math.min(...indices) * h;
@@ -168,8 +179,8 @@ export function installBenchHooks(table: ArgusTable<Person>): void {
  */
 function checkContent(table: ArgusTable<Person>): number {
   let mismatches = 0;
-  for (const row of table.shadowRoot?.querySelectorAll<HTMLElement>('[part~="row"]') ?? []) {
-    const expected = String(Number(row.getAttribute('aria-rowindex')) - 2);
+  for (const row of table.shadowRoot?.querySelectorAll<HTMLElement>(BODY_ROWS) ?? []) {
+    const expected = String(bodyIndex(table, row));
     const text = row
       .querySelector<HTMLSlotElement>('[role="gridcell"] slot')
       ?.assignedElements()
