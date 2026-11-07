@@ -103,7 +103,7 @@ Across every engine, keying, variant and run, there were **0 blank-row frames** 
 - [x] **Pinned columns in real Safari** (done 7 November 2026: they stuttered, and the pinning was rebuilt; see [Pinned columns in Safari](#addendum-pinned-columns-in-safari-phase-1)): scroll the playground fast and sideways in Safari on a Mac, with and without `?pin=none`. Rebuild the pinning (a scroll-synced transform, or one sticky pane per side) only if the pinned version stutters. See the Pinned columns addendum.
 - [x] A docs PR that updates the lit3 skill (body rows keyed by pool index, not row id; slotted nodes as direct host children; TanStack v9 API), the rendering, public API and accessibility plan pages, and the code-architecture pages (row pool).
 - [x] Phase 1: choose between the two DOM-order options above. Pool order plus `aria-rowindex` was chosen; see the addendum below.
-- [ ] Screen-reader check (needed before v0.1): on the Phase 1 playground, test VoiceOver with Safari and NVDA with Firefox. Rows must be read in visual order, with the right row and column numbers, while scrolling. The steps are in [Screen-reader check](../a11y/screen-reader-check.md).
+- [ ] Screen-reader check (needed before v0.1): on the Phase 1 playground, test VoiceOver with Safari and NVDA with Firefox. Rows must be read in visual order, with the right row and column numbers, while scrolling. The steps are in [Screen-reader check](../a11y/screen-reader-check.md). VoiceOver passed on 7 November 2026 (see [Screen-reader check](#addendum-screen-reader-check-phase-1)); NVDA with Firefox is still to do.
 - [x] Phase 1: delete `apps/spike` and `spike-bench.yml`. The harness moved to `benchmarks/`.
 
 ## Addendum: sorted DOM (Phase 1)
@@ -197,3 +197,24 @@ Linux WebKit, the playground benchmark, 3 runs interleaved (p95, ms):
 | fast       |           68 |     18 |         19 |
 | jumps      |           26 |     21 |         27 |
 | horizontal |           70 |     17 |         20 |
+
+## Addendum: screen-reader check (Phase 1)
+
+**Question.** Body rows stay in pool order in the DOM (see [Sorted DOM](#addendum-sorted-dom-phase-1)). Is `aria-rowindex` enough for screen readers to read them in visual order, with the right numbers?
+
+**VoiceOver, 7 November 2026.** macOS 26.1, Safari 26.1, VoiceOver as shipped with macOS 26.1. The production playground at `?rows=1000&cols=8`, following the [screen-reader check](../a11y/screen-reader-check.md).
+
+| Step                                   | Result |
+| -------------------------------------- | ------ |
+| 1. Name and size                       | pass   |
+| 2. Headers                             | pass   |
+| 3. Arrow keys, row by row              | pass   |
+| 4. After scrolling                     | pass   |
+| 5. Jump far away                       | pass   |
+| 6. Screen-reader navigation, not focus | pass   |
+| 7. Pinned columns                      | pass   |
+| 8. Right to left                       | pass   |
+
+**Result.** With VoiceOver, pool order plus `aria-rowindex` is enough: rows were read in visual order with the right numbers, including VoiceOver's own row navigation after a far jump (step 6), where DOM order would show first.
+
+**Still open: NVDA with Firefox.** NVDA's browse mode reads from a virtual buffer built in DOM order, so step 6 there is the riskier case and the VoiceOver result doesn't cover it. If it fails, the fix stays the one named above: sort rows in the DOM only once scrolling settles, measured before it ships.
