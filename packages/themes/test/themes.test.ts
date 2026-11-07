@@ -79,6 +79,44 @@ describe.each(themes)('%s', (file) => {
     for (const token of set) expect(tokens, token).toContain(token);
   });
 
+  // Build tools polyfill light-dark() for older targets (Vite 8 minifies CSS with
+  // Lightning CSS, es2022 by default). The polyfill switches light and dark only
+  // where the same stylesheet declares color-scheme; the element's own
+  // `color-scheme: light dark` sits in its shadow root, out of their reach. Without
+  // a declaration on argus-table itself, every light-dark() token is invalid in
+  // the automatic scheme (transparent header, no borders).
+  it('keeps its light-dark() colours when a consumer build polyfills them', () => {
+    const code = readFileSync(join(root, 'src', file));
+    if (!code.includes('light-dark(')) return;
+    const v = (major: number, minor = 0) => (major << 16) | (minor << 8);
+    const lowered = transform({
+      filename: file,
+      code,
+      targets: { chrome: v(94), firefox: v(93), safari: v(15) },
+    }).code;
+
+    const switches = new Set<string>();
+    transform({
+      filename: file,
+      code: lowered,
+      visitor: {
+        Rule: {
+          style(rule: { value: StyleRule }) {
+            const { selectors, declarations } = rule.value;
+            const bare = selectors.some(
+              (s) => s.length === 1 && s[0]?.type === 'type' && s[0].name === 'argus-table',
+            );
+            if (!bare) return;
+            for (const d of declarations?.declarations ?? [])
+              if (d.property === 'custom') switches.add(d.value.name);
+          },
+        },
+      },
+    });
+    expect(switches).toContain('--lightningcss-light');
+    expect(switches).toContain('--lightningcss-dark');
+  });
+
   it('sets every documented colour token, so the theme is complete', () => {
     const set = new Set(rules.flatMap((r) => r.properties));
     for (const token of tokens) {

@@ -19,6 +19,7 @@ Neutral. It uses the page's font, follows the system's light or dark setting, an
 
 - **Force a scheme:** put `data-argus-theme="dark"` or `data-argus-theme="light"` on the table or on any ancestor, such as `<html>`. The attribute on the table wins over one on an ancestor.
 - **Change a value:** set the token after the theme, for example `argus-table { --argus-focus-ring: 2px solid teal; }`.
+- **`light-dark()` in your own overrides:** declare `color-scheme: light dark` on `argus-table` in the same stylesheet. Build tools that polyfill `light-dark()` (such as Vite's Lightning CSS minifier) only switch colours where the stylesheet sets `color-scheme`.
 - **Density:** the theme keeps the table's row heights and padding per `density`. Override one density with `argus-table[density='compact'] { --argus-row-height: 28px; }`.
 
 The full list of tokens and parts is in the argus-table docs.
