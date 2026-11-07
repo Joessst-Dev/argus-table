@@ -368,19 +368,21 @@ export class ArgusTable<T = unknown> extends LitElement {
   };
 
   /**
-   * Keys on a focused cell or header. Keys from content inside a cell (an input,
-   * a button) are left to that content.
+   * Keys on a focused cell or header: arrows by cell, Home/End along the row,
+   * PageUp/PageDown by a page of rows (the view scrolls with it), Ctrl+Home/End
+   * (or Cmd) to the first header and the last cell. Keys from content inside a
+   * cell (an input, a button) are left to that content.
    */
   readonly #onKeydown = (event: KeyboardEvent) => {
     const cell = gridCell(event.composedPath()[0] ?? event.target ?? this);
     const id = cell?.dataset.col;
     if (!cell || id === undefined) return;
+    const scroller = event.currentTarget as HTMLElement;
     if (event.key === 'Tab' && event.shiftKey) {
       // Firefox makes the scroll container a tab stop, so Shift+Tab would stop
       // on it before leaving the grid. Take it out of the tab order for this
       // one move only: a tabindex there for good would expose it as a node of
       // its own between the grid and its rows.
-      const scroller = event.currentTarget as HTMLElement;
       scroller.tabIndex = -1;
       // Put it back once focus has actually moved (a timer can run first).
       cell.addEventListener(
@@ -409,7 +411,9 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.#requestSort(id);
       return;
     }
-    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    // Ctrl (Cmd on macOS) only goes with Home and End: to the corners.
+    const corner = event.ctrlKey || event.metaKey;
+    if (event.altKey || event.shiftKey || (corner && key !== 'Home' && key !== 'End')) return;
     if (!inHeader && key === 'Enter') {
       // Enter on a body cell does what a click does.
       event.preventDefault();
@@ -418,11 +422,22 @@ export class ArgusTable<T = unknown> extends LitElement {
     }
     const model = this.#table.model;
     const columns = model.columns;
-    let row = inHeader ? -1 : rowIndexOf(cell.parentElement);
+    const last = model.rowCount - 1;
+    const from = inHeader ? -1 : rowIndexOf(cell.parentElement);
+    // Whole rows below the sticky header, which is one row tall.
+    const page = Math.max(1, Math.floor(scroller.clientHeight / this.#rowPx + 0.01) - 1);
+    let row = from;
     let col = columns.findIndex((c) => c.id === id);
     switch (key) {
+      case 'PageDown':
+        row = Math.min(row + page, last);
+        break;
+      case 'PageUp':
+        // Stays in the body; ArrowUp or Ctrl+Home goes on to the header.
+        if (row > 0) row = Math.max(row - page, 0);
+        break;
       case 'ArrowDown':
-        row = Math.min(row + 1, model.rowCount - 1);
+        row = Math.min(row + 1, last);
         break;
       case 'ArrowUp':
         row = Math.max(row - 1, -1);
@@ -435,14 +450,23 @@ export class ArgusTable<T = unknown> extends LitElement {
         break;
       case 'Home':
         col = 0;
+        if (corner) {
+          row = -1;
+          scroller.scrollTop = 0;
+        }
         break;
       case 'End':
         col = columns.length - 1;
+        if (corner) row = last;
         break;
       default:
         return;
     }
     event.preventDefault();
+    // PageUp/PageDown scroll by as many rows as focus moved, so the focused cell
+    // keeps its place on screen. The browser clamps at the ends; focusing
+    // scrolls the rest of the way.
+    if (key.startsWith('Page') && from >= 0) scroller.scrollTop += (row - from) * this.#rowPx;
     const target = columns[Math.min(Math.max(col, 0), columns.length - 1)];
     if (target) this.#moveTo(row, target.id, model);
   };

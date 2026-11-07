@@ -19,7 +19,7 @@ pnpm test                # Vitest in all projects (browser mode, headless Chromi
 pnpm build               # every package
 pnpm test:e2e            # Playwright against the built playground (`vite preview` on :4173)
 pnpm test:visual         # screenshot tests inside the CI Playwright Docker image (needs Docker)
-pnpm size                # CDN bundle min+gzip vs packages/table/.size-limit.json (41 kB)
+pnpm size                # CDN bundle min+gzip vs packages/table/.size-limit.json (45 kB)
 pnpm affected            # what CI runs for the branch (base: main)
 pnpm changeset           # add a release note
 ```

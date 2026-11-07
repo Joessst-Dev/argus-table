@@ -27,6 +27,42 @@ test.describe('keyboard navigation', () => {
     expect(await focused(page)).toEqual({ role: 'columnheader', col: 'index', rowIndex: 1 });
   });
 
+  test('Ctrl+Home/End jump to the corners; PageUp/PageDown move by a page', async ({ page }) => {
+    const focusInView = () =>
+      page.evaluate(() => {
+        const root = document.querySelector('argus-table')?.shadowRoot;
+        const cell = root?.activeElement?.getBoundingClientRect();
+        const box = root?.querySelector('[part~="table"]')?.getBoundingClientRect();
+        return !!cell && !!box && cell.top >= box.top - 0.5 && cell.bottom <= box.bottom + 0.5;
+      });
+
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('ControlOrMeta+End');
+    await settle(page);
+    expect(await focused(page)).toEqual({ role: 'gridcell', col: 'actions', rowIndex: 100_001 });
+    expect(await focusInView()).toBe(true);
+
+    await page.keyboard.press('ControlOrMeta+Home');
+    await settle(page);
+    expect(await focused(page)).toEqual({ role: 'columnheader', col: 'index', rowIndex: 1 });
+
+    // Into the body, then a page at a time: the step is the rows that fit.
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('PageDown');
+    await settle(page);
+    const first = (await focused(page))?.rowIndex ?? 0;
+    expect(first).toBeGreaterThan(3);
+    const step = first - 2;
+    await page.keyboard.press('PageDown');
+    await settle(page);
+    expect((await focused(page))?.rowIndex).toBe(first + step);
+    expect(await focusInView()).toBe(true);
+    await page.keyboard.press('PageUp');
+    await settle(page);
+    expect(await focused(page)).toEqual({ role: 'gridcell', col: 'index', rowIndex: first });
+    expect(await focusInView()).toBe(true);
+  });
+
   test('the grid is one tab stop in both directions', async ({ page }) => {
     // Something to tab to on either side; without it, Firefox wraps Shift+Tab
     // around the page and lands back in the grid.

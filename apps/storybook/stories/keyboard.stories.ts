@@ -53,9 +53,11 @@ type Story = StoryObj;
 /**
  * Tab into the table: it is one tab stop, starting on the first header. The arrow
  * keys move between cells and between the header and the body; Home and End jump
- * to the start or end of the row. Enter on a body cell fires the click events (see
- * the log). Enter or Space sorts a focused sortable header,
- * and Alt+Arrow resizes it. Scroll away and press an arrow: focus comes back.
+ * to the start or end of the row. PageDown and PageUp move by a page of rows and
+ * scroll with it; Ctrl+Home and Ctrl+End (Cmd on macOS) jump to the first header
+ * and the last cell. Enter on a body cell fires the click events (see the log).
+ * Enter or Space sorts a focused sortable header, and Alt+Arrow resizes it.
+ * Scroll away and press an arrow: focus comes back.
  */
 export const Navigation: Story = {
   play: async ({ canvasElement }) => {
@@ -74,5 +76,11 @@ export const Navigation: Story = {
     const cell = root.activeElement as HTMLElement | null;
     await expect(cell?.dataset.col).toBe('customer');
     await expect(cell?.parentElement?.getAttribute('aria-rowindex')).toBe('2');
+    // A page down moves by several rows at once and keeps the column.
+    await userEvent.keyboard('{PageDown}');
+    await table.updateComplete;
+    const paged = root.activeElement as HTMLElement | null;
+    await expect(paged?.dataset.col).toBe('customer');
+    await expect(Number(paged?.parentElement?.getAttribute('aria-rowindex'))).toBeGreaterThan(3);
   },
 };
