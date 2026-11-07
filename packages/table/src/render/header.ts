@@ -46,7 +46,6 @@ export function renderHeader<T>(
             tabindex=${c.id === activeCol ? 0 : -1}
             data-align=${c.align}
             data-pin=${c.pin ?? nothing}
-            ?data-pin-edge=${c.pinEdge}
             style=${pinStyle(c) ?? nothing}
           >
             <slot name=${headerSlot(c.colIndex)}></slot>

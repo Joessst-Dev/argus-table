@@ -358,28 +358,100 @@ describe('pinned columns', () => {
     }
   });
 
-  test('mirrors the edge shadow for the end side and in RTL; none removes it', async () => {
+  test('draws the edge shadow once per side, mirrored for the end and in RTL; none removes it', async () => {
     const el = await fixture({ columns: pinnedColumns, data: people(1) });
-    const edges = (table: HTMLElement) =>
-      [...(rowsInOrder(table)[0]?.querySelectorAll('[part~="cell-pinned-edge"]') ?? [])].map((c) =>
-        getComputedStyle(c, '::after'),
-      );
+    const shadows = (table: HTMLElement) => [...shadow(table).querySelectorAll('.pin-shadow')];
+    const after = (table: HTMLElement) => shadows(table).map((o) => getComputedStyle(o, '::after'));
     const scaleX = (style: CSSStyleDeclaration | undefined) =>
       new DOMMatrixReadOnly(style?.transform === 'none' ? undefined : style?.transform).a;
 
-    const [start, end] = edges(el);
-    expect(start?.boxShadow).not.toBe('none');
-    expect(scaleX(start)).toBe(1);
-    expect(scaleX(end)).toBe(-1);
+    // One per side, not one per row.
+    expect(shadows(el).map((o) => o.getAttribute('data-side'))).toEqual(['start', 'end']);
+    expect(after(el).every((st) => st.boxShadow !== 'none')).toBe(true);
+    expect(after(el).map(scaleX)).toEqual([1, -1]);
+    // Over the pinned columns, clear of the scrollbar, no taller than header + rows.
+    const { left, right } = viewport(el);
+    const [start, end] = shadows(el).map((o) => o.getBoundingClientRect());
+    expect(start?.left).toBeCloseTo(left, 0);
+    expect(start?.width).toBeCloseTo(200, 0);
+    expect(end?.right).toBeCloseTo(right, 0);
+    expect(end?.width).toBeCloseTo(60, 0);
+    const header = shadow(el).querySelector('[part~="header-row"]')?.getBoundingClientRect();
+    expect(start?.height).toBeCloseTo((header?.height ?? 0) * 2, 0);
 
     el.dir = 'rtl';
     await settle(el);
-    const [rtlStart, rtlEnd] = edges(el);
-    expect(scaleX(rtlStart)).toBe(-1);
-    expect(scaleX(rtlEnd)).toBe(1);
+    expect(after(el).map(scaleX)).toEqual([-1, 1]);
 
     el.style.setProperty('--argus-pinned-shadow', 'none');
-    expect(edges(el).map((s) => s.boxShadow)).toEqual(['none', 'none']);
+    expect(after(el).map((st) => st.boxShadow)).toEqual(['none', 'none']);
+
+    el.columns = pinnedColumns.map((c) => ({ ...c, pin: undefined }));
+    await settle(el);
+    expect(shadows(el)).toHaveLength(0);
+  });
+
+  /** Waits past the moment pinned cells stop being sticky after a sideways scroll. */
+  const scrollSettled = async (el: ArgusTable<Person>) => {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    await settle(el);
+  };
+
+  test('makes pinned body cells sticky only while scrolling sideways, in the same place', async () => {
+    const el = await fixture({ columns: pinnedColumns, data: people(50) });
+    const [row] = rowsInOrder(el);
+    const pinnedCell = row?.querySelector('[data-col="name"]');
+    if (!row || !pinnedCell) throw new Error('no pinned cell');
+    const position = () => getComputedStyle(pinnedCell).position;
+    expect(position()).toBe('relative');
+
+    await scrollInline(el, 200);
+    expect(scroller(el).hasAttribute('data-hscroll')).toBe(true);
+    expect(position()).toBe('sticky');
+    const during = cellRects(row);
+
+    await scrollSettled(el);
+    expect(scroller(el).hasAttribute('data-hscroll')).toBe(false);
+    expect(position()).toBe('relative');
+    const { left, right } = viewport(el);
+    const rest = cellRects(row);
+    expect(rest[0]?.left).toBeCloseTo(left, 0);
+    expect(rest[1]?.left).toBeCloseTo(left + 120, 0);
+    expect(rest[8]?.right).toBeCloseTo(right, 0);
+    expect(rest.map((r) => Math.round(r.left))).toEqual(during.map((r) => Math.round(r.left)));
+    // Scrolling down leaves them alone: the shift only depends on the sideways offset.
+    await scrollTo(el, 600);
+    const lower = rowsInOrder(el).find((r) => r.getAttribute('aria-rowindex') === '20');
+    expect(lower && cellRects(lower)[0]?.left).toBeCloseTo(left, 0);
+    expect(scroller(el).hasAttribute('data-hscroll')).toBe(false);
+  });
+
+  test('keeps pinned cells at rest in place in RTL, and after widths change', async () => {
+    const el = document.createElement('argus-table') as unknown as ArgusTable<Person>;
+    el.dir = 'rtl';
+    el.style.inlineSize = '800px';
+    el.style.blockSize = '400px';
+    Object.assign(el, { columns: pinnedColumns, data: people(5) });
+    document.body.append(el);
+    await settle(el);
+    await scrollInline(el, -200);
+    await scrollSettled(el);
+    const check = () => {
+      const { left, right } = viewport(el);
+      const rects = cellRects(rowsInOrder(el)[0] as Element);
+      expect(rects[0]?.right).toBeCloseTo(right, 0);
+      expect(rects[1]?.right).toBeCloseTo(right - 120, 0);
+      expect(rects[8]?.left).toBeCloseTo(left, 0);
+    };
+    check();
+    // A wider column changes how far the table scrolls; the end side follows.
+    el.columnSizing = { c0: 400 };
+    await settle(el);
+    check();
+    el.style.inlineSize = '700px';
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    await settle(el);
+    check();
   });
 
   test('paints pinned cells with the row surface so scrolling content stays hidden', async () => {

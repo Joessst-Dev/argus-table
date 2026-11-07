@@ -62,7 +62,6 @@ function renderRow<T>(row: WindowRow, columns: Columns<T>, activeCol: string | u
           data-col=${c.id}
           data-align=${c.align}
           data-pin=${c.pin ?? nothing}
-          ?data-pin-edge=${c.pinEdge}
           style=${pinStyle(c) ?? nothing}
         >
           <slot name=${cellSlot(row.slot, c.colIndex)}></slot>
