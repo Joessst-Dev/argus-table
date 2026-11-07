@@ -223,7 +223,12 @@ jobs:
 
   changeset:
     # Docs-, CI- and tooling-only pull requests skip this with the `no-changeset` label.
-    if: github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'no-changeset')
+    # The "Version packages" PR (changeset-release/main) consumes every changeset,
+    # so it is skipped too.
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.head_ref != 'changeset-release/main' &&
+      !contains(github.event.pull_request.labels.*.name, 'no-changeset')
     needs: setup
     runs-on: ubuntu-latest
     steps:
