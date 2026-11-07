@@ -1,7 +1,7 @@
 import { html, nothing } from 'lit';
 import { repeat } from 'lit/directives/repeat.js';
 import { styleMap } from 'lit/directives/style-map.js';
-import type { ColumnView } from '@argus-table/core';
+import type { ColumnView, RowState } from '@argus-table/core';
 import type { WindowRow } from '../controllers/virtual-controller.js';
 import type { CellContent } from '../types.js';
 import { cellParts, cellSlot, pinStyle } from './content.js';
@@ -14,6 +14,16 @@ export interface ActiveCell {
   col: string;
 }
 
+/** Row loading state for `dataSource` tables. */
+export interface Loading {
+  /** Whether a row's data is loaded, still loading, or its page failed. */
+  stateAt(index: number): RowState;
+  /** Rows that show a Retry button (one per failed page in view), with its accessible label. */
+  retry: ReadonlyMap<number, string>;
+  /** Click handler of the Retry buttons; the button carries the row index in `data-row`. */
+  onRetry: (event: Event) => void;
+}
+
 /**
  * The virtualized body. Rows are keyed by pool slot, so a row entering the window
  * reuses the DOM of one that left (ADR 0001), and they stay in pool order: screen
@@ -24,6 +34,7 @@ export function renderBody<T>(
   columns: Columns<T>,
   totalSize: number,
   active: ActiveCell | undefined,
+  loading?: Loading,
 ) {
   return html`<div
     part="body"
@@ -33,21 +44,32 @@ export function renderBody<T>(
     ${repeat(
       rows,
       (r) => r.slot,
-      (r) => renderRow(r, columns, r.index === active?.index ? active.col : undefined),
+      (r) => renderRow(r, columns, r.index === active?.index ? active.col : undefined, loading),
     )}
   </div>`;
 }
 
 /**
  * One body row. Every cell is focusable (`tabindex=-1`) so clicks focus it; the
- * active one is the grid's single tab stop (roving tabindex).
+ * active one is the grid's single tab stop (roving tabindex). A row whose data
+ * isn't loaded shows skeleton bars, and a Retry button if its page failed.
  */
-function renderRow<T>(row: WindowRow, columns: Columns<T>, activeCol: string | undefined) {
+function renderRow<T>(
+  row: WindowRow,
+  columns: Columns<T>,
+  activeCol: string | undefined,
+  loading: Loading | undefined,
+) {
+  const state = loading?.stateAt(row.index) ?? 'loaded';
+  let parts = row.index % 2 === 0 ? 'row row-even' : 'row row-odd';
+  if (state !== 'loaded') parts += ' row-loading';
+  const retry = state === 'error' ? loading?.retry.get(row.index) : undefined;
   return html`<div
-    part=${row.index % 2 === 0 ? 'row row-even' : 'row row-odd'}
+    part=${parts}
     class="row"
     role="row"
     aria-rowindex=${row.index + 2}
+    aria-busy=${state === 'loading' ? 'true' : nothing}
     style=${styleMap({ transform: `translateY(${String(row.start)}px)` })}
   >
     ${repeat(
@@ -64,8 +86,35 @@ function renderRow<T>(row: WindowRow, columns: Columns<T>, activeCol: string | u
           data-pin=${c.pin ?? nothing}
           style=${pinStyle(c) ?? nothing}
         >
+          ${placeholder(state, c.colIndex === 1 ? retry : undefined, row.index, loading)}
           <slot name=${cellSlot(row.slot, c.colIndex)}></slot>
         </div>`,
     )}
   </div>`;
+}
+
+/** What an unloaded cell shows: a skeleton bar, or the Retry button in a failed page's first cell. */
+function placeholder(
+  state: RowState,
+  retryLabel: string | undefined,
+  index: number,
+  loading: Loading | undefined,
+) {
+  if (state === 'loaded') return nothing;
+  if (retryLabel !== undefined && loading) {
+    return html`<button
+      part="retry"
+      type="button"
+      tabindex="-1"
+      data-row=${index}
+      aria-label=${retryLabel}
+      @click=${loading.onRetry}
+    >
+      Retry
+    </button>`;
+  }
+  return html`<div
+    part=${state === 'error' ? 'skeleton skeleton-error' : 'skeleton'}
+    aria-hidden="true"
+  ></div>`;
 }

@@ -262,3 +262,47 @@ describe('createTableModel: caching', () => {
     expect(m.columns).toBe(before);
   });
 });
+
+describe('createTableModel: remote rows', () => {
+  const [cleo, , bea] = people as [Person, Person, Person, Person];
+  const remote = (loaded: Record<number, Person>, rowCount = 10) => ({
+    rowCount,
+    entryAt: (index: number) => {
+      const row = loaded[index];
+      return row && { id: row.id, row };
+    },
+    indexOf: (id: string) => {
+      const found = Object.entries(loaded).find(([, p]) => p.id === id);
+      return found ? Number(found[0]) : undefined;
+    },
+  });
+
+  it('reads rows, ids and values from the remote source, unsorted by the model', () => {
+    const m = model({
+      remote: remote({ 4: bea, 5: cleo }),
+      sorting: [{ id: 'name', desc: false }],
+    });
+    expect(m.rowCount).toBe(10);
+    expect(m.rowAt(4)).toEqual({ id: 'p3', index: 4, original: bea });
+    expect(m.rowAt(0)).toBeUndefined();
+    expect(m.indexOf('p1')).toBe(5);
+    expect(m.valueAt(5, 'city')).toBe('Bonn');
+    expect(m.valueAt(0, 'city')).toBeUndefined();
+    expect(m.cellContext(4, 'name')).toEqual({
+      row: bea,
+      rowId: 'p3',
+      index: 4,
+      columnId: 'name',
+      value: 'Bea',
+    });
+    expect(m.cellContext(1, 'name')).toBeUndefined();
+    // Columns still come from TanStack, with the sort state on them.
+    expect(m.columns.find((c) => c.id === 'name')?.sorted).toBe('asc');
+  });
+
+  it('goes back to data when remote is unset', () => {
+    const m = model({ remote: remote({}) });
+    m.update({ remote: undefined });
+    expect(ids(m)).toEqual(['0', '1', '2', '3']);
+  });
+});

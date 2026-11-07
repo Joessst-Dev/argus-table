@@ -48,6 +48,24 @@ npm i argus-table @argus-table/themes
 - **Columns and data** are JavaScript properties, because they hold objects and functions.
 - **Cells:** a column's `cell` function can return a string, a number, a DOM node or a Lit template.
 
+## Rows from a server
+
+For more rows than you want to send at once, set `dataSource` instead of `data`. The table asks for the pages in view as the user scrolls, shows skeleton rows until they arrive, and aborts requests for pages that scroll away:
+
+```js
+table.dataSource = {
+  pageSize: 100,
+  async getRows({ start, end, sorting, signal }) {
+    const params = new URLSearchParams({ offset: start, limit: end - start });
+    if (sorting[0]) params.set('sort', `${sorting[0].id}:${sorting[0].desc ? 'desc' : 'asc'}`);
+    const res = await fetch(`/api/orders?${params}`, { signal });
+    return res.json(); // { rows, total? }
+  },
+};
+```
+
+`end` is exclusive. Without a `total`, the table grows as pages arrive and stops at a page with fewer rows than it asked for. Sorting happens on the server. A page that fails fires `argus-load-error` and shows a Retry button; `table.refresh()` loads the rows in view again.
+
 ## Without a bundler
 
 The CDN build has every dependency bundled:
@@ -62,6 +80,6 @@ The CDN build has every dependency bundled:
 
 ## Status
 
-This is v0.1, an early release. Names can still change before 1.0. Infinite loading, pinned rows, auto column widths, column reordering and framework wrappers come in v0.2. See the [roadmap](https://github.com/Joessst-Dev/argus-table/blob/main/docs/plan/plan/12-roadmap.md).
+This is an early release. Names can still change before 1.0. Pinned rows, auto column widths, column reordering and framework wrappers come in v0.2. See the [roadmap](https://github.com/Joessst-Dev/argus-table/blob/main/docs/plan/plan/12-roadmap.md).
 
 MIT licensed.

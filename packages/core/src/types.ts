@@ -115,3 +115,43 @@ export interface RangeChangeDetail {
   start: number;
   end: number;
 }
+
+/** What `getRows()` receives: a range of rows, the sort order and an abort signal. */
+export interface RowsRequest {
+  /** Index of the first row, inclusive. */
+  start: number;
+  /** Index after the last row: exclusive, like `Array.prototype.slice`. */
+  end: number;
+  /** The current sort order; sorting happens on the server. `[]` when unsorted. */
+  sorting: SortState;
+  /** Aborted when the rows are no longer needed: scrolled far away, or the source was reset. */
+  signal: AbortSignal;
+}
+
+/** What `getRows()` resolves to. */
+export interface RowsResponse<TData> {
+  /** The rows from `start`, at most `end - start` of them. */
+  rows: readonly TData[];
+  /**
+   * Total number of rows, if known. Without it, the table grows as pages arrive,
+   * and a page with fewer rows than asked for marks the end.
+   */
+  total?: number;
+}
+
+/** A remote source of rows, loaded page by page as they scroll into view. */
+export interface DataSource<TData> {
+  /** Loads one page of rows. Reject (or throw) to show the page as failed, with a Retry button. */
+  getRows(request: RowsRequest): Promise<RowsResponse<TData>>;
+  /** Rows per request. Default: 100. */
+  pageSize?: number;
+}
+
+/** `detail` of `argus-load-error`: what `getRows()` rejected with, and the rows it was asked for. */
+export interface LoadErrorDetail {
+  error: unknown;
+  /** Index of the first row, inclusive. */
+  start: number;
+  /** Index after the last row, exclusive. */
+  end: number;
+}

@@ -14,16 +14,32 @@ import {
   type ColumnView,
   type TableModel,
 } from '@argus-table/core';
+import { DataController } from './controllers/data-controller.js';
 import { PinScrollController } from './controllers/pin-scroll-controller.js';
 import { startResizeDrag } from './controllers/resize-drag.js';
 import { TableController } from './controllers/table-controller.js';
 import { VirtualController, type VirtualWindow } from './controllers/virtual-controller.js';
-import { CELL_CLICK, COLUMN_RESIZE, fire, RANGE_CHANGE, ROW_CLICK, SORT_CHANGE } from './events.js';
-import { renderBody, type ActiveCell } from './render/body.js';
+import {
+  CELL_CLICK,
+  COLUMN_RESIZE,
+  fire,
+  LOAD_ERROR,
+  RANGE_CHANGE,
+  ROW_CLICK,
+  SORT_CHANGE,
+} from './events.js';
+import { renderBody, type ActiveCell, type Loading } from './render/body.js';
 import { renderLightDom } from './render/cells.js';
 import { renderHeader } from './render/header.js';
 import { baseStyles } from './styles/base.js';
-import type { CellContent, ColumnDef, ColumnSizingState, Density, SortState } from './types.js';
+import type {
+  CellContent,
+  ColumnDef,
+  ColumnSizingState,
+  DataSource,
+  Density,
+  SortState,
+} from './types.js';
 
 /**
  * The host carries the grid role, so rows rendered in the shadow root become
@@ -105,7 +121,7 @@ function track<T>(column: ColumnView<T, CellContent>): string {
 /**
  * A virtualized data table.
  *
- * Set `columns` and `data` as properties. Header and cell content is rendered
+ * Set `columns`, and `data` or `dataSource`, as properties. Header and cell content is rendered
  * into the element's light DOM and slotted into the cells, so page CSS and the
  * page's own components work inside cells.
  *
@@ -116,6 +132,7 @@ function track<T>(column: ColumnView<T, CellContent>): string {
  * @fires argus-cell-click - A body cell was clicked, or Enter was pressed on it. `detail: { row, columnId, value }`. Fires before `argus-row-click`.
  * @fires argus-row-click - A body row was clicked, or Enter was pressed on one of its cells. `detail: { row, rowId, index }`.
  * @fires argus-range-change - The visible rows changed. `detail: { start, end }` (row indices, inclusive).
+ * @fires argus-load-error - A `dataSource` page failed to load: `getRows()` rejected or threw. `detail: { error, start, end }` (`end` exclusive). The rows show a Retry button.
  *
  * @slot empty - Shown instead of the body when there are no rows. Default: "No rows".
  *
@@ -129,10 +146,14 @@ function track<T>(column: ColumnView<T, CellContent>): string {
  * @csspart row - Every body row.
  * @csspart row-even - Body rows with an even index (0-based).
  * @csspart row-odd - Body rows with an odd index.
+ * @csspart row-loading - Body rows whose `dataSource` page hasn't loaded yet, or failed.
  * @csspart cell - Every body cell.
  * @csspart cell-sorted - Body cells in the sorted column.
  * @csspart cell-pinned - Body cells in a pinned column, on either side.
  * @csspart cell-pinned-edge - The pinned body cell next to the scrolling columns (one per pinned side).
+ * @csspart skeleton - The placeholder bar in each cell of a row that is still loading.
+ * @csspart skeleton-error - Added to `skeleton` in a row whose page failed to load.
+ * @csspart retry - The Retry button in the first cell of a failed page's first visible row.
  * @csspart empty - The empty-state container.
  *
  * @cssprop [--argus-bg=Canvas] - Background of the table and rows.
@@ -149,6 +170,7 @@ function track<T>(column: ColumnView<T, CellContent>): string {
  * @cssprop [--argus-resize-handle-color] - Colour of the resize handle's line, shown on hover, focus and drag.
  * @cssprop [--argus-focus-ring=2px solid Highlight] - Outline of the focused header or cell.
  * @cssprop [--argus-row-hover-bg] - Background of the hovered row. Default: no change.
+ * @cssprop [--argus-skeleton-bg] - Colour of the skeleton bars in rows still loading. Default: the text colour at low opacity.
  * @cssprop [--argus-row-selected-bg] - Reserved for row selection, which comes after v0.1. The table doesn't read it yet.
  */
 @customElement('argus-table')
@@ -163,7 +185,18 @@ export class ArgusTable<T = unknown> extends LitElement {
   @property({ attribute: false })
   data: readonly T[] = [];
 
-  /** Returns a stable id for a row. Default: the row's index in `data`. */
+  /**
+   * Loads rows page by page as they scroll into view, instead of `data`:
+   * `{ getRows({ start, end, sorting, signal }), pageSize? }`, where `end` is
+   * exclusive and `getRows` resolves to `{ rows, total? }`. Without a `total`,
+   * the table grows as pages arrive and a short page marks the end. Sorting
+   * happens on the server: a new order reloads from the top. While set, it wins
+   * over `data`. Replace the object to change `getRows` or `pageSize`.
+   */
+  @property({ attribute: false })
+  dataSource?: DataSource<T>;
+
+  /** Returns a stable id for a row. Default: the row's index (in `data`, or among all `dataSource` rows). */
   @property({ attribute: false })
   getRowId?: (row: T, index: number) => string;
 
@@ -215,6 +248,9 @@ export class ArgusTable<T = unknown> extends LitElement {
   #appliedSort: SortState | undefined;
   readonly #internals = attachGridInternals(this);
   readonly #table = new TableController<T>();
+  readonly #data = new DataController<T>(this);
+  /** Scroll back to the top after the update (a new sort order for a data source). */
+  #scrollToTop = false;
   // Looked up lazily: the virtualizer's hostUpdated runs before firstUpdated.
   readonly #virtual = new VirtualController(this, () =>
     this.renderRoot.querySelector<HTMLElement>('[part~="table"]'),
@@ -241,6 +277,18 @@ export class ArgusTable<T = unknown> extends LitElement {
     this.#probeObserver?.disconnect();
   }
 
+  /**
+   * With a `dataSource`, drops every loaded page and loads the rows in view
+   * again, keeping the scroll position. With `data`, re-renders the cells (after
+   * changing row objects in place). Resolves once the table has re-rendered;
+   * reloaded rows arrive as their pages load.
+   */
+  async refresh(): Promise<void> {
+    this.#data.refresh();
+    this.requestUpdate();
+    await this.updateComplete;
+  }
+
   /** Scrolls so that the row at `index` (in the current row order) is at the top. */
   async scrollToRow(index: number): Promise<void> {
     await this.updateComplete;
@@ -249,6 +297,17 @@ export class ArgusTable<T = unknown> extends LitElement {
   }
 
   protected override willUpdate(changed: PropertyValues<this>): void {
+    if (changed.has('dataSource') || changed.has('sorting') || changed.has('getRowId')) {
+      this.#data.configure({
+        source: this.dataSource,
+        sorting: this.#sorting.value,
+        getRowId: this.getRowId,
+      });
+      // A new order starts over from the first row, so show it.
+      if (this.dataSource && this.hasUpdated && changed.has('sorting')) {
+        this.#scrollToTop = !changed.has('dataSource');
+      }
+    }
     if (
       changed.has('columns') ||
       changed.has('data') ||
@@ -264,16 +323,20 @@ export class ArgusTable<T = unknown> extends LitElement {
         columnSizing: this.#sizing.value,
       });
     }
+    // A new page cache (new source, sort order or refresh) or none.
+    this.#table.update({ remote: this.#data.rows });
     const model = this.#table.model;
     this.#reconcileActive(model);
     const active = this.#active;
-    this.#internals.ariaRowCount = String(model.rowCount + 1);
+    // -1 tells assistive tech the total is unknown (a data source still growing).
+    const unknownTotal = this.#data.rows?.totalKnown === false;
+    this.#internals.ariaRowCount = unknownTotal ? '-1' : String(model.rowCount + 1);
     this.#internals.ariaColCount = String(model.columns.length);
     this.#virtual.configure({
       count: model.rowCount,
       rowHeight: this.#rowPx,
       overscan: Math.max(0, this.overscan),
-      rowIdAt: (index) => model.rowAt(index)?.id ?? String(index),
+      rowIdAt: (index) => this.#rowId(model, index),
       // The active row stays rendered, so the tab stop and focus survive scrolling.
       keep: active?.rowId === undefined ? undefined : { id: active.rowId, index: active.index },
     });
@@ -310,7 +373,13 @@ export class ArgusTable<T = unknown> extends LitElement {
         ${
           model.rowCount === 0
             ? html`<div part="empty"><slot name="empty">No rows</slot></div>`
-            : renderBody(this.#window.rows, columns, this.#window.totalSize, bodyActive)
+            : renderBody(
+                this.#window.rows,
+                columns,
+                this.#window.totalSize,
+                bodyActive,
+                this.#loading(),
+              )
         }
         <div class="probe" aria-hidden="true"></div>
       </div>
@@ -325,6 +394,11 @@ export class ArgusTable<T = unknown> extends LitElement {
 
   protected override updated(changed: PropertyValues<this>): void {
     renderLightDom(this, this.#table.model, this.#window.rows);
+    if (this.#scrollToTop) {
+      this.#scrollToTop = false;
+      const scroller = this.renderRoot.querySelector<HTMLElement>('[part~="table"]');
+      if (scroller) scroller.scrollTop = 0;
+    }
     if (changed.has('columns') || changed.has('columnSizing')) this.#pinScroll.measure();
     if (this.#focusPending) {
       this.#focusPending = false;
@@ -347,6 +421,61 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.#lastRange = key;
       fire(this, RANGE_CHANGE, { start: range.start, end: range.end });
     }
+    if (range) {
+      // The rendered rows: visible plus overscan, end exclusive.
+      const over = Math.max(0, this.overscan);
+      this.#data.request(Math.max(0, range.start - over), range.end + 1 + over);
+    }
+    for (const detail of this.#data.takeErrors()) fire(this, LOAD_ERROR, detail);
+  }
+
+  /**
+   * Loading state for the body while a data source is set: the state of each
+   * row, and a Retry button on the first visible row of each failed page.
+   */
+  #loading(): Loading | undefined {
+    const cache = this.#data.rows;
+    if (!cache) return undefined;
+    const top = this.#window.range?.start ?? 0;
+    const firstByPage = new Map<number, number>();
+    for (const { index } of this.#window.rows) {
+      if (index < top || cache.stateAt(index) !== 'error') continue;
+      const page = cache.pageOf(index);
+      const first = firstByPage.get(page);
+      if (first === undefined || index < first) firstByPage.set(page, index);
+    }
+    const retry = new Map<number, string>();
+    for (const [page, index] of firstByPage) {
+      const start = page * cache.pageSize;
+      const end = Math.min(start + cache.pageSize, cache.rowCount);
+      retry.set(index, `Retry loading rows ${String(start + 1)} to ${String(end)}`);
+    }
+    return { stateAt: (index) => cache.stateAt(index), retry, onRetry: this.#onRetry };
+  }
+
+  readonly #onRetry = (event: Event) => {
+    const button = event.currentTarget as HTMLElement;
+    // The button goes away with the retry; keep focus in the grid, on its cell.
+    if (button.matches(':focus')) button.parentElement?.focus({ preventScroll: true });
+    this.#data.retry(Number(button.dataset.row));
+  };
+
+  /**
+   * A row's id. A data source row that hasn't loaded gets a stand-in: the
+   * active cell's row id if it sits there (so its DOM and focus stay put), else
+   * the index, which is also its real id when there is no `getRowId`.
+   */
+  #rowId(model: TableModel<T, CellContent>, index: number): string {
+    const id = model.rowAt(index)?.id;
+    if (id !== undefined) return id;
+    const active = this.#active;
+    if (active?.index === index && active.rowId !== undefined) return active.rowId;
+    return this.#placeholderId(index);
+  }
+
+  /** The id of an unloaded row: its index, or a reserved string if `getRowId` makes the ids. */
+  #placeholderId(index: number): string {
+    return this.getRowId ? `\u0000${String(index)}` : String(index);
   }
 
   readonly #headerHandlers = {
@@ -415,9 +544,11 @@ export class ArgusTable<T = unknown> extends LitElement {
     const corner = event.ctrlKey || event.metaKey;
     if (event.altKey || event.shiftKey || (corner && key !== 'Home' && key !== 'End')) return;
     if (!inHeader && key === 'Enter') {
-      // Enter on a body cell does what a click does.
+      // Enter on a body cell does what a click does; on a failed row, it retries.
       event.preventDefault();
-      this.#activate(event.composedPath());
+      const index = rowIndexOf(cell.parentElement);
+      if (this.#data.stateAt(index) === 'error') this.#data.retry(index);
+      else this.#activate(event.composedPath());
       return;
     }
     const model = this.#table.model;
@@ -493,7 +624,8 @@ export class ArgusTable<T = unknown> extends LitElement {
           cell.getAttribute('role') === 'columnheader' ? -1 : rowIndexOf(cell.parentElement);
         const { col } = cell.dataset;
         if (index !== this.#active?.index || col !== this.#active.col) {
-          this.#active = { index, rowId: this.#table.model.rowAt(index)?.id, col };
+          const rowId = index >= 0 ? this.#rowId(this.#table.model, index) : undefined;
+          this.#active = { index, rowId, col };
           this.requestUpdate();
         }
         return;
@@ -536,7 +668,7 @@ export class ArgusTable<T = unknown> extends LitElement {
 
   /** Makes a cell active and focuses it after the update. The keep-rendered rule renders its row. */
   #moveTo(index: number, col: string, model: TableModel<T, CellContent>): void {
-    this.#active = { index, rowId: index >= 0 ? model.rowAt(index)?.id : undefined, col };
+    this.#active = { index, rowId: index >= 0 ? this.#rowId(model, index) : undefined, col };
     this.#focusPending = true;
     this.requestUpdate();
   }
@@ -558,6 +690,7 @@ export class ArgusTable<T = unknown> extends LitElement {
   /**
    * Keeps the active cell valid after columns or rows change: on the same row id
    * when it still exists (it may have moved), else at the same index, clamped.
+   * A data source row that isn't loaded (yet, or any more) keeps its id.
    * Defaults to the first header. If its row went away while the grid had focus,
    * focus follows to the replacement.
    */
@@ -573,12 +706,13 @@ export class ArgusTable<T = unknown> extends LitElement {
     let { index, rowId } = prev;
     if (rowId !== undefined) {
       const found = model.indexOf(rowId);
-      if (found === undefined) {
-        index = Math.min(index, model.rowCount - 1);
-        rowId = model.rowAt(index)?.id;
-        if (this.matches(':focus-within')) this.#focusPending = true;
-      } else {
+      const unloaded = index < model.rowCount && model.rowAt(index) === undefined;
+      if (found !== undefined) {
         index = found;
+      } else if (!unloaded) {
+        index = Math.min(index, model.rowCount - 1);
+        rowId = index >= 0 ? (model.rowAt(index)?.id ?? this.#placeholderId(index)) : undefined;
+        if (this.matches(':focus-within')) this.#focusPending = true;
       }
     }
     if (index !== prev.index || rowId !== prev.rowId || col !== prev.col || !this.#active) {
