@@ -971,6 +971,97 @@ describe('keyboard and focus', () => {
     expect(rect && box && rect.top >= box.top && rect.bottom <= box.bottom).toBe(true);
   });
 
+  /** The focused cell lies inside the scroll container's box. */
+  const inView = (el: HTMLElement) => {
+    const box = shadow(el).querySelector('[part~="table"]')?.getBoundingClientRect();
+    const rect = focused(el)?.getBoundingClientRect();
+    return !!box && !!rect && rect.top >= box.top - 0.5 && rect.bottom <= box.bottom + 0.5;
+  };
+
+  const scroller = (el: HTMLElement) => {
+    const found = shadow(el).querySelector<HTMLElement>('[part~="table"]');
+    if (!found) throw new Error('no scroll container');
+    return found;
+  };
+
+  test('Ctrl+End and Ctrl+Home jump to the last cell and the first header', async () => {
+    const el = await fixture({ columns, data: people(100_000) });
+    await focusFirstHeader(el);
+    await key(el, 'ArrowRight');
+    expect((await key(el, 'End', { ctrlKey: true })).defaultPrevented).toBe(true);
+    expect(position(el)).toEqual([99_999, 'city']);
+    expect(slotted(focused(el) as Element)?.textContent).toBe('City 4');
+    expect(inView(el)).toBe(true);
+    expect(tabStops(el)).toEqual([focused(el)]);
+    await key(el, 'Home', { ctrlKey: true });
+    expect(position(el)).toEqual([-1, 'name']);
+    expect(scroller(el).scrollTop).toBe(0);
+    // Cmd on macOS does the same.
+    await key(el, 'End', { metaKey: true });
+    expect(position(el)).toEqual([99_999, 'city']);
+    await key(el, 'Home', { metaKey: true });
+    expect(position(el)).toEqual([-1, 'name']);
+  });
+
+  test('Ctrl+End stays in the header when there are no rows', async () => {
+    const el = await fixture({ columns, data: [] });
+    await focusFirstHeader(el);
+    await key(el, 'End', { ctrlKey: true });
+    expect(position(el)).toEqual([-1, 'city']);
+  });
+
+  test('PageDown and PageUp move by a page of rows and scroll with it', async () => {
+    // 400px tall, a 40px header and 40px rows: 9 whole rows per page.
+    const el = await fixture({ columns, data: people(1000) });
+    await focusFirstHeader(el);
+    await key(el, 'PageDown');
+    expect(position(el)).toEqual([8, 'name']);
+    expect(scroller(el).scrollTop).toBe(0);
+    await key(el, 'ArrowRight');
+    await key(el, 'PageDown');
+    expect(position(el)).toEqual([17, 'age']);
+    expect(scroller(el).scrollTop).toBe(9 * 40);
+    expect(inView(el)).toBe(true);
+    await key(el, 'PageDown');
+    expect(position(el)).toEqual([26, 'age']);
+    expect(scroller(el).scrollTop).toBe(18 * 40);
+    await key(el, 'PageUp');
+    expect(position(el)).toEqual([17, 'age']);
+    expect(scroller(el).scrollTop).toBe(9 * 40);
+    expect(inView(el)).toBe(true);
+    expect(tabStops(el)).toEqual([focused(el)]);
+  });
+
+  test('PageDown and PageUp stop at the last and the first row', async () => {
+    const el = await fixture({ columns, data: people(1000) });
+    await focusFirstHeader(el);
+    await key(el, 'End', { ctrlKey: true });
+    await key(el, 'Home');
+    await key(el, 'PageUp');
+    await key(el, 'PageDown');
+    expect(position(el)).toEqual([999, 'name']);
+    expect(inView(el)).toBe(true);
+    for (let i = 0; i < 120; i++) await key(el, 'PageUp');
+    expect(position(el)).toEqual([0, 'name']);
+    expect(inView(el)).toBe(true);
+    // At the first row, and on the header, PageUp doesn't move, but it is still
+    // taken, so the container doesn't page on its own.
+    expect((await key(el, 'PageUp')).defaultPrevented).toBe(true);
+    expect(position(el)).toEqual([0, 'name']);
+    await key(el, 'ArrowUp');
+    expect((await key(el, 'PageUp')).defaultPrevented).toBe(true);
+    expect(position(el)).toEqual([-1, 'name']);
+  });
+
+  test('leaves Shift+PageDown and Alt+Home alone', async () => {
+    const el = await fixture({ columns, data: people(50) });
+    await focusFirstHeader(el);
+    await key(el, 'ArrowDown');
+    expect((await key(el, 'PageDown', { shiftKey: true })).defaultPrevented).toBe(false);
+    expect((await key(el, 'Home', { altKey: true })).defaultPrevented).toBe(false);
+    expect(position(el)).toEqual([0, 'name']);
+  });
+
   test('a click on a cell makes it the tab stop', async () => {
     const el = await fixture({ columns, data: people(10) });
     const row = rowsInOrder(el)[3];

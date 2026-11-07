@@ -46,6 +46,8 @@ Write down what is announced for each step, and whether it passes.
    - **Expect:** `#`, Name, the scrolling columns, then the Open button, in visual order.
 8. **Right to left.** Reload with `&dir=rtl` and repeat steps 3 and 7.
    - **Expect:** the same order and numbers. ArrowLeft now moves toward the end.
+9. **Page and corner keys.** Back in left to right, press PageDown twice, then Ctrl+End (Cmd+End with VoiceOver), then Ctrl+Home.
+   - **Expect:** after each PageDown, a row number one page further on; after Ctrl+End, row 1,001 in the last column; after Ctrl+Home, the "#" header.
 
 ## Recording the result
 

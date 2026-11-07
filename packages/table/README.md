@@ -5,7 +5,7 @@
 - **Virtualized rows:** 100,000 rows scroll smoothly, and the DOM stays the same size.
 - **Pinned columns** at the start or end, which mirror in right-to-left layouts.
 - **Sorting and resizing:** by mouse or keyboard, controlled or uncontrolled.
-- **Accessible:** the WAI-ARIA grid pattern, with one tab stop and arrow-key navigation.
+- **Accessible:** the WAI-ARIA grid pattern, with one tab stop and keyboard navigation by cell, row, page and corner.
 - **Plain CSS styling:** `--argus-*` tokens and `::part()` names. Cell content is light DOM, so your own CSS and components work inside cells.
 
 **[Docs and live examples](https://joessst-dev.github.io/argus-table/)** · [GitHub](https://github.com/Joessst-Dev/argus-table)

@@ -368,19 +368,21 @@ export class ArgusTable<T = unknown> extends LitElement {
   };
 
   /**
-   * Keys on a focused cell or header. Keys from content inside a cell (an input,
-   * a button) are left to that content.
+   * Keys on a focused cell or header: arrows by cell, Home/End along the row,
+   * PageUp/PageDown by a page of rows (the view scrolls with it), Ctrl+Home/End
+   * (or Cmd) to the first header and the last cell. Keys from content inside a
+   * cell (an input, a button) are left to that content.
    */
   readonly #onKeydown = (event: KeyboardEvent) => {
     const cell = gridCell(event.composedPath()[0] ?? event.target ?? this);
     const id = cell?.dataset.col;
     if (!cell || id === undefined) return;
+    const scroller = event.currentTarget as HTMLElement;
     if (event.key === 'Tab' && event.shiftKey) {
       // Firefox makes the scroll container a tab stop, so Shift+Tab would stop
       // on it before leaving the grid. Take it out of the tab order for this
       // one move only: a tabindex there for good would expose it as a node of
       // its own between the grid and its rows.
-      const scroller = event.currentTarget as HTMLElement;
       scroller.tabIndex = -1;
       // Put it back once focus has actually moved (a timer can run first).
       cell.addEventListener(
@@ -409,6 +411,22 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.#requestSort(id);
       return;
     }
+    const model = this.#table.model;
+    const columns = model.columns;
+    if (
+      (event.ctrlKey || event.metaKey) &&
+      !event.altKey &&
+      !event.shiftKey &&
+      (key === 'Home' || key === 'End')
+    ) {
+      // To the corners: the first header, or the last row's last cell.
+      event.preventDefault();
+      const target = key === 'Home' ? columns[0] : columns.at(-1);
+      if (!target) return;
+      if (key === 'Home') scroller.scrollTop = 0;
+      this.#moveTo(key === 'Home' ? -1 : model.rowCount - 1, target.id, model);
+      return;
+    }
     if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
     if (!inHeader && key === 'Enter') {
       // Enter on a body cell does what a click does.
@@ -416,11 +434,17 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.#activate(event.composedPath());
       return;
     }
-    const model = this.#table.model;
-    const columns = model.columns;
-    let row = inHeader ? -1 : rowIndexOf(cell.parentElement);
+    const from = inHeader ? -1 : rowIndexOf(cell.parentElement);
+    let row = from;
     let col = columns.findIndex((c) => c.id === id);
     switch (key) {
+      case 'PageDown':
+        row = Math.min(row + this.#pageRows(scroller), model.rowCount - 1);
+        break;
+      case 'PageUp':
+        // Stays in the body; ArrowUp or Ctrl+Home goes on to the header.
+        row = row < 0 ? row : Math.max(row - this.#pageRows(scroller), 0);
+        break;
       case 'ArrowDown':
         row = Math.min(row + 1, model.rowCount - 1);
         break;
@@ -443,9 +467,21 @@ export class ArgusTable<T = unknown> extends LitElement {
         return;
     }
     event.preventDefault();
+    if ((key === 'PageDown' || key === 'PageUp') && from >= 0 && row !== from) {
+      // Scroll by as many rows as focus moved, so the focused cell keeps its
+      // place on screen. The browser clamps at the ends; focusing scrolls the
+      // rest of the way.
+      scroller.scrollTop += (row - from) * this.#rowPx;
+    }
     const target = columns[Math.min(Math.max(col, 0), columns.length - 1)];
     if (target) this.#moveTo(row, target.id, model);
   };
+
+  /** Whole rows that fit in the body's viewport (below the sticky header); at least 1. */
+  #pageRows(scroller: HTMLElement): number {
+    const header = scroller.querySelector('[part~="header"]')?.getBoundingClientRect().height ?? 0;
+    return Math.max(1, Math.floor((scroller.clientHeight - header) / this.#rowPx + 0.01));
+  }
 
   /** Focus that lands in a cell (a click, or content inside it) makes that cell active. */
   readonly #onFocusin = (event: FocusEvent) => {
