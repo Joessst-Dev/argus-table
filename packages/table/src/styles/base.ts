@@ -165,8 +165,6 @@ export const baseStyles = css`
     [data-pin] {
       position: sticky;
       z-index: 1;
-      /* Visible so the edge shadow isn't clipped; slotted content still clips itself. */
-      overflow: visible;
     }
     [data-pin='start'] {
       inset-inline-start: var(--_pin-offset);
@@ -174,25 +172,65 @@ export const baseStyles = css`
     [data-pin='end'] {
       inset-inline-end: var(--_pin-offset);
     }
+    /*
+     * Pinned body cells are sticky only while the table scrolls sideways
+     * (data-hscroll on the scroller). At rest they are plain cells shifted by the
+     * horizontal scroll offset, which vertical scrolling never changes: a sticky
+     * cell per row is a compositing layer each, and Safari stutters moving them
+     * (PinScrollController). Both place the cells at the same spot.
+     */
+    [part~='row'] > [data-pin] {
+      position: relative;
+      inset-inline: auto;
+    }
+    [part~='row'] > [data-pin='start'] {
+      transform: translateX(var(--_sx, 0px));
+    }
+    [part~='row'] > [data-pin='end'] {
+      transform: translateX(calc(var(--_sx, 0px) - var(--_dir) * var(--_max-x, 0px)));
+    }
+    [data-hscroll] [part~='row'] > [data-pin] {
+      position: sticky;
+      transform: none;
+    }
+    [data-hscroll] [part~='row'] > [data-pin='start'] {
+      inset-inline-start: var(--_pin-offset);
+    }
+    [data-hscroll] [part~='row'] > [data-pin='end'] {
+      inset-inline-end: var(--_pin-offset);
+    }
     [part~='cell-pinned'] {
       background: var(--_row-surface);
     }
     /*
-     * The edge shadow. --argus-pinned-shadow is written for a shadow falling
-     * toward the end side; the start edge in RTL and the end edge in LTR mirror it.
+     * The edge shadow, once per pinned side (.pin-shadow, beside the scroller).
+     * --argus-pinned-shadow is written for a shadow falling toward the end side;
+     * the start edge in RTL and the end edge in LTR mirror it.
      */
-    [data-pin-edge]::after {
+    .pin-shadow {
+      position: absolute;
+      inset-block-start: 0;
+      block-size: min(var(--_view-h, 100%), var(--_content-h, 100%));
+      z-index: 3;
+      pointer-events: none;
+    }
+    .pin-shadow[data-side='start'] {
+      inset-inline-start: 0;
+    }
+    .pin-shadow[data-side='end'] {
+      inset-inline-end: var(--_sb-x, 0px);
+    }
+    .pin-shadow::after {
       content: '';
       position: absolute;
       inset: 0;
-      pointer-events: none;
       box-shadow: var(
         --argus-pinned-shadow,
         4px 0 6px -4px light-dark(rgb(0 0 0 / 0.2), rgb(0 0 0 / 0.6))
       );
       transform: scaleX(var(--_dir));
     }
-    [data-pin='end'][data-pin-edge]::after {
+    .pin-shadow[data-side='end']::after {
       transform: scaleX(calc(-1 * var(--_dir)));
     }
 

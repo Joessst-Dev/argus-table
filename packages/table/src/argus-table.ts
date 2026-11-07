@@ -1,6 +1,7 @@
 import {
   LitElement,
   html,
+  nothing,
   type CSSResultGroup,
   type PropertyValues,
   type TemplateResult,
@@ -13,6 +14,7 @@ import {
   type ColumnView,
   type TableModel,
 } from '@argus-table/core';
+import { PinScrollController } from './controllers/pin-scroll-controller.js';
 import { startResizeDrag } from './controllers/resize-drag.js';
 import { TableController } from './controllers/table-controller.js';
 import { VirtualController, type VirtualWindow } from './controllers/virtual-controller.js';
@@ -72,6 +74,25 @@ function gridCell(target: EventTarget): HTMLElement | undefined {
 /** Row index of a rendered row element (`aria-rowindex` minus the header); `-1` for the header. */
 function rowIndexOf(row: Element | null): number {
   return Number(row?.getAttribute('aria-rowindex') ?? 1) - 2;
+}
+
+/**
+ * The pinned edge's shadow, drawn once per side over the scroller rather than
+ * per row: a shadow on every pinned cell repaints on every scroll frame. It
+ * covers the pinned columns and casts `--argus-pinned-shadow` onto the rest;
+ * PinScrollController sizes it to the visible area.
+ */
+function pinShadow(side: 'start' | 'end', width: number, rows: number, rowPx: number) {
+  if (width === 0) return nothing;
+  return html`<div
+    class="pin-shadow"
+    data-side=${side}
+    aria-hidden="true"
+    style=${styleMap({
+      inlineSize: `${String(width)}px`,
+      '--_content-h': `${String((rows + 1) * rowPx)}px`,
+    })}
+  ></div>`;
 }
 
 /** CSS grid track for a column: fixed px, or a flex share with the min width as floor. */
@@ -198,6 +219,9 @@ export class ArgusTable<T = unknown> extends LitElement {
   readonly #virtual = new VirtualController(this, () =>
     this.renderRoot.querySelector<HTMLElement>('[part~="table"]'),
   );
+  readonly #pinScroll = new PinScrollController(this, () =>
+    this.renderRoot.querySelector<HTMLElement>('[part~="table"]'),
+  );
   #rowPx = 40;
   #probeObserver?: ResizeObserver;
   #window: VirtualWindow = { rows: [], totalSize: 0, range: null };
@@ -259,8 +283,9 @@ export class ArgusTable<T = unknown> extends LitElement {
     const model = this.#table.model;
     const columns = model.columns;
     this.#window = this.#virtual.computeWindow();
-    const pinned = (side: 'start' | 'end') =>
-      `${String(columns.reduce((sum, c) => (c.pin === side ? sum + c.width : sum), 0))}px`;
+    const pinnedWidth = (side: 'start' | 'end') =>
+      columns.reduce((sum, c) => (c.pin === side ? sum + c.width : sum), 0);
+    const pinned = (side: 'start' | 'end') => `${String(pinnedWidth(side))}px`;
     const style: Record<string, string> = {
       '--_cols': columns.map(track).join(' '),
       '--_width': `${String(model.totalWidth)}px`,
@@ -274,21 +299,23 @@ export class ArgusTable<T = unknown> extends LitElement {
       style['--_row-height'] = `${String(this.rowHeight)}px`;
     }
     return html`<div
-      part="table"
-      role="presentation"
-      style=${styleMap(style)}
-      @keydown=${this.#onKeydown}
-      @focusin=${this.#onFocusin}
-      @click=${this.#onClick}
-    >
-      ${renderHeader(columns, this.#headerHandlers, active?.index === -1 ? active.col : undefined)}
-      ${
-        model.rowCount === 0
-          ? html`<div part="empty"><slot name="empty">No rows</slot></div>`
-          : renderBody(this.#window.rows, columns, this.#window.totalSize, bodyActive)
-      }
-      <div class="probe" aria-hidden="true"></div>
-    </div>`;
+        part="table"
+        role="presentation"
+        style=${styleMap(style)}
+        @keydown=${this.#onKeydown}
+        @focusin=${this.#onFocusin}
+        @click=${this.#onClick}
+      >
+        ${renderHeader(columns, this.#headerHandlers, active?.index === -1 ? active.col : undefined)}
+        ${
+          model.rowCount === 0
+            ? html`<div part="empty"><slot name="empty">No rows</slot></div>`
+            : renderBody(this.#window.rows, columns, this.#window.totalSize, bodyActive)
+        }
+        <div class="probe" aria-hidden="true"></div>
+      </div>
+      ${pinShadow('start', pinnedWidth('start'), model.rowCount, this.#rowPx)}
+      ${pinShadow('end', pinnedWidth('end'), model.rowCount, this.#rowPx)}`;
   }
 
   protected override firstUpdated(): void {
@@ -298,6 +325,7 @@ export class ArgusTable<T = unknown> extends LitElement {
 
   protected override updated(changed: PropertyValues<this>): void {
     renderLightDom(this, this.#table.model, this.#window.rows);
+    if (changed.has('columns') || changed.has('columnSizing')) this.#pinScroll.measure();
     if (this.#focusPending) {
       this.#focusPending = false;
       this.#focusActive();

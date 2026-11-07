@@ -13,9 +13,10 @@ The table renders as a div-based CSS grid with ARIA grid roles, not a native `<t
 
 ## Fixed columns
 
-- `position: sticky` with `inset-inline-start` / `inset-inline-end` offsets from TanStack v9, which pins by logical position (`column.getStart('start')`, `getAfter('end')`). Logical properties make RTL work.
+- Pinned cells stay in their rows. Header cells are `position: sticky`, with `inset-inline-start` / `inset-inline-end` offsets from TanStack v9, which pins by logical position (`column.getStart('start')`, `getAfter('end')`). Logical properties make RTL work.
+- Body cells are sticky only while the table scrolls sideways. At rest, and while scrolling up and down, they're shifted by the horizontal scroll offset with a `transform`, because a sticky cell per row made Safari stutter ([ADR 0001](../../adr/0001-shadow-vs-light-dom.md#addendum-pinned-columns-in-safari-phase-1)).
 - Pinned columns are always rendered, even when column virtualization is on.
-- The pinned cell next to the scrolling columns gets the public `cell-pinned-edge` part, which themes target, and draws the `--argus-pinned-shadow` edge. A private `data-pin="start|end"` attribute tells the component which way to point the shadow; themes don't use it.
+- The pinned cell next to the scrolling columns gets the public `cell-pinned-edge` part, which themes target. The `--argus-pinned-shadow` edge is drawn once per pinned side by an overlay over the scroller, not per row. A private `data-pin="start|end"` attribute marks pinned cells; themes don't use it.
 
 ## Fixed rows
 

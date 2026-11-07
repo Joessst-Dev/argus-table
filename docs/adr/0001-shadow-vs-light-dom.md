@@ -1,6 +1,6 @@
 # ADR 0001: Shadow DOM with slotted light-DOM cells, on pooled row DOM
 
-- **Status:** Accepted (3 November 2026). One condition is still open: an absolute frame-time check in real Safari before v0.1. See [Follow-ups](#follow-ups).
+- **Status:** Accepted (3 November 2026). The real-Safari check before v0.1 was done on 7 November 2026: see [Pinned columns in Safari](#addendum-pinned-columns-in-safari-phase-1).
 - **Decides:** the Phase 0 gate in [the roadmap](../plan/plan/12-roadmap.md), and the open question in [Risks and open questions](../plan/plan/13-risks-and-open-questions.md).
 - **Evidence:** the throwaway spike in `apps/spike` and the `Spike benchmark` workflow run on PR #10. Its artifacts `spike-bench-chromium`, `spike-bench-firefox` and `spike-bench-webkit` contain the JSON, Markdown and screenshots.
 
@@ -98,9 +98,9 @@ Across every engine, keying, variant and run, there were **0 blank-row frames** 
 
 ## Follow-ups
 
-- [ ] **Absolute check in real Safari** (needed before v0.1): on a Mac, run the benchmark against the Phase 1 playground (`BROWSERS=webkit pnpm bench`, added with the rendering PR), and scroll the playground in Safari with the Web Inspector timeline open. The spike that produced the numbers above has been removed; its harness lives on in `benchmarks/`.
+- [x] **Absolute check in real Safari** (done 7 November 2026, see [Pinned columns in Safari](#addendum-pinned-columns-in-safari-phase-1)): on a Mac, run the benchmark against the Phase 1 playground (`BROWSERS=webkit pnpm bench`, added with the rendering PR), and scroll the playground in Safari with the Web Inspector timeline open. The spike that produced the numbers above has been removed; its harness lives on in `benchmarks/`.
 - [ ] Re-measure Firefox fast scrolling on real hardware, where vsync is more stable.
-- [ ] **Pinned columns in real Safari** (before v0.1): scroll the playground fast and sideways in Safari on a Mac, with and without `?pin=none`. Rebuild the pinning (a scroll-synced transform, or one sticky pane per side) only if the pinned version stutters. See the Pinned columns addendum.
+- [x] **Pinned columns in real Safari** (done 7 November 2026: they stuttered, and the pinning was rebuilt; see [Pinned columns in Safari](#addendum-pinned-columns-in-safari-phase-1)): scroll the playground fast and sideways in Safari on a Mac, with and without `?pin=none`. Rebuild the pinning (a scroll-synced transform, or one sticky pane per side) only if the pinned version stutters. See the Pinned columns addendum.
 - [x] A docs PR that updates the lit3 skill (body rows keyed by pool index, not row id; slotted nodes as direct host children; TanStack v9 API), the rendering, public API and accessibility plan pages, and the code-architecture pages (row pool).
 - [x] Phase 1: choose between the two DOM-order options above. Pool order plus `aria-rowindex` was chosen; see the addendum below.
 - [ ] Screen-reader check (needed before v0.1): on the Phase 1 playground, test VoiceOver with Safari and NVDA with Firefox. Rows must be read in visual order, with the right row and column numbers, while scrolling. The steps are in [Screen-reader check](../a11y/screen-reader-check.md).
@@ -158,3 +158,42 @@ Chromium is 16.7–16.8 ms in every variant and scenario, the real-input `wheel`
 - **One sticky pane per side:** this splits rows across containers, so each row needs `aria-owns` to hold its cells together, and VoiceOver supports that poorly.
 
 Build either one only if Safari shows the stutter (see Follow-ups).
+
+## Addendum: pinned columns in Safari (Phase 1)
+
+**Finding.** In Safari on macOS, the sticky pinned cells made vertical scrolling stutter visibly; `?pin=none` was smooth. Safari Web Inspector timelines of the production playground showed why. Every sticky element is a compositing layer of its own, and Safari moves each one on every scroll frame. With a sticky cell per pinned column per rendered row, that is dozens of layers. When recycled rows entered the window, Safari rebuilt and repainted about 70 of them in one frame, which took 22 ms of compositing alone. Linux WebKit in CI composites differently and doesn't show this. There, the cost was the blurred edge `box-shadow` that every pinned row painted.
+
+**What was tried**, each as a playground variant and compared in Safari by feel and by timeline:
+
+| Variant                                                                   | Safari   | Why not                                                                                                                                                      |
+| ------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Sticky cells without the edge shadow                                      | stutters | still one layer per cell                                                                                                                                     |
+| Rows positioned with `top` instead of `transform`                         | stutters | the transformed row wasn't the cost                                                                                                                          |
+| Pinned cells moved by a scroll-driven animation                           | stutters | one animated layer per cell; `container-type` on the scroller also stopped WebKit from scrolling                                                             |
+| One sticky pane per side, rows owning their pinned cells with `aria-owns` | smooth   | axe's `aria-required-children` fails: axe adds owned cells to the row but doesn't take them away from the pane, so every page using the table would fail axe |
+| **Hybrid** (shipped)                                                      | smooth   | —                                                                                                                                                            |
+
+**Decision: the hybrid.** Pinned body cells stay in their rows, so the DOM and the accessibility tree are unchanged.
+
+- **At rest, and while scrolling up and down,** they are plain cells shifted by the horizontal scroll offset (`transform: translateX(…)`). Vertical scrolling never changes that offset, so there are no extra layers.
+- **While the table scrolls sideways,** the scroller carries `data-hscroll` and the cells are sticky, so they never lag behind the scroll. 150 ms after the last sideways scroll they switch back, at the same position (`PinScrollController`).
+- **The edge shadow** is drawn once per pinned side, by an overlay over the scroller, instead of on every pinned row. `--argus-pinned-shadow` keeps its meaning.
+- **Pinned header cells** stay sticky: it's one row.
+
+Safari timelines of the production playground, the same session, Screenshots off, scrolling down. These ran at 120 Hz; the earlier sticky recording ran at 60 Hz.
+
+| Safari, scrolling frames | `pin=none` |     Hybrid | Sticky cells (earlier recording) |
+| ------------------------ | ---------: | ---------: | -------------------------------: |
+| Frame p50 (ms)           |        8.9 |        8.6 |                             22.3 |
+| Frame p95 (ms)           |       27.2 |       32.8 |                             50.0 |
+| Frames over 34 ms        |       2.3% |       3.9% |                            23.8% |
+| Composite avg / p95 (ms) |  4.8 / 8.4 | 4.9 / 14.2 |                       9.5 / 24.4 |
+
+Linux WebKit, the playground benchmark, 3 runs interleaved (p95, ms):
+
+| Scenario   | Sticky cells | Hybrid | `pin=none` |
+| ---------- | -----------: | -----: | ---------: |
+| steady     |           96 |     38 |         28 |
+| fast       |           68 |     18 |         19 |
+| jumps      |           26 |     21 |         27 |
+| horizontal |           70 |     17 |         20 |
