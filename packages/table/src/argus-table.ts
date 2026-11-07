@@ -411,42 +411,33 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.#requestSort(id);
       return;
     }
-    const model = this.#table.model;
-    const columns = model.columns;
-    if (
-      (event.ctrlKey || event.metaKey) &&
-      !event.altKey &&
-      !event.shiftKey &&
-      (key === 'Home' || key === 'End')
-    ) {
-      // To the corners: the first header, or the last row's last cell.
-      event.preventDefault();
-      const target = key === 'Home' ? columns[0] : columns.at(-1);
-      if (!target) return;
-      if (key === 'Home') scroller.scrollTop = 0;
-      this.#moveTo(key === 'Home' ? -1 : model.rowCount - 1, target.id, model);
-      return;
-    }
-    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    // Ctrl (Cmd on macOS) only goes with Home and End: to the corners.
+    const corner = event.ctrlKey || event.metaKey;
+    if (event.altKey || event.shiftKey || (corner && key !== 'Home' && key !== 'End')) return;
     if (!inHeader && key === 'Enter') {
       // Enter on a body cell does what a click does.
       event.preventDefault();
       this.#activate(event.composedPath());
       return;
     }
+    const model = this.#table.model;
+    const columns = model.columns;
+    const last = model.rowCount - 1;
     const from = inHeader ? -1 : rowIndexOf(cell.parentElement);
+    // Whole rows below the sticky header, which is one row tall.
+    const page = Math.max(1, Math.floor(scroller.clientHeight / this.#rowPx + 0.01) - 1);
     let row = from;
     let col = columns.findIndex((c) => c.id === id);
     switch (key) {
       case 'PageDown':
-        row = Math.min(row + this.#pageRows(scroller), model.rowCount - 1);
+        row = Math.min(row + page, last);
         break;
       case 'PageUp':
         // Stays in the body; ArrowUp or Ctrl+Home goes on to the header.
-        row = row < 0 ? row : Math.max(row - this.#pageRows(scroller), 0);
+        if (row > 0) row = Math.max(row - page, 0);
         break;
       case 'ArrowDown':
-        row = Math.min(row + 1, model.rowCount - 1);
+        row = Math.min(row + 1, last);
         break;
       case 'ArrowUp':
         row = Math.max(row - 1, -1);
@@ -459,29 +450,26 @@ export class ArgusTable<T = unknown> extends LitElement {
         break;
       case 'Home':
         col = 0;
+        if (corner) {
+          row = -1;
+          scroller.scrollTop = 0;
+        }
         break;
       case 'End':
         col = columns.length - 1;
+        if (corner) row = last;
         break;
       default:
         return;
     }
     event.preventDefault();
-    if ((key === 'PageDown' || key === 'PageUp') && from >= 0 && row !== from) {
-      // Scroll by as many rows as focus moved, so the focused cell keeps its
-      // place on screen. The browser clamps at the ends; focusing scrolls the
-      // rest of the way.
-      scroller.scrollTop += (row - from) * this.#rowPx;
-    }
+    // PageUp/PageDown scroll by as many rows as focus moved, so the focused cell
+    // keeps its place on screen. The browser clamps at the ends; focusing
+    // scrolls the rest of the way.
+    if (key.startsWith('Page') && from >= 0) scroller.scrollTop += (row - from) * this.#rowPx;
     const target = columns[Math.min(Math.max(col, 0), columns.length - 1)];
     if (target) this.#moveTo(row, target.id, model);
   };
-
-  /** Whole rows that fit in the body's viewport (below the sticky header); at least 1. */
-  #pageRows(scroller: HTMLElement): number {
-    const header = scroller.querySelector('[part~="header"]')?.getBoundingClientRect().height ?? 0;
-    return Math.max(1, Math.floor((scroller.clientHeight - header) / this.#rowPx + 0.01));
-  }
 
   /** Focus that lands in a cell (a click, or content inside it) makes that cell active. */
   readonly #onFocusin = (event: FocusEvent) => {
