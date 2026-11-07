@@ -5,8 +5,14 @@
  *
  * A theme sets tokens and ::part() rules only. To change one value, set the
  * token after this file: argus-table { --argus-focus-ring: 2px solid teal; }
+ *
+ * A theme that uses light-dark() declares color-scheme on argus-table itself.
+ * Build tools that polyfill light-dark() (Vite's Lightning CSS minifier, for
+ * one) switch colours only where the same stylesheet sets color-scheme; the
+ * element's own declaration is in its shadow root, out of their sight.
  */
 argus-table {
+  color-scheme: light dark;
   --argus-bg: Canvas;
   --argus-fg: CanvasText;
   --argus-font: inherit;

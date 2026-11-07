@@ -26,6 +26,23 @@ for (const density of ['compact', 'comfortable', 'spacious']) {
   }
 }
 
+// No data-argus-theme: the theme follows the system scheme. Scrolled, so rows
+// sit under the sticky header.
+for (const colorScheme of ['light', 'dark'] as const) {
+  test(`default theme, automatic scheme, ${colorScheme}, scrolled`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme });
+    await open(page, { theme: 'default' });
+    await page.evaluate(async () => {
+      const table = document.querySelector('argus-table');
+      const scroller = table?.shadowRoot?.querySelector<HTMLElement>('[part~="table"]');
+      if (scroller) scroller.scrollTop = 100;
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      await table?.updateComplete;
+    });
+    await expect(page).toHaveScreenshot(`default-auto-${colorScheme}.png`);
+  });
+}
+
 test('default theme, RTL, pinned and scrolled sideways', async ({ page }) => {
   await open(page, { theme: 'default', scheme: 'light', dir: 'rtl', cols: '14' });
   await page.evaluate(async () => {
