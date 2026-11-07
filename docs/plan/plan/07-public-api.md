@@ -87,9 +87,9 @@ All `CustomEvent`, bubbling and composed. See [State and events](../code-archite
 | `argus-range-change` | `{ start, end }` visible rows |
 | `argus-load-error` | `{ error, start, end }` |
 
-- The package exports each name as a constant (`SORT_CHANGE`, `COLUMN_RESIZE`, `RANGE_CHANGE`, …), and `HTMLElementEventMap` types each `detail`.
+- The package exports each name as a constant (`SORT_CHANGE`, `COLUMN_RESIZE`, `CELL_CLICK`, `ROW_CLICK`, `RANGE_CHANGE`, …), and `HTMLElementEventMap` types each `detail`.
 - `argus-sort-change` fires on a click on a sortable header, or Enter or Space on a focused one; the order cycles ascending → descending → unsorted. When `sorting` is uncontrolled, it fires after the rows are re-sorted. When controlled, it carries the proposed order and nothing changes until the host sets `sorting`. v0.1 sorts by one column at a time.
-- `argus-column-resize` fires when a column is resized by dragging its `resize-handle` or with Alt+Arrow on its focused header (10 px; the arrow toward the inline end grows it). During a drag it fires once per animation frame, so a controlled host can follow the drag; `width` is already clamped to `minWidth`/`maxWidth`.
+- `argus-column-resize` fires when a column is resized by dragging its `resize-handle` or with Alt+Arrow on its focused header (10 px; the arrow toward the inline end grows it). The handle is a `separator` labelled "Resize column" (English until the table gets an i18n option). During a drag it fires once per animation frame, so a controlled host can follow the drag; `width` is already clamped to `minWidth`/`maxWidth`.
 - `argus-cell-click` and `argus-row-click` fire on a click in the body, in that order, including clicks on content inside a cell (check `event.composedPath()` to skip your own buttons). `row` is the data object, `value` what the column's accessor reads. Enter on a focused body cell fires both too (Enter pressed in content inside a cell is left to that content). Header clicks fire neither.
 
 ## Methods
@@ -115,4 +115,5 @@ All `CustomEvent`, bubbling and composed. See [State and events](../code-archite
 - `--argus-row-height` and `--argus-cell-padding-inline` each have a default per density: 32 / 40 / 52 px rows and 8 / 12 / 16 px padding for compact / comfortable / spacious; see [Styling and theming](06-styling-and-theming.md).
 - The element is 400 px tall by default, because a virtualized table needs a bounded height; set `height` (or `block-size`) on it.
 - `--argus-row-selected-bg` is reserved for row selection (after v0.1). The table doesn't read it yet; themes may set it already.
+- `--argus-focus-ring` is an `outline` value for the focused cell or header (`:focus-visible`). Default: `2px solid Highlight`.
 - `--argus-pinned-shadow` takes a `box-shadow` value written for a shadow falling toward the end side, for example `4px 0 6px -4px rgb(0 0 0 / .2)`. The component mirrors it for the end edge and in RTL. `none` removes it.
