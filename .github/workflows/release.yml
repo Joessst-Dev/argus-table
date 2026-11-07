@@ -49,11 +49,11 @@ jobs:
 
       - name: Version PR or publish
         uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        # v2 input names; the token is an input now (an env var is ignored).
         with:
-          version: pnpm version-packages
-          publish: pnpm release
-          title: Version packages
-          commit: Version packages
-          createGithubReleases: true
-        env:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
+          github-token: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
+          version-script: pnpm version-packages
+          publish-script: pnpm release
+          pr-title: Version packages
+          commit-message: Version packages
+          create-github-releases: true
