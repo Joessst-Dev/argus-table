@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="brand/argus-table-logo.svg" alt="Argus Table" width="240" height="240">
+</p>
+
 # Argus Table
 
 A framework-agnostic data table web component built with Lit and TanStack: infinite scrolling, pinned columns and rows, resizable and auto-sized columns, and styling that is plain CSS, with optional themes.

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title">
+<title id="title">Argus Table icon</title>
+<defs>
+  <linearGradient id="tiles" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="#10DCEB"/>
+    <stop offset=".52" stop-color="#168FEF"/>
+    <stop offset="1" stop-color="#873CF2"/>
+  </linearGradient>
+  <linearGradient id="iris" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="#11DDEB"/>
+    <stop offset=".52" stop-color="#168FEF"/>
+    <stop offset="1" stop-color="#873CF2"/>
+  </linearGradient>
+</defs>
+<g fill="url(#tiles)">
+  <rect x="174" y="174" width="210" height="164" rx="28"/>
+  <rect x="407" y="174" width="210" height="164" rx="28"/>
+  <rect x="640" y="174" width="210" height="164" rx="28"/>
+  <rect x="174" y="360" width="210" height="304" rx="28"/>
+  <rect x="640" y="360" width="210" height="304" rx="28"/>
+  <rect x="174" y="686" width="210" height="164" rx="28"/>
+  <rect x="407" y="686" width="210" height="164" rx="28"/>
+  <rect x="640" y="686" width="210" height="164" rx="28"/>
+</g>
+<path d="M174 512 Q512 230 850 512 Q512 794 174 512Z" fill="url(#iris)" stroke="#07143F" stroke-width="24" stroke-linejoin="round"/>
+<circle cx="512" cy="512" r="108" fill="#07143F"/>
+<circle cx="557" cy="452" r="25" fill="#fff"/>
+</svg>
