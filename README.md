@@ -8,7 +8,7 @@ A framework-agnostic data table web component built with Lit and TanStack: infin
 
 Named after Argus Panoptes, the hundred-eyed giant of Greek myth who never slept: a table that keeps watch over every row.
 
-> **Status:** v0.1 is on npm: virtualized rows, pinned columns, sorting, resizing, keyboard navigation and the default theme. On `main` for v0.2: infinite loading, pinned rows, auto widths, column reordering, `<argus-column>` children, and the React, Vue and Angular wrappers ([roadmap](docs/plan/plan/12-roadmap.md)).
+> **Status:** v0.1 is on npm: virtualized rows, pinned columns, sorting, resizing, keyboard navigation and the default theme. On `main` for v0.2: infinite loading, pinned rows, auto widths, column reordering, `<argus-column>` children, the React, Vue and Angular wrappers and a Material-inspired theme ([roadmap](docs/plan/plan/12-roadmap.md)).
 
 **[Docs and live examples](https://joessst-dev.github.io/argus-table/)**
 
@@ -43,7 +43,7 @@ import { ArgusTable } from '@argus-table/react';
 | Package                 | Purpose                                          | Status       |
 | ----------------------- | ------------------------------------------------ | ------------ |
 | `argus-table`           | The `<argus-table>` element                      | v0.1         |
-| `@argus-table/themes`   | Optional themes: `default.css` now; more planned | v0.1         |
+| `@argus-table/themes`   | Optional themes: default, Material-inspired      | v0.1         |
 | `@argus-table/react`    | React components with typed props and events     | v0.2         |
 | `@argus-table/vue`      | Vue components with typed props, events, v-model | v0.2         |
 | `@argus-table/angular`  | Angular components with typed inputs and outputs | v0.2         |

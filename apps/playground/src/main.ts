@@ -7,8 +7,9 @@ import { installBenchHooks } from './bench-hooks.js';
 // Query parameters: rows (default 100000), cols (default 20), density, dir=rtl,
 // overscan, bench (installs window.__argusBench for benchmarks/run.ts),
 // pin=none to drop the pins (the floor when measuring what pinning costs),
-// theme=default to load @argus-table/themes/default.css, and scheme=dark|light
-// to force a colour scheme through data-argus-theme.
+// theme=default or theme=material to load that stylesheet from @argus-table/themes
+// (material also loads Roboto and sets the table on an inset page), and
+// scheme=dark|light to force a colour scheme through data-argus-theme.
 // source=remote loads the rows through a pretend server (dataSource) instead of
 // data, with latency=<ms> (default 100), total=unknown to leave the total out,
 // and fail=<page> to fail that page's first request. Requests are logged in
@@ -16,7 +17,21 @@ import { installBenchHooks } from './bench-hooks.js';
 // pinned=top,bottom (or one of them) adds a pinned summary row on that side:
 // averages at the top, totals at the bottom.
 const params = new URLSearchParams(location.search);
-if (params.get('theme') === 'default') await import('@argus-table/themes/default.css');
+const theme = params.get('theme');
+if (theme === 'default') await import('@argus-table/themes/default.css');
+if (theme === 'material') {
+  await Promise.all([
+    import('@fontsource/roboto/400.css'),
+    import('@fontsource/roboto/500.css'),
+    import('@argus-table/themes/material.css'),
+  ]);
+  document.documentElement.dataset.page = 'inset';
+  // Loaded before the table renders, so screenshots never catch the fallback font.
+  await Promise.all([
+    document.fonts.load('400 14px Roboto'),
+    document.fonts.load('500 14px Roboto'),
+  ]);
+}
 const scheme = params.get('scheme');
 if (scheme === 'dark' || scheme === 'light') {
   document.documentElement.dataset.argusTheme = scheme;

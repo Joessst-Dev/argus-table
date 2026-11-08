@@ -15,6 +15,8 @@ interface Args {
   'header-fg': string;
   'border-color': string;
   'border-width': string;
+  outline: string;
+  radius: string;
   'row-stripe-bg': string;
   'row-hover-bg': string;
   'row-height': string;
@@ -31,6 +33,8 @@ const empty: Args = {
   'header-fg': '',
   'border-color': '',
   'border-width': '',
+  outline: '',
+  radius: '',
   'row-stripe-bg': '',
   'row-hover-bg': '',
   'row-height': '',
@@ -86,5 +90,20 @@ export const Striped: Story = {
     await table?.updateComplete;
     const row = table?.shadowRoot?.querySelector<HTMLElement>('[part~="row"]');
     await expect(row?.offsetHeight).toBe(44);
+  },
+};
+
+/** A border around the table and rounded corners: `--argus-outline` and `--argus-radius`. */
+export const Rounded: Story = {
+  args: {
+    outline: '1px solid light-dark(#d0d5dd, #3a414c)',
+    radius: '12px',
+  },
+  play: async ({ canvasElement }) => {
+    const table = canvasElement.querySelector('argus-table');
+    await table?.updateComplete;
+    if (!table) return;
+    await expect(getComputedStyle(table).borderTopRightRadius).toBe('12px');
+    await expect(getComputedStyle(table).borderTopWidth).toBe('1px');
   },
 };

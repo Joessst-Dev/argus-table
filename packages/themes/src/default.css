@@ -20,6 +20,8 @@ argus-table {
   --argus-header-fg: light-dark(#1f2937, #e5e7eb);
   --argus-border-color: light-dark(#e3e6ea, #2c323c);
   --argus-border-width: 1px;
+  --argus-outline: none;
+  --argus-radius: 0;
   --argus-row-stripe-bg: var(--argus-bg);
   --argus-row-hover-bg: light-dark(#f3f5f8, #1f242d);
   /* Reserved for row selection, which comes after v0.1. */

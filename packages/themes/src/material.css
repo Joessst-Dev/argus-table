@@ -1,0 +1,94 @@
+/*
+ * argus-table Material-inspired theme: borrows the feel of Material 3 (its
+ * baseline colours, Roboto, taller rows, a rounded outlined surface, deeper
+ * shadows on pinned columns), not Google's exact spec. Follows the user's
+ * light or dark preference. Force a scheme with data-argus-theme="dark" or
+ * "light" on the table or on any ancestor.
+ *
+ * The theme loads no fonts: load Roboto 400 and 500 on the page (for example
+ * @fontsource/roboto), or the table falls back to the system font.
+ *
+ * A theme sets tokens and ::part() rules only. To change one value, set the
+ * token after this file: argus-table { --argus-radius: 0; }
+ *
+ * color-scheme sits on argus-table itself so that build tools polyfilling
+ * light-dark() switch these colours too (see default.css).
+ */
+argus-table {
+  color-scheme: light dark;
+  /* surface, on-surface */
+  --argus-bg: light-dark(#fef7ff, #141218);
+  --argus-fg: light-dark(#1d1b20, #e6e0e9);
+  --argus-font: 400 0.875rem/1.43 Roboto, system-ui, sans-serif;
+  /* surface-container, on-surface-variant */
+  --argus-header-bg: light-dark(#f3edf7, #211f26);
+  --argus-header-fg: light-dark(#49454f, #cac4d0);
+  /* outline-variant */
+  --argus-border-color: light-dark(#cac4d0, #49454f);
+  --argus-border-width: 1px;
+  --argus-outline: 1px solid light-dark(#cac4d0, #49454f);
+  --argus-radius: 12px;
+  --argus-row-height: 52px;
+  --argus-cell-padding-inline: 16px;
+  --argus-row-stripe-bg: var(--argus-bg);
+  /* An 8% on-surface state layer over the surface. */
+  --argus-row-hover-bg: light-dark(#ece5ed, #252229);
+  /* secondary-container. Reserved for row selection, which comes later. */
+  --argus-row-selected-bg: light-dark(#e8def8, #4a4458);
+  /* Deeper than the default theme's: pinned columns sit a level above the rest. */
+  --argus-pinned-shadow: 6px 0 10px -4px light-dark(rgb(0 0 0 / 0.22), rgb(0 0 0 / 0.6));
+  /* primary */
+  --argus-resize-handle-color: light-dark(#6750a4, #d0bcff);
+  --argus-focus-ring: 2px solid light-dark(#6750a4, #d0bcff);
+  --argus-drop-indicator-color: light-dark(#6750a4, #d0bcff);
+  /* surface-container-highest, surface-container-low */
+  --argus-skeleton-bg: light-dark(#e6e0e9, #36343b);
+  --argus-pinned-row-bg: light-dark(#f7f2fa, #1d1b20);
+
+  /* Taller rows than the element's own 32 / 40 / 52px, at every density. */
+  &[density='compact'] {
+    --argus-row-height: 40px;
+    --argus-cell-padding-inline: 12px;
+  }
+  &[density='spacious'] {
+    --argus-row-height: 60px;
+    --argus-cell-padding-inline: 20px;
+  }
+
+  &::part(cell) {
+    font-variant-numeric: tabular-nums;
+  }
+  &::part(header-cell) {
+    font-weight: 500;
+    letter-spacing: 0.1px;
+  }
+  &::part(header-cell-sorted) {
+    color: light-dark(#6750a4, #d0bcff);
+  }
+  /* Pinned rows (totals and the like) read like the header, set off from the body. */
+  &::part(row-pinned) {
+    color: var(--argus-header-fg);
+    font-weight: 500;
+  }
+  /* outline */
+  &::part(row-pinned-bottom) {
+    box-shadow: 0 -1px 0 light-dark(#79747e, #938f99);
+  }
+  &::part(skeleton) {
+    border-radius: 999px;
+  }
+}
+
+/* The attribute on the table itself comes last, so it beats one on an ancestor. */
+[data-argus-theme='dark'] argus-table {
+  color-scheme: dark;
+}
+[data-argus-theme='light'] argus-table {
+  color-scheme: light;
+}
+argus-table[data-argus-theme='dark'] {
+  color-scheme: dark;
+}
+argus-table[data-argus-theme='light'] {
+  color-scheme: light;
+}

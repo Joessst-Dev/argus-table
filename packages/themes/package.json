@@ -17,6 +17,7 @@
   },
   "exports": {
     "./default.css": "./dist/default.css",
+    "./material.css": "./dist/material.css",
     "./package.json": "./package.json"
   },
   "files": [

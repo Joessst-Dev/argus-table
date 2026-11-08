@@ -194,6 +194,8 @@ function track<T>(column: ColumnView<T, CellContent>): string {
  * @cssprop [--argus-header-fg=inherit] - Header text colour.
  * @cssprop [--argus-border-color] - Colour of the row borders.
  * @cssprop [--argus-border-width=1px] - Width of the row borders.
+ * @cssprop [--argus-outline=none] - Border around the whole table, as a `border` shorthand (`1px solid …`). Inside the element's size.
+ * @cssprop [--argus-radius=0] - Corner radius of the table. Header, rows and pinned columns are clipped to it.
  * @cssprop [--argus-row-height] - Height of a row. Default per density: 32px, 40px, 52px.
  * @cssprop [--argus-cell-padding-inline] - Inline padding of cells. Default per density: 8px, 12px, 16px.
  * @cssprop [--argus-row-stripe-bg] - Background of odd rows. Default: no stripes.
