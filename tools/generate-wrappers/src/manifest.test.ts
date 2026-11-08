@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { eventNames, readElement, referencedTypes, type Manifest } from './manifest.ts';
 import { emitReact } from './react.ts';
+import { emitVue } from './vue.ts';
 
 type Declaration = NonNullable<Manifest['modules'][number]['declarations']>[number];
 
@@ -50,6 +51,7 @@ function manifest(
             customElement: true,
             members: [
               { kind: 'field', name: 'columnId', type: { text: 'string' } },
+              { kind: 'field', name: 'sortable', type: { text: 'boolean | undefined' } },
               { kind: 'method', name: 'toColumnDef' },
             ],
           },
@@ -165,5 +167,38 @@ describe('emitReact', () => {
     expect(source).toContain(
       '}) as unknown as (props: ArgusColumnProps) => React.ReactElement | null;',
     );
+  });
+});
+
+describe('emitVue', () => {
+  const m = manifest();
+  const source = emitVue([readElement(m, 'argus-table'), readElement(m, 'argus-column')]);
+
+  test('describes each element for defineWrapper, with models and booleans', () => {
+    expect(source).toContain("import { defineWrapper } from '../define.js';");
+    expect(source).toContain(
+      '{"name":"argus-sort-change","emit":"sort-change","model":{"property":"sorting","detailKey":"sorting"}}',
+    );
+    expect(source).toContain('{"name":"argus-row-click","emit":"row-click"}');
+    expect(source).toContain('"methods":["refresh"]');
+    expect(source).toContain('"props":["columnId","sortable"],"booleans":["sortable"]');
+  });
+
+  test('types handlers, v-model updates, emits and exposed methods', () => {
+    expect(source).toContain("'onSort-change'?: (event: CustomEvent<SortChangeDetail>) => void;");
+    expect(source).toContain(
+      "'onUpdate:sorting'?: (value: ArgusTableElement<T>['sorting']) => void;",
+    );
+    expect(source).toContain(
+      "(event: 'update:columnOrder', value: ArgusTableElement<T>['columnOrder']): void;",
+    );
+    expect(source).toContain("refresh: ArgusTableElement<T>['refresh'];");
+    expect(source).toContain(') => VNode & { __ctx?: ArgusTableContext<T> };');
+  });
+
+  test('gives an element without events no event props or emits', () => {
+    expect(source).not.toContain('ArgusColumnEventProps');
+    expect(source).not.toContain('ArgusColumnEmit');
+    expect(source).toContain('emit: (event: never) => void;');
   });
 });

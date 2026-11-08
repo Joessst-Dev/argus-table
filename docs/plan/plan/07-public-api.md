@@ -171,7 +171,7 @@ All `CustomEvent`, bubbling and composed. See [State and events](../code-archite
 
 ## Framework wrappers
 
-`@argus-table/react`, `@argus-table/vue` and `@argus-table/angular` wrap both elements. They are optional: the elements work in any framework without them. Their bindings are generated from the Custom Elements Manifest, so they follow the element; see [Packages](../repo-and-ci/02-packages.md#generated-wrappers). React ships first; Vue and Angular follow the same conventions.
+`@argus-table/react`, `@argus-table/vue` and `@argus-table/angular` wrap both elements. They are optional: the elements work in any framework without them. Their bindings are generated from the Custom Elements Manifest, so they follow the element; see [Packages](../repo-and-ci/02-packages.md#generated-wrappers). React and Vue ship first; Angular follows the same conventions.
 
 Each `argus-*` event drops its prefix and takes the framework's style:
 
@@ -188,7 +188,8 @@ Each `argus-*` event drops its prefix and takes the framework's style:
 - Handlers get the element's whole `CustomEvent`, not just its detail, so `composedPath()` stays at hand. Details that carry a row are typed with the row type (`RowClickDetail<T>`, `CellClickDetail<T>`).
 - The row type is generic: inferred from `data` and `columns`, or given (`<ArgusTable<Order>>` in React).
 - Two-way binding covers the three controllable properties: `sorting` (from `detail.sorting`), `columnSizing` (`detail.sizing`) and `columnOrder` (`detail.order`). React uses the usual controlled pair (`sorting` with `onSortChange`); Vue gets `v-model:sorting`, `v-model:column-sizing` and `v-model:column-order`; Angular gets `[(sorting)]`, `[(columnSizing)]` and `[(columnOrder)]`. A property left unbound stays uncontrolled.
-- Methods are reached through the element: a `ref` in React, typed `ArgusTableElement<T>`.
+- Methods are reached through the element: a `ref` in React, typed `ArgusTableElement<T>`. In Vue, a template ref exposes the methods and the `element`.
+- Vue: the types follow vue-tsc's shape for a generic `<script setup>` component, so templates check props, events, `v-model` and the template ref against the row type. `h()` can't infer it: `h(ArgusTable<Order>, …)`. The wrapper sets the element's properties itself rather than through Vue's DOM prop patching, which would turn a removed number into `0`. A one-way `:sorting` stays controlled, because Vue props are read-only.
 - `<argus-column>` is wrapped too (`ArgusColumn`), so loops over columns work. The wrapper component takes the element's name, so the element classes are re-exported as the types `ArgusTableElement` and `ArgusColumnElement`.
 - Cell and header content is still a Lit template, a node, a string or a number. Framework content in cells (JSX, Vue slots, `ng-template`) is planned separately: cells are pooled, so it needs a hook in the element.
 - Bindings set `undefined` when a prop is removed, so `columns`, `data` and `overscan` read `null` and `undefined` as their defaults.

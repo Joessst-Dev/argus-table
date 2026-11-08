@@ -4,7 +4,7 @@
   "access": "public",
   "changelog": "@changesets/cli/changelog",
   "commit": false,
-  "fixed": [["argus-table", "@argus-table/react"]],
+  "fixed": [["argus-table", "@argus-table/react", "@argus-table/vue"]],
   "linked": [],
   "ignore": [
     "@argus-table/benchmarks",

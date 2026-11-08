@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`<argus-table>`: a framework-agnostic, virtualized data table web component built with Lit 3, TanStack Table v9 (`@tanstack/table-core`) and TanStack Virtual. pnpm + Nx monorepo, Node ≥ 22.12 (`.nvmrc`), pnpm via Corepack. Currently v0.1 (virtualized rows, pinned columns, sorting, resizing, keyboard nav, default theme) plus, for v0.2, `dataSource` infinite loading, pinned rows, auto column widths, column reordering, `<argus-column>` children and the React wrapper; the Vue and Angular wrappers and the Material-inspired theme are still to come in v0.2.
+`<argus-table>`: a framework-agnostic, virtualized data table web component built with Lit 3, TanStack Table v9 (`@tanstack/table-core`) and TanStack Virtual. pnpm + Nx monorepo, Node ≥ 22.12 (`.nvmrc`), pnpm via Corepack. Currently v0.1 (virtualized rows, pinned columns, sorting, resizing, keyboard nav, default theme) plus, for v0.2, `dataSource` infinite loading, pinned rows, auto column widths, column reordering, `<argus-column>` children and the React and Vue wrappers; the Angular wrapper and the Material-inspired theme are still to come in v0.2.
 
 `docs/plan/` is the design plan (public API draft, roadmap, architecture diagrams). It describes intended features too, so check the source before assuming something exists (for example `rowHeight: 'auto'` is planned but not implemented). `docs/adr/0001-shadow-vs-light-dom.md` explains the rendering model below.
 
@@ -27,7 +27,7 @@ pnpm changeset           # add a release note
 Single project / single test:
 
 ```bash
-pnpm nx test argus-table                                   # Nx project names: argus-table, core, themes, react, generate-wrappers, storybook, playground, e2e, visual, benchmarks
+pnpm nx test argus-table                                   # Nx project names: argus-table, core, themes, react, vue, generate-wrappers, storybook, playground, e2e, visual, benchmarks
 pnpm --filter argus-table exec vitest run src/argus-table.test.ts -t "keyboard"
 pnpm --filter @argus-table/core exec vitest run src/table/create-table.test.ts
 pnpm nx run storybook:test-storybook                        # every story as a test, with axe (violations fail)
@@ -44,6 +44,7 @@ BROWSERS=chromium pnpm --filter @argus-table/e2e exec playwright test specs/sort
 - `packages/core` (`@argus-table/core`, **private, never published**): DOM-free logic, tests run in Node. Column resolution, the TanStack adapter (`table/create-table.ts`), the `controllable` state helper, the `RowPool`. It is bundled into `argus-table`'s build; `packages/table/scripts/check-dist.mjs` fails the build if any `dist` file still imports it. A core change ships as an `argus-table` changeset.
 - `packages/table` (`argus-table`, published): the Lit element. Build = Vite library build (ESM, `preserveModules`, lit/TanStack external) + CDN build with everything inlined (`vite.cdn.config.ts`) + bundled `.d.ts` (rollup-plugin-dts) + Custom Elements Manifest (`cem analyze`, from JSDoc on the class) + publint/attw.
 - `packages/react` (`@argus-table/react`, published): `@lit/react` components for both elements. `src/generated/elements.ts` is generated and committed: after a change to the element's properties or `@fires` tags, build `argus-table` and run `pnpm --filter @argus-table/react generate` (`lint` fails on a stale file). The generic signatures and type re-exports in `src/index.ts` are hand-written. In the versioning `fixed` group with `argus-table`.
+- `packages/vue` (`@argus-table/vue`, published): same layout and `generate` script as React. The generated file is a description of each element plus types in vue-tsc's generic-component shape; `src/define.ts` turns a description into a component (sets element properties itself, emits events and `update:*`, exposes methods). Typecheck is `vue-tsc`, and the tests mount SFCs (`src/test/Declarative.vue` also holds `@vue-expect-error` type checks).
 - `tools/generate-wrappers` (private): reads `packages/table/dist/custom-elements.json` and writes each wrapper's generated file. Event detail types come from `@fires {CustomEvent<…>} name` in the element's JSDoc, so every event needs a typed `@fires`. Runs from source with Node's type stripping (`.ts` imports).
 - `packages/themes` (`@argus-table/themes`): plain CSS in `src/`, built by Lightning CSS (`scripts/build.mjs`). Themes only set `--argus-*` tokens and `::part()` rules.
 - `apps/storybook`: stories double as docs and tests (play functions + axe on every story). Each feature gets a story.

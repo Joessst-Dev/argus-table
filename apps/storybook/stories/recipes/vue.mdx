@@ -1,0 +1,82 @@
+import { Meta } from '@storybook/addon-docs/blocks';
+
+<Meta title="Recipes/Vue" />
+
+# Vue
+
+`@argus-table/vue` wraps `<argus-table>` and `<argus-column>` as Vue components, with typed props, typed events and `v-model`. The row type is inferred from `data`, and vue-tsc checks your templates against it.
+
+```bash
+npm i @argus-table/vue @argus-table/themes
+```
+
+## A table
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue';
+import { ArgusTable, type ColumnDef, type SortState } from '@argus-table/vue';
+import '@argus-table/themes/default.css';
+
+const props = defineProps<{ orders: Order[] }>();
+const sorting = ref<SortState>([]);
+
+const columns: ColumnDef<Order>[] = [
+  { id: 'id', header: 'Order', accessor: 'id', width: 90, pin: 'start' },
+  { id: 'customer', header: 'Customer', accessor: 'customer.name', width: { flex: 1 } },
+  { id: 'total', header: 'Total', accessor: 'total', align: 'end', sortable: true },
+];
+</script>
+
+<template>
+  <ArgusTable
+    v-model:sorting="sorting"
+    aria-label="Orders"
+    style="height: 400px"
+    :columns="columns"
+    :data="props.orders"
+    @row-click="(e) => open(e.detail.row)"
+  />
+</template>
+```
+
+Props set the element's properties. Each `argus-*` event is emitted without its prefix, with the element's `CustomEvent`:
+
+| Event                  | Vue event        |
+| ---------------------- | ---------------- |
+| `argus-sort-change`    | `sort-change`    |
+| `argus-column-resize`  | `column-resize`  |
+| `argus-column-reorder` | `column-reorder` |
+| `argus-cell-click`     | `cell-click`     |
+| `argus-row-click`      | `row-click`      |
+| `argus-range-change`   | `range-change`   |
+| `argus-load-error`     | `load-error`     |
+
+`v-model:sorting`, `v-model:column-sizing` and `v-model:column-order` bind the three properties the table can change. Unbound, the table keeps that state itself.
+
+A column's `cell` returns a string, a number, a DOM node or a Lit template; Vue content in cells is planned.
+
+## Methods
+
+```vue
+<script setup lang="ts">
+const table = useTemplateRef('table');
+const top = () => table.value?.scrollToRow(0);
+</script>
+
+<template>
+  <ArgusTable ref="table" :columns="columns" :data="orders" />
+</template>
+```
+
+## Columns from a loop
+
+```vue
+<ArgusTable :data="orders">
+  <ArgusColumn v-for="c in visible" :key="c.id" :column-id="c.id" :header="c.label" :accessor="c.id" sortable />
+</ArgusTable>
+```
+
+## Render functions
+
+`h()` can't infer the row type, so give it: `h(ArgusTable<Order>, { columns, data, onRowClick })`.

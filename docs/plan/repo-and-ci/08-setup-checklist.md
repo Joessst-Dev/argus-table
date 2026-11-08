@@ -18,7 +18,7 @@ Do these in order during Phase 0; each step is small, and CI should be green bef
 - [x] Before v0.1 (maintainer): hand-publish `argus-table@0.0.1` and `@argus-table/themes@0.0.1`, link trusted publishing for both, set `RELEASE_ENABLED=true`, and create the release GitHub App (`RELEASE_APP_CLIENT_ID`, `RELEASE_APP_KEY`). Steps: [First release](05-release-pipeline.md#first-release-v01)
 - [x] Before v0.1 (maintainer): the real-Safari checks and the [screen-reader check](../../a11y/screen-reader-check.md) from ADR 0001 (VoiceOver only; NVDA skipped for v0.1)
 - [ ] `examples` job, with the wrappers
-- [ ] Wrapper packages + `tools/generate-wrappers` (React done; Vue and Angular next)
-- [ ] Before the first release with a new wrapper (maintainer): hand-publish it as `0.0.1` and link trusted publishing (`@argus-table/react` first)
+- [ ] Wrapper packages + `tools/generate-wrappers` (React and Vue done; Angular next)
+- [ ] Before the first release with a new wrapper (maintainer): hand-publish it as `0.0.1` and link trusted publishing (`@argus-table/react`, then `@argus-table/vue`)
 - [ ] When CI gets slow: connect Nx Cloud (Hobby), read-write token as a `main`-only secret, read-only token for PRs
 - [ ] At public launch: apply for the Nx Cloud open-source plan
