@@ -16,8 +16,8 @@ packages/core/src/
 
 packages/table/src/
 ├─ argus-table.ts        the element: creates controllers, renders
-├─ argus-column.ts       data-only element read by the column controller
-├─ controllers/          column · data (dataSource loading: debounce, abort) · table · virtual · interaction
+├─ argus-column.ts       data-only element; tells its parent table when it changes
+├─ controllers/          column-children (<argus-column> children → ColumnDef[]) · data (dataSource loading: debounce, abort) · table · virtual · interaction
 ├─ render/               header.ts · body.ts · pinned-rows.ts · skeleton.ts (rows and slotted content rendered in pool order, ADR 0001)
 ├─ styles/               base.ts (@layer argus-base, default tokens)
 └─ events.ts             event names + typed detail objects

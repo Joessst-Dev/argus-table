@@ -27,6 +27,7 @@
   ],
   "sideEffects": [
     "./dist/index.js",
+    "./dist/argus-column.js",
     "./dist/argus-table.js",
     "./dist/cdn/argus-table.js"
   ],

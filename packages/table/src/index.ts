@@ -1,3 +1,4 @@
+export { ArgusColumn } from './argus-column.js';
 export { ArgusTable } from './argus-table.js';
 export {
   CELL_CLICK,
