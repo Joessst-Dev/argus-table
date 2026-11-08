@@ -50,7 +50,7 @@ Columns can also be written as `<argus-column>` children. They are data-only ele
 | `header` | `CellContent` \| `() => CellContent` | Header content |
 | `accessor` | string path (`'customer.name'`) \| `(row, index) => value` | Cell value |
 | `cell` | `(row, context) => CellContent` | Custom cell content (rendered into light DOM). `context` is `{ row, rowId, index, columnId, value, pinned? }`; `pinned` is `'top'` or `'bottom'` for a row from `pinnedRows` |
-| `width` | number \| `'auto'` \| `{ flex }` | Width mode. Default 150 px. `{ flex }` is a share of free space, at least `minWidth`; pinned columns ignore it. `'auto'` arrives in Phase 2 |
+| `width` | number \| `'auto'` \| `{ flex }` | Width mode. Default 150 px. `{ flex }` is a share of free space, at least `minWidth`; pinned columns ignore it. `'auto'` fits the content (see [Column widths](#column-widths)) |
 | `minWidth` / `maxWidth` | number | Resize bounds. Default 40 px / no limit |
 | `pin` | `'start'` \| `'end'` | Fixed column. Logical sides: `'start'` is the left in LTR and the right in RTL. (TanStack v9 uses the same logical names, so no mapping is needed.) |
 | `resizable` / `sortable` | boolean | Feature flags per column. Default: resizable, not sortable |
@@ -58,6 +58,14 @@ Columns can also be written as `<argus-column>` children. They are data-only ele
 
 - `CellContent` is a Lit `TemplateResult`, a DOM `Node`, a string or a number.
 - Without `cell`, a cell shows its accessor value as text. Empty values (`null`, `undefined`) sort last in both directions.
+
+## Column widths
+
+- `width: 'auto'` fits the column to its header, its pinned rows and the body rows rendered at that moment (visible plus `overscan`), within `minWidth` and `maxWidth`. Rows out of view aren't measured. Pinned columns can be `'auto'` too.
+- It measures once the first loaded rows render, and then keeps that width: scrolling, new `data` or a new `columns` array with the same ids don't change it. With no rows it fits the header (and pinned rows), and fits again when rows arrive. While a `dataSource` loads its first page, it keeps the default width.
+- The measured width isn't state: it doesn't appear in `columnSizing` and fires no event. A resize wins over it, as it does over `{ flex }`.
+- A double-click on a column's `resize-handle` fits it to the rows in view; `autosizeColumns(ids?)` does the same for several. Both are resizes: they write `columnSizing` (or propose it, when controlled) and fire `argus-column-resize`.
+- Columns are measured with the browser's own layout (`max-content`), so templates, components, padding, density and the sort indicator are all counted. Web fonts still loading are measured again once they are ready.
 
 ## Properties
 
@@ -129,13 +137,14 @@ All `CustomEvent`, bubbling and composed. See [State and events](../code-archite
 
 - The package exports each name as a constant (`SORT_CHANGE`, `COLUMN_RESIZE`, `CELL_CLICK`, `ROW_CLICK`, `RANGE_CHANGE`, …), and `HTMLElementEventMap` types each `detail`.
 - `argus-sort-change` fires on a click on a sortable header, or Enter or Space on a focused one; the order cycles ascending → descending → unsorted. When `sorting` is uncontrolled, it fires after the rows are re-sorted. When controlled, it carries the proposed order and nothing changes until the host sets `sorting`. v0.1 sorts by one column at a time.
-- `argus-column-resize` fires when a column is resized by dragging its `resize-handle` or with Alt+Arrow on its focused header (10 px; the arrow toward the inline end grows it). The handle is a `separator` labelled "Resize column" (English until the table gets an i18n option). During a drag it fires once per animation frame, so a controlled host can follow the drag; `width` is already clamped to `minWidth`/`maxWidth`.
+- `argus-column-resize` fires when a column is resized by dragging its `resize-handle` or with Alt+Arrow on its focused header (10 px; the arrow toward the inline end grows it), and when a double-click on the handle or `autosizeColumns()` fits it to its content (once per column that changes, each with the whole new `sizing`). A press on the handle without moving changes nothing. The handle is a `separator` labelled "Resize column" (English until the table gets an i18n option). During a drag it fires once per animation frame, so a controlled host can follow the drag; `width` is already clamped to `minWidth`/`maxWidth`.
 - `argus-cell-click` and `argus-row-click` fire on a click in the body, in that order, including clicks on content inside a cell (check `event.composedPath()` to skip your own buttons). `row` is the data object, `value` what the column's accessor reads. On a pinned row, `pinned` is `'top'` or `'bottom'` and `index` is the row's index in its list. Enter on a focused body cell fires both too (Enter pressed in content inside a cell is left to that content). Header clicks fire neither.
 
 ## Methods
 
 `scrollToRow(index)`, `scrollToColumn(id)`, `refresh()`, `autosizeColumns(ids?)`, `getState()` / `setState()`.
 
+- `autosizeColumns(ids?)` (v0.2): fits the given columns (default: every resizable one) to the header, the pinned rows and the rendered body rows, as a resize; see [Column widths](#column-widths). Columns with `resizable: false` keep their width. Resolves once the table has re-rendered.
 - `refresh()` (v0.2): with a `dataSource`, drops every loaded page and loads the rows in view again; with `data`, re-renders the cells. Resolves once the table has re-rendered.
 
 ## Slots

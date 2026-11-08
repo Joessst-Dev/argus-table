@@ -7,6 +7,7 @@ import { ariaSort, headerSlot, pinStyle } from './content.js';
 export interface HeaderHandlers {
   click: (event: MouseEvent) => void;
   pointerdown: (event: PointerEvent) => void;
+  dblclick: (event: MouseEvent) => void;
 }
 
 /**
@@ -15,8 +16,9 @@ export interface HeaderHandlers {
  * Every header carries `data-col` (its column id) and sortable ones also
  * `data-sort-col`; the element's delegated handlers read them. Headers take part
  * in the grid's roving tabindex: the active one is the tab stop (`activeCol`).
- * Resizable columns get a `resize-handle` on the header's inline-end edge. It is
- * not focusable: the focused header resizes with Alt+Arrow.
+ * Resizable columns get a `resize-handle` on the header's inline-end edge; a
+ * double-click on it fits the column to its content. It is not focusable: the
+ * focused header resizes with Alt+Arrow.
  */
 export function renderHeader<T>(
   columns: readonly ColumnView<T, CellContent>[],
@@ -31,6 +33,7 @@ export function renderHeader<T>(
       aria-rowindex="1"
       @click=${handlers.click}
       @pointerdown=${handlers.pointerdown}
+      @dblclick=${handlers.dblclick}
     >
       ${repeat(
         columns,

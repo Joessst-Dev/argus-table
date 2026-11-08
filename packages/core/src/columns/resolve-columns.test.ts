@@ -88,6 +88,19 @@ describe('resolveColumns', () => {
     expect(col).toMatchObject({ flex: undefined, width: DEFAULT_WIDTH, pin: 'start' });
   });
 
+  it("resolves width 'auto' to the clamped default until it is measured", () => {
+    const [plain, narrow, pinned] = resolveColumns<Order, string>([
+      { id: 'a', width: 'auto' },
+      { id: 'b', width: 'auto', maxWidth: 100 },
+      { id: 'c', width: 'auto', pin: 'end' },
+    ]);
+    expect(plain).toMatchObject({ auto: true, flex: undefined, width: DEFAULT_WIDTH });
+    expect(narrow).toMatchObject({ auto: true, width: 100 });
+    // Pinned columns may be auto: the measured width is a known px.
+    expect(pinned).toMatchObject({ auto: true, pin: 'end' });
+    expect(resolveColumns<Order, string>([{ id: 'd', width: 90 }])[0]?.auto).toBe(false);
+  });
+
   it('keeps only valid pins and alignment', () => {
     const cols = resolveColumns<Order, string>([
       { id: 'a', pin: 'start', align: 'end', sortable: true, resizable: false },

@@ -26,10 +26,10 @@ export interface PinnedRows<TData> {
 export type ColumnAlign = 'start' | 'center' | 'end';
 
 /**
- * Column width: a fixed pixel width, or a share of the free space (`{ flex: 1 }`).
- * `'auto'` (fit to content) arrives in Phase 2.
+ * Column width: a fixed pixel width, `'auto'` to fit the content, or a share of
+ * the free space (`{ flex: 1 }`).
  */
-export type ColumnWidth = number | { flex: number };
+export type ColumnWidth = number | 'auto' | { flex: number };
 
 /** What a `cell` function receives besides the row itself. */
 export interface CellContext<TData> {
@@ -71,8 +71,12 @@ export interface ColumnDef<TData, TContent = unknown> {
   /** Custom cell content. Without it, the cell shows the accessor's value as text. */
   cell?: (row: TData, context: CellContext<TData>) => TContent;
   /**
-   * Fixed width in px, or `{ flex }` for a share of the free space (at least `minWidth`).
-   * Pinned columns ignore `flex`. Default: 150 px.
+   * Fixed width in px, `'auto'` to fit the content, or `{ flex }` for a share of the
+   * free space (at least `minWidth`). Pinned columns ignore `flex`. Default: 150 px.
+   *
+   * `'auto'` fits the header, the pinned rows and the rendered body rows, within
+   * `minWidth` and `maxWidth`. It measures once the first loaded rows render, then keeps
+   * that width; `autosizeColumns()` fits it again.
    */
   width?: ColumnWidth;
   /** Lower bound for resizing and for flex columns, in px. Default: 40. */

@@ -244,6 +244,52 @@ describe('createTableModel: sizing', () => {
   it('reports the total width', () => {
     expect(model().totalWidth).toBe(60 + 120 + 80 + 100 + 90 + 64);
   });
+  describe('auto widths', () => {
+    const autoColumns: ColumnDef<Person, string>[] = [
+      { id: 'name', accessor: 'name', width: 'auto', minWidth: 50, maxWidth: 300 },
+      { id: 'city', accessor: 'address.city', width: 'auto', pin: 'start' },
+      { id: 'age', accessor: 'age', width: 80 },
+    ];
+    const byId = (m: ReturnType<typeof model>) =>
+      Object.fromEntries(m.columns.map((c) => [c.id, c]));
+
+    it('uses the default width until measured', () => {
+      const m = model({ columns: autoColumns });
+      expect(byId(m).name).toMatchObject({ auto: true, width: 150 });
+      expect(byId(m).age).toMatchObject({ auto: false, width: 80 });
+    });
+
+    it('applies measured widths, clamped to the bounds, and moves offsets', () => {
+      const m = model({ columns: autoColumns });
+      m.update({ autoWidths: { name: 20, city: 111 } });
+      expect(byId(m).name?.width).toBe(50);
+      expect(byId(m).city?.width).toBe(111);
+      // city is pinned to the start, so it comes first and name starts after it.
+      expect(byId(m).name?.offset).toBe(0);
+      expect(m.totalWidth).toBe(50 + 111 + 80);
+      m.update({ autoWidths: { name: 999, city: 111 } });
+      expect(byId(m).name?.width).toBe(300);
+    });
+
+    it('lets a resized width win and stops reporting the column as auto', () => {
+      const m = model({ columns: autoColumns, autoWidths: { name: 120 } });
+      m.update({ columnSizing: { name: 200 } });
+      expect(byId(m).name).toMatchObject({ auto: false, width: 200 });
+      m.update({ columnSizing: {} });
+      expect(byId(m).name).toMatchObject({ auto: true, width: 120 });
+    });
+
+    it('ignores widths for columns that are not auto, or unknown', () => {
+      const m = model({ columns: autoColumns, autoWidths: { age: 300, missing: 10 } });
+      expect(byId(m).age?.width).toBe(80);
+      expect(m.totalWidth).toBe(150 + 150 + 80);
+    });
+
+    it('keeps measured widths out of the sizing proposals', () => {
+      const m = model({ columns: autoColumns, autoWidths: { name: 120 } });
+      expect(m.nextSizing('age', 90)).toEqual({ age: 90 });
+    });
+  });
 });
 
 describe('createTableModel: caching', () => {
