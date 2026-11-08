@@ -1,5 +1,6 @@
 import type {
   CellClickDetail,
+  ColumnReorderDetail,
   ColumnResizeDetail,
   LoadErrorDetail,
   RangeChangeDetail,
@@ -16,6 +17,9 @@ export const SORT_CHANGE = 'argus-sort-change';
 /** Fired when a column was resized (uncontrolled), or with the proposed widths (controlled). */
 export const COLUMN_RESIZE = 'argus-column-resize';
 
+/** Fired when a column was moved (uncontrolled), or with the proposed order (controlled). */
+export const COLUMN_REORDER = 'argus-column-reorder';
+
 /** Fired when a body row was clicked, after `argus-cell-click`. */
 export const ROW_CLICK = 'argus-row-click';
 
@@ -30,6 +34,7 @@ declare global {
     'argus-range-change': CustomEvent<RangeChangeDetail>;
     'argus-sort-change': CustomEvent<SortChangeDetail>;
     'argus-column-resize': CustomEvent<ColumnResizeDetail>;
+    'argus-column-reorder': CustomEvent<ColumnReorderDetail>;
     'argus-row-click': CustomEvent<RowClickDetail<unknown>>;
     'argus-cell-click': CustomEvent<CellClickDetail<unknown>>;
     'argus-load-error': CustomEvent<LoadErrorDetail>;

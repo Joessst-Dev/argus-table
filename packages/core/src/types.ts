@@ -89,6 +89,12 @@ export interface ColumnDef<TData, TContent = unknown> {
   sortable?: boolean;
   /** Whether the column can be resized. Default: `true`. */
   resizable?: boolean;
+  /**
+   * Whether the column can be moved by dragging its header or with Alt+Shift+Arrow.
+   * Default: `true`. Columns move within their own group (start-pinned, scrolling or
+   * end-pinned). Other columns can still move past one that sets `false`.
+   */
+  reorderable?: boolean;
   /** Text alignment. Default: `'start'`. */
   align?: ColumnAlign;
 }
@@ -107,6 +113,12 @@ export type SortState = SortItem[];
 /** Column widths in px set by resizing, keyed by column id. */
 export type ColumnSizingState = Record<string, number>;
 
+/**
+ * The column order: column ids as the table shows them (start-pinned, scrolling,
+ * end-pinned). An empty array means the order of `columns`.
+ */
+export type ColumnOrderState = string[];
+
 /** `detail` of `argus-sort-change`. */
 export interface SortChangeDetail {
   sorting: SortState;
@@ -117,6 +129,14 @@ export interface ColumnResizeDetail {
   columnId: string;
   width: number;
   sizing: ColumnSizingState;
+}
+
+/** `detail` of `argus-column-reorder`. */
+export interface ColumnReorderDetail {
+  /** The column that moved. */
+  columnId: string;
+  /** The whole new order. */
+  order: ColumnOrderState;
 }
 
 /** `detail` of `argus-row-click`. */

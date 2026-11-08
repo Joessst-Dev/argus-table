@@ -11,19 +11,28 @@ import { styleMap } from 'lit/directives/style-map.js';
 import {
   controllable,
   RowLayout,
+  type ColumnReorderDetail,
   type ColumnResizeDetail,
   type ColumnView,
   type GridRow,
   type TableModel,
 } from '@argus-table/core';
+import { announce } from './announce.js';
 import { AutoWidths, measureColumns } from './controllers/auto-width.js';
 import { DataController } from './controllers/data-controller.js';
 import { PinScrollController } from './controllers/pin-scroll-controller.js';
+import {
+  canStartReorder,
+  dropTarget,
+  startReorderDrag,
+  type DropSlot,
+} from './controllers/reorder-drag.js';
 import { startResizeDrag } from './controllers/resize-drag.js';
 import { TableController } from './controllers/table-controller.js';
 import { VirtualController, type VirtualWindow } from './controllers/virtual-controller.js';
 import {
   CELL_CLICK,
+  COLUMN_REORDER,
   COLUMN_RESIZE,
   fire,
   LOAD_ERROR,
@@ -33,12 +42,13 @@ import {
 } from './events.js';
 import { renderBody, type ActiveCell, type Loading } from './render/body.js';
 import { renderLightDom } from './render/cells.js';
-import { renderHeader } from './render/header.js';
+import { renderHeader, type HeaderDrag } from './render/header.js';
 import { renderPinnedRows } from './render/pinned-rows.js';
 import { baseStyles } from './styles/base.js';
 import type {
   CellContent,
   ColumnDef,
+  ColumnOrderState,
   ColumnSizingState,
   DataSource,
   Density,
@@ -141,6 +151,7 @@ function track<T>(column: ColumnView<T, CellContent>): string {
  *
  * @fires argus-sort-change - A sortable header was clicked, or activated with Enter or Space. `detail: { sorting }`: the new order, or the proposed one when `sorting` is controlled.
  * @fires argus-column-resize - A column was resized: by dragging its handle, with Alt+Arrow on its header, by a double-click on its handle (fit to content) or by `autosizeColumns()`. `detail: { columnId, width, sizing }`: the new widths, or the proposed ones when `columnSizing` is controlled. Fires on every frame of a drag, and once per column that `autosizeColumns()` changes.
+ * @fires argus-column-reorder - A column was moved: by dragging its header, or with Alt+Shift+Arrow on its focused header. Columns move within their own group (start-pinned, scrolling, end-pinned). `detail: { columnId, order }`: the new order, or the proposed one when `columnOrder` is controlled. Fires once per move, on drop.
  * @fires argus-cell-click - A body or pinned-row cell was clicked, or Enter was pressed on it. `detail: { row, columnId, value, pinned? }`; `pinned` is `'top'` or `'bottom'` for a pinned row. Fires before `argus-row-click`.
  * @fires argus-row-click - A body or pinned row was clicked, or Enter was pressed on one of its cells. `detail: { row, rowId, index, pinned? }`; for a pinned row, `index` is its index in its list.
  * @fires argus-range-change - The visible rows changed. `detail: { start, end }` (row indices, inclusive).
@@ -153,6 +164,8 @@ function track<T>(column: ColumnView<T, CellContent>): string {
  * @csspart header-row - The header row.
  * @csspart header-cell - Every header cell.
  * @csspart header-cell-sorted - The header of the sorted column. The direction is in `aria-sort`.
+ * @csspart header-cell-dragging - Added to `header-cell` on the header being dragged to a new position.
+ * @csspart drop-indicator - The line on the edge of the header where a dragged column would land.
  * @csspart resize-handle - The drag handle on the inline-end edge of a resizable column's header. A double-click fits the column to its content.
  * @csspart body - The row group holding the rendered body rows.
  * @csspart row - Every body row.
@@ -185,6 +198,7 @@ function track<T>(column: ColumnView<T, CellContent>): string {
  * @cssprop [--argus-pinned-shadow] - Shadow on the pinned edge, as a `box-shadow` falling toward the end side (`4px 0 6px -4px …`). Mirrored for the end edge and in RTL; `none` removes it.
  * @cssprop [--argus-resize-handle-color] - Colour of the resize handle's line, shown on hover, focus and drag.
  * @cssprop [--argus-focus-ring=2px solid Highlight] - Outline of the focused header or cell.
+ * @cssprop [--argus-drop-indicator-color=Highlight] - Colour of the line that marks where a dragged column would land.
  * @cssprop [--argus-row-hover-bg] - Background of the hovered row. Default: no change.
  * @cssprop [--argus-pinned-row-bg=var(--argus-bg)] - Background of the pinned rows, pinned columns included.
  * @cssprop [--argus-skeleton-bg] - Colour of the skeleton bars in rows still loading. Default: the text colour at low opacity.
@@ -267,8 +281,32 @@ export class ArgusTable<T = unknown> extends LitElement {
     this.#sizing.set(value);
   }
 
+  /**
+   * The column order: column ids as the table shows them, e.g.
+   * `['id', 'total', 'customer']`. `[]` (the default) keeps the order of `columns`.
+   * Each pin group (start-pinned, scrolling, end-pinned) takes its columns in this
+   * order; unknown ids are ignored and columns it doesn't list follow the listed
+   * ones of their group. After a move it holds every column id. Uncontrolled
+   * until set, like `sorting`: once set, a move only fires `argus-column-reorder`
+   * with the proposed order. `undefined` hands it back.
+   */
+  @property({ attribute: false })
+  get columnOrder(): ColumnOrderState {
+    return this.#order.value;
+  }
+  set columnOrder(value: ColumnOrderState | undefined) {
+    this.#order.set(value);
+  }
+
   readonly #sorting = controllable<SortState>([]);
   readonly #sizing = controllable<ColumnSizingState>({});
+  readonly #order = controllable<ColumnOrderState>([]);
+  /** Moves the table applied itself, by column; their events fire once the update is done. */
+  readonly #appliedReorders = new Map<string, ColumnReorderDetail>();
+  /** The header being dragged to a new position, if any. */
+  #drag: HeaderDrag | undefined;
+  /** A move from the keyboard, announced once it has rendered: the column and its old position. */
+  #announceMove: { id: string; from: number } | undefined;
   /** Resizes the table applied itself, by column; their events fire once the update is done. */
   readonly #appliedResizes = new Map<string, ColumnResizeDetail>();
   /** Measured widths of `width: 'auto'` columns. */
@@ -365,6 +403,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       changed.has('getRowId') ||
       changed.has('sorting') ||
       changed.has('columnSizing') ||
+      changed.has('columnOrder') ||
       changed.has('pinnedRows')
     ) {
       if (changed.has('columns')) {
@@ -376,6 +415,7 @@ export class ArgusTable<T = unknown> extends LitElement {
         getRowId: this.getRowId,
         sorting: this.#sorting.value,
         columnSizing: this.#sizing.value,
+        columnOrder: this.#order.value,
         pinnedRows: this.pinnedRows,
       });
     }
@@ -431,11 +471,12 @@ export class ArgusTable<T = unknown> extends LitElement {
         part="table"
         role="presentation"
         style=${styleMap(style)}
+        ?data-dragging=${this.#drag !== undefined}
         @keydown=${this.#onKeydown}
         @focusin=${this.#onFocusin}
         @click=${this.#onClick}
       >
-        ${renderHeader(columns, this.#headerHandlers, activeIn('header')?.col)}
+        ${renderHeader(columns, this.#headerHandlers, activeIn('header')?.col, this.#drag)}
         ${renderPinnedRows('top', layout.top, columns, firstIndex('top'), activeIn('top'))}
         ${
           model.rowCount === 0
@@ -470,7 +511,12 @@ export class ArgusTable<T = unknown> extends LitElement {
       const scroller = this.renderRoot.querySelector<HTMLElement>('[part~="table"]');
       if (scroller) scroller.scrollTop = 0;
     }
-    if (changed.has('columns') || changed.has('columnSizing') || this.#autoWidthsChanged) {
+    if (
+      changed.has('columns') ||
+      changed.has('columnSizing') ||
+      changed.has('columnOrder') ||
+      this.#autoWidthsChanged
+    ) {
       this.#pinScroll.measure();
     }
     if (this.#focusPending) {
@@ -482,6 +528,15 @@ export class ArgusTable<T = unknown> extends LitElement {
       const details = [...this.#appliedResizes.values()];
       this.#appliedResizes.clear();
       for (const detail of details) fire(this, COLUMN_RESIZE, detail);
+    }
+    if (this.#announceMove) {
+      this.#announceMoved(model, this.#announceMove);
+      this.#announceMove = undefined;
+    }
+    if (this.#appliedReorders.size > 0) {
+      const details = [...this.#appliedReorders.values()];
+      this.#appliedReorders.clear();
+      for (const detail of details) fire(this, COLUMN_REORDER, detail);
     }
     if (this.#appliedSort) {
       const sorting = this.#appliedSort;
@@ -574,10 +629,19 @@ export class ArgusTable<T = unknown> extends LitElement {
       if (!(handle instanceof HTMLElement)) return;
       const id = handle.dataset.resizeCol;
       const cell = handle.parentElement;
-      if (id === undefined || !cell) return;
-      startResizeDrag(handle, event, cell.getBoundingClientRect().width, this.#direction(), (w) => {
-        this.#requestResize(id, w);
-      });
+      if (id !== undefined && cell) {
+        startResizeDrag(
+          handle,
+          event,
+          cell.getBoundingClientRect().width,
+          this.#direction(),
+          (w) => {
+            this.#requestResize(id, w);
+          },
+        );
+        return;
+      }
+      this.#startReorder(event);
     },
     /** A double-click on a resize handle fits the column to its rendered content. */
     dblclick: (event: MouseEvent) => {
@@ -617,7 +681,15 @@ export class ArgusTable<T = unknown> extends LitElement {
     }
     const inHeader = cell.getAttribute('role') === 'columnheader';
     const { key } = event;
-    if (inHeader && event.altKey && (key === 'ArrowLeft' || key === 'ArrowRight')) {
+    const arrow = key === 'ArrowLeft' || key === 'ArrowRight';
+    if (inHeader && arrow && event.altKey && event.shiftKey) {
+      event.preventDefault();
+      // Logical: the arrow pointing toward the inline end moves the column that way.
+      const towardEnd = (key === 'ArrowRight') === (this.#direction() === 1);
+      this.#moveByKey(id, towardEnd ? 1 : -1);
+      return;
+    }
+    if (inHeader && event.altKey && arrow) {
       event.preventDefault();
       // Logical: the arrow pointing toward the inline end grows the column.
       const towardEnd = (key === 'ArrowRight') === (this.#direction() === 1);
@@ -934,6 +1006,126 @@ export class ArgusTable<T = unknown> extends LitElement {
     } else {
       for (const detail of details) fire(this, COLUMN_RESIZE, detail);
     }
+  }
+
+  /**
+   * Moves a column to position `to` in the whole order (within its pin group),
+   * through the controlled/uncontrolled rules. Starts from the latest requested
+   * order, so moves can come faster than renders. `false` if it can't move there.
+   */
+  #requestReorder(columnId: string, to: number): boolean {
+    const old = this.#order.value;
+    const next = this.#table.model.nextOrder(columnId, to, old);
+    if (!next) return false;
+    const { value, applied } = this.#order.request(next);
+    if (applied) {
+      for (const detail of this.#appliedReorders.values()) detail.order = value;
+      this.#appliedReorders.set(columnId, { columnId, order: value });
+      this.requestUpdate('columnOrder', old);
+    } else {
+      fire(this, COLUMN_REORDER, { columnId, order: value });
+    }
+    return true;
+  }
+
+  /** Alt+Shift+Arrow on a header: one step toward the start (-1) or the end (1). */
+  #moveByKey(columnId: string, step: 1 | -1): void {
+    const model = this.#table.model;
+    const from = model.orderOf(this.#order.value).indexOf(columnId);
+    const view = model.columns.find((c) => c.id === columnId);
+    if (from < 0 || !view) return;
+    if (!this.#requestReorder(columnId, from + step)) return;
+    // The header node moves, which drops its focus: focus it again once rendered.
+    this.#focusPending = true;
+    this.#announceMove ??= { id: columnId, from: view.colIndex };
+    this.requestUpdate();
+  }
+
+  /** Tells screen readers where a column moved from the keyboard went. */
+  #announceMoved(model: TableModel<T, CellContent>, move: { id: string; from: number }): void {
+    const view = model.columns.find((c) => c.id === move.id);
+    if (!view || view.colIndex === move.from) return;
+    const header = this.renderRoot.querySelector(
+      `[role='columnheader'][data-col="${CSS.escape(move.id)}"] > slot`,
+    );
+    const name =
+      header instanceof HTMLSlotElement
+        ? header
+            .assignedNodes({ flatten: true })
+            .map((n) => n.textContent)
+            .join('')
+            .trim()
+        : '';
+    announce(
+      this.ownerDocument,
+      `${name || move.id} moved to column ${String(view.colIndex)} of ${String(model.columns.length)}`,
+    );
+  }
+
+  /** A press on a reorderable header: becomes a drag once the pointer moves. */
+  #startReorder(down: PointerEvent): void {
+    const cell = down
+      .composedPath()
+      .find(
+        (t): t is HTMLElement =>
+          t instanceof HTMLElement && t.getAttribute('role') === 'columnheader',
+      );
+    const columnId = cell?.dataset.moveCol;
+    if (!cell || columnId === undefined || !canStartReorder(down, cell)) return;
+    const scroller = this.renderRoot.querySelector<HTMLElement>('[part~="table"]');
+    if (!scroller) return;
+    const pin = this.#table.model.columns.find((c) => c.id === columnId)?.pin;
+    startReorderDrag(cell, down, {
+      scroller,
+      targetAt: (x) => dropTarget(this.#dropSlots(pin), columnId, x, this.#direction()),
+      scrollArea: () => (pin === undefined ? this.#scrollArea(scroller) : undefined),
+      onStart: () => {
+        this.#drag = { columnId, target: undefined };
+        this.requestUpdate();
+      },
+      onTarget: (target) => {
+        this.#drag = { columnId, target };
+        this.requestUpdate();
+      },
+      onDrop: (target) => {
+        this.#drag = undefined;
+        if (target && this.#requestReorder(columnId, target.to)) {
+          // The header node moves, which drops its focus: focus it again once rendered.
+          if (this.matches(':focus-within')) this.#focusPending = true;
+        }
+        this.requestUpdate();
+      },
+      onCancel: () => {
+        this.#drag = undefined;
+        this.requestUpdate();
+      },
+    });
+  }
+
+  /** The rendered headers of one pin group, with their positions in the whole order. */
+  #dropSlots(pin: ColumnView<T, CellContent>['pin']): DropSlot[] {
+    const slots: DropSlot[] = [];
+    this.#table.model.columns.forEach((c, index) => {
+      if (c.pin !== pin) return;
+      const cell = this.renderRoot.querySelector(
+        `[role='columnheader'][data-col="${CSS.escape(c.id)}"]`,
+      );
+      if (cell) slots.push({ id: c.id, index, rect: cell.getBoundingClientRect() });
+    });
+    return slots;
+  }
+
+  /** Where the scrolling columns show: the scroller's inside, less the pinned columns. */
+  #scrollArea(scroller: HTMLElement): { left: number; right: number } {
+    const columns = this.#table.model.columns;
+    const width = (side: 'start' | 'end') =>
+      columns.reduce((sum, c) => (c.pin === side ? sum + c.width : sum), 0);
+    const ltr = this.#direction() === 1;
+    const left = scroller.getBoundingClientRect().left + scroller.clientLeft;
+    return {
+      left: left + width(ltr ? 'start' : 'end'),
+      right: left + scroller.clientWidth - width(ltr ? 'end' : 'start'),
+    };
   }
 
   /** asc → desc → unsorted, through the controlled/uncontrolled rules. */

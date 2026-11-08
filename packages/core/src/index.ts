@@ -6,6 +6,7 @@ export {
   resolveColumns,
   type ResolvedColumn,
 } from './columns/resolve-columns.js';
+export { moveColumn, normalizeOrder, type OrderableColumn } from './columns/column-order.js';
 export {
   createTableModel,
   type ColumnView,

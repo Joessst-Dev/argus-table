@@ -26,6 +26,7 @@ export interface ResolvedColumn<TData, TContent> {
   pin: ColumnPin | undefined;
   sortable: boolean;
   resizable: boolean;
+  reorderable: boolean;
   align: ColumnAlign;
 }
 
@@ -113,6 +114,7 @@ export function resolveColumns<TData, TContent>(
       pin,
       sortable: def.sortable === true,
       resizable: def.resizable !== false,
+      reorderable: def.reorderable !== false,
       align: def.align ?? 'start',
     };
   });
