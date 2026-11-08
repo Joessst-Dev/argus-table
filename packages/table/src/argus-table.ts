@@ -151,13 +151,13 @@ function track<T>(column: ColumnView<T, CellContent>): string {
  *
  * @summary Data table with pinned rows and columns and infinite loading.
  *
- * @fires argus-sort-change - A sortable header was clicked, or activated with Enter or Space. `detail: { sorting }`: the new order, or the proposed one when `sorting` is controlled.
- * @fires argus-column-resize - A column was resized: by dragging its handle, with Alt+Arrow on its header, by a double-click on its handle (fit to content) or by `autosizeColumns()`. `detail: { columnId, width, sizing }`: the new widths, or the proposed ones when `columnSizing` is controlled. Fires on every frame of a drag, and once per column that `autosizeColumns()` changes.
- * @fires argus-column-reorder - A column was moved: by dragging its header, or with Alt+Shift+Arrow on its focused header. Columns move within their own group (start-pinned, scrolling, end-pinned). `detail: { columnId, order }`: the new order, or the proposed one when `columnOrder` is controlled. Fires once per move, on drop.
- * @fires argus-cell-click - A body or pinned-row cell was clicked, or Enter was pressed on it. `detail: { row, columnId, value, pinned? }`; `pinned` is `'top'` or `'bottom'` for a pinned row. Fires before `argus-row-click`.
- * @fires argus-row-click - A body or pinned row was clicked, or Enter was pressed on one of its cells. `detail: { row, rowId, index, pinned? }`; for a pinned row, `index` is its index in its list.
- * @fires argus-range-change - The visible rows changed. `detail: { start, end }` (row indices, inclusive).
- * @fires argus-load-error - A `dataSource` page failed to load: `getRows()` rejected or threw. `detail: { error, start, end }` (`end` exclusive). The rows show a Retry button.
+ * @fires {CustomEvent<SortChangeDetail>} argus-sort-change - A sortable header was clicked, or activated with Enter or Space. `detail: { sorting }`: the new order, or the proposed one when `sorting` is controlled.
+ * @fires {CustomEvent<ColumnResizeDetail>} argus-column-resize - A column was resized: by dragging its handle, with Alt+Arrow on its header, by a double-click on its handle (fit to content) or by `autosizeColumns()`. `detail: { columnId, width, sizing }`: the new widths, or the proposed ones when `columnSizing` is controlled. Fires on every frame of a drag, and once per column that `autosizeColumns()` changes.
+ * @fires {CustomEvent<ColumnReorderDetail>} argus-column-reorder - A column was moved: by dragging its header, or with Alt+Shift+Arrow on its focused header. Columns move within their own group (start-pinned, scrolling, end-pinned). `detail: { columnId, order }`: the new order, or the proposed one when `columnOrder` is controlled. Fires once per move, on drop.
+ * @fires {CustomEvent<CellClickDetail<T>>} argus-cell-click - A body or pinned-row cell was clicked, or Enter was pressed on it. `detail: { row, columnId, value, pinned? }`; `pinned` is `'top'` or `'bottom'` for a pinned row. Fires before `argus-row-click`.
+ * @fires {CustomEvent<RowClickDetail<T>>} argus-row-click - A body or pinned row was clicked, or Enter was pressed on one of its cells. `detail: { row, rowId, index, pinned? }`; for a pinned row, `index` is its index in its list.
+ * @fires {CustomEvent<RangeChangeDetail>} argus-range-change - The visible rows changed. `detail: { start, end }` (row indices, inclusive).
+ * @fires {CustomEvent<LoadErrorDetail>} argus-load-error - A `dataSource` page failed to load: `getRows()` rejected or threw. `detail: { error, start, end }` (`end` exclusive). The rows show a Retry button.
  *
  * @slot empty - Shown instead of the body when there are no rows. Default: "No rows".
  *
@@ -212,14 +212,29 @@ export class ArgusTable<T = unknown> extends LitElement {
 
   /**
    * Column definitions. Property only: functions can't be attributes. While empty,
-   * the table reads its `<argus-column>` children instead.
+   * the table reads its `<argus-column>` children instead. `null` or `undefined`
+   * means `[]`.
    */
   @property({ attribute: false })
-  columns: readonly ColumnDef<T>[] = [];
+  get columns(): readonly ColumnDef<T>[] {
+    return this.#columnsProp;
+  }
+  set columns(value: readonly ColumnDef<T>[] | null | undefined) {
+    // Framework bindings set `undefined` when a prop goes away.
+    this.#columnsProp = value ?? [];
+  }
 
-  /** The rows to show. Replace the array to update; changes inside it aren't detected. */
+  /**
+   * The rows to show. Replace the array to update; changes inside it aren't
+   * detected. `null` or `undefined` means `[]`.
+   */
   @property({ attribute: false })
-  data: readonly T[] = [];
+  get data(): readonly T[] {
+    return this.#dataProp;
+  }
+  set data(value: readonly T[] | null | undefined) {
+    this.#dataProp = value ?? [];
+  }
 
   /**
    * Loads rows page by page as they scroll into view, instead of `data`:
@@ -254,9 +269,14 @@ export class ArgusTable<T = unknown> extends LitElement {
   @property({ reflect: true })
   density: Density = 'comfortable';
 
-  /** Rows rendered above and below the visible ones. */
+  /** Rows rendered above and below the visible ones. `null` or `undefined` means the default, 6. */
   @property({ type: Number })
-  overscan = 6;
+  get overscan(): number {
+    return this.#overscan;
+  }
+  set overscan(value: number | null | undefined) {
+    this.#overscan = value ?? 6;
+  }
 
   /**
    * The sort order, e.g. `[{ id: 'total', desc: true }]`; `[]` when unsorted. Unset,
@@ -303,6 +323,9 @@ export class ArgusTable<T = unknown> extends LitElement {
     this.#order.set(value);
   }
 
+  #columnsProp: readonly ColumnDef<T>[] = [];
+  #dataProp: readonly T[] = [];
+  #overscan = 6;
   readonly #sorting = controllable<SortState>([]);
   readonly #sizing = controllable<ColumnSizingState>({});
   readonly #order = controllable<ColumnOrderState>([]);

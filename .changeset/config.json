@@ -4,11 +4,12 @@
   "access": "public",
   "changelog": "@changesets/cli/changelog",
   "commit": false,
-  "fixed": [["argus-table"]],
+  "fixed": [["argus-table", "@argus-table/react"]],
   "linked": [],
   "ignore": [
     "@argus-table/benchmarks",
     "@argus-table/e2e",
+    "@argus-table/generate-wrappers",
     "@argus-table/playground",
     "@argus-table/storybook",
     "@argus-table/visual"

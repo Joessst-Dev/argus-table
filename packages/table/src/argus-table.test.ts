@@ -52,6 +52,28 @@ describe('element basics', () => {
     const el = await fixture();
     expect(el.getAttribute('density')).toBe('comfortable');
   });
+
+  // Framework bindings (React through @lit/react) set `undefined` when a prop goes away.
+  test('treats undefined and null columns, data and overscan as their defaults', async () => {
+    const el = await fixture({ columns, data: people(20), overscan: 2 });
+    expect(bodyRows(el).length).toBeGreaterThan(0);
+
+    el.columns = undefined;
+    el.data = null;
+    el.overscan = undefined;
+    await settle(el);
+
+    expect(el.columns).toEqual([]);
+    expect(el.data).toEqual([]);
+    expect(el.overscan).toBe(6);
+    expect(bodyRows(el)).toHaveLength(0);
+    expect(shadow(el).querySelector('[part~="empty"]')).not.toBeNull();
+
+    el.columns = columns;
+    el.data = people(20);
+    await settle(el);
+    expect(rowText(rowsInOrder(el)[0] as Element)).toEqual(['Person 0', '0', 'City 0']);
+  });
 });
 
 describe('rendering', () => {

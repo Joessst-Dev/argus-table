@@ -1,0 +1,23 @@
+{
+  "name": "@argus-table/generate-wrappers",
+  "private": true,
+  "type": "module",
+  "description": "Generates the framework wrappers' element bindings from argus-table's Custom Elements Manifest.",
+  "nx": {
+    "name": "generate-wrappers"
+  },
+  "bin": {
+    "generate-wrappers": "./src/cli.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "prettier": "^3.9.10"
+  },
+  "devDependencies": {
+    "vitest": "^5.1.0"
+  }
+}

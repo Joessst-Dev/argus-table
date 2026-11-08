@@ -1,0 +1,87 @@
+import { Meta } from '@storybook/addon-docs/blocks';
+
+<Meta title="Recipes/React" />
+
+# React
+
+`@argus-table/react` wraps `<argus-table>` and `<argus-column>` as React components, with typed props and typed events. The row type is inferred from `data`.
+
+```bash
+npm i @argus-table/react @argus-table/themes
+```
+
+## A table
+
+```tsx
+import { ArgusTable, type ColumnDef } from '@argus-table/react';
+import '@argus-table/themes/default.css';
+
+const columns: ColumnDef<Order>[] = [
+  { id: 'id', header: 'Order', accessor: 'id', width: 90, pin: 'start' },
+  { id: 'customer', header: 'Customer', accessor: 'customer.name', width: { flex: 1 } },
+  { id: 'total', header: 'Total', accessor: 'total', align: 'end', sortable: true },
+];
+
+export function Orders({ orders }: { orders: Order[] }) {
+  return (
+    <ArgusTable
+      aria-label="Orders"
+      style={{ height: 400 }}
+      columns={columns}
+      data={orders}
+      onRowClick={(e) => open(e.detail.row)}
+    />
+  );
+}
+```
+
+Props set the element's properties. Each `argus-*` event is an `on*` prop that gets the element's `CustomEvent`:
+
+| Event                  | Prop              |
+| ---------------------- | ----------------- |
+| `argus-sort-change`    | `onSortChange`    |
+| `argus-column-resize`  | `onColumnResize`  |
+| `argus-column-reorder` | `onColumnReorder` |
+| `argus-cell-click`     | `onCellClick`     |
+| `argus-row-click`      | `onRowClick`      |
+| `argus-range-change`   | `onRangeChange`   |
+| `argus-load-error`     | `onLoadError`     |
+
+A column's `cell` returns a string, a number, a DOM node or a Lit template; React elements in cells are planned.
+
+## Controlled sorting
+
+Leave `sorting` out and the table sorts by itself. Pass it, and a header click only proposes the new order:
+
+```tsx
+const [sorting, setSorting] = useState<SortState>([]);
+
+<ArgusTable
+  columns={columns}
+  data={orders}
+  sorting={sorting}
+  onSortChange={(e) => setSorting(e.detail.sorting)}
+/>;
+```
+
+`columnSizing` with `onColumnResize` (`e.detail.sizing`) and `columnOrder` with `onColumnReorder` (`e.detail.order`) work the same way.
+
+## Methods
+
+```tsx
+const table = useRef<ArgusTableElement<Order>>(null);
+
+<ArgusTable ref={table} columns={columns} data={orders} />;
+
+await table.current?.scrollToRow(0);
+```
+
+## Columns from a loop
+
+```tsx
+<ArgusTable<Order> data={orders}>
+  {visible.map((c) => (
+    <ArgusColumn key={c.id} columnId={c.id} header={c.label} accessor={c.id} sortable />
+  ))}
+</ArgusTable>
+```
