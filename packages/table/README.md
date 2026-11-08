@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Joessst-Dev/argus-table/main/brand/argus-table-logo.svg" alt="Argus Table" width="240" height="240">
+</p>
+
 # argus-table
 
 `<argus-table>` is a data table web component built with Lit and TanStack. It works in any framework, or none.
