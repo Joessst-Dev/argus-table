@@ -10,8 +10,10 @@ import { customElement, property } from 'lit/decorators.js';
 import { styleMap } from 'lit/directives/style-map.js';
 import {
   controllable,
+  RowLayout,
   type ColumnResizeDetail,
   type ColumnView,
+  type GridRow,
   type TableModel,
 } from '@argus-table/core';
 import { DataController } from './controllers/data-controller.js';
@@ -31,6 +33,7 @@ import {
 import { renderBody, type ActiveCell, type Loading } from './render/body.js';
 import { renderLightDom } from './render/cells.js';
 import { renderHeader } from './render/header.js';
+import { renderPinnedRows } from './render/pinned-rows.js';
 import { baseStyles } from './styles/base.js';
 import type {
   CellContent,
@@ -38,6 +41,7 @@ import type {
   ColumnSizingState,
   DataSource,
   Density,
+  PinnedRows,
   SortState,
 } from './types.js';
 
@@ -70,14 +74,20 @@ function sortColumnOf(event: Event): string | undefined {
 const RESIZE_STEP = 10;
 
 /**
- * The cell holding the grid's single tab stop. `index` is the row's index in the
- * row model, `-1` for the header row; `rowId` keeps it on the same row when the
- * order changes.
+ * The cell holding the grid's single tab stop: a row (its section, and its index
+ * there: in the row model for the body, in its list for a pinned row) and a
+ * column. `rowId` keeps it on the same body row when the order changes.
  */
-interface Active {
-  index: number;
+interface Active extends GridRow {
   rowId: string | undefined;
   col: string;
+}
+
+const HEADER: GridRow = { section: 'header', index: 0 };
+
+/** Where the rows sit in the grid: header, pinned top, body, pinned bottom. */
+function layoutOf<T>(model: TableModel<T, CellContent>): RowLayout {
+  return new RowLayout(model.pinnedCount('top'), model.rowCount, model.pinnedCount('bottom'));
 }
 
 /** The grid cell or column header an element is, if any. */
@@ -87,9 +97,10 @@ function gridCell(target: EventTarget): HTMLElement | undefined {
   return role === 'gridcell' || role === 'columnheader' ? target : undefined;
 }
 
-/** Row index of a rendered row element (`aria-rowindex` minus the header); `-1` for the header. */
-function rowIndexOf(row: Element | null): number {
-  return Number(row?.getAttribute('aria-rowindex') ?? 1) - 2;
+/** The grid row a rendered row element is, from its `aria-rowindex`. */
+function gridRowOf(row: Element | null, layout: RowLayout): GridRow | undefined {
+  const index = row?.getAttribute('aria-rowindex');
+  return index ? layout.fromAriaRowIndex(Number(index)) : undefined;
 }
 
 /**
@@ -129,8 +140,8 @@ function track<T>(column: ColumnView<T, CellContent>): string {
  *
  * @fires argus-sort-change - A sortable header was clicked, or activated with Enter or Space. `detail: { sorting }`: the new order, or the proposed one when `sorting` is controlled.
  * @fires argus-column-resize - A column was resized by dragging its handle or with Alt+Arrow on its header. `detail: { columnId, width, sizing }`: the new widths, or the proposed ones when `columnSizing` is controlled. Fires on every frame of a drag.
- * @fires argus-cell-click - A body cell was clicked, or Enter was pressed on it. `detail: { row, columnId, value }`. Fires before `argus-row-click`.
- * @fires argus-row-click - A body row was clicked, or Enter was pressed on one of its cells. `detail: { row, rowId, index }`.
+ * @fires argus-cell-click - A body or pinned-row cell was clicked, or Enter was pressed on it. `detail: { row, columnId, value, pinned? }`; `pinned` is `'top'` or `'bottom'` for a pinned row. Fires before `argus-row-click`.
+ * @fires argus-row-click - A body or pinned row was clicked, or Enter was pressed on one of its cells. `detail: { row, rowId, index, pinned? }`; for a pinned row, `index` is its index in its list.
  * @fires argus-range-change - The visible rows changed. `detail: { start, end }` (row indices, inclusive).
  * @fires argus-load-error - A `dataSource` page failed to load: `getRows()` rejected or threw. `detail: { error, start, end }` (`end` exclusive). The rows show a Retry button.
  *
@@ -147,6 +158,10 @@ function track<T>(column: ColumnView<T, CellContent>): string {
  * @csspart row-even - Body rows with an even index (0-based).
  * @csspart row-odd - Body rows with an odd index.
  * @csspart row-loading - Body rows whose `dataSource` page hasn't loaded yet, or failed.
+ * @csspart row-pinned - Every row from `pinnedRows`, on either side. Also has `row`, but no `row-even`/`row-odd`.
+ * @csspart row-pinned-top - The rows pinned below the header.
+ * @csspart row-pinned-bottom - The rows pinned to the bottom.
+ * @csspart cell-pinned-row - Every cell of a pinned row (next to `cell`).
  * @csspart cell - Every body cell.
  * @csspart cell-sorted - Body cells in the sorted column.
  * @csspart cell-pinned - Body cells in a pinned column, on either side.
@@ -170,6 +185,7 @@ function track<T>(column: ColumnView<T, CellContent>): string {
  * @cssprop [--argus-resize-handle-color] - Colour of the resize handle's line, shown on hover, focus and drag.
  * @cssprop [--argus-focus-ring=2px solid Highlight] - Outline of the focused header or cell.
  * @cssprop [--argus-row-hover-bg] - Background of the hovered row. Default: no change.
+ * @cssprop [--argus-pinned-row-bg=var(--argus-bg)] - Background of the pinned rows, pinned columns included.
  * @cssprop [--argus-skeleton-bg] - Colour of the skeleton bars in rows still loading. Default: the text colour at low opacity.
  * @cssprop [--argus-row-selected-bg] - Reserved for row selection, which comes after v0.1. The table doesn't read it yet.
  */
@@ -195,6 +211,16 @@ export class ArgusTable<T = unknown> extends LitElement {
    */
   @property({ attribute: false })
   dataSource?: DataSource<T>;
+
+  /**
+   * Rows fixed below the header (`top`) and at the bottom of the view (`bottom`),
+   * such as a totals row: `{ top?: T[], bottom?: T[] }`. They are separate
+   * objects, not rows of `data`: columns read them the same way, but they are
+   * never sorted and work the same with a `dataSource`. A `cell` function gets
+   * `pinned: 'top' | 'bottom'` in its context. Replace the object to update.
+   */
+  @property({ attribute: false })
+  pinnedRows?: PinnedRows<T>;
 
   /** Returns a stable id for a row. Default: the row's index (in `data`, or among all `dataSource` rows). */
   @property({ attribute: false })
@@ -313,7 +339,8 @@ export class ArgusTable<T = unknown> extends LitElement {
       changed.has('data') ||
       changed.has('getRowId') ||
       changed.has('sorting') ||
-      changed.has('columnSizing')
+      changed.has('columnSizing') ||
+      changed.has('pinnedRows')
     ) {
       this.#table.update({
         columns: this.columns,
@@ -321,6 +348,7 @@ export class ArgusTable<T = unknown> extends LitElement {
         getRowId: this.getRowId,
         sorting: this.#sorting.value,
         columnSizing: this.#sizing.value,
+        pinnedRows: this.pinnedRows,
       });
     }
     // A new page cache (new source, sort order or refresh) or none.
@@ -330,15 +358,18 @@ export class ArgusTable<T = unknown> extends LitElement {
     const active = this.#active;
     // -1 tells assistive tech the total is unknown (a data source still growing).
     const unknownTotal = this.#data.rows?.totalKnown === false;
-    this.#internals.ariaRowCount = unknownTotal ? '-1' : String(model.rowCount + 1);
+    this.#internals.ariaRowCount = unknownTotal ? '-1' : String(layoutOf(model).total);
     this.#internals.ariaColCount = String(model.columns.length);
     this.#virtual.configure({
       count: model.rowCount,
       rowHeight: this.#rowPx,
       overscan: Math.max(0, this.overscan),
       rowIdAt: (index) => this.#rowId(model, index),
-      // The active row stays rendered, so the tab stop and focus survive scrolling.
-      keep: active?.rowId === undefined ? undefined : { id: active.rowId, index: active.index },
+      // The active body row stays rendered, so the tab stop and focus survive scrolling.
+      keep:
+        active?.section !== 'body' || active.rowId === undefined
+          ? undefined
+          : { id: active.rowId, index: active.index },
     });
   }
 
@@ -349,15 +380,19 @@ export class ArgusTable<T = unknown> extends LitElement {
     const pinnedWidth = (side: 'start' | 'end') =>
       columns.reduce((sum, c) => (c.pin === side ? sum + c.width : sum), 0);
     const pinned = (side: 'start' | 'end') => `${String(pinnedWidth(side))}px`;
+    const layout = layoutOf(model);
     const style: Record<string, string> = {
       '--_cols': columns.map(track).join(' '),
       '--_width': `${String(model.totalWidth)}px`,
       '--_pin-start': pinned('start'),
       '--_pin-end': pinned('end'),
+      '--_pin-top-rows': String(layout.top),
+      '--_pin-bottom-rows': String(layout.bottom),
     };
     const active = this.#active;
-    const bodyActive: ActiveCell | undefined =
-      active && active.index >= 0 ? { index: active.index, col: active.col } : undefined;
+    const activeIn = (section: GridRow['section']): ActiveCell | undefined =>
+      active?.section === section ? { index: active.index, col: active.col } : undefined;
+    const firstIndex = (section: GridRow['section']) => layout.ariaRowIndex({ section, index: 0 });
     if (this.rowHeight !== undefined && this.rowHeight > 0) {
       style['--_row-height'] = `${String(this.rowHeight)}px`;
     }
@@ -369,7 +404,8 @@ export class ArgusTable<T = unknown> extends LitElement {
         @focusin=${this.#onFocusin}
         @click=${this.#onClick}
       >
-        ${renderHeader(columns, this.#headerHandlers, active?.index === -1 ? active.col : undefined)}
+        ${renderHeader(columns, this.#headerHandlers, activeIn('header')?.col)}
+        ${renderPinnedRows('top', layout.top, columns, firstIndex('top'), activeIn('top'))}
         ${
           model.rowCount === 0
             ? html`<div part="empty"><slot name="empty">No rows</slot></div>`
@@ -377,14 +413,16 @@ export class ArgusTable<T = unknown> extends LitElement {
                 this.#window.rows,
                 columns,
                 this.#window.totalSize,
-                bodyActive,
+                activeIn('body'),
+                firstIndex('body'),
                 this.#loading(),
               )
         }
+        ${renderPinnedRows('bottom', layout.bottom, columns, firstIndex('bottom'), activeIn('bottom'))}
         <div class="probe" aria-hidden="true"></div>
       </div>
-      ${pinShadow('start', pinnedWidth('start'), model.rowCount, this.#rowPx)}
-      ${pinShadow('end', pinnedWidth('end'), model.rowCount, this.#rowPx)}`;
+      ${pinShadow('start', pinnedWidth('start'), layout.total - 1, this.#rowPx)}
+      ${pinShadow('end', pinnedWidth('end'), layout.total - 1, this.#rowPx)}`;
   }
 
   protected override firstUpdated(): void {
@@ -543,35 +581,48 @@ export class ArgusTable<T = unknown> extends LitElement {
     // Ctrl (Cmd on macOS) only goes with Home and End: to the corners.
     const corner = event.ctrlKey || event.metaKey;
     if (event.altKey || event.shiftKey || (corner && key !== 'Home' && key !== 'End')) return;
+    const model = this.#table.model;
+    const layout = layoutOf(model);
+    const from = inHeader ? HEADER : gridRowOf(cell.parentElement, layout);
+    if (!from) return;
     if (!inHeader && key === 'Enter') {
       // Enter on a body cell does what a click does; on a failed row, it retries.
       event.preventDefault();
-      const index = rowIndexOf(cell.parentElement);
-      if (this.#data.stateAt(index) === 'error') this.#data.retry(index);
-      else this.#activate(event.composedPath());
+      if (from.section === 'body' && this.#data.stateAt(from.index) === 'error') {
+        this.#data.retry(from.index);
+      } else {
+        this.#activate(event.composedPath());
+      }
       return;
     }
-    const model = this.#table.model;
     const columns = model.columns;
-    const last = model.rowCount - 1;
-    const from = inHeader ? -1 : rowIndexOf(cell.parentElement);
-    // Whole rows below the sticky header, which is one row tall.
-    const page = Math.max(1, Math.floor(scroller.clientHeight / this.#rowPx + 0.01) - 1);
-    let row = from;
+    // Rows step by grid position: header, pinned top, body, pinned bottom.
+    let pos = layout.position(from);
+    const last = layout.total - 1;
+    const bodyFirst = layout.position({ section: 'body', index: 0 });
+    const bodyLast = bodyFirst + layout.body - 1;
+    // Whole rows between the sticky header and pinned rows (each one row tall).
+    const fit = Math.floor(scroller.clientHeight / this.#rowPx + 0.01);
+    const page = Math.max(1, fit - 1 - layout.top - layout.bottom);
     let col = columns.findIndex((c) => c.id === id);
     switch (key) {
       case 'PageDown':
-        row = Math.min(row + page, last);
+        // Pages through the body: from above it, a page into it; it stops at its last row.
+        if (layout.body > 0 && pos <= bodyLast) {
+          pos = Math.min(Math.max(pos, bodyFirst - 1) + page, bodyLast);
+        }
         break;
       case 'PageUp':
-        // Stays in the body; ArrowUp or Ctrl+Home goes on to the header.
-        if (row > 0) row = Math.max(row - page, 0);
+        // Stays in the body; ArrowUp or Ctrl+Home goes on to the rows above it.
+        if (layout.body > 0 && pos > bodyFirst) {
+          pos = Math.max(Math.min(pos, bodyLast + 1) - page, bodyFirst);
+        }
         break;
       case 'ArrowDown':
-        row = Math.min(row + 1, last);
+        pos = Math.min(pos + 1, last);
         break;
       case 'ArrowUp':
-        row = Math.max(row - 1, -1);
+        pos = Math.max(pos - 1, 0);
         break;
       case 'ArrowRight':
         col += this.#direction();
@@ -582,22 +633,30 @@ export class ArgusTable<T = unknown> extends LitElement {
       case 'Home':
         col = 0;
         if (corner) {
-          row = -1;
+          pos = 0;
           scroller.scrollTop = 0;
         }
         break;
       case 'End':
         col = columns.length - 1;
-        if (corner) row = last;
+        if (corner) pos = last;
         break;
       default:
         return;
     }
     event.preventDefault();
+    const row = layout.at(pos) ?? HEADER;
     // PageUp/PageDown scroll by as many rows as focus moved, so the focused cell
     // keeps its place on screen. The browser clamps at the ends; focusing
     // scrolls the rest of the way.
-    if (key.startsWith('Page') && from >= 0) scroller.scrollTop += (row - from) * this.#rowPx;
+    if (key.startsWith('Page') && from.section === 'body' && row.section === 'body') {
+      scroller.scrollTop += (row.index - from.index) * this.#rowPx;
+    }
+    // Ctrl+End onto a bottom pinned row: show the end of the body too, as
+    // Ctrl+Home shows its start.
+    if (corner && key === 'End' && row.section === 'bottom') {
+      scroller.scrollTop = scroller.scrollHeight;
+    }
     const target = columns[Math.min(Math.max(col, 0), columns.length - 1)];
     if (target) this.#moveTo(row, target.id, model);
   };
@@ -620,12 +679,18 @@ export class ArgusTable<T = unknown> extends LitElement {
     for (const target of event.composedPath()) {
       const cell = gridCell(target);
       if (cell?.dataset.col !== undefined) {
-        const index =
-          cell.getAttribute('role') === 'columnheader' ? -1 : rowIndexOf(cell.parentElement);
+        const model = this.#table.model;
+        const row =
+          cell.getAttribute('role') === 'columnheader'
+            ? HEADER
+            : gridRowOf(cell.parentElement, layoutOf(model));
         const { col } = cell.dataset;
-        if (index !== this.#active?.index || col !== this.#active.col) {
-          const rowId = index >= 0 ? this.#rowId(this.#table.model, index) : undefined;
-          this.#active = { index, rowId, col };
+        const prev = this.#active;
+        if (
+          row &&
+          (row.section !== prev?.section || row.index !== prev.index || col !== prev.col)
+        ) {
+          this.#active = { ...row, rowId: this.#gridRowId(model, row), col };
           this.requestUpdate();
         }
         return;
@@ -641,7 +706,8 @@ export class ArgusTable<T = unknown> extends LitElement {
 
   /**
    * Fires `argus-cell-click` (when a cell is on the path), then `argus-row-click`,
-   * for the body row on an event path. Clicks and Enter on a body cell use it.
+   * for the body or pinned row on an event path. Clicks and Enter on a cell use
+   * it. Rows that haven't loaded and the header fire nothing.
    */
   #activate(path: EventTarget[]): void {
     let columnId: string | undefined;
@@ -651,24 +717,53 @@ export class ArgusTable<T = unknown> extends LitElement {
       if (role === 'gridcell') columnId = target.dataset.col;
       if (role !== 'row') continue;
       const model = this.#table.model;
-      const index = rowIndexOf(target);
-      const row = index >= 0 ? model.rowAt(index) : undefined;
+      const at = gridRowOf(target, layoutOf(model));
+      if (!at || at.section === 'header') return;
+      const { index } = at;
+      if (at.section === 'body') {
+        const row = model.rowAt(index);
+        if (!row) return;
+        if (columnId !== undefined) {
+          fire(this, CELL_CLICK, {
+            row: row.original,
+            columnId,
+            value: model.valueAt(index, columnId),
+          });
+        }
+        fire(this, ROW_CLICK, { row: row.original, rowId: row.id, index });
+        return;
+      }
+      const pinned = at.section;
+      const row = model.pinnedRowAt(pinned, index);
       if (!row) return;
       if (columnId !== undefined) {
         fire(this, CELL_CLICK, {
           row: row.original,
           columnId,
-          value: model.valueAt(index, columnId),
+          value: model.pinnedValueAt(pinned, index, columnId),
+          pinned,
         });
       }
-      fire(this, ROW_CLICK, { row: row.original, rowId: row.id, index });
+      fire(this, ROW_CLICK, { row: row.original, rowId: row.id, index, pinned });
       return;
     }
   }
 
+  /** The id of a grid row: a body or pinned row's id; none for the header. */
+  #gridRowId(model: TableModel<T, CellContent>, row: GridRow): string | undefined {
+    switch (row.section) {
+      case 'header':
+        return undefined;
+      case 'body':
+        return this.#rowId(model, row.index);
+      default:
+        return model.pinnedRowAt(row.section, row.index)?.id;
+    }
+  }
+
   /** Makes a cell active and focuses it after the update. The keep-rendered rule renders its row. */
-  #moveTo(index: number, col: string, model: TableModel<T, CellContent>): void {
-    this.#active = { index, rowId: index >= 0 ? this.#rowId(model, index) : undefined, col };
+  #moveTo(row: GridRow, col: string, model: TableModel<T, CellContent>): void {
+    this.#active = { ...row, rowId: this.#gridRowId(model, row), col };
     this.#focusPending = true;
     this.requestUpdate();
   }
@@ -677,22 +772,23 @@ export class ArgusTable<T = unknown> extends LitElement {
     const active = this.#active;
     if (!active) return;
     const col = CSS.escape(active.col);
-    const selector =
-      active.index === -1
-        ? `[part~='header-row'] > [data-col="${col}"]`
-        : `[part~='body'] > [aria-rowindex="${String(active.index + 2)}"] > [data-col="${col}"]`;
-    const cell = this.renderRoot.querySelector<HTMLElement>(selector);
+    // aria-rowindex is unique across the grid: header, pinned and body rows.
+    const index = layoutOf(this.#table.model).ariaRowIndex(active);
+    const cell = this.renderRoot.querySelector<HTMLElement>(
+      `[role='row'][aria-rowindex="${String(index)}"] > [data-col="${col}"]`,
+    );
     if (!cell) return;
     cell.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     cell.focus({ preventScroll: true });
   }
 
   /**
-   * Keeps the active cell valid after columns or rows change: on the same row id
-   * when it still exists (it may have moved), else at the same index, clamped.
-   * A data source row that isn't loaded (yet, or any more) keeps its id.
-   * Defaults to the first header. If its row went away while the grid had focus,
-   * focus follows to the replacement.
+   * Keeps the active cell valid after columns or rows change. In the body: on the
+   * same row id when it still exists (it may have moved), else at the same
+   * index, clamped. A data source row that isn't loaded (yet, or any more) keeps
+   * its id. A pinned row stays at its index, clamped to its list. A row whose
+   * section has no rows left gives way to the header, the default. If its row
+   * went away while the grid had focus, focus follows to the replacement.
    */
   #reconcileActive(model: TableModel<T, CellContent>): void {
     const columns = model.columns;
@@ -701,10 +797,11 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.#active = undefined;
       return;
     }
-    const prev = this.#active ?? { index: -1, rowId: undefined, col: first.id };
+    const prev = this.#active ?? { ...HEADER, rowId: undefined, col: first.id };
     const col = columns.some((c) => c.id === prev.col) ? prev.col : first.id;
-    let { index, rowId } = prev;
-    if (rowId !== undefined) {
+    let { section, index, rowId } = prev;
+    let moved = false;
+    if (section === 'body' && rowId !== undefined) {
       const found = model.indexOf(rowId);
       const unloaded = index < model.rowCount && model.rowAt(index) === undefined;
       if (found !== undefined) {
@@ -712,11 +809,29 @@ export class ArgusTable<T = unknown> extends LitElement {
       } else if (!unloaded) {
         index = Math.min(index, model.rowCount - 1);
         rowId = index >= 0 ? (model.rowAt(index)?.id ?? this.#placeholderId(index)) : undefined;
-        if (this.matches(':focus-within')) this.#focusPending = true;
+        moved = true;
       }
+    } else if (section === 'top' || section === 'bottom') {
+      const count = model.pinnedCount(section);
+      if (index >= count) {
+        index = count - 1;
+        moved = true;
+      }
+      rowId = index >= 0 ? model.pinnedRowAt(section, index)?.id : undefined;
     }
-    if (index !== prev.index || rowId !== prev.rowId || col !== prev.col || !this.#active) {
-      this.#active = { index, rowId, col };
+    if (index < 0) {
+      ({ section, index } = HEADER);
+      rowId = undefined;
+    }
+    if (moved && this.matches(':focus-within')) this.#focusPending = true;
+    if (
+      section !== prev.section ||
+      index !== prev.index ||
+      rowId !== prev.rowId ||
+      col !== prev.col ||
+      !this.#active
+    ) {
+      this.#active = { section, index, rowId, col };
     }
   }
 

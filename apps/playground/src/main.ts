@@ -13,6 +13,8 @@ import { installBenchHooks } from './bench-hooks.js';
 // data, with latency=<ms> (default 100), total=unknown to leave the total out,
 // and fail=<page> to fail that page's first request. Requests are logged in
 // window.__argusRequests.
+// pinned=top,bottom (or one of them) adds a pinned summary row on that side:
+// averages at the top, totals at the bottom.
 const params = new URLSearchParams(location.search);
 if (params.get('theme') === 'default') await import('@argus-table/themes/default.css');
 const scheme = params.get('scheme');
@@ -35,16 +37,25 @@ function emailLink(person: Person): Node {
 }
 
 const allColumns: ColumnDef<Person>[] = [
-  { id: 'index', header: '#', accessor: 'index', width: 80, align: 'end', pin: 'start' },
+  {
+    id: 'index',
+    header: '#',
+    // Summary rows (pinned=…) have no index.
+    accessor: (p) => (Number.isNaN(p.index) ? undefined : p.index),
+    width: 80,
+    align: 'end',
+    pin: 'start',
+  },
   { id: 'name', header: 'Name', accessor: 'name', width: 180, pin: 'start', sortable: true },
-  { id: 'email', header: 'Email', width: 260, cell: emailLink },
+  // Summary rows (pinned=…) have no email or status.
+  { id: 'email', header: 'Email', width: 260, cell: (p, ctx) => (ctx.pinned ? '' : emailLink(p)) },
   { id: 'city', header: 'City', accessor: 'location.city', width: 120, sortable: true },
   { id: 'country', header: 'Country', accessor: 'location.country', width: 90 },
   {
     id: 'status',
     header: 'Status',
     width: 110,
-    cell: (p) => html`<span class="status">${p.status}</span>`,
+    cell: (p, ctx) => (ctx.pinned ? '' : html`<span class="status">${p.status}</span>`),
   },
   {
     id: 'amount',
@@ -84,8 +95,16 @@ table.density = density;
 if (params.has('overscan')) table.overscan = Number(params.get('overscan'));
 table.columns = columns;
 table.getRowId = (p) => p.id;
-if (params.get('source') === 'remote') table.dataSource = remoteSource(makePeople(rowCount));
-else table.data = makePeople(rowCount);
+const people = makePeople(rowCount);
+if (params.get('source') === 'remote') table.dataSource = remoteSource(people);
+else table.data = people;
+const pinnedSides = new Set(params.get('pinned')?.split(','));
+if (pinnedSides.size > 0) {
+  table.pinnedRows = {
+    top: pinnedSides.has('top') ? [summary('avg', 'Average', people.length || 1)] : undefined,
+    bottom: pinnedSides.has('bottom') ? [summary('sum', 'Total', 1)] : undefined,
+  };
+}
 document.body.append(table);
 
 if (params.has('bench')) installBenchHooks(table);
@@ -94,6 +113,23 @@ declare global {
   interface Window {
     __argusRequests?: RowsRequest[];
   }
+}
+
+/** A summary row shaped like a person: the amounts added up, divided by `divisor`. */
+function summary(id: string, name: string, divisor: number): Person {
+  const [first] = people;
+  if (!first) throw new Error('no rows to summarise');
+  const amount = people.reduce((sum, p) => sum + p.amount, 0) / divisor;
+  return {
+    ...first,
+    id,
+    index: Number.NaN,
+    name,
+    amount,
+    date: '',
+    location: { city: '', country: '' },
+    extra: first.extra.map(() => ''),
+  };
 }
 
 /** A pretend server over the people: sorts, waits, honours `signal`, can fail a page once. */

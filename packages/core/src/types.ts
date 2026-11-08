@@ -8,6 +8,20 @@
 /** Logical side of a pinned column: `'start'` is the left in LTR and the right in RTL. */
 export type ColumnPin = 'start' | 'end';
 
+/** Side of a pinned row: `'top'` (below the header) or `'bottom'`. */
+export type RowPin = 'top' | 'bottom';
+
+/**
+ * Rows fixed above or below the scrolling body, such as a totals row. They are
+ * separate objects, not rows of `data`: never sorted, and not counted as data rows.
+ */
+export interface PinnedRows<TData> {
+  /** Rows pinned below the header, in order. */
+  top?: readonly TData[];
+  /** Rows pinned to the bottom, in order. */
+  bottom?: readonly TData[];
+}
+
 /** Text alignment inside a cell, in logical terms. */
 export type ColumnAlign = 'start' | 'center' | 'end';
 
@@ -19,16 +33,21 @@ export type ColumnWidth = number | { flex: number };
 
 /** What a `cell` function receives besides the row itself. */
 export interface CellContext<TData> {
-  /** The row object from `data`. */
+  /** The row object from `data` (or from `pinnedRows`). */
   row: TData;
-  /** The id from `getRowId`, or the row's index as a string. */
+  /**
+   * The id from `getRowId`, or the row's index as a string. A pinned row without
+   * `getRowId` gets `'top-0'`, `'bottom-0'` and so on.
+   */
   rowId: string;
-  /** Index of the row in the current (sorted) row model. */
+  /** Index of the row in the current (sorted) row model; for a pinned row, its index in its list. */
   index: number;
   /** The column's id. */
   columnId: string;
   /** The value read by the column's `accessor`, or `undefined` without one. */
   value: unknown;
+  /** Set for a row from `pinnedRows`: the side it is pinned to. */
+  pinned?: RowPin;
 }
 
 /**
@@ -100,7 +119,10 @@ export interface ColumnResizeDetail {
 export interface RowClickDetail<TData> {
   row: TData;
   rowId: string;
+  /** Index in the current row order; for a pinned row, its index in its list. */
   index: number;
+  /** Set when the row is from `pinnedRows`: the side it is pinned to. */
+  pinned?: RowPin;
 }
 
 /** `detail` of `argus-cell-click`. */
@@ -108,6 +130,8 @@ export interface CellClickDetail<TData> {
   row: TData;
   columnId: string;
   value: unknown;
+  /** Set when the row is from `pinnedRows`: the side it is pinned to. */
+  pinned?: RowPin;
 }
 
 /** `detail` of `argus-range-change`: the first and last rendered row index (inclusive). */

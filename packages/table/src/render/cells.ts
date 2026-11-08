@@ -1,9 +1,9 @@
 import { html, render } from 'lit';
 import { repeat } from 'lit/directives/repeat.js';
-import type { ColumnView, TableModel } from '@argus-table/core';
+import type { ColumnView, RowPin, TableModel } from '@argus-table/core';
 import type { WindowRow } from '../controllers/virtual-controller.js';
 import type { CellContent } from '../types.js';
-import { cellSlot, formatValue, headerSlot, toChild } from './content.js';
+import { cellSlot, formatValue, headerSlot, pinnedSlot, toChild } from './content.js';
 
 type Column<T> = ColumnView<T, CellContent>;
 
@@ -23,7 +23,7 @@ export function renderLightDom<T>(
       columns,
       (c) => c.id,
       (c) => html`<div slot=${headerSlot(c.colIndex)}>${headerContent(c)}</div>`,
-    )}${repeat(
+    )}${pinnedContent(model, 'top')}${repeat(
       rows,
       (r) => r.slot,
       (r) =>
@@ -33,7 +33,7 @@ export function renderLightDom<T>(
           (c) =>
             html`<div slot=${cellSlot(r.slot, c.colIndex)}>${cellContent(model, r.index, c)}</div>`,
         ),
-    )}`,
+    )}${pinnedContent(model, 'bottom')}`,
     host,
     { host },
   );
@@ -42,6 +42,33 @@ export function renderLightDom<T>(
 function headerContent<T>(column: Column<T>): unknown {
   const { header } = column;
   return toChild(typeof header === 'function' ? header() : header);
+}
+
+/** Content of the rows pinned to one side, slotted by side, index and column. */
+function pinnedContent<T>(model: TableModel<T, CellContent>, side: RowPin) {
+  const columns = model.columns;
+  const rows = Array.from({ length: model.pinnedCount(side) }, (_, i) => i);
+  return rows.map((i) =>
+    repeat(
+      columns,
+      (c) => c.id,
+      (c) =>
+        html`<div slot=${pinnedSlot(side, i, c.colIndex)}>${pinnedCell(model, side, i, c)}</div>`,
+    ),
+  );
+}
+
+function pinnedCell<T>(
+  model: TableModel<T, CellContent>,
+  side: RowPin,
+  index: number,
+  column: Column<T>,
+) {
+  if (column.cell) {
+    const context = model.pinnedCellContext(side, index, column.id);
+    return context ? toChild(column.cell(context.row, context)) : '';
+  }
+  return column.hasAccessor ? formatValue(model.pinnedValueAt(side, index, column.id)) : '';
 }
 
 function cellContent<T>(model: TableModel<T, CellContent>, index: number, column: Column<T>) {

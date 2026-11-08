@@ -306,3 +306,66 @@ describe('createTableModel: remote rows', () => {
     expect(ids(m)).toEqual(['0', '1', '2', '3']);
   });
 });
+
+describe('createTableModel: pinned rows', () => {
+  const totals: Person = { id: 'sum', name: 'Total', age: 80, address: { city: '' } };
+  const avg: Person = { id: 'avg', name: 'Average', age: 20, address: { city: '' } };
+
+  it('has none by default', () => {
+    const m = model();
+    expect(m.pinnedCount('top')).toBe(0);
+    expect(m.pinnedCount('bottom')).toBe(0);
+    expect(m.pinnedRowAt('top', 0)).toBeUndefined();
+  });
+
+  it('keeps pinned rows apart from the data rows, unsorted', () => {
+    const m = model({
+      pinnedRows: { top: [avg], bottom: [totals, avg] },
+      sorting: [{ id: 'name', desc: false }],
+    });
+    expect(m.rowCount).toBe(4);
+    expect(m.pinnedCount('top')).toBe(1);
+    expect(m.pinnedCount('bottom')).toBe(2);
+    expect(m.pinnedRowAt('bottom', 0)).toEqual({ id: 'bottom-0', index: 0, original: totals });
+    expect(m.pinnedRowAt('bottom', 1)?.original).toBe(avg);
+    expect(m.pinnedRowAt('bottom', 2)).toBeUndefined();
+    expect(m.pinnedRowAt('top', 0)?.id).toBe('top-0');
+  });
+
+  it('uses getRowId for pinned rows when given', () => {
+    const m = model({ pinnedRows: { bottom: [totals] }, getRowId: (p) => p.id });
+    expect(m.pinnedRowAt('bottom', 0)?.id).toBe('sum');
+  });
+
+  it('reads values and cell context through the accessors', () => {
+    const m = model({ pinnedRows: { bottom: [totals] } });
+    expect(m.pinnedValueAt('bottom', 0, 'age')).toBe(80);
+    expect(m.pinnedValueAt('bottom', 0, 'note')).toBeUndefined();
+    expect(m.pinnedValueAt('bottom', 3, 'age')).toBeUndefined();
+    expect(m.pinnedCellContext('bottom', 0, 'name')).toEqual({
+      row: totals,
+      rowId: 'bottom-0',
+      index: 0,
+      columnId: 'name',
+      value: 'Total',
+      pinned: 'bottom',
+    });
+    expect(m.pinnedCellContext('bottom', 0, 'nope')).toBeUndefined();
+    expect(m.pinnedCellContext('top', 0, 'name')).toBeUndefined();
+  });
+
+  it('works with remote rows too', () => {
+    const m = model({
+      remote: { rowCount: 50, entryAt: () => undefined, indexOf: () => undefined },
+      pinnedRows: { top: [totals] },
+    });
+    expect(m.rowCount).toBe(50);
+    expect(m.pinnedValueAt('top', 0, 'name')).toBe('Total');
+  });
+
+  it('follows updates', () => {
+    const m = model({ pinnedRows: { bottom: [totals] } });
+    m.update({ pinnedRows: undefined });
+    expect(m.pinnedCount('bottom')).toBe(0);
+  });
+});

@@ -44,8 +44,12 @@ export const baseStyles = css`
       block-size: 100%;
       overflow: auto;
       overscroll-behavior: contain;
-      /* A cell moved to by keyboard scrolls clear of the sticky header and pinned columns. */
-      scroll-padding-block-start: var(--_row-height);
+      /*
+       * A cell moved to by keyboard scrolls clear of the sticky header, the pinned
+       * rows and the pinned columns.
+       */
+      scroll-padding-block-start: calc((1 + var(--_pin-top-rows, 0)) * var(--_row-height));
+      scroll-padding-block-end: calc(var(--_pin-bottom-rows, 0) * var(--_row-height));
       scroll-padding-inline: var(--_pin-start, 0) var(--_pin-end, 0);
     }
 
@@ -68,10 +72,12 @@ export const baseStyles = css`
       position: relative;
       contain: layout;
     }
-    [part~='row'] {
+    [part~='body'] > .row {
       position: absolute;
       inset-block-start: 0;
       inset-inline-start: 0;
+    }
+    [part~='row'] {
       --_row-bg: var(--argus-bg, Canvas);
       --_row-surface: var(--_row-bg);
       background: var(--_row-surface);
@@ -81,6 +87,25 @@ export const baseStyles = css`
     }
     [part~='row']:hover {
       --_row-surface: var(--argus-row-hover-bg, var(--_row-bg));
+    }
+
+    /*
+     * Pinned rows: a sticky row group below the header and one at the bottom of
+     * the view. The header is one row tall. They keep their place in the flow,
+     * so body row i still starts i rows below the top group.
+     */
+    .pinned {
+      position: sticky;
+      z-index: 2;
+    }
+    .pinned[data-side='top'] {
+      inset-block-start: var(--_row-height);
+    }
+    .pinned[data-side='bottom'] {
+      inset-block-end: 0;
+    }
+    [part~='row-pinned'] {
+      --_row-bg: var(--argus-pinned-row-bg, var(--argus-bg, Canvas));
     }
 
     [part~='cell'],
@@ -281,7 +306,9 @@ export const baseStyles = css`
       display: flex;
       align-items: center;
       justify-content: center;
-      min-block-size: calc(100% - var(--_row-height));
+      min-block-size: calc(
+        100% - (1 + var(--_pin-top-rows, 0) + var(--_pin-bottom-rows, 0)) * var(--_row-height)
+      );
       padding: var(--_pad);
       box-sizing: border-box;
     }

@@ -28,6 +28,7 @@ argus-table {
   --argus-resize-handle-color: light-dark(#2f5bd3, #8aa6f2);
   --argus-focus-ring: 2px solid light-dark(#2f5bd3, #8aa6f2);
   --argus-skeleton-bg: light-dark(#e6e9ee, #2a303a);
+  --argus-pinned-row-bg: var(--argus-header-bg);
 
   /* Numbers line up in columns. */
   &::part(cell) {
@@ -38,6 +39,13 @@ argus-table {
   }
   &::part(header-cell-sorted) {
     color: light-dark(#2f5bd3, #8aa6f2);
+  }
+  /* Pinned rows (totals and the like) read like the header, set off from the body. */
+  &::part(row-pinned) {
+    color: var(--argus-header-fg);
+  }
+  &::part(row-pinned-bottom) {
+    box-shadow: 0 -1px 0 light-dark(#cdd2d9, #3a414c);
   }
 }
 

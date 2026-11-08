@@ -27,13 +27,15 @@ export interface Loading {
 /**
  * The virtualized body. Rows are keyed by pool slot, so a row entering the window
  * reuses the DOM of one that left (ADR 0001), and they stay in pool order: screen
- * readers get the position from `aria-rowindex` (the header row is 1).
+ * readers get the position from `aria-rowindex`. `firstRowIndex` is the
+ * `aria-rowindex` of row 0: after the header and the rows pinned to the top.
  */
 export function renderBody<T>(
   rows: readonly WindowRow[],
   columns: Columns<T>,
   totalSize: number,
   active: ActiveCell | undefined,
+  firstRowIndex: number,
   loading?: Loading,
 ) {
   return html`<div
@@ -44,7 +46,14 @@ export function renderBody<T>(
     ${repeat(
       rows,
       (r) => r.slot,
-      (r) => renderRow(r, columns, r.index === active?.index ? active.col : undefined, loading),
+      (r) =>
+        renderRow(
+          r,
+          columns,
+          r.index === active?.index ? active.col : undefined,
+          firstRowIndex,
+          loading,
+        ),
     )}
   </div>`;
 }
@@ -58,6 +67,7 @@ function renderRow<T>(
   row: WindowRow,
   columns: Columns<T>,
   activeCol: string | undefined,
+  firstRowIndex: number,
   loading: Loading | undefined,
 ) {
   const state = loading?.stateAt(row.index) ?? 'loaded';
@@ -68,7 +78,7 @@ function renderRow<T>(
     part=${parts}
     class="row"
     role="row"
-    aria-rowindex=${row.index + 2}
+    aria-rowindex=${row.index + firstRowIndex}
     aria-busy=${state === 'loading' ? 'true' : nothing}
     style=${styleMap({ transform: `translateY(${String(row.start)}px)` })}
   >
@@ -76,20 +86,40 @@ function renderRow<T>(
       columns,
       (c) => c.id,
       (c) =>
-        html`<div
-          part=${cellParts(c)}
-          role="gridcell"
-          aria-colindex=${c.colIndex}
-          tabindex=${c.id === activeCol ? 0 : -1}
-          data-col=${c.id}
-          data-align=${c.align}
-          data-pin=${c.pin ?? nothing}
-          style=${pinStyle(c) ?? nothing}
-        >
-          ${placeholder(state, c.colIndex === 1 ? retry : undefined, row.index, loading)}
-          <slot name=${cellSlot(row.slot, c.colIndex)}></slot>
-        </div>`,
+        renderCell(
+          c,
+          c.id === activeCol,
+          cellSlot(row.slot, c.colIndex),
+          false,
+          placeholder(state, c.colIndex === 1 ? retry : undefined, row.index, loading),
+        ),
     )}
+  </div>`;
+}
+
+/**
+ * A body or pinned-row cell. Every cell is focusable (`tabindex=-1`) so clicks
+ * focus it; `tabStop` marks the grid's single tab stop. `before` goes ahead of
+ * the slot (a loading row's skeleton bar or Retry button).
+ */
+export function renderCell<T>(
+  c: ColumnView<T, CellContent>,
+  tabStop: boolean,
+  slot: string,
+  pinnedRow: boolean,
+  before: unknown = nothing,
+) {
+  return html`<div
+    part=${cellParts(c, pinnedRow)}
+    role="gridcell"
+    aria-colindex=${c.colIndex}
+    tabindex=${tabStop ? 0 : -1}
+    data-col=${c.id}
+    data-align=${c.align}
+    data-pin=${c.pin ?? nothing}
+    style=${pinStyle(c) ?? nothing}
+  >
+    ${before}<slot name=${slot}></slot>
   </div>`;
 }
 
