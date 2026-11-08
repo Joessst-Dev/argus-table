@@ -27,20 +27,30 @@ Columns can also be written as `<argus-column>` children. They are data-only ele
 
 ```html
 <argus-table>
-  <argus-column id="id" header="Order" accessor="id" width="90" pin="start"></argus-column>
-  <argus-column id="customer" header="Customer" accessor="customer.name" width="auto"></argus-column>
-  <argus-column id="total" header="Total" accessor="total" align="end" sortable></argus-column>
-  <argus-column id="actions" width="64" pin="end">
+  <argus-column column-id="id" header="Order" accessor="id" width="90" pin="start"></argus-column>
+  <argus-column column-id="customer" header="Customer" accessor="customer.name" width="auto"></argus-column>
+  <argus-column column-id="total" header="Total" accessor="total" align="end" sortable></argus-column>
+  <argus-column column-id="actions" width="64" pin="end" resizable="false">
     <template><button>…</button></template>
   </argus-column>
 </argus-table>
 ```
 
-- A `MutationObserver` plus attribute changes on `argus-column` rebuild the column list, so `v-for`, `@for` or `.map()` in a framework just work.
-- Functions can't be attributes: `accessorFn` and `cell` are set as properties on the `argus-column` element; a child `<template>` covers simple static cells.
-- Rule: if the `columns` property is set, it wins and children are ignored (with a dev-mode warning).
-- Generated cell content goes into one dedicated light-DOM container, so it never mixes with `argus-column` children.
-- Effort: roughly a few days on top of the property API, planned for Phase 2.
+| Attribute | Property | Notes |
+| --- | --- | --- |
+| `column-id` | `columnId` | The column's `id`. Not the global `id` attribute: two tables with the same column would otherwise put duplicate ids in the page |
+| `header` | `header` | Text as an attribute; a template, a node or a function as a property |
+| `accessor` | `accessor` | A path as an attribute; a path or a function as a property |
+| — | `cell` | Property only. Wins over a `<template>` child |
+| `width` | `width` | `90` or `90px`, `auto`, or `2fr` for `{ flex: 2 }`. Anything else means the default |
+| `min-width`, `max-width`, `pin`, `align` | same, camelCased | |
+| `sortable`, `resizable`, `reorderable` | same | Absent: the default. `"false"`: off. Any other value: on. So `resizable="false"` turns resizing off |
+
+- Adding, removing or moving an `argus-column`, or changing one of its attributes or properties, rebuilds the column list, so `v-for`, `@for` or `.map()` in a framework just work. Sizes, order and sorting are kept by id, as with a new `columns` array. The columns tell the table themselves; the table has no `MutationObserver` on its children, which would fire on every cell render while scrolling.
+- Only direct children count, in document order.
+- A child `<template>` is static content for every cell of the column (cloned once per rendered cell and kept while the cell is recycled). Content that depends on the row needs the `cell` property. Changes inside the template's content aren't picked up: replace the template.
+- Rule: a non-empty `columns` property wins, and the children are ignored (with a one-time console warning). `columns` is `[]` by default, so a framework wrapper that always binds it doesn't hide the children.
+- The generated cell content is rendered as direct children of the table (slots need direct children; see ADR 0001), into a Lit part that ends at a private comment marker. Children added later go after the marker, so they never mix with the generated content.
 
 ## Column definition
 

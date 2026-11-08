@@ -10,12 +10,15 @@ type Column<T> = ColumnView<T, CellContent>;
 /**
  * Renders header and cell content into the host's light DOM, as direct children
  * (a slot only takes the host's own children). Keyed and ordered by pool slot,
- * so recycled content updates in place instead of moving (ADR 0001).
+ * so recycled content updates in place instead of moving (ADR 0001). The part
+ * ends at `renderBefore`, so the host's other children (`<argus-column>`) stay
+ * outside it, wherever they are added.
  */
 export function renderLightDom<T>(
   host: HTMLElement,
   model: TableModel<T, CellContent>,
   rows: readonly WindowRow[],
+  renderBefore: ChildNode,
 ): void {
   const columns = model.columns;
   render(
@@ -35,7 +38,7 @@ export function renderLightDom<T>(
         ),
     )}${pinnedContent(model, 'bottom')}`,
     host,
-    { host },
+    { host, renderBefore },
   );
 }
 

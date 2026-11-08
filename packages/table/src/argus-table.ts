@@ -19,6 +19,7 @@ import {
 } from '@argus-table/core';
 import { announce } from './announce.js';
 import { AutoWidths, measureColumns } from './controllers/auto-width.js';
+import { ColumnChildrenController } from './controllers/column-children.js';
 import { DataController } from './controllers/data-controller.js';
 import { PinScrollController } from './controllers/pin-scroll-controller.js';
 import {
@@ -143,9 +144,10 @@ function track<T>(column: ColumnView<T, CellContent>): string {
 /**
  * A virtualized data table.
  *
- * Set `columns`, and `data` or `dataSource`, as properties. Header and cell content is rendered
- * into the element's light DOM and slotted into the cells, so page CSS and the
- * page's own components work inside cells.
+ * Set `columns`, and `data` or `dataSource`, as properties. Columns can also be
+ * written as `<argus-column>` children; a non-empty `columns` wins over them.
+ * Header and cell content is rendered into the element's light DOM and slotted
+ * into the cells, so page CSS and the page's own components work inside cells.
  *
  * @summary Data table with pinned rows and columns and infinite loading.
  *
@@ -208,7 +210,10 @@ function track<T>(column: ColumnView<T, CellContent>): string {
 export class ArgusTable<T = unknown> extends LitElement {
   static override styles: CSSResultGroup = baseStyles;
 
-  /** Column definitions. Property only: functions can't be attributes. */
+  /**
+   * Column definitions. Property only: functions can't be attributes. While empty,
+   * the table reads its `<argus-column>` children instead.
+   */
   @property({ attribute: false })
   columns: readonly ColumnDef<T>[] = [];
 
@@ -320,6 +325,13 @@ export class ArgusTable<T = unknown> extends LitElement {
   #appliedSort: SortState | undefined;
   readonly #internals = attachGridInternals(this);
   readonly #table = new TableController<T>();
+  readonly #children = new ColumnChildrenController<T>(this);
+  /** The columns last passed to the model: `columns`, or the `<argus-column>` children. */
+  #columns: readonly ColumnDef<T>[] = [];
+  #columnsChanged = false;
+  #warnedColumns = false;
+  /** End of the light-DOM part holding cell content, so later children stay outside it. */
+  #contentEnd: Comment | undefined;
   readonly #data = new DataController<T>(this);
   /** Scroll back to the top after the update (a new sort order for a data source). */
   #scrollToTop = false;
@@ -347,6 +359,34 @@ export class ArgusTable<T = unknown> extends LitElement {
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#probeObserver?.disconnect();
+  }
+
+  /**
+   * `columns` when it has any, otherwise the `<argus-column>` children. Keeps its
+   * identity while neither changes, so the model is only rebuilt on a change.
+   */
+  #effectiveColumns(): readonly ColumnDef<T>[] {
+    if (this.columns.length === 0) return this.#children.defs;
+    if (!this.#warnedColumns && this.#children.present) {
+      this.#warnedColumns = true;
+      console.warn(
+        'argus-table: the columns property is set, so <argus-column> children are ignored.',
+      );
+    }
+    return this.columns;
+  }
+
+  /**
+   * The node the light-DOM content is rendered before. Lit's part then ends there,
+   * so children appended later (an `<argus-column>`) never land inside it. If the
+   * marker was removed (say by `innerHTML`), a new one starts a fresh part.
+   */
+  #lightDomEnd(): Comment {
+    if (this.#contentEnd?.parentNode !== this) {
+      this.#contentEnd = document.createComment('');
+      this.append(this.#contentEnd);
+    }
+    return this.#contentEnd;
   }
 
   /**
@@ -386,6 +426,9 @@ export class ArgusTable<T = unknown> extends LitElement {
   }
 
   protected override willUpdate(changed: PropertyValues<this>): void {
+    const columns = this.#effectiveColumns();
+    this.#columnsChanged = columns !== this.#columns;
+    this.#columns = columns;
     if (changed.has('dataSource') || changed.has('sorting') || changed.has('getRowId')) {
       this.#data.configure({
         source: this.dataSource,
@@ -398,7 +441,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       }
     }
     if (
-      changed.has('columns') ||
+      this.#columnsChanged ||
       changed.has('data') ||
       changed.has('getRowId') ||
       changed.has('sorting') ||
@@ -406,11 +449,11 @@ export class ArgusTable<T = unknown> extends LitElement {
       changed.has('columnOrder') ||
       changed.has('pinnedRows')
     ) {
-      if (changed.has('columns')) {
-        this.#autoWidths.sync(this.columns.filter((c) => c.width === 'auto').map((c) => c.id));
+      if (this.#columnsChanged) {
+        this.#autoWidths.sync(columns.filter((c) => c.width === 'auto').map((c) => c.id));
       }
       this.#table.update({
-        columns: this.columns,
+        columns,
         data: this.data,
         getRowId: this.getRowId,
         sorting: this.#sorting.value,
@@ -504,7 +547,7 @@ export class ArgusTable<T = unknown> extends LitElement {
 
   protected override updated(changed: PropertyValues<this>): void {
     const model = this.#table.model;
-    renderLightDom(this, model, this.#window.rows);
+    renderLightDom(this, model, this.#window.rows, this.#lightDomEnd());
     this.#measureAutoWidths(model);
     if (this.#scrollToTop) {
       this.#scrollToTop = false;
@@ -512,7 +555,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       if (scroller) scroller.scrollTop = 0;
     }
     if (
-      changed.has('columns') ||
+      this.#columnsChanged ||
       changed.has('columnSizing') ||
       changed.has('columnOrder') ||
       this.#autoWidthsChanged

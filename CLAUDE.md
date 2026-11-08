@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`<argus-table>`: a framework-agnostic, virtualized data table web component built with Lit 3, TanStack Table v9 (`@tanstack/table-core`) and TanStack Virtual. pnpm + Nx monorepo, Node ≥ 22.12 (`.nvmrc`), pnpm via Corepack. Currently v0.1 (virtualized rows, pinned columns, sorting, resizing, keyboard nav, default theme) plus, for v0.2, `dataSource` infinite loading, pinned rows, auto column widths and column reordering; framework wrappers, `<argus-column>` children and the Material-inspired theme are still to come in v0.2.
+`<argus-table>`: a framework-agnostic, virtualized data table web component built with Lit 3, TanStack Table v9 (`@tanstack/table-core`) and TanStack Virtual. pnpm + Nx monorepo, Node ≥ 22.12 (`.nvmrc`), pnpm via Corepack. Currently v0.1 (virtualized rows, pinned columns, sorting, resizing, keyboard nav, default theme) plus, for v0.2, `dataSource` infinite loading, pinned rows, auto column widths, column reordering and `<argus-column>` children; framework wrappers and the Material-inspired theme are still to come in v0.2.
 
-`docs/plan/` is the design plan (public API draft, roadmap, architecture diagrams). It describes intended features too, so check the source before assuming something exists (for example `<argus-column>` is planned but not implemented). `docs/adr/0001-shadow-vs-light-dom.md` explains the rendering model below.
+`docs/plan/` is the design plan (public API draft, roadmap, architecture diagrams). It describes intended features too, so check the source before assuming something exists (for example `rowHeight: 'auto'` is planned but not implemented). `docs/adr/0001-shadow-vs-light-dom.md` explains the rendering model below.
 
 ## Commands
 
@@ -19,7 +19,7 @@ pnpm test                # Vitest in all projects (browser mode, headless Chromi
 pnpm build               # every package
 pnpm test:e2e            # Playwright against the built playground (`vite preview` on :4173)
 pnpm test:visual         # screenshot tests inside the CI Playwright Docker image (needs Docker)
-pnpm size                # CDN bundle min+gzip vs packages/table/.size-limit.json (43 kB)
+pnpm size                # CDN bundle min+gzip vs packages/table/.size-limit.json (44 kB)
 pnpm affected            # what CI runs for the branch (base: main)
 pnpm changeset           # add a release note
 ```
@@ -65,6 +65,8 @@ BROWSERS=chromium pnpm --filter @argus-table/e2e exec playwright test specs/sort
 **Auto widths** (`width: 'auto'`, `controllers/auto-width.ts`): `measureColumns()` sets a private `data-measure` attribute (`inline-size: max-content`) on the rendered cells of a column, reads their widths and removes it again in one synchronous step in `updated()`. An auto column measures once its first loaded rows render, and the widths go to the core model as `autoWidths`, separate from `columnSizing`. A double-click on a handle and `autosizeColumns()` are resizes: they go through `columnSizing`.
 
 **Column order** (`columnOrder`, `controllers/reorder-drag.ts`): core normalizes the order per pin group (`columns/column-order.ts`) and hands it to TanStack as the order of its column defs and pinning arrays (TanStack's ordering feature isn't used: it costs bundle size for nothing). Moves stay within a pin group. A header drag is pointer events on the window (not HTML drag and drop), starts after 4 px, swallows the click that ends it, and changes the order once on drop; Alt+Shift+Arrow moves by one. Headers are keyed by column id, so a moved header loses focus: set `#focusPending`. Announcements go through `announce.ts`, a live region in the document body, because a grid may only own rows.
+
+**`<argus-column>` children** (`argus-column.ts`, `controllers/column-children.ts`): a data-only `ReactiveElement` (no shadow root) that builds a `ColumnDef` from its attributes and properties; a `<template>` child becomes a static cell via Lit's `templateContent`. Columns notify their parent table through a private registry (`watchColumns`) on connect, disconnect and update, so the table has no `MutationObserver` on its children (that would fire on every light-DOM cell render). A non-empty `columns` property wins over the children. `renderLightDom` renders before a private end-marker comment, so children appended later stay outside Lit's part.
 
 **Controlled/uncontrolled state.** `sorting`, `columnSizing` and `columnOrder` use `controllable()` (`core/src/state/controllable.ts`): uncontrolled until the host sets them; once set, user actions only fire the event with the _proposed_ value; setting `undefined` hands ownership back. Follow this pattern for new user-changeable state. When the table applies a change itself, the event fires after the update completes (`#appliedSort`, `#appliedResize`).
 
