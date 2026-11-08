@@ -169,6 +169,30 @@ All `CustomEvent`, bubbling and composed. See [State and events](../code-archite
 - `autosizeColumns(ids?)` (v0.2): fits the given columns (default: every resizable one) to the header, the pinned rows and the rendered body rows, as a resize; see [Column widths](#column-widths). Columns with `resizable: false` keep their width. Resolves once the table has re-rendered.
 - `refresh()` (v0.2): with a `dataSource`, drops every loaded page and loads the rows in view again; with `data`, re-renders the cells. Resolves once the table has re-rendered.
 
+## Framework wrappers
+
+`@argus-table/react`, `@argus-table/vue` and `@argus-table/angular` wrap both elements. They are optional: the elements work in any framework without them. Their bindings are generated from the Custom Elements Manifest, so they follow the element; see [Packages](../repo-and-ci/02-packages.md#generated-wrappers). React ships first; Vue and Angular follow the same conventions.
+
+Each `argus-*` event drops its prefix and takes the framework's style:
+
+| Element event | React prop | Vue emit | Angular output |
+| --- | --- | --- | --- |
+| `argus-sort-change` | `onSortChange` | `sort-change` | `sortChange` |
+| `argus-column-resize` | `onColumnResize` | `column-resize` | `columnResize` |
+| `argus-column-reorder` | `onColumnReorder` | `column-reorder` | `columnReorder` |
+| `argus-cell-click` | `onCellClick` | `cell-click` | `cellClick` |
+| `argus-row-click` | `onRowClick` | `row-click` | `rowClick` |
+| `argus-range-change` | `onRangeChange` | `range-change` | `rangeChange` |
+| `argus-load-error` | `onLoadError` | `load-error` | `loadError` |
+
+- Handlers get the element's whole `CustomEvent`, not just its detail, so `composedPath()` stays at hand. Details that carry a row are typed with the row type (`RowClickDetail<T>`, `CellClickDetail<T>`).
+- The row type is generic: inferred from `data` and `columns`, or given (`<ArgusTable<Order>>` in React).
+- Two-way binding covers the three controllable properties: `sorting` (from `detail.sorting`), `columnSizing` (`detail.sizing`) and `columnOrder` (`detail.order`). React uses the usual controlled pair (`sorting` with `onSortChange`); Vue gets `v-model:sorting`, `v-model:column-sizing` and `v-model:column-order`; Angular gets `[(sorting)]`, `[(columnSizing)]` and `[(columnOrder)]`. A property left unbound stays uncontrolled.
+- Methods are reached through the element: a `ref` in React, typed `ArgusTableElement<T>`.
+- `<argus-column>` is wrapped too (`ArgusColumn`), so loops over columns work. The wrapper component takes the element's name, so the element classes are re-exported as the types `ArgusTableElement` and `ArgusColumnElement`.
+- Cell and header content is still a Lit template, a node, a string or a number. Framework content in cells (JSX, Vue slots, `ng-template`) is planned separately: cells are pooled, so it needs a hook in the element.
+- Bindings set `undefined` when a prop is removed, so `columns`, `data` and `overscan` read `null` and `undefined` as their defaults.
+
 ## Slots
 
 - `empty`: shown instead of the body when there are no rows. Default text: "No rows".

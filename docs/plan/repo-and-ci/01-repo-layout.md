@@ -19,9 +19,9 @@ argus-table/
 │  ├─ core/                 @argus-table/core     internal, bundled into table, not published
 │  ├─ table/                argus-table           the <argus-table> + <argus-column> elements
 │  ├─ themes/               @argus-table/themes   default.css · material.css · …
-│  ├─ react/                @argus-table/react
+│  ├─ react/                @argus-table/react    @lit/react components, bindings generated from the manifest
 │  ├─ vue/                  @argus-table/vue
-│  ├─ angular/              @argus-table/angular  built with ng-packagr (@nx/angular)
+│  ├─ angular/              @argus-table/angular  built with ng-packagr
 │  └─ formulas/             @argus-table/formulas added in Phase 3
 ├─ apps/
 │  ├─ storybook/            docs site (Storybook 10)
@@ -32,7 +32,9 @@ argus-table/
 │  ├─ e2e/                  Playwright: scroll, resize, keyboard, infinite loading
 │  └─ visual/               Playwright screenshots per theme × density × dark mode
 ├─ benchmarks/              10k / 100k / 1M rows, FPS + memory
-├─ scripts/                 generate-wrappers.ts
+├─ tools/
+│  └─ generate-wrappers/    reads the manifest, writes each wrapper's src/generated/elements.ts
+├─ scripts/                 visual.sh
 ├─ docs/adr/                architecture decision records (e.g. 0001-shadow-vs-light-dom.md)
 ├─ .nx/                     local Nx cache + workspace data (git-ignored)
 ├─ nx.json                  targetDefaults, named inputs, plugins (no access token in here)

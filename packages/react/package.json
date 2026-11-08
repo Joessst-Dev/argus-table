@@ -1,0 +1,61 @@
+{
+  "name": "@argus-table/react",
+  "version": "0.1.0",
+  "description": "React components for argus-table: typed props and events for <argus-table> and <argus-column>.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Joessst-Dev/argus-table.git",
+    "directory": "packages/react"
+  },
+  "type": "module",
+  "nx": {
+    "name": "react",
+    "implicitDependencies": [
+      "generate-wrappers"
+    ]
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "vite build && tsc -p tsconfig.build.json && publint --strict && attw --pack . --profile esm-only",
+    "generate": "node ../../tools/generate-wrappers/src/cli.ts react",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "node ../../tools/generate-wrappers/src/cli.ts react --check && eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@lit/react": "^1.0.8",
+    "argus-table": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "^18.3.0 || ^19.0.0"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitest/browser-playwright": "^5.1.0",
+    "playwright": "1.63.0",
+    "publint": "^0.3.25",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "vite": "^8.3.5",
+    "vitest": "^5.1.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
