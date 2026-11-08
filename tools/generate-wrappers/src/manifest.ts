@@ -21,6 +21,8 @@ interface ManifestDeclaration {
     static?: boolean;
     privacy?: string;
     type?: { text: string };
+    attribute?: string;
+    description?: string;
   }[];
   events?: readonly { name: string; type?: { text: string }; description?: string }[];
 }
@@ -30,6 +32,10 @@ export interface ElementProperty {
   name: string;
   /** The type as written in the source, e.g. `readonly ColumnDef<T>[]`. */
   type: string;
+  /** The attribute the property reads, e.g. `row-height`; none for property-only ones. */
+  attribute?: string;
+  /** The property's JSDoc. */
+  description: string;
 }
 
 export interface ElementEvent {
@@ -133,7 +139,8 @@ export function readElement(manifest: Manifest, tag: Tag): ElementInfo {
     .filter((m) => m.kind === 'field')
     .map((m) => {
       if (!m.type) throw new Error(`<${tag}> property "${m.name}" has no type in the manifest.`);
-      return { name: m.name, type: m.type.text };
+      const property = { name: m.name, type: m.type.text, description: m.description ?? '' };
+      return m.attribute ? { ...property, attribute: m.attribute } : property;
     });
 
   const events = (decl.events ?? []).map((e) => {

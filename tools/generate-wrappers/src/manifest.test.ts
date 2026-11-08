@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { eventNames, readElement, referencedTypes, type Manifest } from './manifest.ts';
+import { emitAngular } from './angular.ts';
 import { emitReact } from './react.ts';
 import { emitVue } from './vue.ts';
 
@@ -20,6 +21,12 @@ function manifest(
             customElement: true,
             members: overrides.tableMembers ?? [
               { kind: 'field', name: 'data', type: { text: 'readonly T[]' } },
+              {
+                kind: 'field',
+                name: 'rowHeight',
+                type: { text: 'number | undefined' },
+                attribute: 'row-height',
+              },
               { kind: 'field', name: 'sorting', type: { text: 'SortState' } },
               { kind: 'field', name: 'columnSizing', type: { text: 'ColumnSizingState' } },
               { kind: 'field', name: 'columnOrder', type: { text: 'ColumnOrderState' } },
@@ -51,7 +58,19 @@ function manifest(
             customElement: true,
             members: [
               { kind: 'field', name: 'columnId', type: { text: 'string' } },
-              { kind: 'field', name: 'sortable', type: { text: 'boolean | undefined' } },
+              {
+                kind: 'field',
+                name: 'sortable',
+                type: { text: 'boolean | undefined' },
+                attribute: 'sortable',
+                description: 'Sortable.',
+              },
+              {
+                kind: 'field',
+                name: 'width',
+                type: { text: 'ColumnWidth | undefined' },
+                attribute: 'width',
+              },
               { kind: 'method', name: 'toColumnDef' },
             ],
           },
@@ -82,6 +101,7 @@ describe('readElement', () => {
     expect(table.generic).toBe(true);
     expect(table.properties.map((p) => p.name)).toEqual([
       'data',
+      'rowHeight',
       'sorting',
       'columnSizing',
       'columnOrder',
@@ -155,7 +175,7 @@ describe('emitReact', () => {
       "import type { ColumnReorderDetail, ColumnResizeDetail, RowClickDetail, SortChangeDetail } from 'argus-table';",
     );
     expect(source).toContain(
-      "export type ArgusTableElementProps<T = unknown> = Partial<Pick<ArgusTableElement<T>, 'data' | 'sorting' | 'columnSizing' | 'columnOrder'>>;",
+      "export type ArgusTableElementProps<T = unknown> = Partial<Pick<ArgusTableElement<T>, 'data' | 'rowHeight' | 'sorting' | 'columnSizing' | 'columnOrder'>>;",
     );
     expect(source).toContain('onRowClick?: (event: CustomEvent<RowClickDetail<T>>) => void;');
     expect(source).toContain("onSortChange: 'argus-sort-change',");
@@ -181,7 +201,7 @@ describe('emitVue', () => {
     );
     expect(source).toContain('{"name":"argus-row-click","emit":"row-click"}');
     expect(source).toContain('"methods":["refresh"]');
-    expect(source).toContain('"props":["columnId","sortable"],"booleans":["sortable"]');
+    expect(source).toContain('"props":["columnId","sortable","width"],"booleans":["sortable"]');
   });
 
   test('types handlers, v-model updates, emits and exposed methods', () => {
@@ -200,5 +220,50 @@ describe('emitVue', () => {
     expect(source).not.toContain('ArgusColumnEventProps');
     expect(source).not.toContain('ArgusColumnEmit');
     expect(source).toContain('emit: (event: never) => void;');
+  });
+});
+
+describe('emitAngular', () => {
+  const m = manifest();
+  const source = emitAngular([readElement(m, 'argus-table'), readElement(m, 'argus-column')]);
+
+  test('puts a standalone component on each element tag', () => {
+    expect(source).toContain("selector: 'argus-table',");
+    expect(source).toContain("selector: 'argus-column',");
+    expect(source).toContain('export class ArgusTableComponent<T = unknown> {');
+    expect(source).toContain('export class ArgusColumnComponent {');
+    expect(source).toContain("'(argus-sort-change)': 'handleSortChange($event)',");
+  });
+
+  test('types inputs, and lets attribute-backed ones take their HTML strings', () => {
+    expect(source).toContain(
+      "@Input() set data(value: ArgusTableElement<T>['data'] | null | undefined) {",
+    );
+    expect(source).toContain("setProperty(this.element, 'data', undefined, value);");
+    expect(source).toContain(
+      "@Input() set rowHeight(value: ArgusTableElement<T>['rowHeight'] | `${number}` | null | undefined) {",
+    );
+    expect(source).toContain("setProperty(this.element, 'rowHeight', 'row-height', value);");
+    expect(source).toContain(
+      "@Input() set sortable(value: ArgusColumnElement['sortable'] | '' | 'true' | 'false' | null | undefined) {",
+    );
+    expect(source).toContain(
+      "@Input() set width(value: ArgusColumnElement['width'] | `${number}` | `${number}px` | `${number}fr` | null | undefined) {",
+    );
+    expect(source).toContain('/** Sortable. */');
+  });
+
+  test('emits outputs, two-way …Change outputs and method proxies', () => {
+    expect(source).toContain(
+      '@Output() readonly sortChange = new EventEmitter<CustomEvent<SortChangeDetail>>();',
+    );
+    expect(source).toContain(
+      "@Output() readonly sortingChange = new EventEmitter<ArgusTableElement<T>['sorting']>();",
+    );
+    expect(source).toContain('this.sortingChange.emit(e.detail.sorting);');
+    expect(source).toContain('if (event.target !== this.element) return;');
+    expect(source).toContain(
+      "refresh(...args: Parameters<ArgusTableElement<T>['refresh']>): ReturnType<ArgusTableElement<T>['refresh']> {",
+    );
   });
 });

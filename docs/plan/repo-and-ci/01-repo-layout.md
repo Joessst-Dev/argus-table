@@ -21,7 +21,7 @@ argus-table/
 │  ├─ themes/               @argus-table/themes   default.css · material.css · …
 │  ├─ react/                @argus-table/react    @lit/react components, bindings generated from the manifest
 │  ├─ vue/                  @argus-table/vue
-│  ├─ angular/              @argus-table/angular  built with ng-packagr
+│  ├─ angular/              @argus-table/angular  standalone components, built with ng-packagr
 │  └─ formulas/             @argus-table/formulas added in Phase 3
 ├─ apps/
 │  ├─ storybook/            docs site (Storybook 10)
