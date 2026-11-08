@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Argus Table logo</title>
+  <desc id="desc">A cyan-to-violet table grid with a watchful eye, above the ARGUS TABLE wordmark.</desc>
+  <defs>
+    <linearGradient id="grid" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#13D9E8"/>
+      <stop offset=".52" stop-color="#259CF4"/>
+      <stop offset="1" stop-color="#9148F5"/>
+    </linearGradient>
+    <linearGradient id="eye" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#13D9E8"/>
+      <stop offset="1" stop-color="#19C7E9"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="#020D29"/>
+  <g fill="url(#grid)">
+    <rect x="274" y="210" width="145" height="77" rx="11"/>
+    <rect x="438" y="210" width="145" height="77" rx="11"/>
+    <rect x="602" y="210" width="145" height="77" rx="11"/>
+    <path d="M274 306h138l-101 78h-26q-11 0-11-11z"/>
+    <path d="M612 306h124q11 0 11 11v56q0 11-11 11h-26z"/>
+    <path d="M274 397h26l112 77H285q-11 0-11-11z"/>
+    <path d="M637 397h110v66q0 11-11 11H612z"/>
+    <rect x="274" y="486" width="145" height="77" rx="11"/>
+    <rect x="438" y="486" width="145" height="77" rx="11"/>
+    <rect x="602" y="486" width="145" height="77" rx="11"/>
+  </g>
+  <path d="M330 386 Q512 230 694 386 Q512 542 330 386Z" fill="url(#eye)" stroke="#020D29" stroke-width="19" stroke-linejoin="round"/>
+  <circle cx="512" cy="386" r="59" fill="#020D29"/>
+  <circle cx="539" cy="357" r="17" fill="#fff"/>
+  <text x="512" y="711" text-anchor="middle" fill="#fff" font-family="Arial, Helvetica, sans-serif" font-size="116" font-weight="700" letter-spacing="3">ARGUS</text>
+  <text x="512" y="807" text-anchor="middle" fill="#13D9E8" font-family="Arial, Helvetica, sans-serif" font-size="69" font-weight="600" letter-spacing="27">TABLE</text>
+</svg>
