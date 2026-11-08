@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "declarationMap": false,
+    "sourceMap": true,
+    "inlineSources": true,
+    "lib": ["ES2023", "DOM"]
+  },
+  "files": ["src/index.ts"],
+  "angularCompilerOptions": {
+    "compilationMode": "partial",
+    "strictTemplates": true,
+    "strictInjectionParameters": true,
+    "strictInputAccessModifiers": true
+  }
+}

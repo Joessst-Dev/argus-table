@@ -1,0 +1,80 @@
+import { Meta } from '@storybook/addon-docs/blocks';
+
+<Meta title="Recipes/Angular" />
+
+# Angular
+
+`@argus-table/angular` puts standalone components on the `<argus-table>` and `<argus-column>` tags, with typed inputs, typed outputs and two-way binding. You write the tags as usual, with no `CUSTOM_ELEMENTS_SCHEMA`. The row type is inferred from `[data]`, so strict templates check your bindings against it.
+
+```bash
+npm i @argus-table/angular @argus-table/themes
+```
+
+## A table
+
+```ts
+import { Component, input, signal } from '@angular/core';
+import { ArgusTableComponent, type ColumnDef, type SortState } from '@argus-table/angular';
+
+@Component({
+  selector: 'app-orders',
+  imports: [ArgusTableComponent],
+  template: `
+    <argus-table
+      aria-label="Orders"
+      style="height: 400px"
+      [columns]="columns"
+      [data]="orders()"
+      [(sorting)]="sorting"
+      (rowClick)="open($event.detail.row)"
+    />
+  `,
+})
+export class OrdersComponent {
+  readonly orders = input.required<Order[]>();
+  readonly sorting = signal<SortState>([]);
+  readonly columns: ColumnDef<Order>[] = [
+    { id: 'id', header: 'Order', accessor: 'id', width: 90, pin: 'start' },
+    { id: 'customer', header: 'Customer', accessor: 'customer.name', width: { flex: 1 } },
+    { id: 'total', header: 'Total', accessor: 'total', align: 'end', sortable: true },
+  ];
+}
+```
+
+Inputs set the element's properties; `null` (as from the `async` pipe) means unset. Each `argus-*` event is an output without its prefix, with the element's `CustomEvent`:
+
+| Event                  | Output          |
+| ---------------------- | --------------- |
+| `argus-sort-change`    | `sortChange`    |
+| `argus-column-resize`  | `columnResize`  |
+| `argus-column-reorder` | `columnReorder` |
+| `argus-cell-click`     | `cellClick`     |
+| `argus-row-click`      | `rowClick`      |
+| `argus-range-change`   | `rangeChange`   |
+| `argus-load-error`     | `loadError`     |
+
+`[(sorting)]`, `[(columnSizing)]` and `[(columnOrder)]` bind the three properties the table can change. Unbound, the table keeps that state itself; a one-way `[sorting]` is controlled.
+
+A column's `cell` returns a string, a number, a DOM node or a Lit template; Angular templates in cells are planned.
+
+## Methods
+
+```ts
+readonly table = viewChild.required(ArgusTableComponent);
+
+top() {
+  void this.table().scrollToRow(0);
+}
+```
+
+## Columns from a loop
+
+Attributes work as in HTML (`width="90"`, `sortable`, `resizable="false"`):
+
+```html
+<argus-table [data]="orders">
+  @for (c of visible; track c.id) {
+  <argus-column [columnId]="c.id" [header]="c.label" [accessor]="c.id" width="120" sortable />
+  }
+</argus-table>
+```
