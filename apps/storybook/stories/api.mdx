@@ -11,15 +11,16 @@ Generated from the element's JSDoc through the Custom Elements Manifest, so it m
 
 ## Events
 
-| Event                 | Constant        | `detail`                            | Fires                                                                                                                                                            |
-| --------------------- | --------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `argus-range-change`  | `RANGE_CHANGE`  | `{ start, end }`                    | After an update that changed the visible rows                                                                                                                    |
-| `argus-sort-change`   | `SORT_CHANGE`   | `{ sorting }`                       | After the sort changed (uncontrolled), or with the proposed sort (controlled)                                                                                    |
-| `argus-column-resize` | `COLUMN_RESIZE` | `{ columnId, width, sizing }`       | After a resize (uncontrolled), or with the proposed widths (controlled). A drag, Alt+Arrow, a double-click on the handle or `autosizeColumns()` (one per column) |
-| `argus-cell-click`    | `CELL_CLICK`    | `{ row, columnId, value, pinned? }` | On a click in a body or pinned-row cell; `pinned` is set for a pinned row                                                                                        |
-| `argus-row-click`     | `ROW_CLICK`     | `{ row, rowId, index, pinned? }`    | On a click in a body or pinned row, after `argus-cell-click`                                                                                                     |
-| `argus-load-error`    | `LOAD_ERROR`    | `{ error, start, end }`             | After a `dataSource` page failed to load (`end` exclusive)                                                                                                       |
+| Event                  | Constant         | `detail`                            | Fires                                                                                                                                                            |
+| ---------------------- | ---------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `argus-range-change`   | `RANGE_CHANGE`   | `{ start, end }`                    | After an update that changed the visible rows                                                                                                                    |
+| `argus-sort-change`    | `SORT_CHANGE`    | `{ sorting }`                       | After the sort changed (uncontrolled), or with the proposed sort (controlled)                                                                                    |
+| `argus-column-resize`  | `COLUMN_RESIZE`  | `{ columnId, width, sizing }`       | After a resize (uncontrolled), or with the proposed widths (controlled). A drag, Alt+Arrow, a double-click on the handle or `autosizeColumns()` (one per column) |
+| `argus-column-reorder` | `COLUMN_REORDER` | `{ columnId, order }`               | After a column moved (uncontrolled), or with the proposed order (controlled). A header drag (on drop) or Alt+Shift+Arrow on a focused header                     |
+| `argus-cell-click`     | `CELL_CLICK`     | `{ row, columnId, value, pinned? }` | On a click in a body or pinned-row cell; `pinned` is set for a pinned row                                                                                        |
+| `argus-row-click`      | `ROW_CLICK`      | `{ row, rowId, index, pinned? }`    | On a click in a body or pinned row, after `argus-cell-click`                                                                                                     |
+| `argus-load-error`     | `LOAD_ERROR`     | `{ error, start, end }`             | After a `dataSource` page failed to load (`end` exclusive)                                                                                                       |
 
 ## Controlled and uncontrolled state
 
-`sorting` and `columnSizing` work either way. Leave them unset and the table keeps its own state, then fires the event. Set them and the table only proposes: it fires the event with the new state and waits for you to set the property. Set them back to `undefined` to hand control back to the table.
+`sorting`, `columnSizing` and `columnOrder` work either way. Leave them unset and the table keeps its own state, then fires the event. Set them and the table only proposes: it fires the event with the new state and waits for you to set the property. Set them back to `undefined` to hand control back to the table.

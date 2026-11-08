@@ -154,6 +154,32 @@ export const baseStyles = css`
       cursor: pointer;
       user-select: none;
     }
+    /* A drag on a reorderable header moves the column, so its text isn't selectable. */
+    [data-move-col] {
+      user-select: none;
+    }
+    [data-dragging],
+    [data-dragging] [part~='header-cell'] {
+      cursor: grabbing;
+    }
+    [part~='header-cell-dragging'] {
+      opacity: 0.5;
+    }
+    /* The line where a dragged column would land, on the target header's logical edge. */
+    [part~='drop-indicator'] {
+      position: absolute;
+      inset-block: 0;
+      inline-size: 2px;
+      z-index: 2;
+      background: var(--argus-drop-indicator-color, Highlight);
+      pointer-events: none;
+    }
+    [part~='drop-indicator'][data-edge='start'] {
+      inset-inline-start: 0;
+    }
+    [part~='drop-indicator'][data-edge='end'] {
+      inset-inline-end: 0;
+    }
     [part~='header-cell']:focus-visible,
     [part~='cell']:focus-visible {
       outline: var(--argus-focus-ring, 2px solid Highlight);

@@ -54,6 +54,7 @@ Columns can also be written as `<argus-column>` children. They are data-only ele
 | `minWidth` / `maxWidth` | number | Resize bounds. Default 40 px / no limit |
 | `pin` | `'start'` \| `'end'` | Fixed column. Logical sides: `'start'` is the left in LTR and the right in RTL. (TanStack v9 uses the same logical names, so no mapping is needed.) |
 | `resizable` / `sortable` | boolean | Feature flags per column. Default: resizable, not sortable |
+| `reorderable` | boolean | Whether the column can be moved (see [Column order](#column-order)). Default: `true` |
 | `align` | `'start'` \| `'center'` \| `'end'` | Text alignment. Default `'start'` |
 
 - `CellContent` is a Lit `TemplateResult`, a DOM `Node`, a string or a number.
@@ -67,6 +68,14 @@ Columns can also be written as `<argus-column>` children. They are data-only ele
 - A double-click on a column's `resize-handle` fits it to the rows in view; `autosizeColumns(ids?)` does the same for several. Both are resizes: they write `columnSizing` (or propose it, when controlled) and fire `argus-column-resize`.
 - Columns are measured with the browser's own layout (`max-content`), so templates, components, padding, density and the sort indicator are all counted. Web fonts still loading are measured again once they are ready.
 
+## Column order
+
+- A drag on a header moves its column: a `drop-indicator` line marks the header edge it would land at, the dragged header gets `header-cell-dragging`, and the order changes once, on drop. Escape cancels. The drag starts after a few pixels of movement, so a click still sorts; the click that ends a drag doesn't. Presses on interactive header content (a button, an input) and touches don't drag (a touch scrolls the table).
+- Alt+Shift+Arrow on a focused header moves it one place, toward the arrow's side (mirrored in RTL). Focus stays on it, and a polite live region announces "Customer moved to column 3 of 8" (English until the table gets an i18n option). The region sits in the document body: a grid may only own rows.
+- Columns move within their own group: start-pinned among start-pinned, scrolling among scrolling, end-pinned among end-pinned. A drag never pins or unpins a column. Dragging a scrolling column near the edge of the scrolling area scrolls it.
+- `reorderable: false` keeps a column from being picked up or moved by keys. Other columns can still move past it, so its position can change.
+- `columnOrder` is the order as column ids, as the table shows them. `[]` (the default) keeps the order of `columns`; after a move it lists every column. A host-set order is read per group: unknown and repeated ids are ignored, and columns it doesn't list follow the listed ones of their group in `columns` order. A new `columns` array keeps the order, matched by id.
+
 ## Properties
 
 | Property | Attribute | Type | Default |
@@ -79,6 +88,7 @@ Columns can also be written as `<argus-column>` children. They are data-only ele
 | `density` | `density` | `'compact'` \| `'comfortable'` \| `'spacious'` | `'comfortable'` |
 | `sorting` | — | `SortState` (controlled or uncontrolled) | — |
 | `columnSizing` | — | `Record<id, px>` | — |
+| `columnOrder` | — | `string[]` (controlled or uncontrolled) | `[]` (see [Column order](#column-order)) |
 | `getRowId` | — | `(row, index) => string` | index (among all rows, for a `dataSource`) |
 | `overscan` | `overscan` | number | 6 |
 
@@ -133,11 +143,13 @@ All `CustomEvent`, bubbling and composed. See [State and events](../code-archite
 | `argus-row-click` | `{ row, rowId, index, pinned? }` |
 | `argus-cell-click` | `{ row, columnId, value, pinned? }` |
 | `argus-range-change` | `{ start, end }` visible rows |
+| `argus-column-reorder` | `{ columnId, order }` |
 | `argus-load-error` | `{ error, start, end }`: a `dataSource` page failed; `end` exclusive |
 
 - The package exports each name as a constant (`SORT_CHANGE`, `COLUMN_RESIZE`, `CELL_CLICK`, `ROW_CLICK`, `RANGE_CHANGE`, …), and `HTMLElementEventMap` types each `detail`.
 - `argus-sort-change` fires on a click on a sortable header, or Enter or Space on a focused one; the order cycles ascending → descending → unsorted. When `sorting` is uncontrolled, it fires after the rows are re-sorted. When controlled, it carries the proposed order and nothing changes until the host sets `sorting`. v0.1 sorts by one column at a time.
 - `argus-column-resize` fires when a column is resized by dragging its `resize-handle` or with Alt+Arrow on its focused header (10 px; the arrow toward the inline end grows it), and when a double-click on the handle or `autosizeColumns()` fits it to its content (once per column that changes, each with the whole new `sizing`). A press on the handle without moving changes nothing. The handle is a `separator` labelled "Resize column" (English until the table gets an i18n option). During a drag it fires once per animation frame, so a controlled host can follow the drag; `width` is already clamped to `minWidth`/`maxWidth`.
+- `argus-column-reorder` fires when a column is moved: on drop after a header drag, or with Alt+Shift+Arrow on its focused header. `order` is the whole new order. When `columnOrder` is uncontrolled, it fires after the columns have moved; when controlled, it carries the proposed order and nothing changes until the host sets `columnOrder`. A drop where the column would stay put, or a cancelled drag, fires nothing.
 - `argus-cell-click` and `argus-row-click` fire on a click in the body, in that order, including clicks on content inside a cell (check `event.composedPath()` to skip your own buttons). `row` is the data object, `value` what the column's accessor reads. On a pinned row, `pinned` is `'top'` or `'bottom'` and `index` is the row's index in its list. Enter on a focused body cell fires both too (Enter pressed in content inside a cell is left to that content). Header clicks fire neither.
 
 ## Methods
@@ -154,18 +166,20 @@ All `CustomEvent`, bubbling and composed. See [State and events](../code-archite
 
 ## Parts
 
-`table`, `header`, `header-row`, `header-cell`, `header-cell-sorted`, `resize-handle`, `body`, `row`, `row-pinned`, `row-pinned-top`, `row-pinned-bottom`, `row-even`, `row-odd`, `row-selected`, `row-loading`, `cell`, `cell-pinned`, `cell-pinned-edge`, `cell-pinned-row`, `cell-sorted`, `footer`, `skeleton`, `skeleton-error`, `retry`, `empty`.
+`table`, `header`, `header-row`, `header-cell`, `header-cell-sorted`, `header-cell-dragging`, `drop-indicator`, `resize-handle`, `body`, `row`, `row-pinned`, `row-pinned-top`, `row-pinned-bottom`, `row-even`, `row-odd`, `row-selected`, `row-loading`, `cell`, `cell-pinned`, `cell-pinned-edge`, `cell-pinned-row`, `cell-sorted`, `footer`, `skeleton`, `skeleton-error`, `retry`, `empty`.
 
 - `row-pinned` is on every row from `pinnedRows`, with `row-pinned-top` or `row-pinned-bottom` for its side (`::part()` can't tell them apart by attribute). Pinned rows also have `row`, but not `row-even`/`row-odd`. Their cells add `cell-pinned-row` to `cell`; don't confuse it with `cell-pinned`, which marks cells in pinned *columns*.
 
 - `row-loading`, `skeleton`, `skeleton-error` and `retry` belong to `dataSource` loading; see [Data source](#data-source).
+
+- `header-cell-dragging` is added to `header-cell` while that header is dragged; `drop-indicator` is a line inside the header where it would land, on its inline-start or inline-end edge. See [Column order](#column-order).
 
 - `header-cell-sorted` is added next to `header-cell` on the sorted column's header. `cell-sorted` is for body cells in that column. They are separate so that `::part(cell-sorted)` never matches headers. The direction is exposed through `aria-sort` only; attribute selectors can't follow `::part()`, so styling per direction is left out until a theme needs it.
 - `cell-pinned` is on every pinned cell on either side, and `cell-pinned-edge` is added on the pinned cell next to the scrolling columns. There are no per-side parts; the component mirrors the edge shadow itself.
 
 ## Tokens (first set)
 
-`--argus-bg`, `--argus-fg`, `--argus-header-bg`, `--argus-header-fg`, `--argus-border-color`, `--argus-border-width`, `--argus-row-hover-bg`, `--argus-row-stripe-bg`, `--argus-row-selected-bg`, `--argus-cell-padding-inline`, `--argus-row-height`, `--argus-font`, `--argus-pinned-shadow`, `--argus-resize-handle-color`, `--argus-focus-ring`, `--argus-skeleton-bg`, `--argus-pinned-row-bg`.
+`--argus-bg`, `--argus-fg`, `--argus-header-bg`, `--argus-header-fg`, `--argus-border-color`, `--argus-border-width`, `--argus-row-hover-bg`, `--argus-row-stripe-bg`, `--argus-row-selected-bg`, `--argus-cell-padding-inline`, `--argus-row-height`, `--argus-font`, `--argus-pinned-shadow`, `--argus-resize-handle-color`, `--argus-focus-ring`, `--argus-skeleton-bg`, `--argus-pinned-row-bg`, `--argus-drop-indicator-color`.
 
 - `--argus-skeleton-bg` colours the skeleton bars of rows still loading. Default: the text colour at 12% opacity.
 - `--argus-pinned-row-bg` is the background of the rows from `pinnedRows`, pinned columns included (a background set through `::part(row-pinned)` wouldn't reach the cells in pinned columns, which paint their own). Default: `--argus-bg`.

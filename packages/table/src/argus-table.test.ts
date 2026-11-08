@@ -820,6 +820,285 @@ describe('column resizing', () => {
   });
 });
 
+describe('column reordering', () => {
+  const reorderColumns: ColumnDef<Person>[] = [
+    { id: 'name', header: 'Name', accessor: 'name', width: 120, sortable: true },
+    { id: 'age', header: 'Age', accessor: 'age', width: 100 },
+    { id: 'city', header: 'City', accessor: 'address.city', width: 100 },
+    { id: 'id', header: 'Id', accessor: 'id', width: 100 },
+  ];
+  const headers = (el: HTMLElement) => [
+    ...shadow(el).querySelectorAll<HTMLElement>('[part~="header-cell"]'),
+  ];
+  /** Column ids in visual order, by aria-colindex. */
+  const order = (el: HTMLElement) =>
+    headers(el)
+      .sort((a, b) => Number(a.ariaColIndex) - Number(b.ariaColIndex))
+      .map((h) => h.dataset.col);
+  const header = (el: HTMLElement, id: string) => {
+    const h = shadow(el).querySelector<HTMLElement>(`[part~="header-cell"][data-col="${id}"]`);
+    if (!h) throw new Error(`no header ${id}`);
+    return h;
+  };
+  const opts = { bubbles: true, composed: true, pointerId: 1, button: 0 };
+
+  /** Presses on a header and moves the pointer to `x`; `release` ends the drag there. */
+  async function drag(el: ArgusTable<Person>, id: string, x: number, release = true) {
+    const h = header(el, id);
+    const rect = h.getBoundingClientRect();
+    const start = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    h.dispatchEvent(new PointerEvent('pointerdown', { ...opts, clientX: start, clientY: y }));
+    h.dispatchEvent(new PointerEvent('pointermove', { ...opts, clientX: start + 10, clientY: y }));
+    await new Promise(requestAnimationFrame);
+    h.dispatchEvent(new PointerEvent('pointermove', { ...opts, clientX: x, clientY: y }));
+    await new Promise(requestAnimationFrame);
+    await settle(el);
+    if (release) {
+      h.dispatchEvent(new PointerEvent('pointerup', { ...opts, clientX: x, clientY: y }));
+      await settle(el);
+    }
+  }
+  const middle = (el: HTMLElement, id: string) => {
+    const r = header(el, id).getBoundingClientRect();
+    return r.left + r.width / 2;
+  };
+  const altShift = (k: string) =>
+    new KeyboardEvent('keydown', {
+      key: k,
+      altKey: true,
+      shiftKey: true,
+      bubbles: true,
+      composed: true,
+      cancelable: true,
+    });
+
+  test('drags a header past another and the cells and their content follow', async () => {
+    const el = await fixture({ columns: reorderColumns, data: people(3) });
+    // Past the middle of City: lands between City and Id.
+    await drag(el, 'name', middle(el, 'city') + 5);
+    expect(order(el)).toEqual(['age', 'city', 'name', 'id']);
+    expect(el.columnOrder).toEqual(['age', 'city', 'name', 'id']);
+    expect(rowText(rowsInOrder(el)[0] as Element)).toEqual(['0', 'City 0', 'Person 0', 'p0']);
+    const cell = rowsInOrder(el)[0]?.querySelector('[data-col="name"]');
+    expect(cell?.getAttribute('aria-colindex')).toBe('3');
+    // The header content moved with its column.
+    expect(slotted(header(el, 'name'))?.textContent).toBe('Name');
+  });
+
+  test('shows the dragged header and the drop line while dragging; Escape cancels', async () => {
+    const el = await fixture({ columns: reorderColumns, data: people(2) });
+    await drag(el, 'id', middle(el, 'age') - 5, false);
+    expect(header(el, 'id').getAttribute('part')).toContain('header-cell-dragging');
+    const line = header(el, 'age').querySelector('[part="drop-indicator"]');
+    expect(line?.getAttribute('data-edge')).toBe('start');
+    expect(shadow(el).querySelector('[part~="table"]')?.hasAttribute('data-dragging')).toBe(true);
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await settle(el);
+    expect(shadow(el).querySelector('[part="drop-indicator"]')).toBeNull();
+    expect(header(el, 'id').getAttribute('part')).toBe('header-cell');
+    const h = header(el, 'id');
+    h.dispatchEvent(new PointerEvent('pointerup', { ...opts, clientX: middle(el, 'age') }));
+    await settle(el);
+    expect(order(el)).toEqual(['name', 'age', 'city', 'id']);
+    expect(el.columnOrder).toEqual([]);
+  });
+
+  test('a drop at the end of the group puts the line on the last header', async () => {
+    const el = await fixture({ columns: reorderColumns, data: people(1) });
+    const end = header(el, 'id').getBoundingClientRect().right + 20;
+    await drag(el, 'age', end, false);
+    expect(
+      header(el, 'id').querySelector('[part="drop-indicator"]')?.getAttribute('data-edge'),
+    ).toBe('end');
+    header(el, 'age').dispatchEvent(new PointerEvent('pointerup', { ...opts, clientX: end }));
+    await settle(el);
+    expect(order(el)).toEqual(['name', 'city', 'id', 'age']);
+  });
+
+  test('a press without moving sorts; the click that ends a drag does not', async () => {
+    const el = await fixture({ columns: reorderColumns, data: people(2) });
+    const name = header(el, 'name');
+    name.dispatchEvent(new PointerEvent('pointerdown', opts));
+    name.dispatchEvent(new PointerEvent('pointerup', opts));
+    name.click();
+    await settle(el);
+    expect(el.sorting).toEqual([{ id: 'name', desc: false }]);
+    expect(el.columnOrder).toEqual([]);
+
+    const clicks = vi.fn();
+    el.addEventListener('argus-sort-change', clicks);
+    await drag(el, 'name', middle(el, 'id') + 5, false);
+    const h = header(el, 'name');
+    h.dispatchEvent(new PointerEvent('pointerup', { ...opts, clientX: middle(el, 'id') + 5 }));
+    h.click();
+    await settle(el);
+    expect(order(el)).toEqual(['age', 'city', 'id', 'name']);
+    expect(el.sorting).toEqual([{ id: 'name', desc: false }]);
+    expect(clicks).not.toHaveBeenCalled();
+    // The guard is gone after that task: the next click sorts again.
+    await new Promise((r) => setTimeout(r, 10));
+    header(el, 'name').click();
+    await settle(el);
+    expect(el.sorting).toEqual([{ id: 'name', desc: true }]);
+  });
+
+  test('keeps columns in their pin group, and pinned columns reorder within theirs', async () => {
+    const cols: ColumnDef<Person>[] = [
+      { id: 's1', header: 'S1', accessor: 'id', width: 80, pin: 'start' },
+      { id: 's2', header: 'S2', accessor: 'name', width: 80, pin: 'start' },
+      { id: 'a', header: 'A', accessor: 'age', width: 100 },
+      { id: 'b', header: 'B', accessor: 'age', width: 100 },
+      { id: 'e1', header: 'E1', accessor: 'id', width: 80, pin: 'end' },
+    ];
+    const el = await fixture({ columns: cols, data: people(2) });
+    // Dragged over the pinned columns, a scrolling column stays the first of its group.
+    await drag(el, 'b', middle(el, 's1'));
+    expect(order(el)).toEqual(['s1', 's2', 'b', 'a', 'e1']);
+    await drag(el, 's2', middle(el, 's1') - 10);
+    expect(order(el)).toEqual(['s2', 's1', 'b', 'a', 'e1']);
+    // The pinned offsets follow: s1 now sits after s2.
+    const left = (id: string) => header(el, id).getBoundingClientRect().left;
+    expect(left('s1') - left('s2')).toBeCloseTo(80, 0);
+    expect(header(el, 's1').style.getPropertyValue('--_pin-offset')).toBe('80px');
+    // A pinned column can't leave its group.
+    await drag(el, 's1', middle(el, 'a') + 20);
+    expect(order(el)).toEqual(['s2', 's1', 'b', 'a', 'e1']);
+  });
+
+  test('reorderable: false columns stay put, but others move past them', async () => {
+    const cols = reorderColumns.map((c) => (c.id === 'age' ? { ...c, reorderable: false } : c));
+    const el = await fixture({ columns: cols, data: people(1) });
+    expect(header(el, 'age').hasAttribute('data-move-col')).toBe(false);
+    await drag(el, 'age', middle(el, 'id') + 5);
+    expect(order(el)).toEqual(['name', 'age', 'city', 'id']);
+    header(el, 'age').focus();
+    header(el, 'age').dispatchEvent(altShift('ArrowRight'));
+    await settle(el);
+    expect(order(el)).toEqual(['name', 'age', 'city', 'id']);
+    await drag(el, 'id', middle(el, 'name') - 5);
+    expect(order(el)).toEqual(['id', 'name', 'age', 'city']);
+  });
+
+  test('ignores presses in interactive header content', async () => {
+    const cols: ColumnDef<Person>[] = [
+      { id: 'a', header: html`<button>Menu</button>`, accessor: 'name', width: 120 },
+      { id: 'b', header: 'B', accessor: 'age', width: 120 },
+    ];
+    const el = await fixture({ columns: cols, data: people(1) });
+    const button = el.querySelector('button');
+    if (!button) throw new Error('no button');
+    const r = button.getBoundingClientRect();
+    button.dispatchEvent(new PointerEvent('pointerdown', { ...opts, clientX: r.left + 2 }));
+    button.dispatchEvent(new PointerEvent('pointermove', { ...opts, clientX: r.left + 200 }));
+    button.dispatchEvent(new PointerEvent('pointerup', { ...opts, clientX: r.left + 200 }));
+    await settle(el);
+    expect(order(el)).toEqual(['a', 'b']);
+  });
+
+  test('moves with Alt+Shift+Arrow on a focused header, mirrored in RTL, and keeps focus', async () => {
+    const el = await fixture({ columns: reorderColumns, data: people(1) });
+    const name = header(el, 'name');
+    name.focus();
+    const right = altShift('ArrowRight');
+    name.dispatchEvent(right);
+    await settle(el);
+    expect(right.defaultPrevented).toBe(true);
+    expect(order(el)).toEqual(['age', 'name', 'city', 'id']);
+    expect(el.shadowRoot?.activeElement).toBe(header(el, 'name'));
+    // Two presses before a render compose.
+    header(el, 'name').dispatchEvent(altShift('ArrowRight'));
+    header(el, 'name').dispatchEvent(altShift('ArrowRight'));
+    await settle(el);
+    expect(order(el)).toEqual(['age', 'city', 'id', 'name']);
+    // At the end of its group it stays.
+    header(el, 'name').dispatchEvent(altShift('ArrowRight'));
+    await settle(el);
+    expect(order(el)).toEqual(['age', 'city', 'id', 'name']);
+    // Alt+Shift+Arrow neither resizes nor sorts.
+    expect(el.columnSizing).toEqual({});
+    expect(el.sorting).toEqual([]);
+
+    el.dir = 'rtl';
+    await settle(el);
+    header(el, 'name').dispatchEvent(altShift('ArrowRight'));
+    await settle(el);
+    expect(order(el)).toEqual(['age', 'city', 'name', 'id']);
+  });
+
+  test('announces a keyboard move to screen readers', async () => {
+    const el = await fixture({ columns: reorderColumns, data: people(1) });
+    header(el, 'name').focus();
+    header(el, 'name').dispatchEvent(altShift('ArrowRight'));
+    await settle(el);
+    const region = document.querySelector('[data-argus-announcer]');
+    expect(region?.getAttribute('aria-live')).toBe('polite');
+    await vi.waitFor(() => {
+      expect(region?.textContent).toBe('Name moved to column 2 of 4');
+    });
+  });
+
+  test('fires argus-column-reorder after the update with columnId and order', async () => {
+    const el = await fixture({ columns: reorderColumns, data: people(1) });
+    const seen: { detail: unknown; order: unknown }[] = [];
+    el.addEventListener('argus-column-reorder', (e) => {
+      seen.push({ detail: e.detail, order: order(el) });
+    });
+    await drag(el, 'city', middle(el, 'name') - 5);
+    expect(seen).toEqual([
+      {
+        detail: { columnId: 'city', order: ['city', 'name', 'age', 'id'] },
+        order: ['city', 'name', 'age', 'id'],
+      },
+    ]);
+  });
+
+  test('controlled: a move only proposes; the host applies it; undefined hands it back', async () => {
+    const el = await fixture({ columns: reorderColumns, data: people(1), columnOrder: [] });
+    const proposed: unknown[] = [];
+    el.addEventListener('argus-column-reorder', (e) => proposed.push(e.detail.order));
+    await drag(el, 'id', middle(el, 'name') - 5);
+    expect(proposed).toEqual([['id', 'name', 'age', 'city']]);
+    expect(order(el)).toEqual(['name', 'age', 'city', 'id']);
+
+    el.columnOrder = ['city'];
+    await settle(el);
+    expect(order(el)).toEqual(['city', 'name', 'age', 'id']);
+
+    el.columnOrder = undefined;
+    await drag(el, 'id', middle(el, 'city') - 5);
+    expect(order(el)).toEqual(['id', 'city', 'name', 'age']);
+  });
+
+  test('a new columns array with the same ids keeps the order', async () => {
+    const el = await fixture({ columns: reorderColumns, data: people(1) });
+    await drag(el, 'id', middle(el, 'name') - 5);
+    el.columns = reorderColumns.map((c) => ({ ...c }));
+    await settle(el);
+    expect(order(el)).toEqual(['id', 'name', 'age', 'city']);
+  });
+
+  test('moves the cells of pinned rows and loading rows too', async () => {
+    const source: DataSource<Person> = {
+      getRows: () => new Promise(() => undefined),
+    };
+    const el = await fixture({
+      columns: reorderColumns,
+      dataSource: source,
+      pinnedRows: { top: people(1) },
+    });
+    el.columnOrder = ['id'];
+    await settle(el);
+    const pinnedRow = shadow(el).querySelector('[part~="row-pinned-top"]');
+    const pinnedCols = [...(pinnedRow?.querySelectorAll<HTMLElement>('[part~="cell"]') ?? [])];
+    expect(pinnedCols.map((c) => c.dataset.col)).toEqual(['id', 'name', 'age', 'city']);
+    expect(slotted(pinnedCols[0] as Element)?.textContent).toBe('p0');
+    const loading = rowsInOrder(el)[0];
+    expect(loading?.querySelector('[aria-colindex="1"]')?.getAttribute('data-col')).toBe('id');
+  });
+});
+
 describe('auto width', () => {
   const LONG = 'Bartholomew Featherstonehaugh-Wolfeschlegelstein';
   const withLong = (count: number, at = 3) =>

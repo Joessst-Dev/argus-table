@@ -10,6 +10,7 @@ The table follows the WAI-ARIA grid pattern from the first release; retrofitting
 - Focus survives virtualization: the focused cell is tracked by row id + column id and kept rendered, holding its row-pool slot so its DOM is never recycled.
 - Body rows are pooled and stay in pool order, so DOM order can differ from visual order. Keeping the DOM sorted cost too much (the ADR 0001 [addendum](../../adr/0001-shadow-vs-light-dom.md#addendum-sorted-dom-phase-1)), so row positions come from `aria-rowindex` alone, and keyboard navigation moves by row index, never by DOM sibling. The v0.1 screen-reader check confirmed this with VoiceOver and Safari; NVDA with Firefox was skipped and is still to do (ADR 0001).
 - Resize handles reachable by keyboard (focus header, then Alt+Arrow to resize), with `aria-valuenow`.
+- Columns move by keyboard too: Alt+Shift+Arrow on a focused header moves it one place within its pin group (mirrored in RTL). Focus stays on the moved header, and a polite live region in the document body (outside the grid, which may only own rows) announces the new position: "Customer moved to column 3 of 8".
 - Visible focus ring via `--argus-focus-ring`; every theme must pass WCAG AA contrast.
 - `prefers-reduced-motion` turns off smooth scrolling and transitions.
 - Automated axe checks in CI, plus a manual screen-reader pass (NVDA, VoiceOver) before each minor release, following the [screen-reader check](../../a11y/screen-reader-check.md).

@@ -1,8 +1,15 @@
 import { html, nothing } from 'lit';
 import { repeat } from 'lit/directives/repeat.js';
 import type { ColumnView } from '@argus-table/core';
+import type { DropTarget } from '../controllers/reorder-drag.js';
 import type { CellContent } from '../types.js';
 import { ariaSort, headerSlot, pinStyle } from './content.js';
+
+/** A column header being dragged, and where it would land (`undefined`: where it is). */
+export interface HeaderDrag {
+  columnId: string;
+  target: DropTarget | undefined;
+}
 
 export interface HeaderHandlers {
   click: (event: MouseEvent) => void;
@@ -19,11 +26,16 @@ export interface HeaderHandlers {
  * Resizable columns get a `resize-handle` on the header's inline-end edge; a
  * double-click on it fits the column to its content. It is not focusable: the
  * focused header resizes with Alt+Arrow.
+ *
+ * Reorderable columns carry `data-move-col`: a drag on the header moves the
+ * column. While one is dragged (`drag`), its header adds `header-cell-dragging`
+ * and the target header shows a `drop-indicator` on the edge it would land at.
  */
 export function renderHeader<T>(
   columns: readonly ColumnView<T, CellContent>[],
   handlers: HeaderHandlers,
   activeCol: string | undefined,
+  drag?: HeaderDrag,
 ) {
   return html`<div part="header" role="rowgroup">
     <div
@@ -40,12 +52,13 @@ export function renderHeader<T>(
         (c) => c.id,
         (c) =>
           html`<div
-            part=${c.sorted ? 'header-cell header-cell-sorted' : 'header-cell'}
+            part=${headerParts(c, drag)}
             role="columnheader"
             aria-colindex=${c.colIndex}
             aria-sort=${ariaSort(c.sorted) ?? nothing}
             data-col=${c.id}
             data-sort-col=${c.sortable ? c.id : nothing}
+            data-move-col=${c.reorderable ? c.id : nothing}
             tabindex=${c.id === activeCol ? 0 : -1}
             data-align=${c.align}
             data-pin=${c.pin ?? nothing}
@@ -54,10 +67,25 @@ export function renderHeader<T>(
             <slot name=${headerSlot(c.colIndex)}></slot>
             ${c.sortable ? html`<span class="sort-indicator" aria-hidden="true"></span>` : nothing}
             ${c.resizable ? resizeHandle(c) : nothing}
+            ${
+              drag?.target?.columnId === c.id
+                ? html`<span
+                    part="drop-indicator"
+                    data-edge=${drag.target.edge}
+                    aria-hidden="true"
+                  ></span>`
+                : nothing
+            }
           </div>`,
       )}
     </div>
   </div>`;
+}
+
+function headerParts<T>(c: ColumnView<T, CellContent>, drag: HeaderDrag | undefined): string {
+  let parts = c.sorted ? 'header-cell header-cell-sorted' : 'header-cell';
+  if (drag?.columnId === c.id) parts += ' header-cell-dragging';
+  return parts;
 }
 
 /**

@@ -16,6 +16,7 @@ export class TableController<T> {
       getRowId: undefined,
       sorting: [],
       columnSizing: {},
+      columnOrder: [],
     });
   }
 

@@ -1,6 +1,7 @@
 export { ArgusTable } from './argus-table.js';
 export {
   CELL_CLICK,
+  COLUMN_REORDER,
   COLUMN_RESIZE,
   LOAD_ERROR,
   RANGE_CHANGE,

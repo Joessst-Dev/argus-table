@@ -292,6 +292,73 @@ describe('createTableModel: sizing', () => {
   });
 });
 
+describe('createTableModel: column order', () => {
+  const order = (m: ReturnType<typeof model>) => m.columns.map((c) => c.id);
+
+  it('keeps the order of columns, pin groups first and last, until an order is set', () => {
+    const m = model();
+    expect(m.orderOf()).toEqual(['id', 'name', 'age', 'city', 'note', 'actions']);
+    expect(m.columns.every((c) => c.reorderable)).toBe(true);
+  });
+
+  it('follows columnOrder within each pin group, with indices and offsets', () => {
+    const m = model({ columnOrder: ['note', 'city', 'name', 'age', 'id'] });
+    expect(order(m)).toEqual(['name', 'id', 'note', 'city', 'age', 'actions']);
+    expect(m.columns.map((c) => c.colIndex)).toEqual([1, 2, 3, 4, 5, 6]);
+    const byId = Object.fromEntries(m.columns.map((c) => [c.id, c]));
+    expect(byId.name).toMatchObject({ offset: 0, pinEdge: false });
+    expect(byId.id).toMatchObject({ offset: 120, pinEdge: true });
+    expect(byId.note).toMatchObject({ offset: 0 });
+    expect(byId.city).toMatchObject({ offset: 90 });
+  });
+
+  it('proposes a move within a group and refuses one across groups', () => {
+    const m = model();
+    expect(m.nextOrder('note', 2)).toEqual(['id', 'name', 'note', 'age', 'city', 'actions']);
+    expect(m.nextOrder('id', 1)).toEqual(['name', 'id', 'age', 'city', 'note', 'actions']);
+    expect(m.nextOrder('age', 1)).toBeUndefined();
+    expect(m.nextOrder('note', 5)).toBeUndefined();
+    expect(m.nextOrder('age', 2)).toBeUndefined();
+  });
+
+  it('proposes from a given base order, so moves can compose before an update', () => {
+    const m = model();
+    const first = m.nextOrder('note', 2);
+    expect(m.nextOrder('note', 3, first)).toEqual(['id', 'name', 'age', 'note', 'city', 'actions']);
+    expect(m.orderOf(['city'])).toEqual(['id', 'name', 'city', 'age', 'note', 'actions']);
+  });
+
+  it('refuses to move a column with reorderable: false, but moves others past it', () => {
+    const m = model({ columns: [{ id: 'a', reorderable: false }, { id: 'b' }, { id: 'c' }] });
+    expect(m.columns[0]?.reorderable).toBe(false);
+    expect(m.nextOrder('a', 2)).toBeUndefined();
+    expect(m.nextOrder('c', 0)).toEqual(['c', 'a', 'b']);
+  });
+
+  it('keeps the order for a new columns array and appends new columns to their group', () => {
+    const m = model({ columnOrder: ['note', 'age', 'city'] });
+    m.update({ columns: [...columns, { id: 'extra' }, { id: 'pin2', pin: 'start' }] });
+    expect(order(m)).toEqual(['id', 'name', 'pin2', 'note', 'age', 'city', 'extra', 'actions']);
+  });
+
+  it('keeps the row model when only the order changes', () => {
+    const m = model({ sorting: [{ id: 'name', desc: false }] });
+    const before = m.rowAt(0);
+    m.update({ columnOrder: ['city'] });
+    expect(m.rowAt(0)).toBe(before);
+  });
+
+  it('follows a new columnOrder', () => {
+    const m = model();
+    const before = m.columns;
+    m.update({ columnOrder: ['city'] });
+    expect(m.columns).not.toBe(before);
+    expect(order(m)).toEqual(['id', 'name', 'city', 'age', 'note', 'actions']);
+    m.update({ columnOrder: [] });
+    expect(order(m)).toEqual(['id', 'name', 'age', 'city', 'note', 'actions']);
+  });
+});
+
 describe('createTableModel: caching', () => {
   it('keeps the row model when only unrelated options change', () => {
     const m = model();

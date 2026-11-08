@@ -16,11 +16,13 @@ import {
   type TableOptions,
 } from '@tanstack/table-core';
 import { storeReactivityBindings } from '@tanstack/table-core/store-reactivity-bindings';
+import { moveColumn, normalizeOrder } from '../columns/column-order.js';
 import { resolveColumns, type ResolvedColumn } from '../columns/resolve-columns.js';
 import type {
   CellContext,
   ColumnAlign,
   ColumnDef,
+  ColumnOrderState,
   ColumnPin,
   ColumnSizingState,
   PinnedRows,
@@ -79,6 +81,7 @@ export interface ColumnView<TData, TContent> {
   maxWidth: number;
   sortable: boolean;
   resizable: boolean;
+  reorderable: boolean;
   align: ColumnAlign;
   sorted: SortDirection;
   header: ColumnDef<TData, TContent>['header'];
@@ -121,6 +124,11 @@ export interface TableModelOptions<TData, TContent> {
   /** Current resized widths; its owner is the caller. */
   columnSizing: ColumnSizingState;
   /**
+   * Current column order; its owner is the caller. Each pin group follows it; an
+   * empty array (the default) keeps the order of `columns`.
+   */
+  columnOrder?: ColumnOrderState | undefined;
+  /**
    * Measured widths of `width: 'auto'` columns, in px by id. Clamped to the column's
    * bounds; a resized width wins. Ids of other columns are ignored.
    */
@@ -156,6 +164,17 @@ export interface TableModel<TData, TContent> {
    * `undefined` if the column can't be resized.
    */
   nextSizing(columnId: string, width: number): ColumnSizingState | undefined;
+  /**
+   * The full column order as the table shows it: start-pinned, scrolling and
+   * end-pinned ids. `base` defaults to the current `columnOrder`.
+   */
+  orderOf(base?: readonly string[]): ColumnOrderState;
+  /**
+   * The order after moving a column to position `to` (0-based, in the whole order,
+   * counted after the move), starting from `base` (default: the current order).
+   * `undefined` if the column can't move, `to` is outside its pin group, or nothing changes.
+   */
+  nextOrder(columnId: string, to: number, base?: readonly string[]): ColumnOrderState | undefined;
   /** Number of rows pinned to a side. */
   pinnedCount(side: RowPin): number;
   /**
@@ -186,8 +205,8 @@ function toTanStack<TData, TContent>(
 }
 
 /**
- * Creates the table model over TanStack Table. It owns no state: sorting and sizing
- * come in through `update()`, and `nextSorting()`/`nextSizing()` only propose
+ * Creates the table model over TanStack Table. It owns no state: sorting, sizing and order
+ * come in through `update()`, and `nextSorting()`, `nextSizing()` and `nextOrder()` only propose
  * changes, so the caller decides (controlled or uncontrolled) whether to apply them.
  */
 export function createTableModel<TData, TContent>(
@@ -196,8 +215,8 @@ export function createTableModel<TData, TContent>(
   let options = initial;
   let resolved = resolveColumns(options.columns);
   let byId = new Map(resolved.map((c) => [c.id, c]));
-  // Kept stable between updates: a new array would make TanStack rebuild columns and rows.
-  let tanStackColumns = resolved.map(toTanStack);
+  // TanStack column defs by id, kept between updates that don't change `columns`.
+  let tanStackById = new Map(resolved.map((c) => [c.id, toTanStack(c)]));
   let views: ColumnView<TData, TContent>[] | undefined;
   // TanStack's sizing state: measured auto widths under the resized ones. Kept stable
   // between updates that don't touch either.
@@ -214,23 +233,51 @@ export function createTableModel<TData, TContent>(
     }
     return (sizing = { ...merged, ...options.columnSizing });
   };
+  // The normalized order, kept stable between updates that touch neither columns nor order.
+  let order: ColumnOrderState | undefined;
+  const orderState = (): ColumnOrderState =>
+    (order ??= normalizeOrder(options.columnOrder ?? [], resolved));
   const rowViews = new WeakMap<Row<Features, AnyRow>, RowView<TData>>();
   // Built lazily per row model (sorting or new data gives a new array).
   let indexById: { rows: readonly Row<Features, AnyRow>[]; map: Map<string, number> } | undefined;
 
+  // The order reaches TanStack as the order of its column defs (the scrolling
+  // columns follow it) and of the pinning arrays (the pinned ones do). Rebuilt only
+  // when the order changes: a new columns array makes TanStack rebuild its columns,
+  // though not its row models, which depend on data and sorting alone.
+  let ordered:
+    | {
+        order: ColumnOrderState;
+        columns: TanStackColumnDef<Features, AnyRow>[];
+        pinning: { start: string[]; end: string[] };
+      }
+    | undefined;
+  const orderedColumns = () => {
+    const current = orderState();
+    if (ordered?.order !== current) {
+      const pinOf = (id: string) => byId.get(id)?.pin;
+      ordered = {
+        order: current,
+        columns: current.flatMap((id) => tanStackById.get(id) ?? []),
+        pinning: {
+          start: current.filter((id) => pinOf(id) === 'start'),
+          end: current.filter((id) => pinOf(id) === 'end'),
+        },
+      };
+    }
+    return ordered;
+  };
+
   const tableOptions = (): TableOptions<Features, AnyRow> => ({
     features,
-    columns: tanStackColumns,
+    columns: orderedColumns().columns,
     // Remote rows bypass TanStack's row models; it still handles columns and state.
     data: (options.remote ? [] : options.data) as AnyRow[],
     getRowId: (options.getRowId ?? defaultRowId) as (row: AnyRow, index: number) => string,
     state: {
       sorting: options.sorting,
       columnSizing: sizingState(),
-      columnPinning: {
-        start: resolved.filter((c) => c.pin === 'start').map((c) => c.id),
-        end: resolved.filter((c) => c.pin === 'end').map((c) => c.id),
-      },
+      columnPinning: orderedColumns().pinning,
     },
     // State is owned by the caller; TanStack's own setters must not change it.
     onSortingChange: () => undefined,
@@ -270,6 +317,7 @@ export function createTableModel<TData, TContent>(
         maxWidth: def.maxWidth,
         sortable: def.sortable,
         resizable: def.resizable,
+        reorderable: def.reorderable,
         align: def.align,
         sorted: sort ? (sort.desc ? 'desc' : 'asc') : false,
         header: def.header,
@@ -296,7 +344,7 @@ export function createTableModel<TData, TContent>(
       if (next.columns && next.columns !== options.columns) {
         resolved = resolveColumns(next.columns);
         byId = new Map(resolved.map((c) => [c.id, c]));
-        tanStackColumns = resolved.map(toTanStack);
+        tanStackById = new Map(resolved.map((c) => [c.id, toTanStack(c)]));
       }
       if (
         merged.columns !== options.columns ||
@@ -304,6 +352,9 @@ export function createTableModel<TData, TContent>(
         merged.autoWidths !== options.autoWidths
       ) {
         sizing = undefined;
+      }
+      if (merged.columns !== options.columns || merged.columnOrder !== options.columnOrder) {
+        order = undefined;
       }
       options = merged;
       views = undefined;
@@ -390,6 +441,14 @@ export function createTableModel<TData, TContent>(
       if (!column?.resizable || !Number.isFinite(width)) return undefined;
       const clamped = Math.round(Math.min(column.maxWidth, Math.max(column.minWidth, width)));
       return { ...options.columnSizing, [columnId]: clamped };
+    },
+
+    orderOf(base) {
+      return base === undefined ? orderState() : normalizeOrder(base, resolved);
+    },
+
+    nextOrder(columnId, to, base) {
+      return moveColumn(base ?? orderState(), resolved, columnId, to);
     },
 
     pinnedCount(side) {
