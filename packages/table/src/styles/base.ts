@@ -272,6 +272,10 @@ export const baseStyles = css`
       overflow: hidden;
       text-overflow: ellipsis;
     }
+    /* Fitting a column to its content: set for one synchronous measurement, never painted. */
+    [data-measure] {
+      inline-size: max-content;
+    }
 
     /* Rows of a data source that haven't loaded: a bar per cell, pulsing gently. */
     [part~='skeleton'] {

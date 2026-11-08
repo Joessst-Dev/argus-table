@@ -70,6 +70,11 @@ export interface ColumnView<TData, TContent> {
   width: number;
   /** Share of free space, or `undefined` for a fixed width. A resized column stops flexing. */
   flex: number | undefined;
+  /**
+   * `true` for a `width: 'auto'` column that hasn't been resized: the table measures
+   * its content and passes the width in as `autoWidths`.
+   */
+  auto: boolean;
   minWidth: number;
   maxWidth: number;
   sortable: boolean;
@@ -115,6 +120,11 @@ export interface TableModelOptions<TData, TContent> {
   sorting: SortState;
   /** Current resized widths; its owner is the caller. */
   columnSizing: ColumnSizingState;
+  /**
+   * Measured widths of `width: 'auto'` columns, in px by id. Clamped to the column's
+   * bounds; a resized width wins. Ids of other columns are ignored.
+   */
+  autoWidths?: ColumnSizingState | undefined;
   /** Rows fixed above or below the body. They stay out of the row model: never sorted, not counted. */
   pinnedRows?: PinnedRows<TData> | undefined;
 }
@@ -189,6 +199,21 @@ export function createTableModel<TData, TContent>(
   // Kept stable between updates: a new array would make TanStack rebuild columns and rows.
   let tanStackColumns = resolved.map(toTanStack);
   let views: ColumnView<TData, TContent>[] | undefined;
+  // TanStack's sizing state: measured auto widths under the resized ones. Kept stable
+  // between updates that don't touch either.
+  let sizing: ColumnSizingState | undefined;
+  const sizingState = (): ColumnSizingState => {
+    if (sizing) return sizing;
+    const auto = options.autoWidths;
+    if (!auto) return (sizing = options.columnSizing);
+    const merged: ColumnSizingState = {};
+    for (const column of resolved) {
+      const px = auto[column.id];
+      if (!column.auto || px === undefined || !Number.isFinite(px)) continue;
+      merged[column.id] = Math.min(column.maxWidth, Math.max(column.minWidth, px));
+    }
+    return (sizing = { ...merged, ...options.columnSizing });
+  };
   const rowViews = new WeakMap<Row<Features, AnyRow>, RowView<TData>>();
   // Built lazily per row model (sorting or new data gives a new array).
   let indexById: { rows: readonly Row<Features, AnyRow>[]; map: Map<string, number> } | undefined;
@@ -201,7 +226,7 @@ export function createTableModel<TData, TContent>(
     getRowId: (options.getRowId ?? defaultRowId) as (row: AnyRow, index: number) => string,
     state: {
       sorting: options.sorting,
-      columnSizing: options.columnSizing,
+      columnSizing: sizingState(),
       columnPinning: {
         start: resolved.filter((c) => c.pin === 'start').map((c) => c.id),
         end: resolved.filter((c) => c.pin === 'end').map((c) => c.id),
@@ -240,6 +265,7 @@ export function createTableModel<TData, TContent>(
         pinEdge,
         width: column.getSize(),
         flex: options.columnSizing[def.id] === undefined ? def.flex : undefined,
+        auto: def.auto && options.columnSizing[def.id] === undefined,
         minWidth: def.minWidth,
         maxWidth: def.maxWidth,
         sortable: def.sortable,
@@ -271,6 +297,13 @@ export function createTableModel<TData, TContent>(
         resolved = resolveColumns(next.columns);
         byId = new Map(resolved.map((c) => [c.id, c]));
         tanStackColumns = resolved.map(toTanStack);
+      }
+      if (
+        merged.columns !== options.columns ||
+        merged.columnSizing !== options.columnSizing ||
+        merged.autoWidths !== options.autoWidths
+      ) {
+        sizing = undefined;
       }
       options = merged;
       views = undefined;

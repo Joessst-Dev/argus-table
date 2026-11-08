@@ -19,6 +19,8 @@ export interface ResolvedColumn<TData, TContent> {
   width: number;
   /** Share of free space for `{ flex }` columns, otherwise `undefined`. Pinned columns never flex. */
   flex: number | undefined;
+  /** `true` for `width: 'auto'`: the table measures the content and passes the width in. */
+  auto: boolean;
   minWidth: number;
   maxWidth: number;
   pin: ColumnPin | undefined;
@@ -83,7 +85,10 @@ export function resolveColumns<TData, TContent>(
       width.flex > 0
         ? width.flex
         : undefined;
-    const base = flex !== undefined ? minWidth : clamp(finite(width as number) ?? DEFAULT_WIDTH);
+    const auto = width === 'auto';
+    // An auto column shows the default width until it is measured.
+    const fixed = typeof width === 'number' ? finite(width) : undefined;
+    const base = flex !== undefined ? minWidth : clamp(fixed ?? DEFAULT_WIDTH);
 
     const { accessor } = def;
     const getValue: ResolvedColumn<TData, TContent>['getValue'] =
@@ -102,6 +107,7 @@ export function resolveColumns<TData, TContent>(
       hasAccessor: accessor !== undefined,
       width: base,
       flex,
+      auto,
       minWidth,
       maxWidth,
       pin,

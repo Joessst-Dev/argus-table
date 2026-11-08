@@ -22,7 +22,11 @@ export function startResizeDrag(
     if (pending !== undefined) onWidth(pending);
     pending = undefined;
   };
+  // A press and release without moving (or the clicks of a double-click) changes nothing.
+  let moved = false;
   const move = (event: PointerEvent) => {
+    moved ||= event.clientX !== startX;
+    if (!moved) return;
     pending = startWidth + (event.clientX - startX) * direction;
     frame ||= requestAnimationFrame(flush);
   };

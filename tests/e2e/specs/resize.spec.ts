@@ -42,6 +42,27 @@ test.describe('resizing', () => {
     expect(await width(page)).toBeCloseTo(before + 10, 0);
   });
 
+  test('a double-click on the handle fits the column to its content', async ({ page }) => {
+    await open(page, { rows: 200, cols: 8 });
+    await drag(page, -200);
+    const handle = header(page).locator('[part~="resize-handle"]');
+    await handle.dblclick();
+    await settle(page);
+    const fit = await page.evaluate(() => {
+      const root = document.querySelector('argus-table')?.shadowRoot;
+      const cells = [...(root?.querySelectorAll('[data-col="city"]') ?? [])];
+      const cut = cells.filter((cell) => {
+        const content = cell.querySelector('slot')?.assignedElements()[0];
+        return content && content.scrollWidth > content.clientWidth;
+      });
+      return { cells: cells.length, cut: cut.length };
+    });
+    expect(fit.cells).toBeGreaterThan(1);
+    expect(fit.cut).toBe(0);
+    // A double-click never sorts.
+    await expect(header(page)).not.toHaveAttribute('aria-sort');
+  });
+
   test('in RTL, dragging toward the inline end (left) widens the column', async ({ page }) => {
     await open(page, { rows: 200, cols: 8, dir: 'rtl' });
     const before = await width(page);

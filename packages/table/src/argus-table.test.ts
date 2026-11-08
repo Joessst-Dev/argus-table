@@ -820,6 +820,220 @@ describe('column resizing', () => {
   });
 });
 
+describe('auto width', () => {
+  const LONG = 'Bartholomew Featherstonehaugh-Wolfeschlegelstein';
+  const withLong = (count: number, at = 3) =>
+    people(count).map((p, i) => (i === at ? { ...p, name: LONG } : p));
+  const autoColumns: ColumnDef<Person>[] = [
+    { id: 'name', header: 'Name', accessor: 'name', width: 'auto' },
+    { id: 'age', header: 'Age', accessor: 'age', width: 80 },
+    { id: 'city', header: 'City', accessor: 'address.city', width: { flex: 1 } },
+  ];
+  /** Every rendered cell of a column, header included. */
+  const cellsOf = (el: HTMLElement, id: string) => [
+    ...shadow(el).querySelectorAll<HTMLElement>(`[data-col="${id}"]`),
+  ];
+  const widthOf = (el: HTMLElement, id: string) =>
+    Math.round(
+      shadow(el).querySelector(`[role="columnheader"][data-col="${id}"]`)?.getBoundingClientRect()
+        .width ?? 0,
+    );
+  /** Nothing in the column is cut off. */
+  const fits = (el: HTMLElement, id: string) =>
+    cellsOf(el, id).every((cell) => {
+      const content = slotted(cell) as HTMLElement | undefined;
+      return !content || content.scrollWidth <= content.clientWidth;
+    });
+  const resizes = (el: HTMLElement) => {
+    const seen: unknown[] = [];
+    el.addEventListener('argus-column-resize', (e) => seen.push(e.detail));
+    return seen;
+  };
+  const handleOf = (el: HTMLElement, id: string) => {
+    const h = shadow(el).querySelector<HTMLElement>(`[data-resize-col="${id}"]`);
+    if (!h) throw new Error(`no handle for ${id}`);
+    return h;
+  };
+  const dblclick = async (el: ArgusTable<Person>, id: string) => {
+    handleOf(el, id).dispatchEvent(new MouseEvent('dblclick', { bubbles: true, composed: true }));
+    await settle(el);
+  };
+
+  test('fits the longest rendered value, without truncation and without an event', async () => {
+    const el = document.createElement('argus-table') as unknown as ArgusTable<Person>;
+    const seen = resizes(el);
+    Object.assign(el, { columns: autoColumns, data: withLong(50) });
+    el.style.cssText = 'inline-size: 900px; block-size: 400px';
+    document.body.append(el);
+    await settle(el);
+    expect(fits(el, 'name')).toBe(true);
+    const longCell = cellsOf(el, 'name').find((c) => slotted(c)?.textContent === LONG);
+    const content = longCell && (slotted(longCell) as HTMLElement);
+    // Tight: the content plus the padding on both sides (12 px at comfortable density).
+    expect(widthOf(el, 'name') - (content?.scrollWidth ?? 0) - 24).toBeLessThanOrEqual(1);
+    expect(widthOf(el, 'name')).toBeGreaterThan(150);
+    expect(seen).toEqual([]);
+    expect(el.columnSizing).toEqual({});
+    // The separator reports the measured width.
+    expect(handleOf(el, 'name').getAttribute('aria-valuenow')).toBe(String(widthOf(el, 'name')));
+  });
+
+  test('fits a header that is longer than every value', async () => {
+    const cols: ColumnDef<Person>[] = [
+      { id: 'age', header: 'Age of the person in years', accessor: 'age', width: 'auto' },
+    ];
+    const el = await fixture({ columns: cols, data: people(10) });
+    expect(fits(el, 'age')).toBe(true);
+    expect(widthOf(el, 'age')).toBeGreaterThan(150);
+  });
+
+  test('stays within minWidth and maxWidth', async () => {
+    const cols: ColumnDef<Person>[] = [
+      { id: 'name', header: 'Name', accessor: 'name', width: 'auto', maxWidth: 120 },
+      { id: 'age', header: 'A', accessor: 'age', width: 'auto', minWidth: 90 },
+    ];
+    const el = await fixture({ columns: cols, data: withLong(10) });
+    expect(widthOf(el, 'name')).toBe(120);
+    expect(widthOf(el, 'age')).toBe(90);
+  });
+
+  test('fits the header while empty, fits again when data arrives, then keeps its width', async () => {
+    const el = await fixture({ columns: autoColumns, data: [] });
+    const headerOnly = widthOf(el, 'name');
+    expect(headerOnly).toBeLessThan(100);
+
+    el.data = withLong(20);
+    await settle(el);
+    const fitted = widthOf(el, 'name');
+    expect(fitted).toBeGreaterThan(headerOnly);
+    expect(fits(el, 'name')).toBe(true);
+
+    // New data and a new columns array with the same ids don't measure again.
+    el.data = withLong(20).map((p, i) => (i === 0 ? { ...p, name: `${LONG} ${LONG}` } : p));
+    el.columns = autoColumns.map((c) => ({ ...c }));
+    await settle(el);
+    expect(widthOf(el, 'name')).toBe(fitted);
+  });
+
+  test('counts pinned rows and cell templates', async () => {
+    const cols: ColumnDef<Person>[] = [
+      {
+        id: 'name',
+        header: 'Name',
+        accessor: 'name',
+        width: 'auto',
+        cell: (row) => html`<button type="button">Edit ${row.name}</button>`,
+      },
+    ];
+    const pinnedRows = { bottom: [{ ...people(1)[0], name: LONG } as Person] };
+    const el = await fixture({ columns: cols, data: people(10), pinnedRows });
+    expect(fits(el, 'name')).toBe(true);
+    const pinnedCell = shadow(el).querySelector('[part~="row-pinned"] [data-col="name"]');
+    const button = pinnedCell && slotted(pinnedCell)?.querySelector('button');
+    expect(widthOf(el, 'name')).toBeGreaterThanOrEqual(
+      Math.ceil(button?.getBoundingClientRect().width ?? 0) + 24,
+    );
+  });
+
+  test('a pinned auto column moves the next pinned column', async () => {
+    const cols: ColumnDef<Person>[] = [
+      { id: 'name', header: 'Name', accessor: 'name', width: 'auto', pin: 'start' },
+      { id: 'age', header: 'Age', accessor: 'age', width: 80, pin: 'start' },
+    ];
+    const el = await fixture({ columns: cols, data: withLong(10) });
+    const age = shadow(el).querySelector<HTMLElement>('[role="columnheader"][data-col="age"]');
+    expect(age?.style.getPropertyValue('--_pin-offset')).toBe(`${String(widthOf(el, 'name'))}px`);
+  });
+
+  test('a data source keeps the default width until its first rows arrive', async () => {
+    let answer: (() => void) | undefined;
+    const all = withLong(40);
+    const dataSource: DataSource<Person> = {
+      pageSize: 40,
+      getRows: ({ start, end }) =>
+        new Promise((resolve) => {
+          answer = () => {
+            resolve({ rows: all.slice(start, end), total: all.length });
+          };
+        }),
+    };
+    const el = await fixture({ columns: autoColumns, dataSource });
+    // Skeleton rows don't count.
+    expect(widthOf(el, 'name')).toBe(150);
+    await new Promise((resolve) => setTimeout(resolve, LOAD_DEBOUNCE_MS + 20));
+    answer?.();
+    await settle(el);
+    await settle(el);
+    expect(widthOf(el, 'name')).toBeGreaterThan(150);
+    expect(fits(el, 'name')).toBe(true);
+  });
+
+  test('a double-click on the handle fits the column and fires one resize', async () => {
+    const el = await fixture({ columns: autoColumns, data: withLong(20) });
+    const seen = resizes(el);
+    const pointer = { bubbles: true, composed: true, pointerId: 1, button: 0, clientX: 10 };
+    // A double-click is two presses without moving, then dblclick.
+    for (let i = 0; i < 2; i++) {
+      handleOf(el, 'city').dispatchEvent(new PointerEvent('pointerdown', pointer));
+      handleOf(el, 'city').dispatchEvent(new PointerEvent('pointerup', pointer));
+    }
+    await settle(el);
+    expect(seen).toEqual([]);
+    await dblclick(el, 'city');
+    const fitted = widthOf(el, 'city');
+    expect(fitted).toBeLessThan(150);
+    expect(fits(el, 'city')).toBe(true);
+    expect(seen).toEqual([{ columnId: 'city', width: fitted, sizing: { city: fitted } }]);
+    expect(el.columnSizing).toEqual({ city: fitted });
+  });
+
+  test('controlled: a double-click only proposes the fitted width', async () => {
+    const el = await fixture({ columns: autoColumns, data: withLong(20), columnSizing: {} });
+    const seen = resizes(el);
+    const before = widthOf(el, 'age');
+    await dblclick(el, 'age');
+    expect(seen).toHaveLength(1);
+    expect(widthOf(el, 'age')).toBe(before);
+    expect(el.columnSizing).toEqual({});
+  });
+
+  test('autosizeColumns() fits the resizable columns, or the given ones', async () => {
+    const cols: ColumnDef<Person>[] = [
+      { id: 'name', header: 'Name', accessor: 'name', width: 60 },
+      { id: 'age', header: 'Age', accessor: 'age', width: 300 },
+      { id: 'city', header: 'City', accessor: 'address.city', width: 40, resizable: false },
+    ];
+    const el = await fixture({ columns: cols, data: withLong(20) });
+    const seen = resizes(el);
+    await el.autosizeColumns(['age']);
+    expect(Object.keys(el.columnSizing)).toEqual(['age']);
+    expect(widthOf(el, 'age')).toBeLessThan(300);
+    expect(widthOf(el, 'name')).toBe(60);
+
+    await el.autosizeColumns();
+    expect(fits(el, 'name')).toBe(true);
+    // Not resizable: it keeps its width (and stays cut off).
+    expect(widthOf(el, 'city')).toBe(40);
+    expect(seen.map((d) => (d as { columnId: string }).columnId)).toEqual(['age', 'name']);
+    // Every event carries the whole new sizing.
+    expect((seen.at(-1) as { sizing: object }).sizing).toEqual(el.columnSizing);
+  });
+
+  test('controlled: autosizeColumns() proposes every change in one sizing', async () => {
+    const cols: ColumnDef<Person>[] = [
+      { id: 'name', header: 'Name', accessor: 'name', width: 60 },
+      { id: 'age', header: 'Age', accessor: 'age', width: 300 },
+    ];
+    const el = await fixture({ columns: cols, data: withLong(20), columnSizing: { age: 300 } });
+    const seen = resizes(el) as { columnId: string; sizing: Record<string, number> }[];
+    await el.autosizeColumns();
+    expect(seen.map((d) => d.columnId)).toEqual(['name', 'age']);
+    expect(Object.keys(seen[0]?.sizing ?? {}).sort()).toEqual(['age', 'name']);
+    expect(el.columnSizing).toEqual({ age: 300 });
+    expect(widthOf(el, 'name')).toBe(60);
+  });
+});
+
 describe('keyboard and focus', () => {
   const columns: ColumnDef<Person>[] = [
     { id: 'name', header: 'Name', accessor: 'name', sortable: true },

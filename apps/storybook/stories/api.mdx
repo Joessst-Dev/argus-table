@@ -11,14 +11,14 @@ Generated from the element's JSDoc through the Custom Elements Manifest, so it m
 
 ## Events
 
-| Event                 | Constant        | `detail`                            | Fires                                                                         |
-| --------------------- | --------------- | ----------------------------------- | ----------------------------------------------------------------------------- |
-| `argus-range-change`  | `RANGE_CHANGE`  | `{ start, end }`                    | After an update that changed the visible rows                                 |
-| `argus-sort-change`   | `SORT_CHANGE`   | `{ sorting }`                       | After the sort changed (uncontrolled), or with the proposed sort (controlled) |
-| `argus-column-resize` | `COLUMN_RESIZE` | `{ columnId, width, sizing }`       | After a resize (uncontrolled), or with the proposed widths (controlled)       |
-| `argus-cell-click`    | `CELL_CLICK`    | `{ row, columnId, value, pinned? }` | On a click in a body or pinned-row cell; `pinned` is set for a pinned row     |
-| `argus-row-click`     | `ROW_CLICK`     | `{ row, rowId, index, pinned? }`    | On a click in a body or pinned row, after `argus-cell-click`                  |
-| `argus-load-error`    | `LOAD_ERROR`    | `{ error, start, end }`             | After a `dataSource` page failed to load (`end` exclusive)                    |
+| Event                 | Constant        | `detail`                            | Fires                                                                                                                                                            |
+| --------------------- | --------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `argus-range-change`  | `RANGE_CHANGE`  | `{ start, end }`                    | After an update that changed the visible rows                                                                                                                    |
+| `argus-sort-change`   | `SORT_CHANGE`   | `{ sorting }`                       | After the sort changed (uncontrolled), or with the proposed sort (controlled)                                                                                    |
+| `argus-column-resize` | `COLUMN_RESIZE` | `{ columnId, width, sizing }`       | After a resize (uncontrolled), or with the proposed widths (controlled). A drag, Alt+Arrow, a double-click on the handle or `autosizeColumns()` (one per column) |
+| `argus-cell-click`    | `CELL_CLICK`    | `{ row, columnId, value, pinned? }` | On a click in a body or pinned-row cell; `pinned` is set for a pinned row                                                                                        |
+| `argus-row-click`     | `ROW_CLICK`     | `{ row, rowId, index, pinned? }`    | On a click in a body or pinned row, after `argus-cell-click`                                                                                                     |
+| `argus-load-error`    | `LOAD_ERROR`    | `{ error, start, end }`             | After a `dataSource` page failed to load (`end` exclusive)                                                                                                       |
 
 ## Controlled and uncontrolled state
 

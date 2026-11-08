@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`<argus-table>`: a framework-agnostic, virtualized data table web component built with Lit 3, TanStack Table v9 (`@tanstack/table-core`) and TanStack Virtual. pnpm + Nx monorepo, Node ≥ 22.12 (`.nvmrc`), pnpm via Corepack. Currently v0.1 (virtualized rows, pinned columns, sorting, resizing, keyboard nav, default theme) plus, for v0.2, `dataSource` infinite loading and pinned rows; auto widths, column reordering and framework wrappers are still to come in v0.2.
+`<argus-table>`: a framework-agnostic, virtualized data table web component built with Lit 3, TanStack Table v9 (`@tanstack/table-core`) and TanStack Virtual. pnpm + Nx monorepo, Node ≥ 22.12 (`.nvmrc`), pnpm via Corepack. Currently v0.1 (virtualized rows, pinned columns, sorting, resizing, keyboard nav, default theme) plus, for v0.2, `dataSource` infinite loading, pinned rows and auto column widths; column reordering and framework wrappers are still to come in v0.2.
 
 `docs/plan/` is the design plan (public API draft, roadmap, architecture diagrams). It describes intended features too, so check the source before assuming something exists (for example `<argus-column>` is planned but not implemented). `docs/adr/0001-shadow-vs-light-dom.md` explains the rendering model below.
 
@@ -61,6 +61,8 @@ BROWSERS=chromium pnpm --filter @argus-table/e2e exec playwright test specs/sort
 **Infinite loading** (`dataSource`): `DataController` owns a core `PageCache` (pages loaded / in flight / failed, row count, eviction) and passes it to the model as `remote`; `rowAt()` is then `undefined` for unloaded rows, which render as skeletons. Requests are debounced (50 ms) and aborted when they scroll away; a new source, sort order or `refresh()` starts a fresh cache. Sorting happens on the server in this mode.
 
 **Pinned rows** (`pinnedRows`): separate objects, not data rows; the core model reads them (`pinnedRowAt`, `pinnedCellContext`) outside TanStack's row models. `render/pinned-rows.ts` puts them in two sticky row groups, not pooled. Row positions go through core's `RowLayout` (header, top, body, bottom), so `aria-rowindex` is no longer "row index + 2": use the layout, not arithmetic. The active cell carries its `section`.
+
+**Auto widths** (`width: 'auto'`, `controllers/auto-width.ts`): `measureColumns()` sets a private `data-measure` attribute (`inline-size: max-content`) on the rendered cells of a column, reads their widths and removes it again in one synchronous step in `updated()`. An auto column measures once its first loaded rows render, and the widths go to the core model as `autoWidths`, separate from `columnSizing`. A double-click on a handle and `autosizeColumns()` are resizes: they go through `columnSizing`.
 
 **Controlled/uncontrolled state.** `sorting` and `columnSizing` use `controllable()` (`core/src/state/controllable.ts`): uncontrolled until the host sets them; once set, user actions only fire the event with the _proposed_ value; setting `undefined` hands ownership back. Follow this pattern for new user-changeable state. When the table applies a change itself, the event fires after the update completes (`#appliedSort`, `#appliedResize`).
 

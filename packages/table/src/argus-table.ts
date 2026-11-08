@@ -16,6 +16,7 @@ import {
   type GridRow,
   type TableModel,
 } from '@argus-table/core';
+import { AutoWidths, measureColumns } from './controllers/auto-width.js';
 import { DataController } from './controllers/data-controller.js';
 import { PinScrollController } from './controllers/pin-scroll-controller.js';
 import { startResizeDrag } from './controllers/resize-drag.js';
@@ -139,7 +140,7 @@ function track<T>(column: ColumnView<T, CellContent>): string {
  * @summary Data table with pinned rows and columns and infinite loading.
  *
  * @fires argus-sort-change - A sortable header was clicked, or activated with Enter or Space. `detail: { sorting }`: the new order, or the proposed one when `sorting` is controlled.
- * @fires argus-column-resize - A column was resized by dragging its handle or with Alt+Arrow on its header. `detail: { columnId, width, sizing }`: the new widths, or the proposed ones when `columnSizing` is controlled. Fires on every frame of a drag.
+ * @fires argus-column-resize - A column was resized: by dragging its handle, with Alt+Arrow on its header, by a double-click on its handle (fit to content) or by `autosizeColumns()`. `detail: { columnId, width, sizing }`: the new widths, or the proposed ones when `columnSizing` is controlled. Fires on every frame of a drag, and once per column that `autosizeColumns()` changes.
  * @fires argus-cell-click - A body or pinned-row cell was clicked, or Enter was pressed on it. `detail: { row, columnId, value, pinned? }`; `pinned` is `'top'` or `'bottom'` for a pinned row. Fires before `argus-row-click`.
  * @fires argus-row-click - A body or pinned row was clicked, or Enter was pressed on one of its cells. `detail: { row, rowId, index, pinned? }`; for a pinned row, `index` is its index in its list.
  * @fires argus-range-change - The visible rows changed. `detail: { start, end }` (row indices, inclusive).
@@ -152,7 +153,7 @@ function track<T>(column: ColumnView<T, CellContent>): string {
  * @csspart header-row - The header row.
  * @csspart header-cell - Every header cell.
  * @csspart header-cell-sorted - The header of the sorted column. The direction is in `aria-sort`.
- * @csspart resize-handle - The drag handle on the inline-end edge of a resizable column's header.
+ * @csspart resize-handle - The drag handle on the inline-end edge of a resizable column's header. A double-click fits the column to its content.
  * @csspart body - The row group holding the rendered body rows.
  * @csspart row - Every body row.
  * @csspart row-even - Body rows with an even index (0-based).
@@ -268,8 +269,15 @@ export class ArgusTable<T = unknown> extends LitElement {
 
   readonly #sorting = controllable<SortState>([]);
   readonly #sizing = controllable<ColumnSizingState>({});
-  /** A resize the table applied itself; its event fires once the update is done. */
-  #appliedResize: ColumnResizeDetail | undefined;
+  /** Resizes the table applied itself, by column; their events fire once the update is done. */
+  readonly #appliedResizes = new Map<string, ColumnResizeDetail>();
+  /** Measured widths of `width: 'auto'` columns. */
+  readonly #autoWidths = new AutoWidths(() => {
+    this.requestUpdate();
+  });
+  /** The auto widths last passed to the model; a change re-measures the pinned columns' offsets. */
+  #pushedAutoWidths: ColumnSizingState | undefined;
+  #autoWidthsChanged = false;
   /** A sort the table applied itself; its event fires once the update is done. */
   #appliedSort: SortState | undefined;
   readonly #internals = attachGridInternals(this);
@@ -315,6 +323,23 @@ export class ArgusTable<T = unknown> extends LitElement {
     await this.updateComplete;
   }
 
+  /**
+   * Fits columns to their content: the header, the pinned rows and the body rows
+   * rendered now (rows out of view aren't measured). It resizes them like a drag
+   * would, so `argus-column-resize` fires for each column that changes, and with a
+   * controlled `columnSizing` nothing changes until you set it. Without `ids`, fits
+   * every resizable column; columns with `resizable: false` keep their width.
+   * Resolves once the table has re-rendered.
+   */
+  async autosizeColumns(ids?: readonly string[]): Promise<void> {
+    await this.updateComplete;
+    const targets = this.#table.model.columns
+      .filter((c) => c.resizable && (ids === undefined || ids.includes(c.id)))
+      .map((c) => c.id);
+    this.#requestResizes(measureColumns(this.renderRoot, targets));
+    await this.updateComplete;
+  }
+
   /** Scrolls so that the row at `index` (in the current row order) is at the top. */
   async scrollToRow(index: number): Promise<void> {
     await this.updateComplete;
@@ -342,6 +367,9 @@ export class ArgusTable<T = unknown> extends LitElement {
       changed.has('columnSizing') ||
       changed.has('pinnedRows')
     ) {
+      if (changed.has('columns')) {
+        this.#autoWidths.sync(this.columns.filter((c) => c.width === 'auto').map((c) => c.id));
+      }
       this.#table.update({
         columns: this.columns,
         data: this.data,
@@ -351,8 +379,11 @@ export class ArgusTable<T = unknown> extends LitElement {
         pinnedRows: this.pinnedRows,
       });
     }
-    // A new page cache (new source, sort order or refresh) or none.
-    this.#table.update({ remote: this.#data.rows });
+    // A new page cache (new source, sort order or refresh) or none, and new measured widths.
+    const autoWidths = this.#autoWidths.widths;
+    this.#autoWidthsChanged = autoWidths !== this.#pushedAutoWidths;
+    this.#pushedAutoWidths = autoWidths;
+    this.#table.update({ remote: this.#data.rows, autoWidths });
     const model = this.#table.model;
     this.#reconcileActive(model);
     const active = this.#active;
@@ -431,22 +462,26 @@ export class ArgusTable<T = unknown> extends LitElement {
   }
 
   protected override updated(changed: PropertyValues<this>): void {
-    renderLightDom(this, this.#table.model, this.#window.rows);
+    const model = this.#table.model;
+    renderLightDom(this, model, this.#window.rows);
+    this.#measureAutoWidths(model);
     if (this.#scrollToTop) {
       this.#scrollToTop = false;
       const scroller = this.renderRoot.querySelector<HTMLElement>('[part~="table"]');
       if (scroller) scroller.scrollTop = 0;
     }
-    if (changed.has('columns') || changed.has('columnSizing')) this.#pinScroll.measure();
+    if (changed.has('columns') || changed.has('columnSizing') || this.#autoWidthsChanged) {
+      this.#pinScroll.measure();
+    }
     if (this.#focusPending) {
       this.#focusPending = false;
       this.#focusActive();
     }
     if (changed.has('density') || changed.has('rowHeight')) this.#measureRowHeight();
-    if (this.#appliedResize) {
-      const detail = this.#appliedResize;
-      this.#appliedResize = undefined;
-      fire(this, COLUMN_RESIZE, detail);
+    if (this.#appliedResizes.size > 0) {
+      const details = [...this.#appliedResizes.values()];
+      this.#appliedResizes.clear();
+      for (const detail of details) fire(this, COLUMN_RESIZE, detail);
     }
     if (this.#appliedSort) {
       const sorting = this.#appliedSort;
@@ -465,6 +500,18 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.#data.request(Math.max(0, range.start - over), range.end + 1 + over);
     }
     for (const detail of this.#data.takeErrors()) fire(this, LOAD_ERROR, detail);
+  }
+
+  /**
+   * Measures the `width: 'auto'` columns once loaded body rows render, or right
+   * away when there are no rows (the header and pinned rows only). While a data
+   * source's first rows load, they keep the default width. A changed width
+   * renders once more.
+   */
+  #measureAutoWidths(model: TableModel<T, CellContent>): void {
+    const loaded = this.#window.rows.some((r) => model.rowAt(r.index) !== undefined);
+    if (!loaded && model.rowCount > 0) return;
+    if (this.#autoWidths.measure(this.renderRoot, model.columns, loaded)) this.requestUpdate();
   }
 
   /**
@@ -531,6 +578,13 @@ export class ArgusTable<T = unknown> extends LitElement {
       startResizeDrag(handle, event, cell.getBoundingClientRect().width, this.#direction(), (w) => {
         this.#requestResize(id, w);
       });
+    },
+    /** A double-click on a resize handle fits the column to its rendered content. */
+    dblclick: (event: MouseEvent) => {
+      const handle = event.composedPath()[0];
+      const id = handle instanceof HTMLElement ? handle.dataset.resizeCol : undefined;
+      if (id === undefined) return;
+      this.#requestResizes(measureColumns(this.renderRoot, [id]));
     },
   };
 
@@ -853,17 +907,32 @@ export class ArgusTable<T = unknown> extends LitElement {
 
   /** Sets one column's width (clamped by core), through the controlled/uncontrolled rules. */
   #requestResize(columnId: string, width: number): void {
-    const next = this.#table.model.nextSizing(columnId, width);
-    const target = next?.[columnId];
-    if (!next || target === undefined || target === this.#sizing.value[columnId]) return;
+    this.#requestResizes(new Map([[columnId, width]]));
+  }
+
+  /**
+   * Sets column widths (clamped by core) in one change, through the
+   * controlled/uncontrolled rules. One `argus-column-resize` per column that
+   * changes, each with the whole new sizing.
+   */
+  #requestResizes(widths: ReadonlyMap<string, number>): void {
+    const model = this.#table.model;
     const old = this.#sizing.value;
-    const { value, applied } = this.#sizing.request(next);
-    const detail = { columnId, width: target, sizing: value };
+    const targets: [string, number][] = [];
+    for (const [columnId, width] of widths) {
+      const target = model.nextSizing(columnId, width)?.[columnId];
+      if (target !== undefined && target !== old[columnId]) targets.push([columnId, target]);
+    }
+    if (targets.length === 0) return;
+    const { value, applied } = this.#sizing.request({ ...old, ...Object.fromEntries(targets) });
+    const details = targets.map(([columnId, width]) => ({ columnId, width, sizing: value }));
     if (applied) {
-      this.#appliedResize = detail;
+      // Only the latest width per column fires, all with the latest sizing.
+      for (const detail of this.#appliedResizes.values()) detail.sizing = value;
+      for (const detail of details) this.#appliedResizes.set(detail.columnId, detail);
       this.requestUpdate('columnSizing', old);
     } else {
-      fire(this, COLUMN_RESIZE, detail);
+      for (const detail of details) fire(this, COLUMN_RESIZE, detail);
     }
   }
 
