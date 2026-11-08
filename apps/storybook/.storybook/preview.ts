@@ -4,15 +4,19 @@ import { html, nothing } from 'lit';
 import { ref } from 'lit/directives/ref.js';
 import type { Density } from 'argus-table';
 import manifest from 'argus-table/custom-elements.json';
-// As a string, so the toolbar can switch the theme on and off.
+// As strings, so the toolbar can switch the theme on and off.
 import defaultTheme from '@argus-table/themes/default.css?inline';
+import materialTheme from '@argus-table/themes/material.css?inline';
+// The Material-inspired theme uses Roboto but loads no fonts itself.
+import '@fontsource/roboto/400.css';
+import '@fontsource/roboto/500.css';
 
 // Controls and API tables come from the manifest that `argus-table:build`
 // writes, so the docs always match the element's JSDoc.
 setCustomElementsManifest(manifest);
 
 interface Globals {
-  theme?: 'none' | 'default';
+  theme?: 'none' | 'default' | 'material';
   scheme?: 'auto' | 'light' | 'dark';
   density?: 'story' | Density;
   dir?: 'ltr' | 'rtl';
@@ -31,10 +35,11 @@ const withToolbar: Decorator = (story, { globals }) => {
       for (const table of el.querySelectorAll('argus-table')) table.density = density;
     });
   };
+  const themeCss = { none: undefined, default: defaultTheme, material: materialTheme }[theme];
   return html`${
-      theme === 'default'
+      themeCss
         ? html`<style>
-            ${defaultTheme}
+            ${themeCss}
           </style>`
         : nothing
     }
@@ -63,6 +68,7 @@ const preview: Preview = {
         items: [
           { value: 'none', title: 'No theme (base styles)' },
           { value: 'default', title: 'Default' },
+          { value: 'material', title: 'Material-inspired' },
         ],
         dynamicTitle: true,
       },

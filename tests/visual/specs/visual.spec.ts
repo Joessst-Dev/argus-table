@@ -17,12 +17,14 @@ async function open(page: Page, query: Record<string, string>): Promise<void> {
   });
 }
 
-for (const density of ['compact', 'comfortable', 'spacious']) {
-  for (const scheme of ['light', 'dark']) {
-    test(`default theme, ${density}, ${scheme}`, async ({ page }) => {
-      await open(page, { theme: 'default', density, scheme });
-      await expect(page).toHaveScreenshot(`default-${density}-${scheme}.png`);
-    });
+for (const theme of ['default', 'material']) {
+  for (const density of ['compact', 'comfortable', 'spacious']) {
+    for (const scheme of ['light', 'dark']) {
+      test(`${theme} theme, ${density}, ${scheme}`, async ({ page }) => {
+        await open(page, { theme, density, scheme });
+        await expect(page).toHaveScreenshot(`${theme}-${density}-${scheme}.png`);
+      });
+    }
   }
 }
 
@@ -43,17 +45,19 @@ for (const colorScheme of ['light', 'dark'] as const) {
   });
 }
 
-test('default theme, RTL, pinned and scrolled sideways', async ({ page }) => {
-  await open(page, { theme: 'default', scheme: 'light', dir: 'rtl', cols: '14' });
-  await page.evaluate(async () => {
-    const table = document.querySelector('argus-table');
-    const scroller = table?.shadowRoot?.querySelector<HTMLElement>('[part~="table"]');
-    if (scroller) scroller.scrollLeft = -400;
-    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    await table?.updateComplete;
+for (const theme of ['default', 'material']) {
+  test(`${theme} theme, RTL, pinned and scrolled sideways`, async ({ page }) => {
+    await open(page, { theme, scheme: 'light', dir: 'rtl', cols: '14' });
+    await page.evaluate(async () => {
+      const table = document.querySelector('argus-table');
+      const scroller = table?.shadowRoot?.querySelector<HTMLElement>('[part~="table"]');
+      if (scroller) scroller.scrollLeft = -400;
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      await table?.updateComplete;
+    });
+    await expect(page).toHaveScreenshot(`${theme}-rtl-pinned.png`);
   });
-  await expect(page).toHaveScreenshot('default-rtl-pinned.png');
-});
+}
 
 test('no theme (base styles), light', async ({ page }) => {
   await open(page, { scheme: 'light' });

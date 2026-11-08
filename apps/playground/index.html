@@ -19,6 +19,14 @@
       argus-table {
         block-size: 100vh;
       }
+      /* With the Material-inspired theme, the rounded table sits on the page. */
+      [data-page='inset'] body {
+        box-sizing: border-box;
+        padding: 16px;
+      }
+      [data-page='inset'] argus-table {
+        block-size: calc(100vh - 32px);
+      }
       .status {
         padding: 0.1em 0.5em;
         border-radius: 999px;

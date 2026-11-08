@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`<argus-table>`: a framework-agnostic, virtualized data table web component built with Lit 3, TanStack Table v9 (`@tanstack/table-core`) and TanStack Virtual. pnpm + Nx monorepo, Node ≥ 22.12 (`.nvmrc`), pnpm via Corepack. Currently v0.1 (virtualized rows, pinned columns, sorting, resizing, keyboard nav, default theme) plus, for v0.2, `dataSource` infinite loading, pinned rows, auto column widths, column reordering, `<argus-column>` children and the React, Vue and Angular wrappers; the Material-inspired theme, benchmarks and StackBlitz starters are still to come in v0.2.
+`<argus-table>`: a framework-agnostic, virtualized data table web component built with Lit 3, TanStack Table v9 (`@tanstack/table-core`) and TanStack Virtual. pnpm + Nx monorepo, Node ≥ 22.12 (`.nvmrc`), pnpm via Corepack. Currently v0.1 (virtualized rows, pinned columns, sorting, resizing, keyboard nav, default theme) plus, for v0.2, `dataSource` infinite loading, pinned rows, auto column widths, column reordering, `<argus-column>` children, the React, Vue and Angular wrappers and the Material-inspired theme; benchmarks and StackBlitz starters are still to come in v0.2.
 
 `docs/plan/` is the design plan (public API draft, roadmap, architecture diagrams). It describes intended features too, so check the source before assuming something exists (for example `rowHeight: 'auto'` is planned but not implemented). `docs/adr/0001-shadow-vs-light-dom.md` explains the rendering model below.
 

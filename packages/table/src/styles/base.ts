@@ -17,6 +17,9 @@ export const baseStyles = css`
       color: var(--argus-fg, CanvasText);
       background: var(--argus-bg, Canvas);
       font: var(--argus-font, inherit);
+      /* contain: content clips the header, rows and pinned shadows to the rounded corners. */
+      border: var(--argus-outline, none);
+      border-radius: var(--argus-radius, 0);
       --_row-height: var(--argus-row-height, 40px);
       --_pad: var(--argus-cell-padding-inline, 12px);
       --_border: var(--argus-border-width, 1px) solid

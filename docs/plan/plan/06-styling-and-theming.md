@@ -22,7 +22,7 @@ Styling works in three layers, from easiest to most powerful; a theme is just a 
 | Theme | Launch | Notes |
 | --- | --- | --- |
 | Default (neutral) | v0.1 | Minimal, inherits font and colours from the page |
-| Material-inspired | v0.2 | Material 3 tokens, elevation on pinned edges |
+| Material-inspired | v0.2 (shipped) | Material 3 baseline colours, Roboto (loaded by the page), 40 / 52 / 60 px rows, a rounded outlined surface (`--argus-radius`, `--argus-outline`), deeper shadows on pinned edges |
 | Fluent-inspired | v0.3 | Fluent 2 spacing and type ramp |
 | Bootstrap-inspired | v0.3 | Matches Bootstrap 5 table styles |
 | Minimal / social | v0.4 | Borderless, airy rows, timeline feel (instead of "Twitter style") |

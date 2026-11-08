@@ -278,6 +278,30 @@ describe('row height and density', () => {
   });
 });
 
+describe('outline and radius', () => {
+  test('has square corners and no border by default', async () => {
+    const el = await fixture({ columns, data: people(10) });
+    const style = getComputedStyle(el);
+    expect(style.borderTopLeftRadius).toBe('0px');
+    expect(style.borderTopStyle).toBe('none');
+  });
+
+  test('rounds the table and draws a border inside its size from the tokens', async () => {
+    const el = await fixture({ columns, data: people(10) });
+    el.style.setProperty('--argus-radius', '12px');
+    el.style.setProperty('--argus-outline', '2px solid rgb(1, 2, 3)');
+    await settle(el);
+    const style = getComputedStyle(el);
+    expect(style.borderBottomRightRadius).toBe('12px');
+    expect(style.borderTopWidth).toBe('2px');
+    expect(style.borderInlineStartColor).toBe('rgb(1, 2, 3)');
+    // The border stays inside the table's size; the scroller fills what's left.
+    expect(el.getBoundingClientRect().height).toBe(400);
+    const scroller = shadow(el).querySelector<HTMLElement>('[part~="table"]');
+    expect(scroller?.getBoundingClientRect().height).toBe(396);
+  });
+});
+
 describe('pinned columns', () => {
   // 2 start + 6 scrolling + 1 end = 120 + 80 + 6 * 150 + 60 = 1160px in an 800px table.
   const pinnedColumns: ColumnDef<Person>[] = [

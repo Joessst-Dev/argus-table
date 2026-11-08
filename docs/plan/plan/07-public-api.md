@@ -216,9 +216,10 @@ Each `argus-*` event drops its prefix and takes the framework's style:
 
 ## Tokens (first set)
 
-`--argus-bg`, `--argus-fg`, `--argus-header-bg`, `--argus-header-fg`, `--argus-border-color`, `--argus-border-width`, `--argus-row-hover-bg`, `--argus-row-stripe-bg`, `--argus-row-selected-bg`, `--argus-cell-padding-inline`, `--argus-row-height`, `--argus-font`, `--argus-pinned-shadow`, `--argus-resize-handle-color`, `--argus-focus-ring`, `--argus-skeleton-bg`, `--argus-pinned-row-bg`, `--argus-drop-indicator-color`.
+`--argus-bg`, `--argus-fg`, `--argus-header-bg`, `--argus-header-fg`, `--argus-border-color`, `--argus-border-width`, `--argus-row-hover-bg`, `--argus-row-stripe-bg`, `--argus-row-selected-bg`, `--argus-cell-padding-inline`, `--argus-row-height`, `--argus-font`, `--argus-pinned-shadow`, `--argus-resize-handle-color`, `--argus-focus-ring`, `--argus-skeleton-bg`, `--argus-pinned-row-bg`, `--argus-drop-indicator-color`, `--argus-outline`, `--argus-radius`.
 
 - `--argus-skeleton-bg` colours the skeleton bars of rows still loading. Default: the text colour at 12% opacity.
+- `--argus-outline` is a `border` shorthand drawn around the whole table, inside its size. `--argus-radius` rounds the table's corners; the element's paint containment clips the header, rows and pinned columns to them. Defaults: `none` and `0`. Added in v0.2 for the Material-inspired theme's outlined, rounded surface: a theme can't set `border` or `border-radius` on the host itself.
 - `--argus-pinned-row-bg` is the background of the rows from `pinnedRows`, pinned columns included (a background set through `::part(row-pinned)` wouldn't reach the cells in pinned columns, which paint their own). Default: `--argus-bg`.
 
 - `--argus-row-height` and `--argus-cell-padding-inline` each have a default per density: 32 / 40 / 52 px rows and 8 / 12 / 16 px padding for compact / comfortable / spacious; see [Styling and theming](06-styling-and-theming.md).
