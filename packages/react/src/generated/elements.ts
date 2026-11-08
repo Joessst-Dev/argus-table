@@ -12,6 +12,7 @@ import type {
   RowClickDetail,
   SortChangeDetail,
 } from 'argus-table';
+import { ownEvents } from '../own-events.js';
 
 /** The properties of `<argus-table>` that `<ArgusTable>` sets on the element. */
 export type ArgusTableElementProps<T = unknown> = Partial<
@@ -61,21 +62,33 @@ export type ArgusTableProps<T = unknown> = Omit<
   };
 
 /** `<argus-table>` as a React component. */
-export const ArgusTable = createComponent({
-  tagName: 'argus-table',
-  elementClass: ArgusTableElement,
-  react: React,
-  events: {
-    onSortChange: 'argus-sort-change',
-    onColumnResize: 'argus-column-resize',
-    onColumnReorder: 'argus-column-reorder',
-    onCellClick: 'argus-cell-click',
-    onRowClick: 'argus-row-click',
-    onRangeChange: 'argus-range-change',
-    onLoadError: 'argus-load-error',
-  },
-  displayName: 'ArgusTable',
-}) as unknown as <T = unknown>(props: ArgusTableProps<T>) => React.ReactElement | null;
+export const ArgusTable = ownEvents(
+  createComponent({
+    tagName: 'argus-table',
+    elementClass: ArgusTableElement,
+    react: React,
+    events: {
+      onSortChange: 'argus-sort-change',
+      onColumnResize: 'argus-column-resize',
+      onColumnReorder: 'argus-column-reorder',
+      onCellClick: 'argus-cell-click',
+      onRowClick: 'argus-row-click',
+      onRangeChange: 'argus-range-change',
+      onLoadError: 'argus-load-error',
+    },
+    displayName: 'ArgusTable',
+  }),
+  [
+    'onSortChange',
+    'onColumnResize',
+    'onColumnReorder',
+    'onCellClick',
+    'onRowClick',
+    'onRangeChange',
+    'onLoadError',
+  ],
+  'ArgusTable',
+) as unknown as <T = unknown>(props: ArgusTableProps<T>) => React.ReactElement | null;
 
 /** The properties of `<argus-column>` that `<ArgusColumn>` sets on the element. */
 export type ArgusColumnElementProps<T = unknown> = Partial<

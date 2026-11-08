@@ -79,6 +79,8 @@ export function defineWrapper(spec: WrapperSpec) {
       const listeners: Record<string, (event: Event) => void> = {};
       for (const e of spec.events) {
         listeners[listenerKey(e.name)] = (event) => {
+          // Events bubble: skip those of a table nested in a cell.
+          if (event.target !== event.currentTarget) return;
           emit(e.emit, event);
           if (e.model) {
             const detail = (event as CustomEvent<Record<string, unknown>>).detail;

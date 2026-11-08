@@ -4,6 +4,7 @@ import {
   ArgusTable,
   type ArgusTableElement,
   type ArgusTableExposed,
+  type ColumnDef,
   type SortState,
 } from './index.js';
 import { columns, orders, size, type Order } from './test/data.js';
@@ -116,6 +117,27 @@ describe('<ArgusTable>', () => {
     expect(onSortChange.mock.calls[0]?.[0]).toMatchObject({
       detail: { sorting: [{ id: 'total', desc: false }] },
     });
+  });
+
+  test('ignores the events of a table nested in a cell', async () => {
+    const nested = document.createElement('argus-table');
+    nested.columns = [{ id: 'x', header: 'X', accessor: () => 'inner' }];
+    nested.data = [{}];
+    nested.style.cssText = 'inline-size: 200px; block-size: 100px';
+    const outer: ColumnDef<Order>[] = [
+      { id: 'inner', header: 'Inner', cell: () => nested, width: 220 },
+    ];
+    const onRowClick = vi.fn();
+    const { el } = await mount(() =>
+      h(ArgusTable<Order>, { style: size, columns: outer, data: orders.slice(0, 1), onRowClick }),
+    );
+    await settle(nested);
+    expect(el.contains(nested)).toBe(true);
+
+    firstCell(nested).click();
+    // The click reaches the outer table, which fires its own row click once.
+    expect(onRowClick).toHaveBeenCalledOnce();
+    expect((onRowClick.mock.calls[0]?.[0] as Event).target).toBe(el);
   });
 
   test('leaves sorting uncontrolled when it is not bound, and still emits update:sorting', async () => {
