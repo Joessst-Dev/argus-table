@@ -179,11 +179,15 @@ describe('emitReact', () => {
     );
     expect(source).toContain('onRowClick?: (event: CustomEvent<RowClickDetail<T>>) => void;');
     expect(source).toContain("onSortChange: 'argus-sort-change',");
+    // Elements with events only pass their own events on (a nested table's bubble too).
+    expect(source).toContain("import { ownEvents } from '../own-events.js';");
+    expect(source).toContain('export const ArgusTable = ownEvents(createComponent({');
     expect(source).toContain(
-      '}) as unknown as <T = unknown>(props: ArgusTableProps<T>) => React.ReactElement | null;',
+      "}), ['onSortChange', 'onColumnResize', 'onColumnReorder', 'onRowClick'], 'ArgusTable') as unknown as <T = unknown>(props: ArgusTableProps<T>) => React.ReactElement | null;",
     );
     // No events: no event props interface, and no type parameter when nothing uses T.
     expect(source).not.toContain('ArgusColumnEventProps');
+    expect(source).toContain('export const ArgusColumn = createComponent({');
     expect(source).toContain(
       '}) as unknown as (props: ArgusColumnProps) => React.ReactElement | null;',
     );

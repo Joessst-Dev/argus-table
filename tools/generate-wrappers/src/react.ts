@@ -18,6 +18,20 @@ function component(el: ElementInfo): string {
   const eventMap = el.events.map((e) => `    ${e.react}: '${e.name}',`).join('\n');
 
   const hasEvents = el.events.length > 0;
+  const created = `createComponent({
+  tagName: '${el.tagName}',
+  elementClass: ${element},
+  react: React,
+  events: {
+${eventMap}
+  },
+  displayName: '${name}',
+})`;
+  // Events bubble, so a table nested in a cell would reach the outer table's
+  // handlers: ownEvents() only passes the element's own events on.
+  const base = hasEvents
+    ? `ownEvents(${created}, [${el.events.map((e) => `'${e.react}'`).join(', ')}], '${name}')`
+    : created;
   const eventProps = hasEvents
     ? `
 /** The event props of \`<${name}>\`: each gets the element's \`CustomEvent\`. */
@@ -45,15 +59,7 @@ export type ${name}Props${tp} = Omit<React.HTMLAttributes<${element}${ta}>, ${ow
   };
 
 /** \`<${el.tagName}>\` as a React component. */
-export const ${name} = createComponent({
-  tagName: '${el.tagName}',
-  elementClass: ${element},
-  react: React,
-  events: {
-${eventMap}
-  },
-  displayName: '${name}',
-}) as unknown as ${el.generic ? '<T = unknown>' : ''}(props: ${name}Props${ta}) => React.ReactElement | null;
+export const ${name} = ${base} as unknown as ${el.generic ? '<T = unknown>' : ''}(props: ${name}Props${ta}) => React.ReactElement | null;
 `;
 }
 
@@ -69,6 +75,6 @@ export function emitReact(elements: readonly ElementInfo[]): string {
 import * as React from 'react';
 import { createComponent } from '@lit/react';
 import { ${classes} } from 'argus-table';
-${typeImport}
+${typeImport}${elements.some((el) => el.events.length > 0) ? "import { ownEvents } from '../own-events.js';\n" : ''}
 ${elements.map(component).join('')}`;
 }
