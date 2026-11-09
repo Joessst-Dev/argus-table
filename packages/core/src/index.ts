@@ -9,6 +9,8 @@ export {
 export { moveColumn, normalizeOrder, type OrderableColumn } from './columns/column-order.js';
 export {
   createTableModel,
+  SELECTION_COLUMN_ID,
+  SELECTION_COLUMN_WIDTH,
   type ColumnView,
   type RemoteRows,
   type RowView,
@@ -21,6 +23,7 @@ export { controllable, type Controllable } from './state/controllable.js';
 export {
   clickSelection,
   sameSelection,
+  selectAll,
   selectRange,
   toggleRow,
   type SelectionModifiers,

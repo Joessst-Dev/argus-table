@@ -147,6 +147,16 @@ export const baseStyles = css`
       white-space: nowrap;
       border-block-end: var(--_border);
     }
+    /* The checkbox column: the checkbox centred, no padding to squeeze it. */
+    [part~='cell-selection'],
+    [part~='header-cell-selection'] {
+      justify-content: center;
+      padding-inline: 0;
+    }
+    [part~='selection-checkbox'] {
+      margin: 0;
+      cursor: pointer;
+    }
     [part~='header-cell'] {
       background: var(--argus-header-bg, light-dark(#f9fafb, #111827));
       color: var(--argus-header-fg, inherit);

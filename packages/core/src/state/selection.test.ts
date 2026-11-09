@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clickSelection, sameSelection, selectRange, toggleRow } from './selection.js';
+import { clickSelection, sameSelection, selectAll, selectRange, toggleRow } from './selection.js';
 
 /** Rows `r0`… by index; `missing` indices aren't loaded. */
 const idAt =
@@ -49,6 +49,12 @@ describe('selectRange', () => {
 
   it('leaves out rows that are not loaded', () => {
     expect(selectRange([], 0, 3, idAt([1, 2]), false)).toEqual(['r0', 'r3']);
+  });
+});
+
+describe('selectAll', () => {
+  it('adds every id, keeping the ones already selected', () => {
+    expect(selectAll(['x', 'r1'], ['r0', 'r1', 'r2'])).toEqual(['x', 'r1', 'r0', 'r2']);
   });
 });
 

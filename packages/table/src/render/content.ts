@@ -34,13 +34,24 @@ interface Pinnable {
  * can't take attribute selectors).
  */
 export function cellParts(
-  column: Pinnable & { sorted: 'asc' | 'desc' | false },
+  column: Pinnable & { sorted: 'asc' | 'desc' | false; kind: 'data' | 'selection' },
   pinnedRow = false,
 ): string {
   let parts = pinnedRow ? 'cell cell-pinned-row' : 'cell';
+  if (column.kind === 'selection') parts += ' cell-selection';
   if (column.pin) parts += column.pinEdge ? ' cell-pinned cell-pinned-edge' : ' cell-pinned';
   if (column.sorted) parts += ' cell-sorted';
   return parts;
+}
+
+/** Handlers of the selection checkboxes (`selectionCheckboxes`). */
+export interface CheckboxHandlers {
+  /** A row's checkbox; it carries the row index in `data-row`. */
+  row: (event: MouseEvent) => void;
+  /** The header's select-all checkbox. */
+  all: (event: MouseEvent) => void;
+  /** A press on any of them: keeps focus on its cell, not the checkbox. */
+  press: (event: MouseEvent) => void;
 }
 
 /** `aria-sort` for a header: only the sorted column carries it (WAI-ARIA APG). */

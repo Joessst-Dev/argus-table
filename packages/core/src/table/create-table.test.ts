@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { ColumnDef } from '../types.js';
-import { createTableModel, type TableModelOptions } from './create-table.js';
+import {
+  createTableModel,
+  SELECTION_COLUMN_ID,
+  SELECTION_COLUMN_WIDTH,
+  type TableModelOptions,
+} from './create-table.js';
 
 interface Person {
   id: string;
@@ -126,6 +131,73 @@ describe('createTableModel: columns', () => {
     m.update({ columns: [{ id: 'name', accessor: 'name' }] });
     expect(m.columns.map((c) => c.id)).toEqual(['name']);
     expect(m.totalWidth).toBe(150);
+  });
+});
+
+describe('createTableModel: selection column', () => {
+  const W = SELECTION_COLUMN_WIDTH;
+
+  it('comes first, pinned to the start, and shifts the other columns', () => {
+    const m = model({ selectionColumn: true });
+    expect(m.columns.map((c) => [c.id, c.colIndex, c.kind])).toEqual([
+      [SELECTION_COLUMN_ID, 1, 'selection'],
+      ['id', 2, 'data'],
+      ['name', 3, 'data'],
+      ['age', 4, 'data'],
+      ['city', 5, 'data'],
+      ['note', 6, 'data'],
+      ['actions', 7, 'data'],
+    ]);
+    const byId = Object.fromEntries(m.columns.map((c) => [c.id, c]));
+    expect(byId[SELECTION_COLUMN_ID]).toMatchObject({
+      pin: 'start',
+      offset: 0,
+      pinEdge: false,
+      width: W,
+      sortable: false,
+      resizable: false,
+      reorderable: false,
+    });
+    expect(byId.id).toMatchObject({ offset: W, pinEdge: false });
+    expect(byId.name).toMatchObject({ offset: W + 60, pinEdge: true });
+    // Scrolling and end-pinned columns keep their offsets.
+    expect(byId.city?.offset).toBe(80);
+    expect(byId.actions?.offset).toBe(0);
+    expect(m.totalWidth).toBe(model().totalWidth + W);
+  });
+
+  it('is the start edge when no other column is pinned to the start', () => {
+    const m = model({ columns: [{ id: 'a' }, { id: 'b' }], selectionColumn: true });
+    expect(m.columns.map((c) => [c.id, c.pinEdge, c.offset])).toEqual([
+      [SELECTION_COLUMN_ID, true, 0],
+      ['a', false, 0],
+      ['b', false, 150],
+    ]);
+  });
+
+  it('stays out of sorting, sizing, the column order and values', () => {
+    const m = model({ selectionColumn: true, getRowId: (p) => p.id });
+    expect(m.nextSorting(SELECTION_COLUMN_ID)).toBeUndefined();
+    expect(m.nextSizing(SELECTION_COLUMN_ID, 100)).toBeUndefined();
+    expect(m.orderOf()).toEqual(['id', 'name', 'age', 'city', 'note', 'actions']);
+    expect(m.nextOrder(SELECTION_COLUMN_ID, 0)).toBeUndefined();
+    // Positions in the order don't count it: 'name' moves to the first place.
+    expect(m.nextOrder('name', 0)).toEqual(['name', 'id', 'age', 'city', 'note', 'actions']);
+    expect(m.valueAt(0, SELECTION_COLUMN_ID)).toBeUndefined();
+    expect(m.cellContext(0, SELECTION_COLUMN_ID)).toBeUndefined();
+  });
+
+  it('comes and goes with the option', () => {
+    const m = model();
+    m.update({ selectionColumn: true });
+    expect(m.columns[0]?.id).toBe(SELECTION_COLUMN_ID);
+    m.update({ selectionColumn: false });
+    expect(m.columns[0]?.id).toBe('id');
+  });
+
+  it('reserves its id', () => {
+    const m = model({ columns: [{ id: SELECTION_COLUMN_ID }], selectionColumn: true });
+    expect(() => m.columns).toThrow(/reserved/);
   });
 });
 

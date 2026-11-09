@@ -31,6 +31,7 @@ export type ArgusTableElementProps<T = unknown> = Partial<
     | 'columnSizing'
     | 'columnOrder'
     | 'selectionMode'
+    | 'selectionCheckboxes'
     | 'selection'
   >
 >;

@@ -18,7 +18,7 @@ import { installBenchHooks } from './bench-hooks.js';
 // window.__argusRequests.
 // pinned=top,bottom (or one of them) adds a pinned summary row on that side:
 // averages at the top, totals at the bottom.
-// selection=single|multi sets selectionMode.
+// selection=single|multi sets selectionMode; checkboxes adds the checkbox column.
 const params = new URLSearchParams(location.search);
 const theme = params.get('theme');
 if (theme === 'default') await import('@argus-table/themes/default.css');
@@ -113,6 +113,7 @@ table.density = density;
 if (params.has('overscan')) table.overscan = Number(params.get('overscan'));
 const selection = params.get('selection');
 if (selection === 'single' || selection === 'multi') table.selectionMode = selection;
+table.selectionCheckboxes = params.has('checkboxes');
 table.columns = columns;
 table.getRowId = (p) => p.id;
 const dataStart = performance.now();

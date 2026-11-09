@@ -89,6 +89,43 @@ export const Single: Story = {
 };
 
 /**
+ * `selection-checkboxes` adds a checkbox column, pinned first. A row's checkbox
+ * toggles that row and keeps the others; Shift+click adds the range from the last
+ * row clicked. The header's checkbox selects every row, shows a mixed state when
+ * some are selected, and clears the selection when all are. Space on a focused
+ * checkbox cell does the same as clicking its checkbox.
+ */
+export const Checkboxes: Story = {
+  render: () =>
+    html`<argus-table
+      style="block-size: 420px"
+      selection-mode="multi"
+      selection-checkboxes
+      .columns=${orderColumns}
+      .data=${data}
+      .getRowId=${getRowId}
+    ></argus-table>`,
+  play: async ({ canvasElement }) => {
+    const table = await tableIn(canvasElement);
+    const user = userEvent.setup();
+    const box = (row: number) => cellOf(table, row, '--argus-selection').querySelector('input');
+    const all = table.shadowRoot?.querySelector<HTMLInputElement>(
+      '[part~="header-cell-selection"] input',
+    );
+    if (!all) throw new Error('no select-all checkbox');
+    await user.click(box(1) ?? all);
+    await user.click(box(3) ?? all);
+    await table.updateComplete;
+    await expect(table.selection).toEqual(['o2', 'o4']);
+    await expect(all.indeterminate).toBe(true);
+    await user.click(all);
+    await table.updateComplete;
+    await expect(table.selection).toHaveLength(data.length);
+    await expect(all.checked).toBe(true);
+  },
+};
+
+/**
  * From the keyboard: Space toggles the focused row, Shift+ArrowUp/ArrowDown and
  * Shift+PageUp/PageDown extend the selection from the last toggled row, and
  * Ctrl+A (Cmd+A) selects every row.
