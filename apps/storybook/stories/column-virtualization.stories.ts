@@ -95,6 +95,10 @@ export const WideTable: Story = {
       await expect(header?.getBoundingClientRect().right).toBeLessThanOrEqual(right);
     });
     await expect(headers(table).length).toBeLessThan(30);
+    // The columns stay on one line: none wraps below the others.
+    const row = root.querySelector('[part~="header-row"]')?.getBoundingClientRect();
+    const tops = headers(table).map((h) => h.getBoundingClientRect().top);
+    await expect(tops.every((top) => Math.abs(top - (row?.top ?? 0)) < 1)).toBe(true);
   },
 };
 

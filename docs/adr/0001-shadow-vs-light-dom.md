@@ -198,6 +198,18 @@ Linux WebKit, the playground benchmark, 3 runs interleaved (p95, ms):
 | jumps      |           26 |     21 |         27 |
 | horizontal |           70 |     17 |         20 |
 
+**With column virtualization (Phase 3).** `virtualizeColumns` changes cells in every row on most frames of a sideways scroll, while the pinned body cells are sticky. A Safari timeline of the 500-column playground (`?cols=500&vcols`) showed compositing jumping from 0.2 ms to 2.2 ms per frame during a sideways sweep. With `pin=none` most of the slow frames went away.
+
+**Tried and rejected: sticky only in the rows in view.** The overscan rows out of view kept the transform, and only the rows in view went sticky, which cut the sticky cells by about half. Safari got worse, not better. A mix of sticky and transformed pinned cells costs it more than all of them sticky, probably because the transformed ones then need compositing too. Both variants were measured in the same page, alternating, by swapping a stylesheet. Each run is a 5 s sweep at 60 px/frame, at 120 Hz, on the production playground at `?bench&rows=100000&cols=500&vcols`:
+
+| Safari, frames over 12 ms per run | Run 1 | Run 2 |
+| --------------------------------- | ----: | ----: |
+| Sticky in rows in view (39 cells) |    83 |    44 |
+| All sticky, the hybrid (72 cells) |    20 |    10 |
+| `pin=none` (an earlier session)   |     8 |     — |
+
+The hybrid stays. The pins cost a few slow frames per 5 s at 120 Hz, and none at 60 Hz.
+
 ## Addendum: screen-reader check (Phase 1)
 
 **Question.** Body rows stay in pool order in the DOM (see [Sorted DOM](#addendum-sorted-dom-phase-1)). Is `aria-rowindex` enough for screen readers to read them in visual order, with the right numbers?

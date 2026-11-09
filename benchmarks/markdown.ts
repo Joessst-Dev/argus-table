@@ -36,7 +36,7 @@ export function toMarkdown({ meta, results, pages }: Results): string {
     '',
     `Gate: p95 ≤ ${String(meta.gate.p95)} ms and no long task > ${String(meta.gate.longTask)} ms while scrolling, and the last row reachable. Advisory: this run never fails a PR.`,
     'Long tasks come from PerformanceObserver in Chromium; elsewhere "frames > 50 ms" stands in. `wheel` drives real input through Playwright and its frame pacing is limited by the harness, so it is a sanity check, not a gate.',
-    `Page: apps/playground, ${meta.rows.map(rows).join(' / ')} rows × ${String(meta.columns)} columns, slotted cell content, pooled rows. Scenarios: steady = 60 px/frame for 10 s; fast = 240 px/frame for 10 s; jumps = 20 random jumps held 500 ms; horizontal = full width and back over 5 s.`,
+    `Page: apps/playground, ${meta.rows.map(rows).join(' / ')} rows × ${String(meta.columns)} columns, slotted cell content, pooled rows. Scenarios: steady = 60 px/frame for 10 s; fast = 240 px/frame for 10 s; jumps = 20 random jumps held 500 ms; horizontal = 60 px/frame for 5 s, back and forth across the width.`,
     '',
     '### Scrolling',
     '',

@@ -242,8 +242,12 @@ export function installBenchHooks(table: ArgusTable<Person>, info: { dataMs: num
       return { ...stop(), mismatches, jumpFrames };
     },
 
-    /** Scroll across the full width and back over `ms`. */
-    async horizontal(ms: number): Promise<ScenarioResult> {
+    /**
+     * Constant-speed horizontal scroll: `px` per frame for `ms`, turning back at
+     * each end. A fixed speed, not "the full width in a fixed time", so the
+     * result means the same for 20 columns as for 500.
+     */
+    async horizontal(ms: number, px: number): Promise<ScenarioResult> {
       await reset();
       const el = scroller();
       if (!el) throw new Error('no scroller');
@@ -251,12 +255,18 @@ export function installBenchHooks(table: ArgusTable<Person>, info: { dataMs: num
       // Let the jump's re-render finish before recording.
       await wait(300);
       start();
-      const t0 = performance.now();
+      const end = performance.now() + ms;
       const max = el.scrollWidth - el.clientWidth;
       const sign = document.dir === 'rtl' ? -1 : 1;
-      while (performance.now() - t0 < ms) {
-        const phase = ((performance.now() - t0) / ms) * 2;
-        el.scrollLeft = (phase <= 1 ? phase : 2 - phase) * max * sign;
+      let x = 0;
+      let step = px;
+      while (performance.now() < end) {
+        x += step;
+        if (x >= max || x <= 0) {
+          x = Math.min(Math.max(x, 0), max);
+          step = -step;
+        }
+        el.scrollLeft = x * sign;
         await nextFrame();
       }
       return stop();

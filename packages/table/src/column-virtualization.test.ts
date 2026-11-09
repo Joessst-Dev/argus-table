@@ -78,6 +78,22 @@ function visibleIds(el: HTMLElement): string[] {
   });
 }
 
+/**
+ * Cells and headers that don't fill their row's box: cells come in pool order, so
+ * one left to auto-placement in its row's grid wraps into a new grid row.
+ */
+function offRow(el: HTMLElement): string[] {
+  return [...shadow(el).querySelectorAll<HTMLElement>('.row')].flatMap((row) => {
+    const r = row.getBoundingClientRect();
+    return [...row.querySelectorAll<HTMLElement>(':scope > [role]')]
+      .filter((cell) => {
+        const c = cell.getBoundingClientRect();
+        return Math.abs(c.top - r.top) > 0.5 || Math.abs(c.bottom - r.bottom) > 0.5;
+      })
+      .map((cell) => `${row.getAttribute('aria-rowindex') ?? '?'}:${cell.dataset.col ?? '?'}`);
+  });
+}
+
 /** The scrolling columns that should show at `left` px: from the column widths. */
 function expectedVisible(el: HTMLElement): string[] {
   const s = scroller(el);
@@ -134,6 +150,8 @@ describe('virtualizeColumns', () => {
     for (const left of [450, 3000, 5012, 9000, 100 * SCROLLING]) {
       await scrollInline(el, Math.min(left, scroller(el).scrollWidth - scroller(el).clientWidth));
       expect(visibleIds(el)).toEqual(expectedVisible(el));
+      // Every cell stays on its row, however the pool reorders the columns.
+      expect(offRow(el)).toEqual([]);
       const s = scroller(el);
       const origin = s.getBoundingClientRect().left + s.clientLeft + 200 - s.scrollLeft;
       for (const id of visibleIds(el)) {
@@ -164,6 +182,7 @@ describe('virtualizeColumns', () => {
     const right = s.getBoundingClientRect().left + s.clientLeft + s.clientWidth;
     const visible = expectedVisible(el);
     expect(visible.length).toBeGreaterThan(3);
+    expect(offRow(el)).toEqual([]);
     for (const id of visible) {
       const i = Number(id.slice(1));
       // RTL: column i starts 200 + i * 100 px from the right edge, less the scroll.

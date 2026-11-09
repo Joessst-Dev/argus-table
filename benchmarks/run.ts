@@ -191,7 +191,7 @@ interface Bench {
   }>;
   steady(ms: number, px: number): Promise<Raw>;
   jumps(n: number, hold: number): Promise<Raw>;
-  horizontal(ms: number): Promise<Raw>;
+  horizontal(ms: number, px: number): Promise<Raw>;
   start(): void;
   stop(): Raw;
   reset(): Promise<void>;
@@ -248,7 +248,7 @@ async function runScenarios(page: Page, name: BrowserName): Promise<Record<Scena
     (window as unknown as BenchWindow).__argusBench.jumps(20, 500),
   );
   const horizontal = await page.evaluate(() =>
-    (window as unknown as BenchWindow).__argusBench.horizontal(5_000),
+    (window as unknown as BenchWindow).__argusBench.horizontal(5_000, 60),
   );
   let wheel: Raw | null = null;
   if (name === 'chromium') {
