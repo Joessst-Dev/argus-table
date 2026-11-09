@@ -1,5 +1,14 @@
 # @argus-table/themes
 
+## 0.2.0
+
+### Minor Changes
+
+- eebb8a1: The default theme colours the drop line of a dragged column (column reordering in `argus-table`) with its accent colour.
+- 19012fe: New Material-inspired theme, `@argus-table/themes/material.css`. It uses the Material 3 baseline colours in light and dark, Roboto, taller rows (40, 52 and 60px by density), an outlined surface with rounded corners and deeper shadows on pinned columns. The theme loads no fonts: load Roboto 400 and 500 yourself, for example from `@fontsource/roboto`. The default theme sets the new `--argus-radius` and `--argus-outline` tokens and looks the same as before.
+- aa1a40b: The default theme styles pinned rows (`pinnedRows` in `argus-table`) like the header, with a line between the body and the bottom rows.
+- d86671c: The default theme colours the skeleton bars that `argus-table` shows while `dataSource` rows load (`--argus-skeleton-bg`), in light and dark.
+
 ## 0.1.0
 
 ### Minor Changes

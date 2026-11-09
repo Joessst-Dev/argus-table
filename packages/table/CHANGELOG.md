@@ -1,5 +1,74 @@
 # argus-table
 
+## 0.2.0
+
+### Minor Changes
+
+- b9b0b2e: Declarative columns: write columns as `<argus-column>` children instead of setting the `columns` property.
+
+  ```html
+  <argus-table>
+    <argus-column column-id="id" header="Order" accessor="id" width="90" pin="start"></argus-column>
+    <argus-column
+      column-id="customer"
+      header="Customer"
+      accessor="customer.name"
+      width="1fr"
+      sortable
+    ></argus-column>
+    <argus-column column-id="actions" header="Actions" width="100" resizable="false">
+      <template><button>Open</button></template>
+    </argus-column>
+  </argus-table>
+  ```
+
+  - Attributes cover the plain fields: `column-id`, `header`, `accessor`, `width` (`90`, `auto` or `2fr`), `min-width`, `max-width`, `pin`, `align`, `sortable`, `resizable` and `reorderable` (`resizable="false"` turns resizing off). Functions and rich content go in properties: `accessor`, `header` and `cell`.
+  - A `<template>` child is static content for every cell of the column. Use the `cell` property for content that depends on the row.
+  - The table follows its children: add, remove or move a column, or change an attribute, and the columns update, keeping widths, order and sorting. Loops in Vue, Angular or React just work.
+  - A non-empty `columns` property wins over the children.
+
+- 8f008b3: Auto column widths: a column with `width: 'auto'` fits its content: the header, the pinned rows and the rows in view, within `minWidth` and `maxWidth`. It measures once the first rows render and then keeps its width, so scrolling or new data never move the columns. Templates and components in cells are measured as rendered.
+
+  - Double-click a column's resize handle to fit it to the rows in view.
+  - `autosizeColumns(ids?)` fits several columns at once (default: every resizable column).
+  - Both count as resizes: they update `columnSizing` (or only propose it, when you control it) and fire `argus-column-resize`, once per column that changes.
+  - A press on a resize handle without dragging no longer changes the column's width. Before, it fixed a `{ flex }` column at its current width and fired `argus-column-resize`.
+
+- eebb8a1: Column reordering: drag a header to move its column. A line shows where it will land, and Escape cancels the drag. Columns move within their own group: start-pinned columns among themselves, scrolling columns among theirs, end-pinned columns among theirs. Dragging a scrolling column toward the table's edge scrolls the table.
+
+  - From the keyboard, focus a header and press Alt+Shift+Arrow to move it one place (mirrored in right-to-left layouts). Focus stays on the header, and screen readers hear where it went, for example "Customer moved to column 3 of 8".
+  - `columnOrder` holds the order as column ids, and `argus-column-reorder` fires with `{ columnId, order }` after each move. Like `sorting` and `columnSizing`, it is uncontrolled until you set it. Once you set it, a move only proposes the new order, so you can save it and restore it later.
+  - `reorderable: false` on a column keeps it from being dragged or moved. Other columns can still move past it.
+  - New parts `header-cell-dragging` and `drop-indicator`, and a new token `--argus-drop-indicator-color`.
+  - A drag on a header starts after the pointer moves a few pixels, so a click still sorts. Header text can no longer be selected by dragging across it.
+
+- d86671c: Infinite loading: set `dataSource` instead of `data` to load rows from a server, page by page, as they scroll into view. `getRows({ start, end, sorting, signal })` gets the rows to load (`end` exclusive, like `slice`) and resolves to `{ rows, total? }`; `pageSize` sets the page size (default 100).
+
+  - Only the pages in view are requested, once scrolling settles, so a fast fling loads only where it stops. Requests for pages that scroll away are aborted through `signal`.
+  - Rows still loading show skeleton bars (parts `row-loading` and `skeleton`, colour `--argus-skeleton-bg`). The bars pulse, except with reduced motion.
+  - Without a `total`, the table grows as pages arrive and ends at a page with fewer rows than it asked for. Screen readers hear an unknown row count until then.
+  - Sorting happens on the server: `sorting` comes with every request, and a new order reloads from the top.
+  - A page that fails fires `argus-load-error` (`{ error, start, end }`, also exported as `LOAD_ERROR`) and shows a Retry button (part `retry`) in its first visible row. Enter on a cell of a failed row retries too.
+  - New method `refresh()`: drops the loaded pages and loads the rows in view again, keeping the scroll position.
+
+- 8550539: More keyboard navigation in the grid. PageDown and PageUp move focus by a page of rows (the rows that fit below the header) in the same column, and the view scrolls with it, so the focused cell keeps its place on screen. Ctrl+Home jumps to the first header and scrolls to the top, and Ctrl+End jumps to the last row's last cell, even 100,000 rows down. Cmd+Home and Cmd+End do the same on macOS. As before, keys pressed inside cell content are left to that content.
+- aa1a40b: Pinned rows: `pinnedRows: { top?, bottom? }` keeps rows fixed below the header or at the bottom of the view while the body scrolls, for a totals or summary row. They are separate objects, not rows of `data`: the columns read them as usual, they are never sorted, and they work the same with a `dataSource`.
+
+  - A column's `cell` function gets `pinned: 'top' | 'bottom'` in its context, so it can show a summary row its own way.
+  - The keyboard moves through them like any row: from the header into the top rows, the body, and on to the bottom rows; Ctrl+End lands on the last one. PageUp and PageDown page through the body only.
+  - Clicks and Enter on them fire `argus-cell-click` and `argus-row-click`, with `pinned` in the detail and `index` counted within their list.
+  - New parts `row-pinned`, `row-pinned-top`, `row-pinned-bottom` and `cell-pinned-row`, and a new token `--argus-pinned-row-bg` for their background.
+  - Screen readers count them as rows: the first body row's `aria-rowindex` now comes after the top pinned rows.
+
+- 6b33bbc: Any number of rows now scrolls to the last one. Browsers limit how tall an element can be (about 33.5M px in Chromium and Safari, 17.9M px in Firefox), so before, the last rows of a very large table couldn't be reached: from about 840k rows of 40 px in Chromium and Safari, and in Firefox a table of more than about 450k rows didn't scroll at all. Past the browser's limit the table now renders a shorter body and scales the scroll position onto the rows: the scrollbar still spans every row, and a wheel step covers proportionally more of them. Keyboard navigation, `scrollToRow()` and focus keep working as before. Smaller tables are unchanged.
+- 19012fe: New `--argus-radius` and `--argus-outline` tokens. `--argus-radius` rounds the table's corners, and the header, rows and pinned columns are clipped to them. `--argus-outline` draws a border around the whole table, as a `border` shorthand such as `1px solid #ddd`. By default the table stays square with no border.
+
+### Patch Changes
+
+- 2b954bf: The CDN build (`dist/cdn/argus-table.js`) is now fully minified and about 5 kB smaller gzipped. The npm build that bundlers use is unchanged.
+- a5aa931: Sorting large tables is much faster, most of all in Firefox: sorting 1M rows took over a minute there and now takes under a second (Chromium: about 2.6 s, now about 0.65 s).
+- 0f5a5a6: `columns`, `data` and `overscan` now treat `null` and `undefined` as their defaults (`[]`, `[]` and 6) instead of failing. Framework bindings set `undefined` when a prop is removed. The Custom Elements Manifest now has the type of each event's detail.
+
 ## 0.1.0
 
 ### Minor Changes
