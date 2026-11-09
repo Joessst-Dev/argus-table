@@ -1,5 +1,13 @@
 # @argus-table/vue
 
+## 0.2.1
+
+### Patch Changes
+
+- ce83244: The wrappers depend on `argus-table` with a caret range (`^0.2.0`) instead of an exact version, so a newer `argus-table` you install yourself is shared with the wrapper rather than installed twice. Two copies would both try to register `<argus-table>`, and the second fails.
+- Updated dependencies [fe9949e]
+  - argus-table@0.2.1
+
 ## 0.2.0
 
 ### Minor Changes
