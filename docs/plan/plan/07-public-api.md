@@ -101,6 +101,7 @@ Columns can also be written as `<argus-column>` children. They are data-only ele
 | `columnOrder` | — | `string[]` (controlled or uncontrolled) | `[]` (see [Column order](#column-order)) |
 | `getRowId` | — | `(row, index) => string` | index (among all rows, for a `dataSource`) |
 | `overscan` | `overscan` | number | 6 |
+| `virtualizeColumns` | `virtualize-columns` | boolean | `false` (see [Column virtualization](#column-virtualization)) |
 | `selectionMode` | `selection-mode` | `'none'` \| `'single'` \| `'multi'` | `'none'` (see [Row selection](#row-selection)) |
 | `selection` | — | `string[]` of row ids (controlled or uncontrolled) | `[]` |
 | `selectionCheckboxes` | `selection-checkboxes` | boolean | `false`: adds the checkbox column while `selectionMode` isn't `'none'` |
@@ -184,6 +185,20 @@ All `CustomEvent`, bubbling and composed. See [State and events](../code-archite
 - `argus-column-resize` fires when a column is resized by dragging its `resize-handle` or with Alt+Arrow on its focused header (10 px; the arrow toward the inline end grows it), and when a double-click on the handle or `autosizeColumns()` fits it to its content (once per column that changes, each with the whole new `sizing`). A press on the handle without moving changes nothing. The handle is a `separator` labelled "Resize column" (English until the table gets an i18n option). During a drag it fires once per animation frame, so a controlled host can follow the drag; `width` is already clamped to `minWidth`/`maxWidth`.
 - `argus-column-reorder` fires when a column is moved: on drop after a header drag, or with Alt+Shift+Arrow on its focused header. `order` is the whole new order. When `columnOrder` is uncontrolled, it fires after the columns have moved; when controlled, it carries the proposed order and nothing changes until the host sets `columnOrder`. A drop where the column would stay put, or a cancelled drag, fires nothing.
 - `argus-cell-click` and `argus-row-click` fire on a click in the body, in that order, including clicks on content inside a cell (check `event.composedPath()` to skip your own buttons). `row` is the data object, `value` what the column's accessor reads. On a pinned row, `pinned` is `'top'` or `'bottom'` and `index` is the row's index in its list. Enter on a focused body cell fires both too (Enter pressed in content inside a cell is left to that content). Header clicks fire neither.
+
+## Column virtualization
+
+`virtualize-columns` renders only the scrolling columns in view, plus two on each side, for wide tables (a few dozen columns and more). Off by default: then every column renders in every row, as before.
+
+```html
+<argus-table virtualize-columns></argus-table>
+```
+
+- Always rendered: pinned columns, the checkbox column, the focused cell's column (focus and the tab stop survive scrolling sideways, and arrow keys, Home and End reach every column), a column being dragged, and with a `dataSource` the first data column (it holds the Retry buttons).
+- `width: 'auto'` columns out of view still measure: they render until they are measured. `autosizeColumns()` renders its columns for the measurement too.
+- Cells are pooled like rows: a column scrolling in reuses the cells of one that scrolled out, so the DOM order of cells is pool order and each cell is placed in its grid column explicitly. `aria-colindex` carries the position. Page CSS that relies on the cells' DOM order (`:nth-child`) doesn't apply.
+- Every column keeps its grid track, so `flex` columns work as without it. Smooth to a few thousand columns; Firefox caps a grid at 10,000 columns, with or without it.
+- The column overscan isn't configurable yet.
 
 ## Methods
 

@@ -28,6 +28,7 @@ import {
 import { announce } from './announce.js';
 import { AutoWidths, measureColumns } from './controllers/auto-width.js';
 import { ColumnChildrenController } from './controllers/column-children.js';
+import { ColumnWindowController, type RenderedColumn } from './controllers/column-window.js';
 import { DataController } from './controllers/data-controller.js';
 import { PinScrollController } from './controllers/pin-scroll-controller.js';
 import {
@@ -306,6 +307,18 @@ export class ArgusTable<T = unknown> extends LitElement {
   }
 
   /**
+   * Renders only the scrolling columns in view (plus two on each side), for
+   * wide tables: a few dozen columns and more. Pinned columns, the checkbox
+   * column and the focused cell's column always render. Off by default: then
+   * every column renders, as before. Cells are placed in their grid column
+   * explicitly, so page CSS that relies on their order in the DOM (`:nth-child`
+   * on cells) doesn't apply. `autosizeColumns()` and `width: 'auto'` columns
+   * still measure columns out of view: they render for the measurement.
+   */
+  @property({ attribute: 'virtualize-columns', type: Boolean })
+  virtualizeColumns = false;
+
+  /**
    * The sort order, e.g. `[{ id: 'total', desc: true }]`; `[]` when unsorted. Unset,
    * the table keeps it itself and header clicks change it. Once set, it is
    * controlled: a click only fires `argus-sort-change` with the proposed order,
@@ -414,6 +427,8 @@ export class ArgusTable<T = unknown> extends LitElement {
   #announceMove: { id: string; from: number } | undefined;
   /** Resizes the table applied itself, by column; their events fire once the update is done. */
   readonly #appliedResizes = new Map<string, ColumnResizeDetail>();
+  /** Columns `autosizeColumns()` renders out of view for its measurement. */
+  #measureKeep: readonly string[] = [];
   /** Measured widths of `width: 'auto'` columns. */
   readonly #autoWidths = new AutoWidths(() => {
     this.requestUpdate();
@@ -442,6 +457,11 @@ export class ArgusTable<T = unknown> extends LitElement {
   readonly #pinScroll = new PinScrollController(this, () =>
     this.renderRoot.querySelector<HTMLElement>('[part~="table"]'),
   );
+  readonly #columnWindow = new ColumnWindowController<T>(this, () =>
+    this.renderRoot.querySelector<HTMLElement>('[part~="table"]'),
+  );
+  /** The columns the last render rendered (all of them, unless `virtualizeColumns`). */
+  #rendered: RenderedColumn<T>[] = [];
   #rowPx = 40;
   #probeObserver?: ResizeObserver;
   #window: VirtualWindow = { rows: [], totalSize: 0, range: null };
@@ -514,6 +534,7 @@ export class ArgusTable<T = unknown> extends LitElement {
    * would, so `argus-column-resize` fires for each column that changes, and with a
    * controlled `columnSizing` nothing changes until you set it. Without `ids`, fits
    * every resizable column; columns with `resizable: false` keep their width.
+   * With `virtualizeColumns`, columns out of view render for the measurement.
    * Resolves once the table has re-rendered.
    */
   async autosizeColumns(ids?: readonly string[]): Promise<void> {
@@ -521,7 +542,17 @@ export class ArgusTable<T = unknown> extends LitElement {
     const targets = this.#table.model.columns
       .filter((c) => c.resizable && (ids === undefined || ids.includes(c.id)))
       .map((c) => c.id);
-    this.#requestResizes(measureColumns(this.renderRoot, targets));
+    if (this.virtualizeColumns) {
+      this.#measureKeep = targets;
+      this.requestUpdate();
+      await this.updateComplete;
+    }
+    const widths = measureColumns(this.renderRoot, targets);
+    if (this.#measureKeep.length > 0) {
+      this.#measureKeep = [];
+      this.requestUpdate();
+    }
+    this.#requestResizes(widths);
     await this.updateComplete;
   }
 
@@ -606,6 +637,12 @@ export class ArgusTable<T = unknown> extends LitElement {
     const model = this.#table.model;
     const columns = model.columns;
     this.#window = this.#virtual.computeWindow();
+    const rendered = this.#columnWindow.compute(
+      columns,
+      this.virtualizeColumns,
+      this.virtualizeColumns ? this.#keptColumns(model) : [],
+    );
+    this.#rendered = rendered;
     const pinnedWidth = (side: 'start' | 'end') =>
       columns.reduce((sum, c) => (c.pin === side ? sum + c.width : sum), 0);
     const pinned = (side: 'start' | 'end') => `${String(pinnedWidth(side))}px`;
@@ -636,19 +673,19 @@ export class ArgusTable<T = unknown> extends LitElement {
         @click=${this.#onClick}
       >
         ${renderHeader(
-          columns,
+          rendered,
           this.#headerHandlers,
           activeIn('header')?.col,
           this.#drag,
           this.#checkAllOf(model),
         )}
-        ${renderPinnedRows('top', layout.top, columns, firstIndex('top'), activeIn('top'))}
+        ${renderPinnedRows('top', layout.top, rendered, firstIndex('top'), activeIn('top'))}
         ${
           model.rowCount === 0
             ? html`<div part="empty"><slot name="empty">No rows</slot></div>`
             : renderBody(
                 this.#window.rows,
-                columns,
+                rendered,
                 this.#window.totalSize,
                 activeIn('body'),
                 firstIndex('body'),
@@ -657,7 +694,7 @@ export class ArgusTable<T = unknown> extends LitElement {
                 this.#selectionColumn ? this.#checkboxHandlers : undefined,
               )
         }
-        ${renderPinnedRows('bottom', layout.bottom, columns, firstIndex('bottom'), activeIn('bottom'))}
+        ${renderPinnedRows('bottom', layout.bottom, rendered, firstIndex('bottom'), activeIn('bottom'))}
         <div class="probe" aria-hidden="true"></div>
       </div>
       ${pinShadow('start', pinnedWidth('start'), layout.total - 1, this.#rowPx)}
@@ -671,7 +708,7 @@ export class ArgusTable<T = unknown> extends LitElement {
 
   protected override updated(changed: PropertyValues<this>): void {
     const model = this.#table.model;
-    renderLightDom(this, model, this.#window.rows, this.#lightDomEnd());
+    renderLightDom(this, model, this.#window.rows, this.#rendered, this.#lightDomEnd());
     this.#measureAutoWidths(model);
     if (this.#scrollToTop) {
       this.#scrollToTop = false;
@@ -728,6 +765,23 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.#data.request(Math.max(0, range.start - over), range.end + 1 + over);
     }
     for (const detail of this.#data.takeErrors()) fire(this, LOAD_ERROR, detail);
+  }
+
+  /**
+   * Columns to render wherever they are, with `virtualizeColumns`: the active
+   * cell's (its tab stop and focus survive scrolling sideways, and keyboard
+   * moves land on a rendered cell), one being dragged, auto widths still to
+   * measure, the targets of `autosizeColumns()`, and with a `dataSource` the
+   * first data column, which holds the Retry buttons.
+   */
+  #keptColumns(model: TableModel<T, CellContent>): (string | undefined)[] {
+    return [
+      this.#active?.col,
+      this.#drag?.columnId,
+      this.dataSource ? model.columns.find((c) => c.kind === 'data')?.id : undefined,
+      ...this.#autoWidths.pending(model.columns),
+      ...this.#measureKeep,
+    ];
   }
 
   /**

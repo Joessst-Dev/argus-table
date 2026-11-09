@@ -16,13 +16,14 @@ export function formatValue(value: unknown): string {
 }
 
 /**
- * Private slot names (ADR 0001): cells by pool slot and column, headers by
- * column, pinned rows by side, index and column.
+ * Private slot names (ADR 0001): cells by row pool slot and column slot,
+ * headers by column slot, pinned rows by side, index and column slot. A
+ * column's slot is its `colIndex`, or its pool slot with `virtualizeColumns`.
  */
-export const cellSlot = (slot: number, colIndex: number) => `c-${String(slot)}-${String(colIndex)}`;
-export const headerSlot = (colIndex: number) => `h-${String(colIndex)}`;
-export const pinnedSlot = (side: 'top' | 'bottom', index: number, colIndex: number) =>
-  `${side === 'top' ? 't' : 'b'}-${String(index)}-${String(colIndex)}`;
+export const cellSlot = (slot: number, colSlot: number) => `c-${String(slot)}-${String(colSlot)}`;
+export const headerSlot = (colSlot: number) => `h-${String(colSlot)}`;
+export const pinnedSlot = (side: 'top' | 'bottom', index: number, colSlot: number) =>
+  `${side === 'top' ? 't' : 'b'}-${String(index)}-${String(colSlot)}`;
 
 interface Pinnable {
   pin: 'start' | 'end' | undefined;
@@ -60,7 +61,16 @@ export function ariaSort(sorted: 'asc' | 'desc' | false): 'ascending' | 'descend
   return sorted === 'asc' ? 'ascending' : 'descending';
 }
 
-/** Inline style of a pinned cell: its sticky inset, from the start or the end edge. */
-export function pinStyle(column: Pinnable & { offset: number }): string | undefined {
-  return column.pin ? `--_pin-offset: ${String(column.offset)}px` : undefined;
+/**
+ * Inline style of a cell or header: a pinned one's sticky inset, from the
+ * start or the end edge, and with `virtualizeColumns` the grid column it is
+ * placed in (cells are in pool order there, not in column order).
+ */
+export function cellStyle(
+  column: Pinnable & { offset: number; place: number | undefined },
+): string | undefined {
+  const pin = column.pin ? `--_pin-offset: ${String(column.offset)}px` : undefined;
+  if (column.place === undefined) return pin;
+  const place = `grid-column: ${String(column.place)}`;
+  return pin ? `${pin}; ${place}` : place;
 }

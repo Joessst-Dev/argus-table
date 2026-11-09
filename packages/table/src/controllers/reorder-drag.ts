@@ -22,6 +22,8 @@ export interface DropSlot {
  * The drop target for a pointer at `x`: the gap between headers nearest to it,
  * decided by each header's midpoint. `undefined` where the column would stay
  * put. `direction` is 1 in LTR and -1 in RTL, where the group runs right to left.
+ * The slots needn't be next to each other in the order: with
+ * `virtualizeColumns`, headers out of view aren't rendered.
  */
 export function dropTarget(
   slots: readonly DropSlot[],
@@ -29,16 +31,20 @@ export function dropTarget(
   x: number,
   direction: 1 | -1,
 ): DropTarget | undefined {
-  const from = slots.findIndex((s) => s.id === draggedId);
-  const first = slots[0];
+  const dragged = slots.find((s) => s.id === draggedId);
   const last = slots.at(-1);
-  if (from < 0 || !first || !last) return undefined;
+  if (!dragged || !last) return undefined;
   // The gap before the first header whose middle is past the pointer, in reading order.
-  let gap = slots.findIndex((s) => (x - (s.rect.left + s.rect.right) / 2) * direction < 0);
-  if (gap < 0) gap = slots.length;
-  if (gap === from || gap === from + 1) return undefined;
-  const to = first.index + (gap > from ? gap - 1 : gap);
-  const at = slots[gap];
+  const at = slots.find((s) => (x - (s.rect.left + s.rect.right) / 2) * direction < 0);
+  // Taking the column out shifts the ones after it one place back.
+  const to = at
+    ? at.index > dragged.index
+      ? at.index - 1
+      : at.index
+    : last.index >= dragged.index
+      ? last.index
+      : last.index + 1;
+  if (to === dragged.index) return undefined;
   return at ? { to, columnId: at.id, edge: 'start' } : { to, columnId: last.id, edge: 'end' };
 }
 

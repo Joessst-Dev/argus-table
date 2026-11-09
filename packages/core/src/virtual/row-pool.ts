@@ -5,7 +5,8 @@ export interface PoolEntry {
 }
 
 /**
- * Assigns pool slots to rendered rows (ADR 0001).
+ * Assigns pool slots to rendered rows (ADR 0001), and with `virtualizeColumns`
+ * to rendered columns too (the ids are then column ids).
  *
  * A row keeps its slot while it stays rendered. A row entering the window takes a
  * slot freed by a row that left, so its DOM is updated in place rather than created.

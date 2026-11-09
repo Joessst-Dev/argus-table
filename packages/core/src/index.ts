@@ -34,6 +34,12 @@ export { RowPool, type PoolEntry } from './virtual/row-pool.js';
 export { ScrollScale } from './virtual/scroll-scale.js';
 export { maxVisibleRows, steadyWindow, type VisibleRange } from './virtual/steady-window.js';
 export {
+  columnWindow,
+  maxVisibleColumns,
+  visibleColumns,
+  type ColumnExtent,
+} from './virtual/column-window.js';
+export {
   KEEP_PAGES,
   PageCache,
   type CachedRow,

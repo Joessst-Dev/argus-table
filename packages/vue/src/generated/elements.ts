@@ -27,6 +27,7 @@ export type ArgusTableElementProps<T = unknown> = Partial<
     | 'rowHeight'
     | 'density'
     | 'overscan'
+    | 'virtualizeColumns'
     | 'sorting'
     | 'columnSizing'
     | 'columnOrder'
@@ -119,6 +120,7 @@ export const ArgusTable = defineWrapper({
     'rowHeight',
     'density',
     'overscan',
+    'virtualizeColumns',
     'sorting',
     'columnSizing',
     'columnOrder',
@@ -126,7 +128,7 @@ export const ArgusTable = defineWrapper({
     'selectionCheckboxes',
     'selection',
   ],
-  booleans: ['selectionCheckboxes'],
+  booleans: ['virtualizeColumns', 'selectionCheckboxes'],
   events: [
     {
       name: 'argus-sort-change',

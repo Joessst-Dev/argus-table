@@ -1,10 +1,9 @@
 import { html, nothing } from 'lit';
 import { live } from 'lit/directives/live.js';
 import { repeat } from 'lit/directives/repeat.js';
-import type { ColumnView } from '@argus-table/core';
+import type { RenderedColumn } from '../controllers/column-window.js';
 import type { DropTarget } from '../controllers/reorder-drag.js';
-import type { CellContent } from '../types.js';
-import { ariaSort, headerSlot, pinStyle, type CheckboxHandlers } from './content.js';
+import { ariaSort, cellStyle, headerSlot, type CheckboxHandlers } from './content.js';
 
 /** A column header being dragged, and where it would land (`undefined`: where it is). */
 export interface HeaderDrag {
@@ -43,7 +42,7 @@ export interface CheckAll {
  * and the target header shows a `drop-indicator` on the edge it would land at.
  */
 export function renderHeader<T>(
-  columns: readonly ColumnView<T, CellContent>[],
+  columns: readonly RenderedColumn<T>[],
   handlers: HeaderHandlers,
   activeCol: string | undefined,
   drag?: HeaderDrag,
@@ -61,7 +60,7 @@ export function renderHeader<T>(
     >
       ${repeat(
         columns,
-        (c) => c.id,
+        (c) => c.key,
         (c) =>
           html`<div
             part=${headerParts(c, drag)}
@@ -74,12 +73,12 @@ export function renderHeader<T>(
             tabindex=${c.id === activeCol ? 0 : -1}
             data-align=${c.align}
             data-pin=${c.pin ?? nothing}
-            style=${pinStyle(c) ?? nothing}
+            style=${cellStyle(c) ?? nothing}
           >
             ${
               c.kind === 'selection'
                 ? selectAllCheckbox(checkAll)
-                : html`<slot name=${headerSlot(c.colIndex)}></slot>`
+                : html`<slot name=${headerSlot(c.slot)}></slot>`
             }
             ${c.sortable ? html`<span class="sort-indicator" aria-hidden="true"></span>` : nothing}
             ${c.resizable ? resizeHandle(c) : nothing}
@@ -98,7 +97,7 @@ export function renderHeader<T>(
   </div>`;
 }
 
-function headerParts<T>(c: ColumnView<T, CellContent>, drag: HeaderDrag | undefined): string {
+function headerParts<T>(c: RenderedColumn<T>, drag: HeaderDrag | undefined): string {
   let parts = c.sorted ? 'header-cell header-cell-sorted' : 'header-cell';
   if (c.kind === 'selection') parts += ' header-cell-selection';
   if (drag?.columnId === c.id) parts += ' header-cell-dragging';
@@ -124,7 +123,7 @@ function selectAllCheckbox(checkAll: CheckAll | undefined) {
  * A vertical separator with the column's width as its value. A flex column has no
  * fixed width until it is resized, so it reports none.
  */
-function resizeHandle<T>(c: ColumnView<T, CellContent>) {
+function resizeHandle<T>(c: RenderedColumn<T>) {
   return html`<div
     part="resize-handle"
     role="separator"

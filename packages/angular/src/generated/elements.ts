@@ -88,6 +88,13 @@ export class ArgusTableComponent<T = unknown> {
     setProperty(this.element, 'overscan', 'overscan', value);
   }
 
+  /** Renders only the scrolling columns in view (plus two on each side), for wide tables: a few dozen columns and more. Pinned columns, the checkbox column and the focused cell's column always render. Off by default: then every column renders, as before. Cells are placed in their grid column explicitly, so page CSS that relies on their order in the DOM (`:nth-child` on cells) doesn't apply. `autosizeColumns()` and `width: 'auto'` columns still measure columns out of view: they render for the measurement. */
+  @Input() set virtualizeColumns(
+    value: ArgusTableElement<T>['virtualizeColumns'] | '' | 'true' | 'false' | null | undefined,
+  ) {
+    setProperty(this.element, 'virtualizeColumns', 'virtualize-columns', value);
+  }
+
   /** The sort order, e.g. `[{ id: 'total', desc: true }]`; `[]` when unsorted. Unset, the table keeps it itself and header clicks change it. Once set, it is controlled: a click only fires `argus-sort-change` with the proposed order, and nothing changes until you set the property. Set `undefined` to hand it back. */
   @Input() set sorting(value: ArgusTableElement<T>['sorting'] | null | undefined) {
     setProperty(this.element, 'sorting', undefined, value);
