@@ -1,6 +1,6 @@
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
 import { VirtualizerController } from '@tanstack/lit-virtual';
-import { RowPool, ScrollScale } from '@argus-table/core';
+import { RowPool, ScrollScale, maxVisibleRows, steadyWindow } from '@argus-table/core';
 
 /** A rendered body row: its pool slot, its index in the row model and its offset. */
 export interface WindowRow {
@@ -88,6 +88,13 @@ export class VirtualController implements ReactiveController {
       },
       estimateSize: () => this.#config.rowHeight,
       overscan: this.#config.overscan,
+      // One window size from the first render: the pool never grows while scrolling
+      // (in WebKit, new rows' slots would cut a wheel scroll short; see steadyWindow).
+      rangeExtractor: (range) =>
+        steadyWindow(
+          range,
+          maxVisibleRows(this.#element?.clientHeight ?? 0, this.#config.rowHeight),
+        ),
     });
     host.addController(this);
   }
