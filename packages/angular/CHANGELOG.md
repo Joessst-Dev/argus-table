@@ -1,5 +1,12 @@
 # @argus-table/angular
 
+## 0.2.2
+
+### Patch Changes
+
+- Updated dependencies [8cd61c8]
+  - argus-table@0.2.2
+
 ## 0.2.1
 
 ### Patch Changes
