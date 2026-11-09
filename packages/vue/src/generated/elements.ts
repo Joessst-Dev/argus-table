@@ -31,6 +31,7 @@ export type ArgusTableElementProps<T = unknown> = Partial<
     | 'columnSizing'
     | 'columnOrder'
     | 'selectionMode'
+    | 'selectionCheckboxes'
     | 'selection'
   >
 >;
@@ -122,9 +123,10 @@ export const ArgusTable = defineWrapper({
     'columnSizing',
     'columnOrder',
     'selectionMode',
+    'selectionCheckboxes',
     'selection',
   ],
-  booleans: [],
+  booleans: ['selectionCheckboxes'],
   events: [
     {
       name: 'argus-sort-change',

@@ -75,6 +75,15 @@ export function selectRange(
 }
 
 /**
+ * Every row of `ids` selected, keeping the rows already selected (with a
+ * `dataSource`, `ids` are only the loaded rows: selected rows elsewhere stay).
+ */
+export function selectAll(current: readonly string[], ids: readonly string[]): SelectionState {
+  const have = new Set(current);
+  return [...current, ...ids.filter((id) => !have.has(id))];
+}
+
+/**
  * A click on a row, desktop style. A plain click selects only that row; Ctrl or
  * Cmd toggles it. In `'multi'` mode, Shift selects the range from the anchor
  * (at `anchorIndex`) to the row, and Ctrl+Shift adds that range. Without an

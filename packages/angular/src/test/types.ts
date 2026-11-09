@@ -24,6 +24,7 @@ import { orders, type Order } from './data.js';
       [(sorting)]="sorting"
       [(columnOrder)]="order"
       selectionMode="multi"
+      selectionCheckboxes
       [(selection)]="selected"
       (rowSelect)="takeIds($event.detail.selection)"
       (columnSizingChange)="takeSizing($event)"

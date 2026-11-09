@@ -56,9 +56,21 @@ type AnyRow = Record<string, unknown>;
 /** Sort direction of a column, or `false` when it isn't sorted. */
 export type SortDirection = 'asc' | 'desc' | false;
 
+/**
+ * Id of the selection column, the checkbox column the model adds first when
+ * `selectionColumn` is set. Not a column of `columns`: it never appears in the
+ * column order, sizing or events.
+ */
+export const SELECTION_COLUMN_ID = '--argus-selection';
+
+/** Width of the selection column in px. */
+export const SELECTION_COLUMN_WIDTH = 40;
+
 /** A column as the renderer sees it, in visual order: start-pinned, scrolling, end-pinned. */
 export interface ColumnView<TData, TContent> {
   id: string;
+  /** `'data'` for a column of `columns`; `'selection'` for the checkbox column. */
+  kind: 'data' | 'selection';
   /** 1-based position in visual order, for `aria-colindex`. */
   colIndex: number;
   pin: ColumnPin | undefined;
@@ -138,6 +150,12 @@ export interface TableModelOptions<TData, TContent> {
   autoWidths?: ColumnSizingState | undefined;
   /** Rows fixed above or below the body. They stay out of the row model: never sorted, not counted. */
   pinnedRows?: PinnedRows<TData> | undefined;
+  /**
+   * Adds the selection (checkbox) column first among the start-pinned columns. It
+   * has the id `SELECTION_COLUMN_ID`, a fixed width, and no part in sorting,
+   * sizing or the column order.
+   */
+  selectionColumn?: boolean | undefined;
 }
 
 export interface TableModel<TData, TContent> {
@@ -197,6 +215,31 @@ export interface TableModel<TData, TContent> {
 }
 
 const defaultRowId = (_row: unknown, index: number) => String(index);
+
+/** The selection column's view: first, pinned to the start, fixed, and inert to sorting, sizing and moves. */
+function selectionView<TData, TContent>(pinEdge: boolean): ColumnView<TData, TContent> {
+  return {
+    id: SELECTION_COLUMN_ID,
+    kind: 'selection',
+    colIndex: 1,
+    pin: 'start',
+    offset: 0,
+    pinEdge,
+    width: SELECTION_COLUMN_WIDTH,
+    flex: undefined,
+    auto: false,
+    minWidth: SELECTION_COLUMN_WIDTH,
+    maxWidth: SELECTION_COLUMN_WIDTH,
+    sortable: false,
+    resizable: false,
+    reorderable: false,
+    align: 'center',
+    sorted: false,
+    header: undefined,
+    cell: undefined,
+    hasAccessor: false,
+  };
+}
 
 function toTanStack<TData, TContent>(
   column: ResolvedColumn<TData, TContent>,
@@ -314,6 +357,7 @@ export function createTableModel<TData, TContent>(
       const sort = sorting.find((s) => s.id === column.id);
       return {
         id: def.id,
+        kind: 'data',
         colIndex,
         pin: def.pin,
         offset,
@@ -333,13 +377,24 @@ export function createTableModel<TData, TContent>(
         hasAccessor: def.hasAccessor,
       };
     };
-    return [
-      ...start.map((c, i) => view(c, i + 1, c.getStart('start'), i === start.length - 1)),
-      ...center.map((c, i) => view(c, start.length + i + 1, c.getStart('center'), false)),
+    // The selection column comes first: it shifts every column one place on, and
+    // the other start-pinned columns its width further from the start edge.
+    const lead = options.selectionColumn ? 1 : 0;
+    if (lead && byId.has(SELECTION_COLUMN_ID)) {
+      throw new Error(`argus-table: the column id '${SELECTION_COLUMN_ID}' is reserved.`);
+    }
+    const inset = lead * SELECTION_COLUMN_WIDTH;
+    const list = [
+      ...start.map((c, i) =>
+        view(c, lead + i + 1, inset + c.getStart('start'), i === start.length - 1),
+      ),
+      ...center.map((c, i) => view(c, lead + start.length + i + 1, c.getStart('center'), false)),
       ...end.map((c, i) =>
-        view(c, start.length + center.length + i + 1, c.getAfter('end'), i === 0),
+        view(c, lead + start.length + center.length + i + 1, c.getAfter('end'), i === 0),
       ),
     ];
+    if (lead) list.unshift(selectionView(start.length === 0));
+    return list;
   };
 
   return {
@@ -378,7 +433,7 @@ export function createTableModel<TData, TContent>(
     },
 
     get totalWidth() {
-      return table.getTotalSize();
+      return table.getTotalSize() + (options.selectionColumn ? SELECTION_COLUMN_WIDTH : 0);
     },
 
     rowAt(index) {

@@ -20,7 +20,8 @@ export function renderLightDom<T>(
   rows: readonly WindowRow[],
   renderBefore: ChildNode,
 ): void {
-  const columns = model.columns;
+  // The selection column renders its checkboxes in the shadow root: no content here.
+  const columns = model.columns.filter((c) => c.kind === 'data');
   render(
     html`${repeat(
       columns,
@@ -49,7 +50,7 @@ function headerContent<T>(column: Column<T>): unknown {
 
 /** Content of the rows pinned to one side, slotted by side, index and column. */
 function pinnedContent<T>(model: TableModel<T, CellContent>, side: RowPin) {
-  const columns = model.columns;
+  const columns = model.columns.filter((c) => c.kind === 'data');
   const rows = Array.from({ length: model.pinnedCount(side) }, (_, i) => i);
   return rows.map((i) =>
     repeat(

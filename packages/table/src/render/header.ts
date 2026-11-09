@@ -1,9 +1,10 @@
 import { html, nothing } from 'lit';
+import { live } from 'lit/directives/live.js';
 import { repeat } from 'lit/directives/repeat.js';
 import type { ColumnView } from '@argus-table/core';
 import type { DropTarget } from '../controllers/reorder-drag.js';
 import type { CellContent } from '../types.js';
-import { ariaSort, headerSlot, pinStyle } from './content.js';
+import { ariaSort, headerSlot, pinStyle, type CheckboxHandlers } from './content.js';
 
 /** A column header being dragged, and where it would land (`undefined`: where it is). */
 export interface HeaderDrag {
@@ -15,6 +16,16 @@ export interface HeaderHandlers {
   click: (event: MouseEvent) => void;
   pointerdown: (event: PointerEvent) => void;
   dblclick: (event: MouseEvent) => void;
+}
+
+/**
+ * The select-all checkbox in the selection column's header, with
+ * `selectionMode` `'multi'`: checked when every selectable row is, mixed when
+ * some are.
+ */
+export interface CheckAll {
+  state: 'all' | 'some' | 'none';
+  handlers: CheckboxHandlers;
 }
 
 /**
@@ -36,6 +47,7 @@ export function renderHeader<T>(
   handlers: HeaderHandlers,
   activeCol: string | undefined,
   drag?: HeaderDrag,
+  checkAll?: CheckAll,
 ) {
   return html`<div part="header" role="rowgroup">
     <div
@@ -64,7 +76,11 @@ export function renderHeader<T>(
             data-pin=${c.pin ?? nothing}
             style=${pinStyle(c) ?? nothing}
           >
-            <slot name=${headerSlot(c.colIndex)}></slot>
+            ${
+              c.kind === 'selection'
+                ? selectAllCheckbox(checkAll)
+                : html`<slot name=${headerSlot(c.colIndex)}></slot>`
+            }
             ${c.sortable ? html`<span class="sort-indicator" aria-hidden="true"></span>` : nothing}
             ${c.resizable ? resizeHandle(c) : nothing}
             ${
@@ -84,8 +100,24 @@ export function renderHeader<T>(
 
 function headerParts<T>(c: ColumnView<T, CellContent>, drag: HeaderDrag | undefined): string {
   let parts = c.sorted ? 'header-cell header-cell-sorted' : 'header-cell';
+  if (c.kind === 'selection') parts += ' header-cell-selection';
   if (drag?.columnId === c.id) parts += ' header-cell-dragging';
   return parts;
+}
+
+/** The header's select-all checkbox: not focusable, like the rows' (the header cell holds focus). */
+function selectAllCheckbox(checkAll: CheckAll | undefined) {
+  if (!checkAll) return nothing;
+  return html`<input
+    type="checkbox"
+    part="selection-checkbox"
+    tabindex="-1"
+    aria-label="Select all rows"
+    .checked=${live(checkAll.state === 'all')}
+    .indeterminate=${live(checkAll.state === 'some')}
+    @click=${checkAll.handlers.all}
+    @mousedown=${checkAll.handlers.press}
+  />`;
 }
 
 /**

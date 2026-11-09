@@ -108,6 +108,13 @@ export class ArgusTableComponent<T = unknown> {
     setProperty(this.element, 'selectionMode', 'selection-mode', value);
   }
 
+  /** Adds a checkbox column, pinned first at the start, while `selectionMode` is `single` or `multi`. A row's checkbox toggles it (Shift+click adds the range from the last row clicked); in `multi` mode the header's checkbox selects every row, or clears the selection when all are selected. Space on a focused checkbox cell does the same. The column isn't part of `columns`, `columnOrder` or `columnSizing`, and it fires no `argus-cell-click`. */
+  @Input() set selectionCheckboxes(
+    value: ArgusTableElement<T>['selectionCheckboxes'] | '' | 'true' | 'false' | null | undefined,
+  ) {
+    setProperty(this.element, 'selectionCheckboxes', 'selection-checkboxes', value);
+  }
+
   /** The selected rows, as row ids (from `getRowId`, or the row's index as a string), e.g. `['p4', 'p7']`. Uncontrolled until set, like `sorting`: once set, a click only fires `argus-row-select` with the proposed ids. `undefined` hands it back. The table never drops ids on its own: they stay through sorting, a new `data` or reloaded pages. With a `dataSource`, Ctrl/Cmd+A selects the loaded rows only. */
   @Input() set selection(value: ArgusTableElement<T>['selection'] | null | undefined) {
     setProperty(this.element, 'selection', undefined, value);

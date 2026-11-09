@@ -103,6 +103,7 @@ Columns can also be written as `<argus-column>` children. They are data-only ele
 | `overscan` | `overscan` | number | 6 |
 | `selectionMode` | `selection-mode` | `'none'` \| `'single'` \| `'multi'` | `'none'` (see [Row selection](#row-selection)) |
 | `selection` | — | `string[]` of row ids (controlled or uncontrolled) | `[]` |
+| `selectionCheckboxes` | `selection-checkboxes` | boolean | `false`: adds the checkbox column while `selectionMode` isn't `'none'` |
 
 ## Data source
 
@@ -160,7 +161,8 @@ table.addEventListener('argus-row-select', (e) => console.log(e.detail.selection
 - Only loaded body rows can be selected. Rows from `pinnedRows` can't, nor `dataSource` rows still loading; a range over unloaded rows selects its loaded rows only. With a `dataSource`, Ctrl+A selects the rows loaded so far: a select-all over the server's whole dataset is the host's to model.
 - The table never drops ids on its own. They stay through sorting, a new `data` array or pages evicted and loaded again, and show again when their rows come back. Filter `selection` yourself to drop rows that are gone. Without `getRowId` the ids are indices: in `data` they don't change with sorting, but a `dataSource` numbers rows in the server's order.
 - Selected rows get the part `row-selected` and `aria-selected="true"`; every other selectable row has `aria-selected="false"`, and the grid is `aria-multiselectable` in `'multi'` mode. `--argus-row-selected-bg` paints them, pinned columns included, and wins over `--argus-row-hover-bg`. In forced-colors mode they use `Highlight`.
-- A built-in checkbox column (opt-in `selection-checkboxes`, with a select-all header) is planned next.
+- `selection-checkboxes` adds a checkbox column, pinned first at the start (before the start-pinned columns), 40 px wide. A row's checkbox toggles that row and keeps the others; Shift+click adds the range from the anchor. A click elsewhere in the cell does the same. In `'multi'` mode the header has a select-all checkbox: checked when every selectable row is selected, mixed when some are; a click selects all (keeping ids selected elsewhere) or, when all are selected, clears the selection. Space on a focused checkbox cell, or on the header, does what its checkbox does. The checkboxes aren't focusable: their cell keeps focus, so arrows keep working. Rows that can't be selected (still loading) have no checkbox.
+- The checkbox column isn't a column of `columns`: it isn't in `columnOrder` or `columnSizing`, can't be sorted, resized or moved (other columns can't move before it), fires no `argus-cell-click` or `argus-row-click`, and gets no light-DOM content. It counts in `aria-colindex` and `aria-colcount`. Its id, `--argus-selection`, is reserved. Ctrl+A also keeps ids selected elsewhere.
 
 ## Events
 
@@ -226,13 +228,14 @@ Each `argus-*` event drops its prefix and takes the framework's style:
 
 ## Parts
 
-`table`, `header`, `header-row`, `header-cell`, `header-cell-sorted`, `header-cell-dragging`, `drop-indicator`, `resize-handle`, `body`, `row`, `row-pinned`, `row-pinned-top`, `row-pinned-bottom`, `row-even`, `row-odd`, `row-selected`, `row-loading`, `cell`, `cell-pinned`, `cell-pinned-edge`, `cell-pinned-row`, `cell-sorted`, `footer`, `skeleton`, `skeleton-error`, `retry`, `empty`.
+`table`, `header`, `header-row`, `header-cell`, `header-cell-sorted`, `header-cell-dragging`, `header-cell-selection`, `cell-selection`, `selection-checkbox`, `drop-indicator`, `resize-handle`, `body`, `row`, `row-pinned`, `row-pinned-top`, `row-pinned-bottom`, `row-even`, `row-odd`, `row-selected`, `row-loading`, `cell`, `cell-pinned`, `cell-pinned-edge`, `cell-pinned-row`, `cell-sorted`, `footer`, `skeleton`, `skeleton-error`, `retry`, `empty`.
 
 - `row-pinned` is on every row from `pinnedRows`, with `row-pinned-top` or `row-pinned-bottom` for its side (`::part()` can't tell them apart by attribute). Pinned rows also have `row`, but not `row-even`/`row-odd`. Their cells add `cell-pinned-row` to `cell`; don't confuse it with `cell-pinned`, which marks cells in pinned *columns*.
 
 - `row-loading`, `skeleton`, `skeleton-error` and `retry` belong to `dataSource` loading; see [Data source](#data-source).
 
 - `row-selected` is on body rows whose id is in `selection`; see [Row selection](#row-selection).
+- `cell-selection` is added to `cell` in the checkbox column (pinned rows included), `header-cell-selection` to its `header-cell`, and `selection-checkbox` is on every one of its checkboxes, the select-all one too. Style them with `accent-color`, for example: `argus-table::part(selection-checkbox) { accent-color: rebeccapurple; }`.
 
 - `header-cell-dragging` is added to `header-cell` while that header is dragged; `drop-indicator` is a line inside the header where it would land, on its inline-start or inline-end edge. See [Column order](#column-order).
 

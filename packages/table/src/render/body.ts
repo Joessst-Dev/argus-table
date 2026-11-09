@@ -1,10 +1,11 @@
 import { html, nothing } from 'lit';
+import { live } from 'lit/directives/live.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { styleMap } from 'lit/directives/style-map.js';
 import type { ColumnView, RowState } from '@argus-table/core';
 import type { WindowRow } from '../controllers/virtual-controller.js';
 import type { CellContent } from '../types.js';
-import { cellParts, cellSlot, pinStyle } from './content.js';
+import { cellParts, cellSlot, pinStyle, type CheckboxHandlers } from './content.js';
 
 type Columns<T> = readonly ColumnView<T, CellContent>[];
 
@@ -44,6 +45,7 @@ export function renderBody<T>(
   firstRowIndex: number,
   loading?: Loading,
   selectedAt?: SelectedAt,
+  checkboxes?: CheckboxHandlers,
 ) {
   return html`<div
     part="body"
@@ -61,6 +63,7 @@ export function renderBody<T>(
           firstRowIndex,
           loading,
           selectedAt?.(r.index),
+          checkboxes,
         ),
     )}
   </div>`;
@@ -71,7 +74,7 @@ export function renderBody<T>(
  * active one is the grid's single tab stop (roving tabindex). A row whose data
  * isn't loaded shows skeleton bars, and a Retry button if its page failed.
  * `selected` is `undefined` for a row that can't be selected: it then has no
- * `aria-selected`.
+ * `aria-selected`, and no checkbox in the selection column.
  */
 function renderRow<T>(
   row: WindowRow,
@@ -80,12 +83,15 @@ function renderRow<T>(
   firstRowIndex: number,
   loading: Loading | undefined,
   selected: boolean | undefined,
+  checkboxes: CheckboxHandlers | undefined,
 ) {
   const state = loading?.stateAt(row.index) ?? 'loaded';
   let parts = row.index % 2 === 0 ? 'row row-even' : 'row row-odd';
   if (state !== 'loaded') parts += ' row-loading';
   if (selected) parts += ' row-selected';
   const retry = state === 'error' ? loading?.retry.get(row.index) : undefined;
+  // The Retry button goes in the first data column, after a selection column.
+  const retryCol = columns.find((c) => c.kind === 'data')?.id;
   return html`<div
     part=${parts}
     class="row"
@@ -104,7 +110,9 @@ function renderRow<T>(
           c.id === activeCol,
           cellSlot(row.slot, c.colIndex),
           false,
-          placeholder(state, c.colIndex === 1 ? retry : undefined, row.index, loading),
+          c.kind === 'selection'
+            ? rowCheckbox(row.index, selected, checkboxes)
+            : placeholder(state, c.id === retryCol ? retry : undefined, row.index, loading),
         ),
     )}
   </div>`;
@@ -134,6 +142,29 @@ export function renderCell<T>(
   >
     ${before}<slot name=${slot}></slot>
   </div>`;
+}
+
+/**
+ * A row's checkbox in the selection column, for a row that can be selected.
+ * It isn't focusable: the cell holds focus. `live()` keeps it showing the
+ * selection when a controlled host turns a change down.
+ */
+function rowCheckbox(
+  index: number,
+  selected: boolean | undefined,
+  checkboxes: CheckboxHandlers | undefined,
+) {
+  if (selected === undefined || !checkboxes) return nothing;
+  return html`<input
+    type="checkbox"
+    part="selection-checkbox"
+    tabindex="-1"
+    aria-label="Select row"
+    data-row=${index}
+    .checked=${live(selected)}
+    @click=${checkboxes.row}
+    @mousedown=${checkboxes.press}
+  />`;
 }
 
 /** What an unloaded cell shows: a skeleton bar, or the Retry button in a failed page's first cell. */

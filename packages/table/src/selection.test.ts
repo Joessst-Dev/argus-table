@@ -428,3 +428,233 @@ describe('selection: pinned rows and dataSource', () => {
     });
   });
 });
+
+describe('selection: checkbox column', () => {
+  const SELECT = '--argus-selection';
+
+  async function table(props: Partial<ArgusTable<Person>> = {}) {
+    const el = await fixture({
+      columns,
+      data: people(20),
+      getRowId,
+      selectionMode: 'multi',
+      selectionCheckboxes: true,
+      ...props,
+    });
+    return { el, seen: changes(el) };
+  }
+
+  const headers = (el: HTMLElement) => [
+    ...shadow(el).querySelectorAll<HTMLElement>('[role="columnheader"]'),
+  ];
+  const checkAll = (el: HTMLElement) =>
+    shadow(el).querySelector<HTMLInputElement>('[part~="header-cell-selection"] input');
+  const checkbox = (el: HTMLElement, row: number) =>
+    cellAt(el, row, SELECT).querySelector<HTMLInputElement>('input');
+
+  test('comes first, only with a selectionMode, and leaves the light DOM alone', async () => {
+    const el = await fixture({ columns, data: people(5), getRowId, selectionCheckboxes: true });
+    expect(headers(el).map((h) => h.dataset.col)).toEqual(['name', 'age', 'city']);
+    const lightDom = el.children.length;
+    el.selectionMode = 'single';
+    await settle(el);
+    expect(headers(el).map((h) => [h.dataset.col, h.getAttribute('aria-colindex')])).toEqual([
+      [SELECT, '1'],
+      ['name', '2'],
+      ['age', '3'],
+      ['city', '4'],
+    ]);
+    expect(el.children.length).toBe(lightDom);
+    expect(cellAt(el, 0, SELECT).part.contains('cell-selection')).toBe(true);
+    expect(cellAt(el, 0, SELECT).part.contains('cell-pinned')).toBe(true);
+    // Single mode: no select-all.
+    expect(checkAll(el)).toBeNull();
+    expect(checkbox(el, 0)?.part.contains('selection-checkbox')).toBe(true);
+  });
+
+  test('a checkbox toggles its row, keeps the others, and fires no click events', async () => {
+    const { el, seen } = await table();
+    const clicks: string[] = [];
+    el.addEventListener('argus-cell-click', () => clicks.push('cell'));
+    el.addEventListener('argus-row-click', () => clicks.push('row'));
+    checkbox(el, 1)?.click();
+    await settle(el);
+    checkbox(el, 4)?.click();
+    await settle(el);
+    expect(seen).toEqual([['p1'], ['p1', 'p4']]);
+    expect(checkbox(el, 4)?.checked).toBe(true);
+    expect(checkbox(el, 2)?.checked).toBe(false);
+    checkbox(el, 1)?.click();
+    await settle(el);
+    expect(el.selection).toEqual(['p4']);
+    expect(checkbox(el, 1)?.checked).toBe(false);
+    expect(clicks).toEqual([]);
+  });
+
+  test('Shift on a checkbox adds the range from the anchor', async () => {
+    const { el } = await table();
+    checkbox(el, 2)?.click();
+    await settle(el);
+    await click(el, 9, { ctrlKey: true });
+    checkbox(el, 5)?.dispatchEvent(
+      new MouseEvent('click', { bubbles: true, composed: true, cancelable: true, shiftKey: true }),
+    );
+    await settle(el);
+    expect(el.selection).toEqual(['p2', 'p9', 'p5', 'p6', 'p7', 'p8']);
+  });
+
+  test('a click beside the checkbox toggles too', async () => {
+    const { el } = await table();
+    await click(el, 1);
+    cellAt(el, 3, SELECT).click();
+    await settle(el);
+    expect(el.selection).toEqual(['p1', 'p3']);
+  });
+
+  test('the header checkbox selects all, shows some, and clears all', async () => {
+    const { el } = await table();
+    expect(checkAll(el)).toMatchObject({ checked: false, indeterminate: false });
+    checkbox(el, 3)?.click();
+    await settle(el);
+    expect(checkAll(el)).toMatchObject({ checked: false, indeterminate: true });
+    checkAll(el)?.click();
+    await settle(el);
+    expect(el.selection).toHaveLength(20);
+    expect(el.selection[0]).toBe('p3');
+    expect(checkAll(el)).toMatchObject({ checked: true, indeterminate: false });
+    checkAll(el)?.click();
+    await settle(el);
+    expect(el.selection).toEqual([]);
+    expect(checkAll(el)).toMatchObject({ checked: false, indeterminate: false });
+  });
+
+  test('Space on the checkbox cells toggles the row, or all rows from the header', async () => {
+    const { el } = await table();
+    const header = headers(el)[0];
+    header?.focus();
+    await key(el, ' ');
+    expect(el.selection).toHaveLength(20);
+    await key(el, ' ');
+    expect(el.selection).toEqual([]);
+    cellAt(el, 2, SELECT).focus();
+    await key(el, ' ');
+    expect(el.selection).toEqual(['p2']);
+  });
+
+  test('a press on a checkbox keeps focus on its cell', async () => {
+    const { el } = await table();
+    const down = new MouseEvent('mousedown', { bubbles: true, composed: true, cancelable: true });
+    checkbox(el, 2)?.dispatchEvent(down);
+    expect(down.defaultPrevented).toBe(true);
+    expect(focused(el)).toBe(cellAt(el, 2, SELECT));
+  });
+
+  test('a controlled host that turns a change down keeps the box unticked', async () => {
+    const { el, seen } = await table({ selection: [] });
+    checkbox(el, 1)?.click();
+    await settle(el);
+    expect(seen).toEqual([['p1']]);
+    expect(checkbox(el, 1)?.checked).toBe(false);
+    checkAll(el)?.click();
+    await settle(el);
+    expect(checkAll(el)?.checked).toBe(false);
+  });
+
+  test('stays out of columnOrder, columnSizing and moves', async () => {
+    const pinned: ColumnDef<Person>[] = [
+      { id: 'name', header: 'Name', accessor: 'name', pin: 'start', width: 120 },
+      ...columns.slice(1),
+    ];
+    const { el } = await table({ columns: pinned });
+    const name = headers(el)[1];
+    name?.focus();
+    await key(el, 'ArrowLeft', { altKey: true, shiftKey: true });
+    expect(headers(el).map((h) => h.dataset.col)).toEqual([SELECT, 'name', 'age', 'city']);
+    expect(el.columnOrder).toEqual([]);
+    await key(el, 'ArrowRight', { altKey: true, shiftKey: true });
+    await el.autosizeColumns();
+    expect(el.columnOrder).not.toContain(SELECT);
+    expect(Object.keys(el.columnSizing)).not.toContain(SELECT);
+  });
+
+  test('pins to the start edge before the other start-pinned columns, in LTR and RTL', async () => {
+    // Wide enough to scroll sideways, so the pinned cells have to stick.
+    const pinned: ColumnDef<Person>[] = [
+      { id: 'name', header: 'Name', accessor: 'name', pin: 'start', width: 120 },
+      { id: 'age', header: 'Age', accessor: 'age', width: 500 },
+      { id: 'city', header: 'City', accessor: 'address.city', width: 500 },
+    ];
+    for (const dir of ['ltr', 'rtl']) {
+      const { el } = await table({ columns: pinned, dir });
+      const scroller = shadow(el).querySelector<HTMLElement>('[part~="table"]');
+      if (!scroller) throw new Error('no scroller');
+      scroller.scrollLeft = dir === 'rtl' ? -200 : 200;
+      await settle(el);
+      expect(Math.abs(scroller.scrollLeft)).toBe(200);
+      // The content box: a vertical scrollbar sits on the left in RTL.
+      const left = scroller.getBoundingClientRect().left + scroller.clientLeft;
+      const right = left + scroller.clientWidth;
+      const select = cellAt(el, 0, SELECT).getBoundingClientRect();
+      const name = cellAt(el, 0, 'name').getBoundingClientRect();
+      if (dir === 'ltr') {
+        expect(select.left).toBeCloseTo(left, 0);
+        expect(name.left).toBeCloseTo(select.right, 0);
+      } else {
+        expect(select.right).toBeCloseTo(right, 0);
+        expect(name.right).toBeCloseTo(select.left, 0);
+      }
+      el.remove();
+    }
+  });
+});
+
+describe('selection: select all keeps what is selected', () => {
+  test('Ctrl+A adds every row to ids already selected elsewhere', async () => {
+    const el = await fixture({
+      columns,
+      data: people(5),
+      getRowId,
+      selectionMode: 'multi',
+      selection: ['gone'],
+    });
+    // Hand it back: uncontrolled, keeping ['gone'].
+    el.selection = undefined;
+    await settle(el);
+    cellAt(el, 0).focus();
+    await key(el, 'a', { ctrlKey: true });
+    expect(el.selection).toEqual(['gone', 'p0', 'p1', 'p2', 'p3', 'p4']);
+  });
+});
+
+describe('selection: checkbox column with a dataSource', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  test('a failed page puts its Retry button in the first data column', async () => {
+    const source: DataSource<Person> = {
+      pageSize: 20,
+      getRows: () => Promise.reject(new Error('down')),
+    };
+    const el = await fixture({
+      columns,
+      dataSource: source,
+      getRowId,
+      selectionMode: 'multi',
+      selectionCheckboxes: true,
+    });
+    el.addEventListener('argus-load-error', () => undefined);
+    await settle(el);
+    vi.advanceTimersByTime(LOAD_DEBOUNCE_MS);
+    await settle(el);
+    await Promise.resolve();
+    await settle(el);
+    const retry = shadow(el).querySelector('[part~="retry"]');
+    expect(retry?.parentElement?.dataset.col).toBe('name');
+    // No checkbox for a row that can't be selected.
+    expect(cellAt(el, 0, '--argus-selection').querySelector('input')).toBeNull();
+  });
+});

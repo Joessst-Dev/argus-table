@@ -31,6 +31,8 @@ export const inferred = (
     onSortChange={(e) => e.detail.sorting.map((s) => s.id)}
     onColumnResize={(e) => e.detail.sizing}
     onColumnReorder={(e) => e.detail.order}
+    selectionMode="multi"
+    selectionCheckboxes
     onRowSelect={(e) => e.detail.selection.join()}
     onRangeChange={(e) => e.detail.start + e.detail.end}
     onLoadError={(e) => e.detail.error}

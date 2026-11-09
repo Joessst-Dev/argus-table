@@ -13,7 +13,9 @@ import {
   controllable,
   RowLayout,
   sameSelection,
+  selectAll,
   selectRange,
+  SELECTION_COLUMN_ID,
   toggleRow,
   type ColumnReorderDetail,
   type ColumnResizeDetail,
@@ -52,7 +54,8 @@ import { fromInteractive } from './interactive.js';
 import { bodyCap, watchMaxElementHeight } from './max-height.js';
 import { renderBody, type ActiveCell, type Loading, type SelectedAt } from './render/body.js';
 import { renderLightDom } from './render/cells.js';
-import { renderHeader, type HeaderDrag } from './render/header.js';
+import { renderHeader, type CheckAll, type HeaderDrag } from './render/header.js';
+import type { CheckboxHandlers } from './render/content.js';
 import { renderPinnedRows } from './render/pinned-rows.js';
 import { baseStyles } from './styles/base.js';
 import type {
@@ -193,6 +196,9 @@ function track<T>(column: ColumnView<T, CellContent>): string {
  * @csspart row-odd - Body rows with an odd index.
  * @csspart row-loading - Body rows whose `dataSource` page hasn't loaded yet, or failed.
  * @csspart row-selected - Body rows whose id is in `selection`.
+ * @csspart cell-selection - Added to `cell` in the checkbox column (`selectionCheckboxes`), pinned rows included.
+ * @csspart header-cell-selection - Added to `header-cell` on the checkbox column's header.
+ * @csspart selection-checkbox - The checkboxes of the checkbox column: one per selectable row, and the select-all one in the header (`multi` mode).
  * @csspart row-pinned - Every row from `pinnedRows`, on either side. Also has `row`, but no `row-even`/`row-odd`.
  * @csspart row-pinned-top - The rows pinned below the header.
  * @csspart row-pinned-bottom - The rows pinned to the bottom.
@@ -356,6 +362,17 @@ export class ArgusTable<T = unknown> extends LitElement {
   selectionMode: SelectionMode = 'none';
 
   /**
+   * Adds a checkbox column, pinned first at the start, while `selectionMode` is
+   * `single` or `multi`. A row's checkbox toggles it (Shift+click adds the range
+   * from the last row clicked); in `multi` mode the header's checkbox selects
+   * every row, or clears the selection when all are selected. Space on a
+   * focused checkbox cell does the same. The column isn't part of `columns`,
+   * `columnOrder` or `columnSizing`, and it fires no `argus-cell-click`.
+   */
+  @property({ attribute: 'selection-checkboxes', type: Boolean })
+  selectionCheckboxes = false;
+
+  /**
    * The selected rows, as row ids (from `getRowId`, or the row's index as a
    * string), e.g. `['p4', 'p7']`. Uncontrolled until set, like `sorting`: once
    * set, a click only fires `argus-row-select` with the proposed ids.
@@ -384,6 +401,11 @@ export class ArgusTable<T = unknown> extends LitElement {
   #anchor: string | undefined;
   /** A selection the table applied itself; its event fires once the update is done. */
   #appliedSelection: SelectionState | undefined;
+  /** Whether the checkbox column was last shown; a change re-measures the pinned columns. */
+  #selectionColumn = false;
+  #selectionColumnChanged = false;
+  /** The select-all checkbox's state, kept until `selection`, `data` or `getRowId` change. */
+  #checkAll: { key: readonly unknown[]; state: CheckAll['state'] } | undefined;
   /** Moves the table applied itself, by column; their events fire once the update is done. */
   readonly #appliedReorders = new Map<string, ColumnReorderDetail>();
   /** The header being dragged to a new position, if any. */
@@ -551,7 +573,10 @@ export class ArgusTable<T = unknown> extends LitElement {
     const autoWidths = this.#autoWidths.widths;
     this.#autoWidthsChanged = autoWidths !== this.#pushedAutoWidths;
     this.#pushedAutoWidths = autoWidths;
-    this.#table.update({ remote: this.#data.rows, autoWidths });
+    const selectionColumn = this.selectionCheckboxes && this.#mode() !== 'none';
+    this.#selectionColumnChanged = selectionColumn !== this.#selectionColumn;
+    this.#selectionColumn = selectionColumn;
+    this.#table.update({ remote: this.#data.rows, autoWidths, selectionColumn });
     const model = this.#table.model;
     this.#reconcileActive(model);
     const active = this.#active;
@@ -610,7 +635,13 @@ export class ArgusTable<T = unknown> extends LitElement {
         @mousedown=${this.#onMousedown}
         @click=${this.#onClick}
       >
-        ${renderHeader(columns, this.#headerHandlers, activeIn('header')?.col, this.#drag)}
+        ${renderHeader(
+          columns,
+          this.#headerHandlers,
+          activeIn('header')?.col,
+          this.#drag,
+          this.#checkAllOf(model),
+        )}
         ${renderPinnedRows('top', layout.top, columns, firstIndex('top'), activeIn('top'))}
         ${
           model.rowCount === 0
@@ -623,6 +654,7 @@ export class ArgusTable<T = unknown> extends LitElement {
                 firstIndex('body'),
                 this.#loading(),
                 this.#selectedAt(model),
+                this.#selectionColumn ? this.#checkboxHandlers : undefined,
               )
         }
         ${renderPinnedRows('bottom', layout.bottom, columns, firstIndex('bottom'), activeIn('bottom'))}
@@ -650,7 +682,8 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.#columnsChanged ||
       changed.has('columnSizing') ||
       changed.has('columnOrder') ||
-      this.#autoWidthsChanged
+      this.#autoWidthsChanged ||
+      this.#selectionColumnChanged
     ) {
       this.#pinScroll.measure();
     }
@@ -965,10 +998,17 @@ export class ArgusTable<T = unknown> extends LitElement {
       if (mode !== 'multi') return false;
       // Not the page's text: the rows.
       event.preventDefault();
-      this.#requestSelection({ selection: model.selectableIds(), anchor: this.#anchor });
+      this.#selectAll();
       return true;
     }
-    if (inHeader || command) return false;
+    if (command) return false;
+    if (inHeader) {
+      // Space on the select-all header does what its checkbox does.
+      if (key !== ' ' || col !== SELECTION_COLUMN_ID || mode !== 'multi') return false;
+      event.preventDefault();
+      this.#toggleAll();
+      return true;
+    }
     const layout = layoutOf(model);
     const from = gridRowOf(cell.parentElement, layout);
     if (from?.section !== 'body') return false;
@@ -1054,18 +1094,98 @@ export class ArgusTable<T = unknown> extends LitElement {
     const mode = this.#mode();
     const target = mode === 'none' ? undefined : this.#selectableRowOf(path);
     if (!target) return;
+    // A click in the checkbox column, beside the checkbox, toggles like it.
+    const inSelectionCell = path.some(
+      (t) => t instanceof HTMLElement && t.dataset.col === SELECTION_COLUMN_ID,
+    );
+    this.#clickRow(target, event, inSelectionCell || event.ctrlKey || event.metaKey);
+  };
+
+  /** Selects for a click on a row, through `clickSelection`. */
+  #clickRow(target: SelectionTarget, event: MouseEvent, toggle: boolean): void {
     const model = this.#table.model;
     this.#requestSelection(
       clickSelection(
         this.#selection.value,
-        mode,
+        this.#mode(),
         target,
         this.#anchorAt(model),
-        { toggle: event.ctrlKey || event.metaKey, range: event.shiftKey },
+        { toggle, range: event.shiftKey },
         (index) => model.rowAt(index)?.id,
       ),
     );
+  }
+
+  /**
+   * The checkboxes' handlers. The table owns their state: a click asks for a new
+   * selection, and the render that always follows sets every box back to the
+   * selection (`live()`), so a change a controlled host turns down unticks it
+   * again. Not `preventDefault()`: for a real click the browser runs that render
+   * inside the dispatch, then undoes the toggle after it, over the render. A
+   * press leaves focus on the cell, so the grid's keys keep working.
+   */
+  readonly #checkboxHandlers: CheckboxHandlers = {
+    row: (event) => {
+      const index = Number((event.currentTarget as HTMLElement).dataset.row);
+      const id = this.#table.model.rowAt(index)?.id;
+      if (id !== undefined) this.#clickRow({ id, index }, event, true);
+      this.requestUpdate();
+    },
+    all: () => {
+      this.#toggleAll();
+      this.requestUpdate();
+    },
+    press: (event) => {
+      event.preventDefault();
+      (event.currentTarget as HTMLElement).parentElement?.focus({ preventScroll: true });
+    },
   };
+
+  /** Selects every selectable row, keeping the others (with a `dataSource`: the loaded ones). */
+  #selectAll(): void {
+    const ids = this.#table.model.selectableIds();
+    this.#requestSelection({
+      selection: selectAll(this.#selection.value, ids),
+      anchor: this.#anchor,
+    });
+  }
+
+  /** The select-all checkbox: clears the selection when every row is selected, else selects all. */
+  #toggleAll(): void {
+    if (this.#checkAllState(this.#table.model) === 'all') {
+      this.#requestSelection({ selection: [], anchor: this.#anchor });
+    } else {
+      this.#selectAll();
+    }
+  }
+
+  /** The select-all checkbox, in the checkbox column of a `multi` table. */
+  #checkAllOf(model: TableModel<T, CellContent>): CheckAll | undefined {
+    if (!this.#selectionColumn || this.#mode() !== 'multi') return undefined;
+    return { state: this.#checkAllState(model), handlers: this.#checkboxHandlers };
+  }
+
+  /**
+   * Whether all, some or none of the selectable rows are selected. With `data`
+   * it's worked out once per `selection`, `data` and `getRowId`, not on scroll;
+   * with a `dataSource` every time, over the loaded rows, which eviction keeps few.
+   */
+  #checkAllState(model: TableModel<T, CellContent>): CheckAll['state'] {
+    const count = (): CheckAll['state'] => {
+      const ids = model.selectableIds();
+      const selected = this.#selectedSet();
+      const n = ids.reduce((sum, id) => (selected.has(id) ? sum + 1 : sum), 0);
+      if (n === 0) return 'none';
+      return n === ids.length ? 'all' : 'some';
+    };
+    if (this.#data.rows) return count();
+    const key = [this.#selection.value, this.data, this.getRowId];
+    const cached = this.#checkAll;
+    if (cached?.key.length !== key.length || key.some((k, i) => k !== cached.key[i])) {
+      this.#checkAll = { key, state: count() };
+    }
+    return this.#checkAll?.state ?? 'none';
+  }
 
   /**
    * A Shift+press on a row in `multi` mode selects a range of rows, not the
@@ -1095,15 +1215,20 @@ export class ArgusTable<T = unknown> extends LitElement {
   /** Whether each rendered body row is selected; `undefined` without a `selectionMode`. */
   #selectedAt(model: TableModel<T, CellContent>): SelectedAt | undefined {
     if (this.#mode() === 'none') return undefined;
-    const selection = this.#selection.value;
-    if (this.#selectedIds?.of !== selection) {
-      this.#selectedIds = { of: selection, ids: new Set(selection) };
-    }
-    const { ids } = this.#selectedIds;
+    const ids = this.#selectedSet();
     return (index) => {
       const id = model.rowAt(index)?.id;
       return id === undefined ? undefined : ids.has(id);
     };
+  }
+
+  /** `selection` as a set, rebuilt only when `selection` changes. */
+  #selectedSet(): ReadonlySet<string> {
+    const selection = this.#selection.value;
+    if (this.#selectedIds?.of !== selection) {
+      this.#selectedIds = { of: selection, ids: new Set(selection) };
+    }
+    return this.#selectedIds.ids;
   }
 
   /**
@@ -1151,7 +1276,7 @@ export class ArgusTable<T = unknown> extends LitElement {
   /**
    * Fires `argus-cell-click` (when a cell is on the path), then `argus-row-click`,
    * for the body or pinned row on an event path. Clicks and Enter on a cell use
-   * it. Rows that haven't loaded and the header fire nothing.
+   * it. Rows that haven't loaded, the header and the checkbox column fire nothing.
    */
   #activate(path: EventTarget[]): void {
     let columnId: string | undefined;
@@ -1159,6 +1284,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       if (!(target instanceof HTMLElement)) continue;
       const role = target.getAttribute('role');
       if (role === 'gridcell') columnId = target.dataset.col;
+      if (columnId === SELECTION_COLUMN_ID) return;
       if (role !== 'row') continue;
       const model = this.#table.model;
       const at = gridRowOf(target, layoutOf(model));
@@ -1431,10 +1557,14 @@ export class ArgusTable<T = unknown> extends LitElement {
     });
   }
 
-  /** The rendered headers of one pin group, with their positions in the whole order. */
+  /**
+   * The rendered headers of one pin group, with their positions in the whole
+   * order (which leaves out the checkbox column).
+   */
   #dropSlots(pin: ColumnView<T, CellContent>['pin']): DropSlot[] {
     const slots: DropSlot[] = [];
-    this.#table.model.columns.forEach((c, index) => {
+    const columns = this.#table.model.columns.filter((c) => c.kind === 'data');
+    columns.forEach((c, index) => {
       if (c.pin !== pin) return;
       const cell = this.renderRoot.querySelector(
         `[role='columnheader'][data-col="${CSS.escape(c.id)}"]`,
