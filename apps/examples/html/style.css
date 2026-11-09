@@ -1,0 +1,30 @@
+/* Cell content lives in the page's light DOM, so page CSS styles it. */
+body {
+  margin: 0;
+  padding: 16px;
+  font:
+    14px/1.4 system-ui,
+    sans-serif;
+  color-scheme: light dark;
+}
+
+argus-table {
+  block-size: 480px;
+}
+
+.status {
+  padding: 0.1em 0.6em;
+  border-radius: 999px;
+}
+
+.status-paid {
+  background: light-dark(#dcfce7, #14532d);
+}
+
+.status-pending {
+  background: light-dark(#fef9c3, #713f12);
+}
+
+.status-refunded {
+  background: light-dark(#fee2e2, #7f1d1d);
+}

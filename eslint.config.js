@@ -9,7 +9,14 @@ import globals from 'globals';
 
 export default tseslint.config(
   {
-    ignores: ['**/dist/**', '**/coverage/**', '**/storybook-static/**', '**/.nx/**'],
+    ignores: [
+      '**/dist/**',
+      '**/coverage/**',
+      '**/storybook-static/**',
+      '**/.nx/**',
+      // The starters are standalone apps with their own tooling (built by the smoke test).
+      'apps/examples/{html,react,vue,angular,.smoke}/**',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.strictTypeChecked,

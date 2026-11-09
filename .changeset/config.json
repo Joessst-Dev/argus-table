@@ -9,6 +9,7 @@
   "ignore": [
     "@argus-table/benchmarks",
     "@argus-table/e2e",
+    "@argus-table/examples",
     "@argus-table/generate-wrappers",
     "@argus-table/playground",
     "@argus-table/storybook",

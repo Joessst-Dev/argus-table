@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`<argus-table>`: a framework-agnostic, virtualized data table web component built with Lit 3, TanStack Table v9 (`@tanstack/table-core`) and TanStack Virtual. pnpm + Nx monorepo, Node ≥ 22.12 (`.nvmrc`), pnpm via Corepack. Currently v0.1 (virtualized rows, pinned columns, sorting, resizing, keyboard nav, default theme) plus, for v0.2, `dataSource` infinite loading, pinned rows, auto column widths, column reordering, `<argus-column>` children, the React, Vue and Angular wrappers, the Material-inspired theme, the benchmarks (Storybook "Benchmarks" page, fed by `benchmarks/published/`) and scroll scaling past the engines' maximum element height; StackBlitz starters are still to come in v0.2.
+`<argus-table>`: a framework-agnostic, virtualized data table web component built with Lit 3, TanStack Table v9 (`@tanstack/table-core`) and TanStack Virtual. pnpm + Nx monorepo, Node ≥ 22.12 (`.nvmrc`), pnpm via Corepack. Currently v0.1 (virtualized rows, pinned columns, sorting, resizing, keyboard nav, default theme) plus, for v0.2, `dataSource` infinite loading, pinned rows, auto column widths, column reordering, `<argus-column>` children, the React, Vue and Angular wrappers, the Material-inspired theme, the benchmarks (Storybook "Benchmarks" page, fed by `benchmarks/published/`), scroll scaling past the engines' maximum element height and the StackBlitz starters (`apps/examples`, live once v0.2 is on npm).
 
 `docs/plan/` is the design plan (public API draft, roadmap, architecture diagrams). It describes intended features too, so check the source before assuming something exists (for example `rowHeight: 'auto'` is planned but not implemented). `docs/adr/0001-shadow-vs-light-dom.md` explains the rendering model below.
 
@@ -19,6 +19,7 @@ pnpm test                # Vitest in all projects (browser mode, headless Chromi
 pnpm build               # every package
 pnpm test:e2e            # Playwright against the built playground (`vite preview` on :4173)
 pnpm test:visual         # screenshot tests inside the CI Playwright Docker image (needs Docker)
+pnpm nx run examples:smoke  # pack the packages, npm-install + build each starter, Playwright smoke test (Node ≥ 22.22.3 for the Angular CLI)
 pnpm size                # CDN bundle min+gzip vs packages/table/.size-limit.json (45 kB)
 pnpm bench               # benchmarks/: ROWS=10000,100000,1000000 BROWSERS=… RUNS=… (see benchmarks/README.md)
 pnpm affected            # what CI runs for the branch (base: main)
@@ -28,7 +29,7 @@ pnpm changeset           # add a release note
 Single project / single test:
 
 ```bash
-pnpm nx test argus-table                                   # Nx project names: argus-table, core, themes, react, vue, angular, generate-wrappers, storybook, playground, e2e, visual, benchmarks
+pnpm nx test argus-table                                   # Nx project names: argus-table, core, themes, react, vue, angular, generate-wrappers, storybook, playground, examples, e2e, visual, benchmarks
 pnpm --filter argus-table exec vitest run src/argus-table.test.ts -t "keyboard"
 pnpm --filter @argus-table/core exec vitest run src/table/create-table.test.ts
 pnpm nx run storybook:test-storybook                        # every story as a test, with axe (violations fail)
@@ -51,6 +52,7 @@ BROWSERS=chromium pnpm --filter @argus-table/e2e exec playwright test specs/sort
 - `packages/themes` (`@argus-table/themes`): plain CSS in `src/`, built by Lightning CSS (`scripts/build.mjs`). Themes only set `--argus-*` tokens and `::part()` rules.
 - `apps/storybook`: stories double as docs and tests (play functions + axe on every story). Each feature gets a story.
 - `apps/playground`: the page that e2e, visual tests and `benchmarks/` drive. With `?bench` it leaves the table unmounted until `__argusBench.mount()`.
+- `apps/examples`: the StackBlitz starters (`html`, `react`, `vue`, `angular`) and the `examples` project that smoke-tests them. The starters are standalone npm apps outside the pnpm workspace (`apps/*` doesn't match nested folders) with real `^x.y.z` ranges: `scripts/sync-versions.mjs` keeps those at the packages' versions (run by `pnpm version-packages`, checked by `lint`). `smoke` packs the published packages, installs each starter in `.smoke/<name>` against the tarballs with npm, builds it and runs `smoke.spec.ts`. The four data generators must stay identical: the spec computes the expected rows from `html/data.js`.
 - `benchmarks/`: `run.ts` measures, `merge.ts` combines per-engine results into `published/` (committed; the Storybook Benchmarks page imports `published/latest.json`).
 - `tests/e2e`, `tests/visual`: Playwright projects.
 

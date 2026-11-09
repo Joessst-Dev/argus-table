@@ -1,0 +1,23 @@
+{
+  "name": "@argus-table/examples",
+  "private": true,
+  "type": "module",
+  "nx": {
+    "name": "examples"
+  },
+  "scripts": {
+    "smoke": "node scripts/prepare.mjs && playwright test",
+    "sync-versions": "node scripts/sync-versions.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "node scripts/sync-versions.mjs --check && eslint ."
+  },
+  "devDependencies": {
+    "@argus-table/angular": "workspace:*",
+    "@argus-table/react": "workspace:*",
+    "@argus-table/themes": "workspace:*",
+    "@argus-table/vue": "workspace:*",
+    "@playwright/test": "1.63.0",
+    "argus-table": "workspace:*",
+    "vite": "^8.3.5"
+  }
+}

@@ -12,3 +12,6 @@ custom-elements.json
 
 # Exported from the living plan doc; re-exports would fight Prettier's table padding
 docs/plan/
+
+# Smoke-test copies of the starters (apps/examples/scripts/prepare.mjs)
+apps/examples/.smoke/
