@@ -9,7 +9,7 @@ Small apps with one `<argus-table>` each: 10,000 orders, a pinned column, sortin
 | [`vue`](vue)         | Vue 3.5, `@argus-table/vue`        | [StackBlitz](https://stackblitz.com/github/Joessst-Dev/argus-table/tree/main/apps/examples/vue)     |
 | [`angular`](angular) | Angular 22, `@argus-table/angular` | [StackBlitz](https://stackblitz.com/github/Joessst-Dev/argus-table/tree/main/apps/examples/angular) |
 
-The starters install the published packages from npm, so they need the version in their `package.json` to be on npm. The wrappers are first published with v0.2.
+The starters install the published packages from npm, at the ranges in their `package.json`.
 
 To run one locally, copy its folder anywhere and run `npm install` and `npm run dev`.
 

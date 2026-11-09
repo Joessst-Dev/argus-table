@@ -8,9 +8,21 @@ A framework-agnostic data table web component built with Lit and TanStack: infin
 
 Named after Argus Panoptes, the hundred-eyed giant of Greek myth who never slept: a table that keeps watch over every row.
 
-> **Status:** v0.1 is on npm: virtualized rows, pinned columns, sorting, resizing, keyboard navigation and the default theme. On `main` for v0.2: infinite loading, pinned rows, auto widths, column reordering, `<argus-column>` children, the React, Vue and Angular wrappers and a Material-inspired theme ([roadmap](docs/plan/plan/12-roadmap.md)).
+> **Status:** v0.2 is on npm: virtualized rows, infinite loading, pinned columns and rows, sorting, resizing, auto widths and reordering, keyboard navigation, `<argus-column>` children, the React, Vue and Angular wrappers, and the default and Material-inspired themes ([roadmap](docs/plan/plan/12-roadmap.md)).
 
 **[Docs and live examples](https://joessst-dev.github.io/argus-table/)**
+
+## Try it
+
+Open a starter on StackBlitz and edit it in the browser, with nothing to install. Each one is a table of 10,000 orders with a pinned column, sorting, a styled cell and a row-click handler, and a good base for a bug report.
+
+| Plain HTML                                                               | React                                                                | Vue                                                              | Angular                                                                  |
+| ------------------------------------------------------------------------ | -------------------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| [![Open the plain HTML starter in StackBlitz][stackblitz]][starter-html] | [![Open the React starter in StackBlitz][stackblitz]][starter-react] | [![Open the Vue starter in StackBlitz][stackblitz]][starter-vue] | [![Open the Angular starter in StackBlitz][stackblitz]][starter-angular] |
+
+The starters live in [`apps/examples`](apps/examples).
+
+## Install
 
 ```bash
 npm i argus-table @argus-table/themes
@@ -42,8 +54,8 @@ import { ArgusTable } from '@argus-table/react';
 
 | Package                 | Purpose                                          | Status       |
 | ----------------------- | ------------------------------------------------ | ------------ |
-| `argus-table`           | The `<argus-table>` element                      | v0.1         |
-| `@argus-table/themes`   | Optional themes: default, Material-inspired      | v0.1         |
+| `argus-table`           | The `<argus-table>` element                      | v0.2         |
+| `@argus-table/themes`   | Optional themes: default, Material-inspired      | v0.2         |
 | `@argus-table/react`    | React components with typed props and events     | v0.2         |
 | `@argus-table/vue`      | Vue components with typed props, events, v-model | v0.2         |
 | `@argus-table/angular`  | Angular components with typed inputs and outputs | v0.2         |
@@ -54,3 +66,9 @@ import { ArgusTable } from '@argus-table/react';
 Everything is in [`docs/plan`](docs/plan/README.md): vision, tech stack, rendering strategy, styling system, public API draft, roadmap, repo and CI setup, and code architecture with diagrams.
 
 License: [MIT](LICENSE).
+
+[stackblitz]: https://developer.stackblitz.com/img/open_in_stackblitz.svg
+[starter-html]: https://stackblitz.com/github/Joessst-Dev/argus-table/tree/main/apps/examples/html
+[starter-react]: https://stackblitz.com/github/Joessst-Dev/argus-table/tree/main/apps/examples/react
+[starter-vue]: https://stackblitz.com/github/Joessst-Dev/argus-table/tree/main/apps/examples/vue
+[starter-angular]: https://stackblitz.com/github/Joessst-Dev/argus-table/tree/main/apps/examples/angular
