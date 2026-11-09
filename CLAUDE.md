@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`<argus-table>`: a framework-agnostic, virtualized data table web component built with Lit 3, TanStack Table v9 (`@tanstack/table-core`) and TanStack Virtual. pnpm + Nx monorepo, Node ≥ 22.12 (`.nvmrc`), pnpm via Corepack. Currently v0.1 (virtualized rows, pinned columns, sorting, resizing, keyboard nav, default theme) plus, for v0.2, `dataSource` infinite loading, pinned rows, auto column widths, column reordering, `<argus-column>` children, the React, Vue and Angular wrappers, the Material-inspired theme and the benchmarks (Storybook "Benchmarks" page, fed by `benchmarks/published/`); StackBlitz starters and scroll scaling past about 800k rows (the engines' maximum element height) are still to come in v0.2.
+`<argus-table>`: a framework-agnostic, virtualized data table web component built with Lit 3, TanStack Table v9 (`@tanstack/table-core`) and TanStack Virtual. pnpm + Nx monorepo, Node ≥ 22.12 (`.nvmrc`), pnpm via Corepack. Currently v0.1 (virtualized rows, pinned columns, sorting, resizing, keyboard nav, default theme) plus, for v0.2, `dataSource` infinite loading, pinned rows, auto column widths, column reordering, `<argus-column>` children, the React, Vue and Angular wrappers, the Material-inspired theme, the benchmarks (Storybook "Benchmarks" page, fed by `benchmarks/published/`) and scroll scaling past the engines' maximum element height; StackBlitz starters are still to come in v0.2.
 
 `docs/plan/` is the design plan (public API draft, roadmap, architecture diagrams). It describes intended features too, so check the source before assuming something exists (for example `rowHeight: 'auto'` is planned but not implemented). `docs/adr/0001-shadow-vs-light-dom.md` explains the rendering model below.
 
@@ -19,7 +19,7 @@ pnpm test                # Vitest in all projects (browser mode, headless Chromi
 pnpm build               # every package
 pnpm test:e2e            # Playwright against the built playground (`vite preview` on :4173)
 pnpm test:visual         # screenshot tests inside the CI Playwright Docker image (needs Docker)
-pnpm size                # CDN bundle min+gzip vs packages/table/.size-limit.json (44 kB)
+pnpm size                # CDN bundle min+gzip vs packages/table/.size-limit.json (45 kB)
 pnpm bench               # benchmarks/: ROWS=10000,100000,1000000 BROWSERS=… RUNS=… (see benchmarks/README.md)
 pnpm affected            # what CI runs for the branch (base: main)
 pnpm changeset           # add a release note
@@ -63,6 +63,8 @@ BROWSERS=chromium pnpm --filter @argus-table/e2e exec playwright test specs/sort
 **Pooled rows.** `VirtualController` wraps TanStack Virtual and `RowPool`: each rendered row holds a pool slot while in range, freed slots are reused. Body rows and light-DOM content are keyed and ordered by pool slot (not row id), so scrolling updates DOM in place and the node count stays bounded. DOM order is therefore pool order; the logical position is `aria-rowindex` (header = 1, then pinned top rows, then the body; map it with `RowLayout`). The active row is "kept" rendered outside the range so focus survives scrolling.
 
 **Update flow** (`argus-table.ts`): `willUpdate` pushes properties into `TableController` → core model, reconciles the active cell, and configures the virtualizer → `render` computes the virtual window and calls the pure render functions in `render/` (`header.ts`, `body.ts`) → `updated` renders light-DOM content, moves focus, and fires deferred events. Row height is measured from a hidden `.probe` element (ResizeObserver), so density and the `--argus-row-height` token drive the virtualizer.
+
+**Scroll scaling** (`controllers/virtual-controller.ts`, core `virtual/scroll-scale.ts`): engines limit an element's height (`max-height.ts` measures it once per page, again after a zoom), so a taller body renders at that cap and the scroll position maps linearly onto the rows. TanStack Virtual sees a `Proxy` stand-in for the scroller whose `scrollTop`, `scrollHeight` and `scrollTo()` are logical; rows render at `start` less the logical-minus-physical offset. Under the cap it's the identity. Scroll through the controller (`scrollBy`, `reveal`, `scrollToIndex`), never `scrollTop += px`, and a focused body row is revealed by the controller, not `scrollIntoView` (a physical px is several rows once scaled). Tests force a small cap with `setMaxElementHeightForTests()`.
 
 **Infinite loading** (`dataSource`): `DataController` owns a core `PageCache` (pages loaded / in flight / failed, row count, eviction) and passes it to the model as `remote`; `rowAt()` is then `undefined` for unloaded rows, which render as skeletons. Requests are debounced (50 ms) and aborted when they scroll away; a new source, sort order or `refresh()` starts a fresh cache. Sorting happens on the server in this mode.
 

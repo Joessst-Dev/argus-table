@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { html } from 'lit';
-import { expect } from 'storybook/test';
+import { expect, userEvent, waitFor } from 'storybook/test';
 import type { ColumnDef, Density } from 'argus-table';
 import 'argus-table';
 
@@ -85,6 +85,40 @@ export const HundredThousandRows: Story = {
     const rows = table?.shadowRoot?.querySelectorAll('[part~="row"]') ?? [];
     await expect(rows.length).toBeGreaterThan(0);
     await expect(rows.length).toBeLessThan(40);
+  },
+};
+
+let million: Order[] | undefined;
+
+/**
+ * 1,000,000 rows: 40M px of rows, taller than browsers render an element (about
+ * 33.5M px in Chromium and Safari, 17.9M px in Firefox). The body renders
+ * shorter and its scroll position is scaled, so the scrollbar still spans every
+ * row; a wheel step covers a few more rows than usual. Press Ctrl+End (Cmd+End)
+ * in the table to jump to the last row.
+ */
+export const MillionRows: Story = {
+  render: ({ density }) =>
+    html`<argus-table
+      style="block-size: 480px"
+      density=${density}
+      .columns=${columns}
+      .data=${(million ??= orders(1_000_000))}
+    ></argus-table>`,
+  play: async ({ canvasElement }) => {
+    const table = canvasElement.querySelector('argus-table');
+    await table?.updateComplete;
+    const root = table?.shadowRoot;
+    if (!table || !root) return;
+    root.querySelector<HTMLElement>('[role="columnheader"][tabindex="0"]')?.focus();
+    await userEvent.keyboard('{Control>}{End}{/Control}');
+    await waitFor(() =>
+      expect(
+        (root.activeElement as HTMLElement | null)?.parentElement?.getAttribute('aria-rowindex'),
+      ).toBe('1000001'),
+    );
+    const scroller = root.querySelector<HTMLElement>('[part~="table"]');
+    await expect(scroller?.scrollHeight).toBeLessThan(33_000_000);
   },
 };
 
