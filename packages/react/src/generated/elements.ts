@@ -27,6 +27,7 @@ export type ArgusTableElementProps<T = unknown> = Partial<
     | 'rowHeight'
     | 'density'
     | 'overscan'
+    | 'virtualizeColumns'
     | 'sorting'
     | 'columnSizing'
     | 'columnOrder'

@@ -44,7 +44,7 @@ export function Orders({ orders }: { orders: Order[] }) {
 }
 ```
 
-- **Props** set the element's properties: `columns`, `data`, `dataSource`, `pinnedRows`, `getRowId`, `rowHeight`, `density`, `overscan`, `sorting`, `columnSizing`, `columnOrder`, `selectionMode`, `selectionCheckboxes` and `selection`. Other props (`aria-label`, `className`, `style`, …) go to the element as usual.
+- **Props** set the element's properties: `columns`, `data`, `dataSource`, `pinnedRows`, `getRowId`, `rowHeight`, `density`, `overscan`, `virtualizeColumns`, `sorting`, `columnSizing`, `columnOrder`, `selectionMode`, `selectionCheckboxes` and `selection`. Other props (`aria-label`, `className`, `style`, …) go to the element as usual.
 - **Events** are `on*` props that get the element's `CustomEvent`: `onSortChange`, `onColumnResize`, `onColumnReorder`, `onCellClick`, `onRowClick`, `onRangeChange`, `onLoadError` and `onRowSelect`. The details are in the [`argus-table` README](https://www.npmjs.com/package/argus-table).
 - **Cells:** a column's `cell` function returns a string, a number, a DOM node or a Lit template. React elements in cells are planned.
 - **Height:** the table virtualizes its rows, so it needs a bounded height. Its default is 400 px.

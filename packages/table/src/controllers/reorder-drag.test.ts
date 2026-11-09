@@ -34,4 +34,19 @@ describe('dropTarget', () => {
     expect(dropTarget(rtl, 'a', 140, -1)).toEqual({ to: 3, columnId: 'c', edge: 'start' });
     expect(dropTarget(rtl, 'c', 260, -1)).toEqual({ to: 2, columnId: 'a', edge: 'start' });
   });
+
+  test('works with headers missing in between (virtualized columns)', () => {
+    // 'a' (position 2) is kept rendered far out of view; positions 3–9 aren't
+    // rendered; 'k' and 'l' (10 and 11) are in view.
+    const slots: DropSlot[] = [
+      { id: 'a', index: 2, rect: { left: -2000, right: -1900 } },
+      { id: 'k', index: 10, rect: { left: 0, right: 100 } },
+      { id: 'l', index: 11, rect: { left: 100, right: 200 } },
+    ];
+    expect(dropTarget(slots, 'a', 40, 1)).toEqual({ to: 9, columnId: 'k', edge: 'start' });
+    expect(dropTarget(slots, 'a', 140, 1)).toEqual({ to: 10, columnId: 'l', edge: 'start' });
+    expect(dropTarget(slots, 'a', 260, 1)).toEqual({ to: 11, columnId: 'l', edge: 'end' });
+    expect(dropTarget(slots, 'l', 40, 1)).toEqual({ to: 10, columnId: 'k', edge: 'start' });
+    expect(dropTarget(slots, 'l', 160, 1)).toBeUndefined();
+  });
 });

@@ -1,7 +1,7 @@
 import { html, nothing } from 'lit';
 import { repeat } from 'lit/directives/repeat.js';
-import type { ColumnView, RowPin } from '@argus-table/core';
-import type { CellContent } from '../types.js';
+import type { RowPin } from '@argus-table/core';
+import type { RenderedColumn } from '../controllers/column-window.js';
 import { renderCell, type ActiveCell } from './body.js';
 import { pinnedSlot } from './content.js';
 
@@ -15,7 +15,7 @@ import { pinnedSlot } from './content.js';
 export function renderPinnedRows<T>(
   side: RowPin,
   count: number,
-  columns: readonly ColumnView<T, CellContent>[],
+  columns: readonly RenderedColumn<T>[],
   firstRowIndex: number,
   active: ActiveCell | undefined,
 ) {
@@ -32,12 +32,12 @@ export function renderPinnedRows<T>(
         >
           ${repeat(
             columns,
-            (c) => c.id,
+            (c) => c.key,
             (c) =>
               renderCell(
                 c,
                 active?.index === i && c.id === active.col,
-                pinnedSlot(side, i, c.colIndex),
+                pinnedSlot(side, i, c.slot),
                 true,
               ),
           )}

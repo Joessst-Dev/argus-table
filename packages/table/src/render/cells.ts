@@ -1,6 +1,7 @@
 import { html, render } from 'lit';
 import { repeat } from 'lit/directives/repeat.js';
 import type { ColumnView, RowPin, TableModel } from '@argus-table/core';
+import type { RenderedColumn } from '../controllers/column-window.js';
 import type { WindowRow } from '../controllers/virtual-controller.js';
 import type { CellContent } from '../types.js';
 import { cellSlot, formatValue, headerSlot, pinnedSlot, toChild } from './content.js';
@@ -12,32 +13,34 @@ type Column<T> = ColumnView<T, CellContent>;
  * (a slot only takes the host's own children). Keyed and ordered by pool slot,
  * so recycled content updates in place instead of moving (ADR 0001). The part
  * ends at `renderBefore`, so the host's other children (`<argus-column>`) stay
- * outside it, wherever they are added.
+ * outside it, wherever they are added. `rendered` are the columns the shadow
+ * root renders, with their slots and keys.
  */
 export function renderLightDom<T>(
   host: HTMLElement,
   model: TableModel<T, CellContent>,
   rows: readonly WindowRow[],
+  rendered: readonly RenderedColumn<T>[],
   renderBefore: ChildNode,
 ): void {
   // The selection column renders its checkboxes in the shadow root: no content here.
-  const columns = model.columns.filter((c) => c.kind === 'data');
+  const columns = rendered.filter((c) => c.kind === 'data');
   render(
     html`${repeat(
       columns,
-      (c) => c.id,
-      (c) => html`<div slot=${headerSlot(c.colIndex)}>${headerContent(c)}</div>`,
-    )}${pinnedContent(model, 'top')}${repeat(
+      (c) => c.key,
+      (c) => html`<div slot=${headerSlot(c.slot)}>${headerContent(c)}</div>`,
+    )}${pinnedContent(model, columns, 'top')}${repeat(
       rows,
       (r) => r.slot,
       (r) =>
         repeat(
           columns,
-          (c) => c.id,
+          (c) => c.key,
           (c) =>
-            html`<div slot=${cellSlot(r.slot, c.colIndex)}>${cellContent(model, r.index, c)}</div>`,
+            html`<div slot=${cellSlot(r.slot, c.slot)}>${cellContent(model, r.index, c)}</div>`,
         ),
-    )}${pinnedContent(model, 'bottom')}`,
+    )}${pinnedContent(model, columns, 'bottom')}`,
     host,
     { host, renderBefore },
   );
@@ -49,15 +52,17 @@ function headerContent<T>(column: Column<T>): unknown {
 }
 
 /** Content of the rows pinned to one side, slotted by side, index and column. */
-function pinnedContent<T>(model: TableModel<T, CellContent>, side: RowPin) {
-  const columns = model.columns.filter((c) => c.kind === 'data');
+function pinnedContent<T>(
+  model: TableModel<T, CellContent>,
+  columns: readonly RenderedColumn<T>[],
+  side: RowPin,
+) {
   const rows = Array.from({ length: model.pinnedCount(side) }, (_, i) => i);
   return rows.map((i) =>
     repeat(
       columns,
-      (c) => c.id,
-      (c) =>
-        html`<div slot=${pinnedSlot(side, i, c.colIndex)}>${pinnedCell(model, side, i, c)}</div>`,
+      (c) => c.key,
+      (c) => html`<div slot=${pinnedSlot(side, i, c.slot)}>${pinnedCell(model, side, i, c)}</div>`,
     ),
   );
 }

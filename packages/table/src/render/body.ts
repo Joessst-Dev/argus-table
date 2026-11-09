@@ -2,12 +2,12 @@ import { html, nothing } from 'lit';
 import { live } from 'lit/directives/live.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { styleMap } from 'lit/directives/style-map.js';
-import type { ColumnView, RowState } from '@argus-table/core';
+import type { RowState } from '@argus-table/core';
+import type { RenderedColumn } from '../controllers/column-window.js';
 import type { WindowRow } from '../controllers/virtual-controller.js';
-import type { CellContent } from '../types.js';
-import { cellParts, cellSlot, pinStyle, type CheckboxHandlers } from './content.js';
+import { cellParts, cellSlot, cellStyle, type CheckboxHandlers } from './content.js';
 
-type Columns<T> = readonly ColumnView<T, CellContent>[];
+type Columns<T> = readonly RenderedColumn<T>[];
 
 /** The cell holding the grid's tab stop: a row index and a column id. */
 export interface ActiveCell {
@@ -91,7 +91,7 @@ function renderRow<T>(
   if (selected) parts += ' row-selected';
   const retry = state === 'error' ? loading?.retry.get(row.index) : undefined;
   // The Retry button goes in the first data column, after a selection column.
-  const retryCol = columns.find((c) => c.kind === 'data')?.id;
+  const retryCol = firstDataColumn(columns);
   return html`<div
     part=${parts}
     class="row"
@@ -103,12 +103,12 @@ function renderRow<T>(
   >
     ${repeat(
       columns,
-      (c) => c.id,
+      (c) => c.key,
       (c) =>
         renderCell(
           c,
           c.id === activeCol,
-          cellSlot(row.slot, c.colIndex),
+          cellSlot(row.slot, c.slot),
           false,
           c.kind === 'selection'
             ? rowCheckbox(row.index, selected, checkboxes)
@@ -124,7 +124,7 @@ function renderRow<T>(
  * the slot (a loading row's skeleton bar or Retry button).
  */
 export function renderCell<T>(
-  c: ColumnView<T, CellContent>,
+  c: RenderedColumn<T>,
   tabStop: boolean,
   slot: string,
   pinnedRow: boolean,
@@ -138,10 +138,22 @@ export function renderCell<T>(
     data-col=${c.id}
     data-align=${c.align}
     data-pin=${c.pin ?? nothing}
-    style=${pinStyle(c) ?? nothing}
+    style=${cellStyle(c) ?? nothing}
   >
     ${before}<slot name=${slot}></slot>
   </div>`;
+}
+
+/**
+ * The id of the leftmost rendered data column (in reading order). Rendered
+ * columns are in pool order with `virtualizeColumns`.
+ */
+function firstDataColumn<T>(columns: Columns<T>): string | undefined {
+  let first: RenderedColumn<T> | undefined;
+  for (const c of columns) {
+    if (c.kind === 'data' && (!first || c.colIndex < first.colIndex)) first = c;
+  }
+  return first?.id;
 }
 
 /**

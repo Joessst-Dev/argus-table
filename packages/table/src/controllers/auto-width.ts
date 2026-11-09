@@ -65,6 +65,20 @@ export class AutoWidths {
   }
 
   /**
+   * The auto columns still to be measured: never, or without loaded rows yet.
+   * With `virtualizeColumns` they render out of view until they are.
+   */
+  pending(columns: readonly { id: string; auto: boolean }[]): string[] {
+    return columns
+      .filter((c) => {
+        if (!c.auto) return false;
+        const state = this.#state.get(c.id);
+        return state === undefined || state === 'provisional';
+      })
+      .map((c) => c.id);
+  }
+
+  /**
    * Measures the auto columns that need it. Returns `true` if a width changed;
    * the caller then renders again (the one extra pass of the render cycle).
    */

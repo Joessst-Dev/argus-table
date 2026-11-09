@@ -275,7 +275,8 @@ function checkContent(table: ArgusTable<Person>): number {
   for (const row of table.shadowRoot?.querySelectorAll<HTMLElement>(BODY_ROWS) ?? []) {
     const expected = String(bodyIndex(table, row));
     const text = row
-      .querySelector<HTMLSlotElement>('[role="gridcell"] slot')
+      // By column: with virtualize-columns, cells are in pool order.
+      .querySelector<HTMLSlotElement>('[role="gridcell"][data-col="index"] slot')
       ?.assignedElements()
       .map((e) => e.textContent.trim())
       .join('');

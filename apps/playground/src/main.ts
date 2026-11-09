@@ -19,6 +19,8 @@ import { installBenchHooks } from './bench-hooks.js';
 // pinned=top,bottom (or one of them) adds a pinned summary row on that side:
 // averages at the top, totals at the bottom.
 // selection=single|multi sets selectionMode; checkboxes adds the checkbox column.
+// cols above 20 adds more fN columns (from F12 on they repeat F1–F11's values),
+// and vcols sets virtualizeColumns.
 const params = new URLSearchParams(location.search);
 const theme = params.get('theme');
 if (theme === 'default') await import('@argus-table/themes/default.css');
@@ -85,10 +87,11 @@ const allColumns: ColumnDef<Person>[] = [
     cell: (p) => p.amount.toFixed(2),
   },
   { id: 'date', header: 'Date', accessor: 'date', width: 120 },
-  ...Array.from({ length: EXTRA_COLUMNS }, (_, i): ColumnDef<Person> => ({
+  // 9 named columns and the fN ones make up `cols`: 20 by default.
+  ...Array.from({ length: Math.max(EXTRA_COLUMNS, colCount - 9) }, (_, i): ColumnDef<Person> => ({
     id: `f${String(i + 1)}`,
     header: `F${String(i + 1)}`,
-    accessor: (p) => p.extra[i],
+    accessor: (p) => p.extra[i % EXTRA_COLUMNS],
     width: 120,
   })),
   {
@@ -114,6 +117,7 @@ if (params.has('overscan')) table.overscan = Number(params.get('overscan'));
 const selection = params.get('selection');
 if (selection === 'single' || selection === 'multi') table.selectionMode = selection;
 table.selectionCheckboxes = params.has('checkboxes');
+table.virtualizeColumns = params.has('vcols');
 table.columns = columns;
 table.getRowId = (p) => p.id;
 const dataStart = performance.now();
