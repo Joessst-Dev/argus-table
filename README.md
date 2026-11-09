@@ -8,6 +8,8 @@ A framework-agnostic data table web component built with Lit and TanStack: infin
 
 Named after Argus Panoptes, the hundred-eyed giant of Greek myth who never slept: a table that keeps watch over every row.
 
+![Argus Table with a million rows: scrolling down, scrolling sideways past the pinned columns, sorting by amount, dragging a column header to a new place and resizing a column](brand/demo.gif)
+
 > **Status:** v0.2 is on npm: virtualized rows, infinite loading, pinned columns and rows, sorting, resizing, auto widths and reordering, keyboard navigation, `<argus-column>` children, the React, Vue and Angular wrappers, and the default and Material-inspired themes ([roadmap](docs/plan/plan/12-roadmap.md)).
 
 **[Docs and live examples](https://joessst-dev.github.io/argus-table/)**
