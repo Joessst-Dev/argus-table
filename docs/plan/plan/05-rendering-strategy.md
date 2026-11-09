@@ -20,7 +20,7 @@ The table renders as a div-based CSS grid with ARIA grid roles, not a native `<t
 
 ## Fixed rows
 
-- Top and bottom pinned rows (`pinnedRows`) render in two sticky row groups outside the virtualized body: the top group sticks below the header (one row tall), the bottom group to the bottom of the view. They aren't pooled, so they never get recycled. The groups keep their space in the flow, so body row *i* still starts *i* rows below the top group and the virtualizer needs no offset; `scroll-padding` covers the pinned rows, so keyboard focus scrolls body rows clear of them.
+- Top and bottom pinned rows (`pinnedRows`) render in two sticky row groups outside the virtualized body: the top group sticks below the header (one row tall), the bottom group to the bottom of the view. They aren't pooled, so they never get recycled. The groups keep their space in the flow, so body row *i* still starts *i* rows below the top group and the virtualizer needs no offset; scroll margins on the body cells cover the header and pinned rows (and on the scrolling cells, the pinned columns), so focus scrolls body rows clear of them. Not `scroll-padding` on the scroller: Chromium and WebKit measure the sticky rows against it too, and focusing one scrolled the body.
 - Pinned-row content is slotted from the light DOM like body cells, with its own private slot names. Pinned columns inside pinned rows use the same hybrid as body rows (transform at rest, sticky while scrolling sideways); it's a handful of cells.
 - The header is a fixed row with its own part names.
 

@@ -251,6 +251,13 @@ export class VirtualController implements ReactiveController {
     if (element) this.#write(element, this.#top(element) + delta);
   }
 
+  /** Scrolls to the start or the end of the body. */
+  scrollToEdge(edge: 'start' | 'end'): void {
+    const element = this.#element;
+    // The end: #write clamps to the last logical offset.
+    if (element) this.#write(element, edge === 'start' ? 0 : Number.MAX_SAFE_INTEGER);
+  }
+
   /**
    * Scrolls the least distance that shows row `index` in full, between the
    * content above the body (`before` px: the header and top pinned rows) and

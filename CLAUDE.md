@@ -82,7 +82,7 @@ BROWSERS=chromium pnpm --filter @argus-table/e2e exec playwright test specs/sort
 
 **Events** are defined in `events.ts`: `argus-*` names, fired via `fire()` as bubbling, composed `CustomEvent`s, with types added to `HTMLElementEventMap`. Detail types live in core.
 
-**Keyboard and a11y.** WAI-ARIA grid pattern with a single roving tab stop (`#active`). The host gets `role="grid"` via ElementInternals _and_ a `role` attribute (axe can't see the internals role). Arrow directions and resize keys are logical (RTL-aware via computed `direction`). Pinning uses logical `start`/`end`.
+**Keyboard and a11y.** WAI-ARIA grid pattern with a single roving tab stop (`#active`). The host gets `role="grid"` via ElementInternals _and_ a `role` attribute (axe can't see the internals role). Arrow directions and resize keys are logical (RTL-aware via computed `direction`). Pinning uses logical `start`/`end`. Focus scrolls a cell clear of the sticky header, pinned rows and pinned columns through `scroll-margin` on the cells that scroll (`styles/base.ts`), never `scroll-padding` on the scroller: Chromium and WebKit measure sticky cells against the padding, so clicking or focusing a header or pinned-row cell scrolled the body.
 
 **Styling.** No hard-coded colours in components (`styles/base.ts`): every value reads an `--argus-*` token with a neutral fallback (system colours like `Canvas`). Element state is expressed in part names (`cell-sorted`, `cell-pinned-edge`, `row-odd`) because `::part()` can't take attribute selectors. Private CSS variables use the `--_` prefix. Tokens, parts, slots and events are documented in the JSDoc on `ArgusTable` (`@cssprop`, `@csspart`, `@fires`, `@slot`), which feeds the Custom Elements Manifest; keep it in sync.
 
