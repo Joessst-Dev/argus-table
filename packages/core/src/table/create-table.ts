@@ -2,7 +2,6 @@ import {
   columnPinningFeature,
   columnSizingFeature,
   constructTable,
-  createSortedRowModel,
   rowSortingFeature,
   sortFn_alphanumeric,
   sortFn_basic,
@@ -18,6 +17,7 @@ import {
 import { storeReactivityBindings } from '@tanstack/table-core/store-reactivity-bindings';
 import { moveColumn, normalizeOrder } from '../columns/column-order.js';
 import { resolveColumns, type ResolvedColumn } from '../columns/resolve-columns.js';
+import { sortedRowModel } from './sorted-row-model.js';
 import type {
   CellContext,
   ColumnAlign,
@@ -40,7 +40,8 @@ const features = tableFeatures({
   columnPinningFeature,
   columnSizingFeature,
   rowSortingFeature,
-  sortedRowModel: createSortedRowModel(),
+  // Our own: TanStack's is very slow in Firefox at scale (see sorted-row-model.ts).
+  sortedRowModel: sortedRowModel(),
   // Registered by name so `sortFn: 'auto'` can pick one by value type.
   sortFns: {
     alphanumeric: sortFn_alphanumeric,
