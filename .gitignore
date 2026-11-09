@@ -13,3 +13,5 @@ __screenshots__/**/*-actual.png
 *.tsbuildinfo
 benchmarks/results/
 .vitest/
+.angular/
+apps/examples/.smoke/

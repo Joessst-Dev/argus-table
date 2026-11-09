@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         Thanks for taking the time to report a bug. A minimal reproduction is the fastest way to a fix:
-        fork a StackBlitz starter, reproduce the problem with as little code as possible, and paste the link below.
+        fork a [StackBlitz starter](https://github.com/Joessst-Dev/argus-table/tree/main/apps/examples) (plain HTML, React, Vue or Angular), reproduce the problem with as little code as possible, and paste the link below.
 
   - type: input
     id: version

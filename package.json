@@ -22,7 +22,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "changeset": "changeset",
-    "version-packages": "changeset version",
+    "version-packages": "changeset version && pnpm --filter @argus-table/examples sync-versions",
     "release": "nx run-many -t build --skip-nx-cache --exclude=storybook && changeset publish"
   },
   "devDependencies": {

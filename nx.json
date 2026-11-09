@@ -82,6 +82,11 @@
         }
       ],
       "cache": true
+    },
+    "smoke": {
+      "dependsOn": ["^build"],
+      "inputs": ["default", "^production"],
+      "cache": true
     }
   },
   "neverConnectToCloud": true,
