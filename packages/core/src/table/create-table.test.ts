@@ -130,6 +130,8 @@ describe('createTableModel: columns', () => {
 });
 
 describe('createTableModel: sorting', () => {
+  const base: Person = { id: 'x', name: 'x', age: 0, address: { city: 'x' } };
+
   it('sorts strings case-insensitively, ascending and descending', () => {
     const m = model();
     m.update({ sorting: [{ id: 'name', desc: false }] });
@@ -204,6 +206,64 @@ describe('createTableModel: sorting', () => {
     // would take minutes on 100k rows. A tight limit fails on slow shared CI
     // runners (1008 ms once against 1000); speed is measured in benchmarks/.
     expect(performance.now() - started).toBeLessThan(5000);
+  });
+
+  it('sorts mixed text and numbers naturally', () => {
+    const data = ['item10', 'Item2', 'item1'].map((name, i) => ({ ...base, id: String(i), name }));
+    const m = model({ data, sorting: [{ id: 'name', desc: false }] });
+    expect(names(m)).toEqual(['item1', 'Item2', 'item10']);
+  });
+
+  it('sorts dates', () => {
+    const when = [new Date(2024, 5, 1), new Date(2023, 0, 1), new Date(2025, 0, 1)];
+    const m = createTableModel<{ when: Date }, string>({
+      columns: [{ id: 'when', accessor: 'when', sortable: true }],
+      data: when.map((d) => ({ when: d })),
+      getRowId: undefined,
+      sorting: [{ id: 'when', desc: true }],
+      columnSizing: {},
+    });
+    expect([0, 1, 2].map((i) => (m.valueAt(i, 'when') as Date).getFullYear())).toEqual([
+      2025, 2024, 2023,
+    ]);
+  });
+
+  it('keeps equal values in data order both ways', () => {
+    const data = [5, 3, 5, 3, 5].map((age, i) => ({ ...base, id: `p${String(i)}`, age }));
+    const m = model({ data, getRowId: (p) => p.id, sorting: [{ id: 'age', desc: false }] });
+    expect(ids(m)).toEqual(['p1', 'p3', 'p0', 'p2', 'p4']);
+    m.update({ sorting: [{ id: 'age', desc: true }] });
+    expect(ids(m)).toEqual(['p0', 'p2', 'p4', 'p1', 'p3']);
+  });
+
+  it('reads each value once per sort and sorts again only when something changes', () => {
+    let reads = 0;
+    const data = Array.from({ length: 1000 }, (_, i) => ({ ...base, age: (i * 7) % 13 }));
+    const m = createTableModel<Person, string>({
+      columns: [
+        {
+          id: 'age',
+          accessor: (p) => {
+            reads++;
+            return p.age;
+          },
+          sortable: true,
+        },
+      ],
+      data,
+      getRowId: undefined,
+      sorting: [],
+      columnSizing: {},
+    });
+    const sorting = [{ id: 'age', desc: false }];
+    m.update({ sorting });
+    expect(m.valueAt(0, 'age')).toBe(0);
+    // One read per row, plus the few rows TanStack samples to pick a sort function.
+    expect(reads).toBeLessThanOrEqual(1000 + 10 + 1);
+    reads = 0;
+    m.update({ sorting });
+    m.rowAt(500);
+    expect(reads).toBe(0);
   });
 });
 

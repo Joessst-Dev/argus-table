@@ -56,7 +56,7 @@ BROWSERS=chromium pnpm --filter @argus-table/e2e exec playwright test specs/sort
 
 ## Architecture of `<argus-table>`
 
-**TanStack stays internal.** Only `packages/core/src/table/create-table.ts` imports TanStack Table; it exposes `TableModel`, `ColumnView` and `RowView`. `packages/core/src/types.ts` holds the public types with no TanStack types in them, and `argus-table` re-exports them with `TContent` fixed to `CellContent` (`TemplateResult | Node | string | number`). Never leak TanStack types into the public API.
+**TanStack stays internal.** Only `packages/core/src/table/create-table.ts` (and its `sorted-row-model.ts`) imports TanStack Table; it exposes `TableModel`, `ColumnView` and `RowView`. `packages/core/src/types.ts` holds the public types with no TanStack types in them, and `argus-table` re-exports them with `TContent` fixed to `CellContent` (`TemplateResult | Node | string | number`). Never leak TanStack types into the public API. Sorting goes through core's own sorted row model, not TanStack's `createSortedRowModel()`, which is unusably slow in Firefox at scale (see its comment).
 
 **Shadow DOM structure, light-DOM content (ADR 0001).** The shadow root renders the grid skeleton (header, body rows, cells with `part`s and ARIA). Header and cell _content_ is rendered by `render/cells.ts` (`renderLightDom`, called in `updated()`) into the host's light DOM as direct children with private slot names (`h-{col}`, `c-{poolSlot}-{col}`), so page CSS and the page's own components work inside cells.
 
