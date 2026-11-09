@@ -52,8 +52,9 @@ Inputs set the element's properties; `null` (as from the `async` pipe) means uns
 | `argus-row-click`      | `rowClick`      |
 | `argus-range-change`   | `rangeChange`   |
 | `argus-load-error`     | `loadError`     |
+| `argus-row-select`     | `rowSelect`     |
 
-`[(sorting)]`, `[(columnSizing)]` and `[(columnOrder)]` bind the three properties the table can change. Unbound, the table keeps that state itself; a one-way `[sorting]` is controlled.
+`[(sorting)]`, `[(columnSizing)]`, `[(columnOrder)]` and `[(selection)]` bind the four properties the table can change. Unbound, the table keeps that state itself; a one-way `[sorting]` is controlled.
 
 A column's `cell` returns a string, a number, a DOM node or a Lit template; Angular templates in cells are planned.
 

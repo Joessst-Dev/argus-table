@@ -19,6 +19,7 @@ import type {
   LoadErrorDetail,
   RangeChangeDetail,
   RowClickDetail,
+  RowSelectDetail,
   SortChangeDetail,
 } from 'argus-table';
 import { setProperty } from '../set-property.js';
@@ -36,6 +37,7 @@ import { setProperty } from '../set-property.js';
     '(argus-cell-click)': 'handleCellClick($event)',
     '(argus-row-click)': 'handleRowClick($event)',
     '(argus-range-change)': 'handleRangeChange($event)',
+    '(argus-row-select)': 'handleRowSelect($event)',
     '(argus-load-error)': 'handleLoadError($event)',
   },
 })
@@ -101,6 +103,16 @@ export class ArgusTableComponent<T = unknown> {
     setProperty(this.element, 'columnOrder', undefined, value);
   }
 
+  /** How rows can be selected: `none` (the default), `single` or `multi`. A click on a body row selects it; in `multi` mode Ctrl/Cmd+click toggles a row, Shift+click selects the range from the last clicked row, and Ctrl/Cmd+A selects every row. Space toggles the focused row. Clicks on buttons, links and inputs inside cells don't select. Pinned rows, and `dataSource` rows not loaded yet, can't be selected. */
+  @Input() set selectionMode(value: ArgusTableElement<T>['selectionMode'] | null | undefined) {
+    setProperty(this.element, 'selectionMode', 'selection-mode', value);
+  }
+
+  /** The selected rows, as row ids (from `getRowId`, or the row's index as a string), e.g. `['p4', 'p7']`. Uncontrolled until set, like `sorting`: once set, a click only fires `argus-row-select` with the proposed ids. `undefined` hands it back. The table never drops ids on its own: they stay through sorting, a new `data` or reloaded pages. With a `dataSource`, Ctrl/Cmd+A selects the loaded rows only. */
+  @Input() set selection(value: ArgusTableElement<T>['selection'] | null | undefined) {
+    setProperty(this.element, 'selection', undefined, value);
+  }
+
   /** `argus-sort-change`: A sortable header was clicked, or activated with Enter or Space. `detail: { sorting }`: the new order, or the proposed one when `sorting` is controlled. */
   @Output() readonly sortChange = new EventEmitter<CustomEvent<SortChangeDetail>>();
 
@@ -127,6 +139,12 @@ export class ArgusTableComponent<T = unknown> {
 
   /** `argus-range-change`: The visible rows changed. `detail: { start, end }` (row indices, inclusive). */
   @Output() readonly rangeChange = new EventEmitter<CustomEvent<RangeChangeDetail>>();
+
+  /** `argus-row-select`: The selected rows changed: by a click on a row (Ctrl/Cmd toggles, Shift selects a range), with Space, Shift+Arrow or Shift+PageUp/PageDown on a body cell, or with Ctrl/Cmd+A. Only with a `selectionMode`. `detail: { selection }`: the new row ids, or the proposed ones when `selection` is controlled. */
+  @Output() readonly rowSelect = new EventEmitter<CustomEvent<RowSelectDetail>>();
+
+  /** The new `selection` from `argus-row-select`, for `[(selection)]`. */
+  @Output() readonly selectionChange = new EventEmitter<ArgusTableElement<T>['selection']>();
 
   /** `argus-load-error`: A `dataSource` page failed to load: `getRows()` rejected or threw. `detail: { error, start, end }` (`end` exclusive). The rows show a Retry button. */
   @Output() readonly loadError = new EventEmitter<CustomEvent<LoadErrorDetail>>();
@@ -195,6 +213,14 @@ export class ArgusTableComponent<T = unknown> {
     if (event.target !== this.element) return;
     const e = event as CustomEvent<RangeChangeDetail>;
     this.rangeChange.emit(e);
+  }
+
+  protected handleRowSelect(event: Event): void {
+    // Events bubble: skip those of a table nested in a cell.
+    if (event.target !== this.element) return;
+    const e = event as CustomEvent<RowSelectDetail>;
+    this.rowSelect.emit(e);
+    this.selectionChange.emit(e.detail.selection);
   }
 
   protected handleLoadError(event: Event): void {

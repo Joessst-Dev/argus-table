@@ -44,14 +44,14 @@ export function Orders({ orders }: { orders: Order[] }) {
 }
 ```
 
-- **Props** set the element's properties: `columns`, `data`, `dataSource`, `pinnedRows`, `getRowId`, `rowHeight`, `density`, `overscan`, `sorting`, `columnSizing` and `columnOrder`. Other props (`aria-label`, `className`, `style`, …) go to the element as usual.
-- **Events** are `on*` props that get the element's `CustomEvent`: `onSortChange`, `onColumnResize`, `onColumnReorder`, `onCellClick`, `onRowClick`, `onRangeChange` and `onLoadError`. The details are in the [`argus-table` README](https://www.npmjs.com/package/argus-table).
+- **Props** set the element's properties: `columns`, `data`, `dataSource`, `pinnedRows`, `getRowId`, `rowHeight`, `density`, `overscan`, `sorting`, `columnSizing`, `columnOrder`, `selectionMode` and `selection`. Other props (`aria-label`, `className`, `style`, …) go to the element as usual.
+- **Events** are `on*` props that get the element's `CustomEvent`: `onSortChange`, `onColumnResize`, `onColumnReorder`, `onCellClick`, `onRowClick`, `onRangeChange`, `onLoadError` and `onRowSelect`. The details are in the [`argus-table` README](https://www.npmjs.com/package/argus-table).
 - **Cells:** a column's `cell` function returns a string, a number, a DOM node or a Lit template. React elements in cells are planned.
 - **Height:** the table virtualizes its rows, so it needs a bounded height. Its default is 400 px.
 
 ## Controlled state
 
-`sorting`, `columnSizing` and `columnOrder` work like a controlled input. Leave the prop out and the table keeps the state itself. Set it, and the table shows what you pass and only proposes changes through the event:
+`sorting`, `columnSizing`, `columnOrder` and `selection` work like a controlled input. Leave the prop out and the table keeps the state itself. Set it, and the table shows what you pass and only proposes changes through the event:
 
 ```tsx
 const [sorting, setSorting] = useState<SortState>([]);
@@ -63,6 +63,8 @@ const [sorting, setSorting] = useState<SortState>([]);
   onSortChange={(e) => setSorting(e.detail.sorting)}
 />;
 ```
+
+Selected rows work the same way, with `selectionMode="multi"`, `selection` and `onRowSelect` (`e.detail.selection`, row ids).
 
 ## Methods
 

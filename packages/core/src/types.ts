@@ -119,6 +119,21 @@ export type ColumnSizingState = Record<string, number>;
  */
 export type ColumnOrderState = string[];
 
+/**
+ * How rows can be selected: `'none'` (the default), `'single'` (one row at a time)
+ * or `'multi'` (any number, with Ctrl/Cmd and Shift).
+ */
+export type SelectionMode = 'none' | 'single' | 'multi';
+
+/** The selected rows, as row ids (from `getRowId`, or the row's index as a string). */
+export type SelectionState = string[];
+
+/** `detail` of `argus-row-select`. */
+export interface RowSelectDetail {
+  /** The selected row ids: the new ones, or the proposed ones when `selection` is controlled. */
+  selection: SelectionState;
+}
+
 /** `detail` of `argus-sort-change`. */
 export interface SortChangeDetail {
   sorting: SortState;

@@ -18,6 +18,15 @@ export {
 } from './table/create-table.js';
 export { RowLayout, type GridRow, type GridSection } from './grid/row-layout.js';
 export { controllable, type Controllable } from './state/controllable.js';
+export {
+  clickSelection,
+  sameSelection,
+  selectRange,
+  toggleRow,
+  type SelectionModifiers,
+  type SelectionStep,
+  type SelectionTarget,
+} from './state/selection.js';
 export { RowPool, type PoolEntry } from './virtual/row-pool.js';
 export { ScrollScale } from './virtual/scroll-scale.js';
 export { maxVisibleRows, steadyWindow, type VisibleRange } from './virtual/steady-window.js';

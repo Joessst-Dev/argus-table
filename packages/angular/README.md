@@ -61,14 +61,14 @@ export class OrdersComponent {
 
 Add `@import '@argus-table/themes/default.css';` to your global styles for the default theme.
 
-- **Inputs** set the element's properties: `columns`, `data`, `dataSource`, `pinnedRows`, `getRowId`, `rowHeight`, `density`, `overscan`, `sorting`, `columnSizing` and `columnOrder`. Other attributes (`aria-label`, `class`, `style`, …) stay on the element. `null`, as from the `async` pipe, means unset.
+- **Inputs** set the element's properties: `columns`, `data`, `dataSource`, `pinnedRows`, `getRowId`, `rowHeight`, `density`, `overscan`, `sorting`, `columnSizing`, `columnOrder`, `selectionMode` and `selection`. Other attributes (`aria-label`, `class`, `style`, …) stay on the element. `null`, as from the `async` pipe, means unset.
 - **Outputs** emit the element's `CustomEvent`: `sortChange`, `columnResize`, `columnReorder`, `cellClick`, `rowClick`, `rangeChange` and `loadError`. In `(rowClick)`, `$event.detail.row` has your row type. The details are in the [`argus-table` README](https://www.npmjs.com/package/argus-table).
 - **Cells:** a column's `cell` function returns a string, a number, a DOM node or a Lit template. Angular templates in cells are planned.
 - **Height:** the table virtualizes its rows, so it needs a bounded height. Its default is 400 px.
 
 ## Two-way binding
 
-`[(sorting)]`, `[(columnSizing)]` and `[(columnOrder)]` keep a value in sync with the table; `sortingChange`, `columnSizingChange` and `columnOrderChange` emit the new value. Leave one unbound and the table keeps that state itself. A one-way `[sorting]` is controlled: a header click only emits the proposed order, and nothing changes until you set it.
+`[(sorting)]`, `[(columnSizing)]`, `[(columnOrder)]` and `[(selection)]` keep a value in sync with the table; `sortingChange`, `columnSizingChange`, `columnOrderChange` and `selectionChange` emit the new value. The selection event itself is `rowSelect`. Leave one unbound and the table keeps that state itself. A one-way `[sorting]` is controlled: a header click only emits the proposed order, and nothing changes until you set it.
 
 ## Methods
 

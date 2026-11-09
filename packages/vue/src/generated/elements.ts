@@ -10,6 +10,7 @@ import type {
   LoadErrorDetail,
   RangeChangeDetail,
   RowClickDetail,
+  RowSelectDetail,
   SortChangeDetail,
 } from 'argus-table';
 import { defineWrapper } from '../define.js';
@@ -29,6 +30,8 @@ export type ArgusTableElementProps<T = unknown> = Partial<
     | 'sorting'
     | 'columnSizing'
     | 'columnOrder'
+    | 'selectionMode'
+    | 'selection'
   >
 >;
 
@@ -52,6 +55,10 @@ export interface ArgusTableEventProps<T = unknown> {
   'onRow-click'?: (event: CustomEvent<RowClickDetail<T>>) => void;
   /** `argus-range-change`: The visible rows changed. `detail: { start, end }` (row indices, inclusive). */
   'onRange-change'?: (event: CustomEvent<RangeChangeDetail>) => void;
+  /** `argus-row-select`: The selected rows changed: by a click on a row (Ctrl/Cmd toggles, Shift selects a range), with Space, Shift+Arrow or Shift+PageUp/PageDown on a body cell, or with Ctrl/Cmd+A. Only with a `selectionMode`. `detail: { selection }`: the new row ids, or the proposed ones when `selection` is controlled. */
+  'onRow-select'?: (event: CustomEvent<RowSelectDetail>) => void;
+  /** `v-model:selection`: the new `selection` from `argus-row-select`. */
+  'onUpdate:selection'?: (value: ArgusTableElement<T>['selection']) => void;
   /** `argus-load-error`: A `dataSource` page failed to load: `getRows()` rejected or threw. `detail: { error, start, end }` (`end` exclusive). The rows show a Retry button. */
   'onLoad-error'?: (event: CustomEvent<LoadErrorDetail>) => void;
 }
@@ -70,6 +77,8 @@ export interface ArgusTableEmit<T = unknown> {
   (event: 'cell-click', payload: CustomEvent<CellClickDetail<T>>): void;
   (event: 'row-click', payload: CustomEvent<RowClickDetail<T>>): void;
   (event: 'range-change', payload: CustomEvent<RangeChangeDetail>): void;
+  (event: 'row-select', payload: CustomEvent<RowSelectDetail>): void;
+  (event: 'update:selection', value: ArgusTableElement<T>['selection']): void;
   (event: 'load-error', payload: CustomEvent<LoadErrorDetail>): void;
 }
 
@@ -112,6 +121,8 @@ export const ArgusTable = defineWrapper({
     'sorting',
     'columnSizing',
     'columnOrder',
+    'selectionMode',
+    'selection',
   ],
   booleans: [],
   events: [
@@ -133,6 +144,11 @@ export const ArgusTable = defineWrapper({
     { name: 'argus-cell-click', emit: 'cell-click' },
     { name: 'argus-row-click', emit: 'row-click' },
     { name: 'argus-range-change', emit: 'range-change' },
+    {
+      name: 'argus-row-select',
+      emit: 'row-select',
+      model: { property: 'selection', detailKey: 'selection' },
+    },
     { name: 'argus-load-error', emit: 'load-error' },
   ],
   methods: ['refresh', 'autosizeColumns', 'scrollToRow'],

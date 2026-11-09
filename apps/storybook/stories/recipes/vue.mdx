@@ -51,8 +51,9 @@ Props set the element's properties. Each `argus-*` event is emitted without its 
 | `argus-row-click`      | `row-click`      |
 | `argus-range-change`   | `range-change`   |
 | `argus-load-error`     | `load-error`     |
+| `argus-row-select`     | `row-select`     |
 
-`v-model:sorting`, `v-model:column-sizing` and `v-model:column-order` bind the three properties the table can change. Unbound, the table keeps that state itself.
+`v-model:sorting`, `v-model:column-sizing`, `v-model:column-order` and `v-model:selection` bind the four properties the table can change. Unbound, the table keeps that state itself.
 
 A column's `cell` returns a string, a number, a DOM node or a Lit template; Vue content in cells is planned.
 

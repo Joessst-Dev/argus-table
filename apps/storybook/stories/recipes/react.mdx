@@ -46,6 +46,7 @@ Props set the element's properties. Each `argus-*` event is an `on*` prop that g
 | `argus-row-click`      | `onRowClick`      |
 | `argus-range-change`   | `onRangeChange`   |
 | `argus-load-error`     | `onLoadError`     |
+| `argus-row-select`     | `onRowSelect`     |
 
 A column's `cell` returns a string, a number, a DOM node or a Lit template; React elements in cells are planned.
 
@@ -64,7 +65,7 @@ const [sorting, setSorting] = useState<SortState>([]);
 />;
 ```
 
-`columnSizing` with `onColumnResize` (`e.detail.sizing`) and `columnOrder` with `onColumnReorder` (`e.detail.order`) work the same way.
+`columnSizing` with `onColumnResize` (`e.detail.sizing`), `columnOrder` with `onColumnReorder` (`e.detail.order`) and `selection` with `onRowSelect` (`e.detail.selection`) work the same way.
 
 ## Methods
 

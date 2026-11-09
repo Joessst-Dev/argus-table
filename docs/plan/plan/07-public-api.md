@@ -101,6 +101,8 @@ Columns can also be written as `<argus-column>` children. They are data-only ele
 | `columnOrder` | — | `string[]` (controlled or uncontrolled) | `[]` (see [Column order](#column-order)) |
 | `getRowId` | — | `(row, index) => string` | index (among all rows, for a `dataSource`) |
 | `overscan` | `overscan` | number | 6 |
+| `selectionMode` | `selection-mode` | `'none'` \| `'single'` \| `'multi'` | `'none'` (see [Row selection](#row-selection)) |
+| `selection` | — | `string[]` of row ids (controlled or uncontrolled) | `[]` |
 
 ## Data source
 
@@ -142,6 +144,24 @@ table.pinnedRows = { bottom: [{ id: 'total', customer: 'Total', total: sum }] };
 - Parts: `row row-pinned row-pinned-top` (or `-bottom`) on the row, `cell cell-pinned-row` on its cells. `--argus-pinned-row-bg` sets their background, pinned columns included.
 - Replace the object to update them.
 
+## Row selection
+
+`selectionMode` turns selection on; `selection` holds the selected row ids, controlled or uncontrolled like `sorting`.
+
+```ts
+table.selectionMode = 'multi'; // or <argus-table selection-mode="multi">
+table.getRowId = (order) => order.id;
+table.addEventListener('argus-row-select', (e) => console.log(e.detail.selection)); // ['o2', 'o7']
+```
+
+- Clicks work like a file list on the desktop. A click selects only that row; Ctrl+click (Cmd+click on macOS) adds or removes one row; Shift+click selects the range from the anchor (the last row clicked without Shift) to the clicked row, and Ctrl+Shift+click adds that range. Ranges follow the current order. In `'single'` mode a click selects that row (clicking it again keeps it), Ctrl+click clears it, and Shift is a plain click.
+- Keys on a focused body cell: Space (or Shift+Space) toggles its row. In `'multi'` mode, Shift+ArrowUp/ArrowDown and Shift+PageUp/PageDown move focus through the body and select from the anchor to the focused row, and Ctrl+A (Cmd+A) selects every row, from a header too. See [Accessibility](08-accessibility.md).
+- Presses on interactive content inside a cell (a button, a link, an input, a `contenteditable`) don't select. `argus-cell-click` and `argus-row-click` still fire, before `argus-row-select`.
+- Only loaded body rows can be selected. Rows from `pinnedRows` can't, nor `dataSource` rows still loading; a range over unloaded rows selects its loaded rows only. With a `dataSource`, Ctrl+A selects the rows loaded so far: a select-all over the server's whole dataset is the host's to model.
+- The table never drops ids on its own. They stay through sorting, a new `data` array or pages evicted and loaded again, and show again when their rows come back. Filter `selection` yourself to drop rows that are gone. Without `getRowId` the ids are indices: in `data` they don't change with sorting, but a `dataSource` numbers rows in the server's order.
+- Selected rows get the part `row-selected` and `aria-selected="true"`; every other selectable row has `aria-selected="false"`, and the grid is `aria-multiselectable` in `'multi'` mode. `--argus-row-selected-bg` paints them, pinned columns included, and wins over `--argus-row-hover-bg`. In forced-colors mode they use `Highlight`.
+- A built-in checkbox column (opt-in `selection-checkboxes`, with a select-all header) is planned next.
+
 ## Events
 
 All `CustomEvent`, bubbling and composed. See [State and events](../code-architecture/04-state-and-events.md) for the controlled/uncontrolled rules.
@@ -155,6 +175,7 @@ All `CustomEvent`, bubbling and composed. See [State and events](../code-archite
 | `argus-range-change` | `{ start, end }` visible rows |
 | `argus-column-reorder` | `{ columnId, order }` |
 | `argus-load-error` | `{ error, start, end }`: a `dataSource` page failed; `end` exclusive |
+| `argus-row-select` | `{ selection }`: the selected row ids |
 
 - The package exports each name as a constant (`SORT_CHANGE`, `COLUMN_RESIZE`, `CELL_CLICK`, `ROW_CLICK`, `RANGE_CHANGE`, …), and `HTMLElementEventMap` types each `detail`.
 - `argus-sort-change` fires on a click on a sortable header, or Enter or Space on a focused one; the order cycles ascending → descending → unsorted. When `sorting` is uncontrolled, it fires after the rows are re-sorted. When controlled, it carries the proposed order and nothing changes until the host sets `sorting`. v0.1 sorts by one column at a time.
@@ -184,10 +205,12 @@ Each `argus-*` event drops its prefix and takes the framework's style:
 | `argus-row-click` | `onRowClick` | `row-click` | `rowClick` |
 | `argus-range-change` | `onRangeChange` | `range-change` | `rangeChange` |
 | `argus-load-error` | `onLoadError` | `load-error` | `loadError` |
+| `argus-row-select` | `onRowSelect` | `row-select` | `rowSelect` |
 
 - Handlers get the element's whole `CustomEvent`, not just its detail, so `composedPath()` stays at hand. Details that carry a row are typed with the row type (`RowClickDetail<T>`, `CellClickDetail<T>`).
 - The row type is generic: inferred from `data` and `columns`, or given (`<ArgusTable<Order>>` in React).
-- Two-way binding covers the three controllable properties: `sorting` (from `detail.sorting`), `columnSizing` (`detail.sizing`) and `columnOrder` (`detail.order`). React uses the usual controlled pair (`sorting` with `onSortChange`); Vue gets `v-model:sorting`, `v-model:column-sizing` and `v-model:column-order`; Angular gets `[(sorting)]`, `[(columnSizing)]` and `[(columnOrder)]`. A property left unbound stays uncontrolled.
+- Two-way binding covers the four controllable properties: `sorting` (from `detail.sorting`), `columnSizing` (`detail.sizing`), `columnOrder` (`detail.order`) and `selection` (`detail.selection`). React uses the usual controlled pair (`sorting` with `onSortChange`); Vue gets `v-model:sorting`, `v-model:column-sizing`, `v-model:column-order` and `v-model:selection`; Angular gets `[(sorting)]`, `[(columnSizing)]`, `[(columnOrder)]` and `[(selection)]`. A property left unbound stays uncontrolled.
+- No event may take the name of a two-way output. Angular's `[(x)]` needs an output named `xChange`, which is why the selection event is `argus-row-select` and not `argus-selection-change`. The generator fails on such a collision.
 - Methods are reached through the element: a `ref` in React, typed `ArgusTableElement<T>`. In Vue, a template ref exposes the methods and the `element`; in Angular, a view query gives the component, which has them too.
 - Vue: the types follow vue-tsc's shape for a generic `<script setup>` component, so templates check props, events, `v-model` and the template ref against the row type. `h()` can't infer it: `h(ArgusTable<Order>, …)`. The wrapper sets the element's properties itself rather than through Vue's DOM prop patching, which would turn a removed number into `0`. A one-way `:sorting` stays controlled, because Vue props are read-only.
 - Angular: standalone components (`ArgusTableComponent`, `ArgusColumnComponent`) on the elements' own tags, so templates need no `CUSTOM_ELEMENTS_SCHEMA`. Inputs are `@Input()` setters that write to the element, and two-way binding is an input with a `…Change` output, so a one-way `[sorting]` stays controlled. Angular passes a static attribute to an input of the same name as a string (`width="90"`); a string for a property that has an attribute goes to the attribute, so the element converts it as in HTML, and the input types accept those strings. `null` (the `async` pipe) means unset.
@@ -209,6 +232,8 @@ Each `argus-*` event drops its prefix and takes the framework's style:
 
 - `row-loading`, `skeleton`, `skeleton-error` and `retry` belong to `dataSource` loading; see [Data source](#data-source).
 
+- `row-selected` is on body rows whose id is in `selection`; see [Row selection](#row-selection).
+
 - `header-cell-dragging` is added to `header-cell` while that header is dragged; `drop-indicator` is a line inside the header where it would land, on its inline-start or inline-end edge. See [Column order](#column-order).
 
 - `header-cell-sorted` is added next to `header-cell` on the sorted column's header. `cell-sorted` is for body cells in that column. They are separate so that `::part(cell-sorted)` never matches headers. The direction is exposed through `aria-sort` only; attribute selectors can't follow `::part()`, so styling per direction is left out until a theme needs it.
@@ -224,6 +249,6 @@ Each `argus-*` event drops its prefix and takes the framework's style:
 
 - `--argus-row-height` and `--argus-cell-padding-inline` each have a default per density: 32 / 40 / 52 px rows and 8 / 12 / 16 px padding for compact / comfortable / spacious; see [Styling and theming](06-styling-and-theming.md).
 - The element is 400 px tall by default, because a virtualized table needs a bounded height; set `height` (or `block-size`) on it.
-- `--argus-row-selected-bg` is reserved for row selection (after v0.1). The table doesn't read it yet; themes may set it already.
+- `--argus-row-selected-bg` is the background of selected rows, pinned columns included; it wins over `--argus-row-hover-bg`. Default: the system `Highlight` colour at 22% over `--argus-bg`.
 - `--argus-focus-ring` is an `outline` value for the focused cell or header (`:focus-visible`). Default: `2px solid Highlight`.
 - `--argus-pinned-shadow` takes a `box-shadow` value written for a shadow falling toward the end side, for example `4px 0 6px -4px rgb(0 0 0 / .2)`. The component mirrors it for the end edge and in RTL. `none` removes it.

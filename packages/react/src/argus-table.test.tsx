@@ -6,6 +6,7 @@ import {
   ArgusTable,
   type ArgusTableElement,
   type ColumnDef,
+  type SelectionState,
   type SortChangeDetail,
   type SortState,
 } from './index.js';
@@ -239,6 +240,38 @@ describe('<ArgusTable>', () => {
     await settle(el);
     expect(el.sorting).toEqual([{ id: 'total', desc: false }]);
     expect(headers(el)[2]?.getAttribute('aria-sort')).toBe('ascending');
+  });
+
+  test('controls selection with the selection and onRowSelect props', async () => {
+    const proposals: SelectionState[] = [];
+
+    function Orders() {
+      const [selection, setSelection] = useState<SelectionState>([]);
+      return (
+        <ArgusTable<Order>
+          style={size}
+          columns={columns}
+          data={orders}
+          getRowId={(o) => o.id}
+          selectionMode="multi"
+          selection={selection}
+          onRowSelect={(e) => {
+            proposals.push(e.detail.selection);
+            setSelection(e.detail.selection);
+          }}
+        />
+      );
+    }
+
+    const el = await mount(<Orders />);
+    const cell = el.shadowRoot?.querySelector<HTMLElement>(
+      '[role="row"][aria-rowindex="4"] > [data-col="customer"]',
+    );
+    act(() => cell?.click());
+    await settle(el);
+    expect(proposals).toEqual([['o2']]);
+    expect(el.selection).toEqual(['o2']);
+    expect(cell?.parentElement?.getAttribute('aria-selected')).toBe('true');
   });
 
   test('hands state back and keeps working when props go away', async () => {

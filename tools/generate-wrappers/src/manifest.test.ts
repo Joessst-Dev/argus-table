@@ -30,6 +30,7 @@ function manifest(
               { kind: 'field', name: 'sorting', type: { text: 'SortState' } },
               { kind: 'field', name: 'columnSizing', type: { text: 'ColumnSizingState' } },
               { kind: 'field', name: 'columnOrder', type: { text: 'ColumnOrderState' } },
+              { kind: 'field', name: 'selection', type: { text: 'SelectionState' } },
               { kind: 'field', name: 'styles', static: true, type: { text: 'CSSResultGroup' } },
               { kind: 'method', name: 'refresh' },
             ],
@@ -45,6 +46,10 @@ function manifest(
                 type: { text: 'CustomEvent<ColumnReorderDetail>' },
               },
               { name: 'argus-row-click', type: { text: 'CustomEvent<RowClickDetail<T>>' } },
+              {
+                name: 'argus-row-select',
+                type: { text: 'CustomEvent<RowSelectDetail>' },
+              },
             ],
           },
         ],
@@ -105,6 +110,7 @@ describe('readElement', () => {
       'sorting',
       'columnSizing',
       'columnOrder',
+      'selection',
     ]);
     expect(table.methods).toEqual(['refresh']);
     expect(table.events[0]).toEqual({
@@ -119,6 +125,7 @@ describe('readElement', () => {
       ['sorting', 'argus-sort-change', 'sorting'],
       ['columnSizing', 'argus-column-resize', 'sizing'],
       ['columnOrder', 'argus-column-reorder', 'order'],
+      ['selection', 'argus-row-select', 'selection'],
     ]);
   });
 
@@ -142,6 +149,16 @@ describe('readElement', () => {
   test('fails when a model’s property is missing', () => {
     const m = manifest({ tableMembers: [{ kind: 'field', name: 'sorting', type: { text: 'x' } }] });
     expect(() => readElement(m, 'argus-table')).toThrow(/no property "columnSizing"/);
+  });
+
+  test('fails when an event takes the name of a two-way output', () => {
+    const m = manifest({
+      tableEvents: [
+        { name: 'argus-sort-change', type: { text: 'CustomEvent<SortChangeDetail>' } },
+        { name: 'argus-sorting-change', type: { text: 'CustomEvent<SortChangeDetail>' } },
+      ],
+    });
+    expect(() => readElement(m, 'argus-table')).toThrow(/collides with the Angular output/);
   });
 
   test('fails when an event has no type', () => {
@@ -172,10 +189,10 @@ describe('emitReact', () => {
       "import { ArgusTable as ArgusTableElement, ArgusColumn as ArgusColumnElement } from 'argus-table';",
     );
     expect(source).toContain(
-      "import type { ColumnReorderDetail, ColumnResizeDetail, RowClickDetail, SortChangeDetail } from 'argus-table';",
+      "import type { ColumnReorderDetail, ColumnResizeDetail, RowClickDetail, RowSelectDetail, SortChangeDetail } from 'argus-table';",
     );
     expect(source).toContain(
-      "export type ArgusTableElementProps<T = unknown> = Partial<Pick<ArgusTableElement<T>, 'data' | 'rowHeight' | 'sorting' | 'columnSizing' | 'columnOrder'>>;",
+      "export type ArgusTableElementProps<T = unknown> = Partial<Pick<ArgusTableElement<T>, 'data' | 'rowHeight' | 'sorting' | 'columnSizing' | 'columnOrder' | 'selection'>>;",
     );
     expect(source).toContain('onRowClick?: (event: CustomEvent<RowClickDetail<T>>) => void;');
     expect(source).toContain("onSortChange: 'argus-sort-change',");
@@ -183,7 +200,7 @@ describe('emitReact', () => {
     expect(source).toContain("import { ownEvents } from '../own-events.js';");
     expect(source).toContain('export const ArgusTable = ownEvents(createComponent({');
     expect(source).toContain(
-      "}), ['onSortChange', 'onColumnResize', 'onColumnReorder', 'onRowClick'], 'ArgusTable') as unknown as <T = unknown>(props: ArgusTableProps<T>) => React.ReactElement | null;",
+      "}), ['onSortChange', 'onColumnResize', 'onColumnReorder', 'onRowClick', 'onRowSelect'], 'ArgusTable') as unknown as <T = unknown>(props: ArgusTableProps<T>) => React.ReactElement | null;",
     );
     // No events: no event props interface, and no type parameter when nothing uses T.
     expect(source).not.toContain('ArgusColumnEventProps');

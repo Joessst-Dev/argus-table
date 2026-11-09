@@ -20,6 +20,6 @@ The biggest risk is the rendering combo (virtualization + sticky + slotted conte
 - [x] Final name and npm scope: decided, Argus Table (`argus-table` + `@argus-table/*`)
 - [x] Shadow DOM + slotted cells vs. full light DOM inside `@layer`: decided, shadow DOM with slotted light-DOM cells on pooled row DOM ([ADR 0001](../../adr/0001-shadow-vs-light-dom.md))
 - [x] Framework wrappers at launch: decided, React, Vue and Angular wrappers all ship with v0.2
-- [ ] Row selection in v1 or v2?
+- [x] Row selection in v1 or v2? v1: `selectionMode` and `selection` (row ids), with the event `argus-row-select`. A built-in checkbox column follows.
 - [ ] Expose TanStack's table instance as an escape hatch, or keep it private?
 - [ ] Formula columns with server-side data: disable sorting/filtering, or pass the syntax tree to `getRows`? (see [Formula columns](09-formula-columns.md))

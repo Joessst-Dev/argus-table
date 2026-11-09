@@ -170,6 +170,12 @@ describe('createTableModel: sorting', () => {
     expect(m.indexOf('nope')).toBeUndefined();
   });
 
+  it('lists every row id as selectable, in the sorted order', () => {
+    const m = model({ getRowId: (p) => p.id });
+    m.update({ sorting: [{ id: 'name', desc: false }] });
+    expect(m.selectableIds()).toEqual(['p2', 'p3', 'p1', 'p4']);
+  });
+
   it('proposes asc → desc → unsorted, one column at a time, without applying it', () => {
     const m = model();
     expect(m.nextSorting('name')).toEqual([{ id: 'name', desc: false }]);
@@ -448,6 +454,12 @@ describe('createTableModel: remote rows', () => {
       const found = Object.entries(loaded).find(([, p]) => p.id === id);
       return found ? Number(found[0]) : undefined;
     },
+    loadedIds: () => Object.values(loaded).map((p) => p.id),
+  });
+
+  it('lists only the loaded remote rows as selectable', () => {
+    const m = model({ remote: remote({ 4: bea, 5: cleo }) });
+    expect(m.selectableIds()).toEqual(['p3', 'p1']);
   });
 
   it('reads rows, ids and values from the remote source, unsorted by the model', () => {
@@ -529,7 +541,12 @@ describe('createTableModel: pinned rows', () => {
 
   it('works with remote rows too', () => {
     const m = model({
-      remote: { rowCount: 50, entryAt: () => undefined, indexOf: () => undefined },
+      remote: {
+        rowCount: 50,
+        entryAt: () => undefined,
+        indexOf: () => undefined,
+        loadedIds: () => [],
+      },
       pinnedRows: { top: [totals] },
     });
     expect(m.rowCount).toBe(50);

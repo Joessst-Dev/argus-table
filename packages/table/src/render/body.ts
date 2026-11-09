@@ -25,6 +25,12 @@ export interface Loading {
 }
 
 /**
+ * Whether the row at an index is selected; `undefined` when it can't be
+ * selected (selection is off, or the row hasn't loaded).
+ */
+export type SelectedAt = (index: number) => boolean | undefined;
+
+/**
  * The virtualized body. Rows are keyed by pool slot, so a row entering the window
  * reuses the DOM of one that left (ADR 0001), and they stay in pool order: screen
  * readers get the position from `aria-rowindex`. `firstRowIndex` is the
@@ -37,6 +43,7 @@ export function renderBody<T>(
   active: ActiveCell | undefined,
   firstRowIndex: number,
   loading?: Loading,
+  selectedAt?: SelectedAt,
 ) {
   return html`<div
     part="body"
@@ -53,6 +60,7 @@ export function renderBody<T>(
           r.index === active?.index ? active.col : undefined,
           firstRowIndex,
           loading,
+          selectedAt?.(r.index),
         ),
     )}
   </div>`;
@@ -62,6 +70,8 @@ export function renderBody<T>(
  * One body row. Every cell is focusable (`tabindex=-1`) so clicks focus it; the
  * active one is the grid's single tab stop (roving tabindex). A row whose data
  * isn't loaded shows skeleton bars, and a Retry button if its page failed.
+ * `selected` is `undefined` for a row that can't be selected: it then has no
+ * `aria-selected`.
  */
 function renderRow<T>(
   row: WindowRow,
@@ -69,10 +79,12 @@ function renderRow<T>(
   activeCol: string | undefined,
   firstRowIndex: number,
   loading: Loading | undefined,
+  selected: boolean | undefined,
 ) {
   const state = loading?.stateAt(row.index) ?? 'loaded';
   let parts = row.index % 2 === 0 ? 'row row-even' : 'row row-odd';
   if (state !== 'loaded') parts += ' row-loading';
+  if (selected) parts += ' row-selected';
   const retry = state === 'error' ? loading?.retry.get(row.index) : undefined;
   return html`<div
     part=${parts}
@@ -80,6 +92,7 @@ function renderRow<T>(
     role="row"
     aria-rowindex=${row.index + firstRowIndex}
     aria-busy=${state === 'loading' ? 'true' : nothing}
+    aria-selected=${selected === undefined ? nothing : String(selected)}
     style=${styleMap({ transform: `translateY(${String(row.start)}px)` })}
   >
     ${repeat(

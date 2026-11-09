@@ -10,6 +10,7 @@ import type {
   LoadErrorDetail,
   RangeChangeDetail,
   RowClickDetail,
+  RowSelectDetail,
   SortChangeDetail,
 } from 'argus-table';
 import { ownEvents } from '../own-events.js';
@@ -29,6 +30,8 @@ export type ArgusTableElementProps<T = unknown> = Partial<
     | 'sorting'
     | 'columnSizing'
     | 'columnOrder'
+    | 'selectionMode'
+    | 'selection'
   >
 >;
 
@@ -46,6 +49,8 @@ export interface ArgusTableEventProps<T = unknown> {
   onRowClick?: (event: CustomEvent<RowClickDetail<T>>) => void;
   /** `argus-range-change`: The visible rows changed. `detail: { start, end }` (row indices, inclusive). */
   onRangeChange?: (event: CustomEvent<RangeChangeDetail>) => void;
+  /** `argus-row-select`: The selected rows changed: by a click on a row (Ctrl/Cmd toggles, Shift selects a range), with Space, Shift+Arrow or Shift+PageUp/PageDown on a body cell, or with Ctrl/Cmd+A. Only with a `selectionMode`. `detail: { selection }`: the new row ids, or the proposed ones when `selection` is controlled. */
+  onRowSelect?: (event: CustomEvent<RowSelectDetail>) => void;
   /** `argus-load-error`: A `dataSource` page failed to load: `getRows()` rejected or threw. `detail: { error, start, end }` (`end` exclusive). The rows show a Retry button. */
   onLoadError?: (event: CustomEvent<LoadErrorDetail>) => void;
 }
@@ -74,6 +79,7 @@ export const ArgusTable = ownEvents(
       onCellClick: 'argus-cell-click',
       onRowClick: 'argus-row-click',
       onRangeChange: 'argus-range-change',
+      onRowSelect: 'argus-row-select',
       onLoadError: 'argus-load-error',
     },
     displayName: 'ArgusTable',
@@ -85,6 +91,7 @@ export const ArgusTable = ownEvents(
     'onCellClick',
     'onRowClick',
     'onRangeChange',
+    'onRowSelect',
     'onLoadError',
   ],
   'ArgusTable',

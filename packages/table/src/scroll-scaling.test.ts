@@ -192,6 +192,22 @@ describe('scroll scaling', () => {
       expectConsistent(el);
     });
 
+    test('Shift+PageDown selects a page of rows and keeps the row in view', async () => {
+      const el = await fixture({
+        columns,
+        data: people(ROWS),
+        getRowId: (p) => p.id,
+        selectionMode: 'multi',
+      });
+      await focusFirstBodyCell(el);
+      await key(el, 'PageDown', { shiftKey: true });
+      await key(el, 'PageDown', { shiftKey: true });
+      expect(focusedRow(el)).toEqual({ index: 18, inView: true });
+      expect(el.selection).toHaveLength(19);
+      expect(el.selection.at(-1)).toBe('p18');
+      expectConsistent(el);
+    });
+
     test('Ctrl+End and Ctrl+Home reach the last and the first row', async () => {
       const el = await fixture({ columns, data: people(ROWS) });
       await focusFirstBodyCell(el);

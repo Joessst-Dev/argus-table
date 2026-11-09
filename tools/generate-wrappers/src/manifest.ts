@@ -84,6 +84,7 @@ export const MODELS: Readonly<Record<Tag, readonly ElementModel[]>> = {
     { property: 'sorting', event: 'argus-sort-change', detailKey: 'sorting' },
     { property: 'columnSizing', event: 'argus-column-resize', detailKey: 'sizing' },
     { property: 'columnOrder', event: 'argus-column-reorder', detailKey: 'order' },
+    { property: 'selection', event: 'argus-row-select', detailKey: 'selection' },
   ],
   'argus-column': [],
 };
@@ -168,6 +169,15 @@ export function readElement(manifest: Manifest, tag: Tag): ElementInfo {
     }
     if (!events.some((e) => e.name === model.event)) {
       throw new Error(`<${tag}> has no event "${model.event}" for "${model.property}".`);
+    }
+    // Angular's two-way binding needs an output named `…Change`; an event's own
+    // output can't take that name too.
+    const output = `${model.property}Change`;
+    const taken = events.find((e) => e.angular === output);
+    if (taken) {
+      throw new Error(
+        `<${tag}> event "${taken.name}" collides with the Angular output "${output}" of [(${model.property})].`,
+      );
     }
   }
 

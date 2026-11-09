@@ -218,7 +218,7 @@ describe('<argus-table> component', () => {
     expect(el.sorting).toEqual([]);
   });
 
-  test('binds sorting, columnSizing and columnOrder two-way', async () => {
+  test('binds sorting, columnSizing, columnOrder and selection two-way', async () => {
     @Component({
       imports: [ArgusTableComponent],
       template: `<argus-table
@@ -228,6 +228,8 @@ describe('<argus-table> component', () => {
         [(sorting)]="sorting"
         [(columnSizing)]="sizing"
         [(columnOrder)]="order"
+        selectionMode="multi"
+        [(selection)]="selected"
       />`,
     })
     class Host {
@@ -237,6 +239,7 @@ describe('<argus-table> component', () => {
       sorting = signal<SortState>([]);
       sizing = signal<Record<string, number>>({});
       order = signal<string[]>([]);
+      selected = signal<string[]>([]);
     }
 
     const { el, host, fixture } = await mount(Host);
@@ -265,6 +268,16 @@ describe('<argus-table> component', () => {
     await settle(fixture, el);
     expect(host.order()).toEqual(['customer', 'id', 'total']);
     expect(headerText(el)).toEqual(['Customer', 'Order', 'Total']);
+
+    // Sorted by total: the first body row is whichever order has the lowest.
+    const cell = el.shadowRoot?.querySelector<HTMLElement>(
+      '[role="row"][aria-rowindex="2"] > [role="gridcell"]',
+    );
+    cell?.click();
+    await settle(fixture, el);
+    expect(host.selected()).toHaveLength(1);
+    expect(el.selection).toEqual(host.selected());
+    expect(cell?.parentElement?.getAttribute('aria-selected')).toBe('true');
   });
 
   test('null (the async pipe) and undefined fall back to the element defaults', async () => {
