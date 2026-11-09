@@ -846,7 +846,7 @@ export class ArgusTable<T = unknown> extends LitElement {
         col = 0;
         if (corner) {
           pos = 0;
-          scroller.scrollTop = 0;
+          this.#virtual.scrollToEdge('start');
         }
         break;
       case 'End':
@@ -867,7 +867,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     // Ctrl+End onto a bottom pinned row: show the end of the body too, as
     // Ctrl+Home shows its start.
     if (corner && key === 'End' && row.section === 'bottom') {
-      scroller.scrollTop = scroller.scrollHeight;
+      this.#virtual.scrollToEdge('end');
     }
     const target = columns[Math.min(Math.max(col, 0), columns.length - 1)];
     if (target) this.#moveTo(row, target.id, model);

@@ -47,13 +47,22 @@ export const baseStyles = css`
       block-size: 100%;
       overflow: auto;
       overscroll-behavior: contain;
-      /*
-       * A cell moved to by keyboard scrolls clear of the sticky header, the pinned
-       * rows and the pinned columns.
-       */
-      scroll-padding-block-start: calc((1 + var(--_pin-top-rows, 0)) * var(--_row-height));
-      scroll-padding-block-end: calc(var(--_pin-bottom-rows, 0) * var(--_row-height));
-      scroll-padding-inline: var(--_pin-start, 0) var(--_pin-end, 0);
+    }
+
+    /*
+     * A cell focused or moved to by keyboard scrolls clear of the sticky header, the
+     * pinned rows and the pinned columns: scroll margins on the cells that scroll.
+     * Not scroll padding on the scroller: Chromium and WebKit measure the sticky
+     * header and pinned rows against it too, so focusing one of them (a click, Tab,
+     * an arrow key) scrolled the body.
+     */
+    [part~='body'] > .row > [role='gridcell'] {
+      scroll-margin-block: calc((1 + var(--_pin-top-rows, 0)) * var(--_row-height))
+        calc(var(--_pin-bottom-rows, 0) * var(--_row-height));
+    }
+    [role='gridcell']:not([data-pin]),
+    [role='columnheader']:not([data-pin]) {
+      scroll-margin-inline: var(--_pin-start, 0) var(--_pin-end, 0);
     }
 
     .row {

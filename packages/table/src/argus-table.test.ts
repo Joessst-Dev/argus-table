@@ -2360,6 +2360,38 @@ describe('pinned rows', () => {
     expect(below && bottomBlock && below.bottom <= bottomBlock.top + 0.5).toBe(true);
   });
 
+  test('moving through the header and pinned rows scrolls sideways only, never the body', async () => {
+    // scrollIntoView on these sticky cells scrolled the body by the header and
+    // pinned rows' height in Chromium and WebKit.
+    const el = await fixture({ columns, data: people(1000), pinnedRows });
+    await scrollTo(el, 4000);
+    const s = scroller(el);
+    const bound = () => s.getBoundingClientRect().left + s.clientLeft + 200;
+    await focusFirstHeader(el);
+    await key(el, 'ArrowRight');
+    expect(at(el)).toEqual([1, 'age']);
+    expect(s.scrollTop).toBe(4000);
+    // City is wider than the view: like scrollIntoView, it lines up its start, clear of Name.
+    await key(el, 'ArrowRight');
+    expect(at(el)).toEqual([1, 'city']);
+    expect(focused(el)?.getBoundingClientRect().left).toBeCloseTo(bound(), 0);
+    expect(s.scrollTop).toBe(4000);
+    await key(el, 'ArrowLeft');
+    expect(focused(el)?.getBoundingClientRect().left).toBeGreaterThanOrEqual(bound() - 0.5);
+    // The top pinned row.
+    await key(el, 'ArrowDown');
+    await key(el, 'ArrowRight');
+    expect(at(el)).toEqual([2, 'city']);
+    expect(s.scrollTop).toBe(4000);
+    // The bottom pinned row.
+    const bottom = pinned(el, 'bottom')[0]?.querySelector<HTMLElement>('[data-col="age"]');
+    bottom?.focus();
+    await settle(el);
+    await key(el, 'ArrowRight');
+    expect(focused(el)?.dataset.col).toBe('city');
+    expect(s.scrollTop).toBe(4000);
+  });
+
   test('a focused pinned cell keeps its DOM while the body scrolls', async () => {
     const el = await fixture({ columns, data: people(100_000), pinnedRows });
     const cell = pinned(el, 'bottom')[0]?.querySelector<HTMLElement>('[data-col="age"]');
