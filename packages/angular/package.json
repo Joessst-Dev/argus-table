@@ -37,7 +37,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "argus-table": "workspace:*",
+    "argus-table": "workspace:^",
     "tslib": "^2.8.1"
   },
   "peerDependencies": {
