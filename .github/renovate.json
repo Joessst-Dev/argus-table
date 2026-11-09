@@ -4,6 +4,15 @@
   "schedule": ["before 6am on monday"],
   "labels": ["dependencies"],
   "rangeStrategy": "bump",
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/bower_components/**",
+    "**/vendor/**",
+    "**/__tests__/**",
+    "**/test/**",
+    "**/tests/**",
+    "**/__fixtures__/**"
+  ],
   "lockFileMaintenance": {
     "enabled": true,
     "schedule": ["before 6am on monday"]
@@ -40,8 +49,31 @@
       "groupName": "Storybook"
     },
     {
-      "description": "Playwright is pinned to the browsers in the cloud dev container; bump by hand",
-      "matchPackageNames": ["playwright"],
+      "description": "Starters (apps/examples/*): the frameworks and tooling in one PR, merged automatically when the smoke test is green. The default ignorePaths skip **/examples/**; the list above keeps the rest of it",
+      "matchFileNames": ["apps/examples/*/package.json"],
+      "groupName": "starters",
+      "automerge": true
+    },
+    {
+      "description": "Starters: scripts/sync-versions.mjs owns the argus-table ranges (pnpm version-packages)",
+      "matchFileNames": ["apps/examples/*/package.json"],
+      "matchPackageNames": ["argus-table", "@argus-table/**"],
+      "enabled": false
+    },
+    {
+      "description": "Starters: majors (a new React, Vue or Angular) get a human review",
+      "matchFileNames": ["apps/examples/*/package.json"],
+      "matchUpdateTypes": ["major"],
+      "automerge": false
+    },
+    {
+      "description": "Peer dependency ranges are part of the published contract: widen them by hand, never narrow them",
+      "matchDepTypes": ["peerDependencies"],
+      "enabled": false
+    },
+    {
+      "description": "Playwright is pinned to the browsers in the cloud dev container and the CI image: bump the npm packages and the Docker image together, by hand",
+      "matchPackageNames": ["playwright", "@playwright/test", "mcr.microsoft.com/playwright"],
       "enabled": false
     },
     {
