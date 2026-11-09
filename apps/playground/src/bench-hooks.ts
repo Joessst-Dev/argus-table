@@ -53,12 +53,6 @@ export function installBenchHooks(table: ArgusTable<Person>, info: { dataMs: num
   const scroller = () => root()?.querySelector<HTMLElement>('[part~="table"]') ?? null;
   const rows = () => [...(root()?.querySelectorAll<HTMLElement>(BODY_ROWS) ?? [])];
   const rowHeight = () => rows()[0]?.getBoundingClientRect().height ?? 40;
-  // The sticky header and pinned rows cover the body.
-  const headerHeight = () =>
-    [...(root()?.querySelectorAll('[part~="header"], .pinned') ?? [])].reduce(
-      (sum, el) => sum + el.getBoundingClientRect().height,
-      0,
-    );
 
   let recording = false;
   let frames: number[] = [];
@@ -74,19 +68,31 @@ export function installBenchHooks(table: ArgusTable<Person>, info: { dataMs: num
     }).observe({ type: 'longtask', buffered: false });
   }
 
-  /** A frame is blank if the rendered rows don't cover the visible body area. */
+  /**
+   * A frame is blank if the rendered rows don't cover the visible body area: below
+   * the header and top pinned rows, above the bottom ones (or down to the last
+   * row). Measured on screen, not from row index × height: once the body is
+   * taller than the engine renders, its scroll position is scaled.
+   */
   const isBlank = (el: HTMLElement): boolean => {
-    const indices = rows().map((r) => bodyIndex(table, r));
-    if (indices.length === 0) return true;
-    const h = rowHeight();
-    const start = Math.min(...indices) * h;
-    const end = (Math.max(...indices) + 1) * h;
-    const visibleStart = el.scrollTop;
-    const visibleEnd = Math.min(
-      el.scrollTop + el.clientHeight - headerHeight(),
-      table.data.length * h,
-    );
-    return start > visibleStart + 1 || end < visibleEnd - 1;
+    const rendered = rows();
+    if (rendered.length === 0) return true;
+    const box = el.getBoundingClientRect();
+    const side = (s: string) =>
+      root()?.querySelector(`.pinned[data-side="${s}"]`)?.getBoundingClientRect().height ?? 0;
+    const header = root()?.querySelector('[part~="header"]')?.getBoundingClientRect().height ?? 0;
+    const viewTop = box.top + header + side('top');
+    const viewBottom = box.top + el.clientHeight - side('bottom');
+    let top = Infinity;
+    let bottom = -Infinity;
+    let last = false;
+    for (const row of rendered) {
+      const rect = row.getBoundingClientRect();
+      top = Math.min(top, rect.top);
+      bottom = Math.max(bottom, rect.bottom);
+      if (bodyIndex(table, row) === table.data.length - 1) last = true;
+    }
+    return top > viewTop + 1 || (bottom < viewBottom - 1 && !last);
   };
 
   const tick = (now: number) => {
@@ -224,9 +230,10 @@ export function installBenchHooks(table: ArgusTable<Person>, info: { dataMs: num
       const jumpFrames: number[] = [];
       start();
       for (let i = 0; i < count; i++) {
-        const row = Math.floor(rand() * (table.data.length - 1));
+        // A random point of the scroll range (row × height px would miss the end
+        // of a scaled body).
         const before = frames.length;
-        el.scrollTop = row * rowHeight();
+        el.scrollTop = rand() * (el.scrollHeight - el.clientHeight);
         await wait(holdMs);
         // The jump's re-render lands in one of the next few frames.
         jumpFrames.push(Math.max(0, ...frames.slice(before, before + 3)));

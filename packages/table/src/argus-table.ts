@@ -41,6 +41,7 @@ import {
   ROW_CLICK,
   SORT_CHANGE,
 } from './events.js';
+import { bodyCap, watchMaxElementHeight } from './max-height.js';
 import { renderBody, type ActiveCell, type Loading } from './render/body.js';
 import { renderLightDom } from './render/cells.js';
 import { renderHeader, type HeaderDrag } from './render/header.js';
@@ -148,6 +149,12 @@ function track<T>(column: ColumnView<T, CellContent>): string {
  * written as `<argus-column>` children; a non-empty `columns` wins over them.
  * Header and cell content is rendered into the element's light DOM and slotted
  * into the cells, so page CSS and the page's own components work inside cells.
+ *
+ * Any number of rows scrolls to the end. Browsers limit an element's height
+ * (about 800k rows of 40 px in Chromium and Safari, 400k in Firefox), so a taller
+ * body renders shorter and its scroll position is scaled onto the rows: the
+ * scrollbar still spans every row, and a wheel step covers a few more of them.
+ * Use `scrollToRow()` rather than setting the scroll container's `scrollTop`.
  *
  * @summary Data table with pinned rows and columns and infinite loading.
  *
@@ -374,16 +381,23 @@ export class ArgusTable<T = unknown> extends LitElement {
   /** Move focus to the active cell after the next update (keyboard navigation). */
   #focusPending = false;
   #lastRange = '';
+  #unwatchMaxHeight: (() => void) | undefined;
 
   override connectedCallback(): void {
     super.connectedCallback();
     if (!this.hasAttribute('role')) this.setAttribute('role', 'grid');
     if (this.hasUpdated) this.#observeProbe();
+    // A zoom change changes the tallest body the engine renders.
+    this.#unwatchMaxHeight = watchMaxElementHeight(() => {
+      this.requestUpdate();
+    });
   }
 
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#probeObserver?.disconnect();
+    this.#unwatchMaxHeight?.();
+    this.#unwatchMaxHeight = undefined;
   }
 
   /**
@@ -497,11 +511,15 @@ export class ArgusTable<T = unknown> extends LitElement {
     const active = this.#active;
     // -1 tells assistive tech the total is unknown (a data source still growing).
     const unknownTotal = this.#data.rows?.totalKnown === false;
-    this.#internals.ariaRowCount = unknownTotal ? '-1' : String(layoutOf(model).total);
+    const layout = layoutOf(model);
+    this.#internals.ariaRowCount = unknownTotal ? '-1' : String(layout.total);
     this.#internals.ariaColCount = String(model.columns.length);
+    // The header and pinned rows scroll with the body, one row each.
+    const extra = (1 + layout.top + layout.bottom) * this.#rowPx;
     this.#virtual.configure({
       count: model.rowCount,
       rowHeight: this.#rowPx,
+      cap: bodyCap(model.rowCount * this.#rowPx, extra),
       overscan: Math.max(0, this.overscan),
       rowIdAt: (index) => this.#rowId(model, index),
       // The active body row stays rendered, so the tab stop and focus survive scrolling.
@@ -841,10 +859,10 @@ export class ArgusTable<T = unknown> extends LitElement {
     event.preventDefault();
     const row = layout.at(pos) ?? HEADER;
     // PageUp/PageDown scroll by as many rows as focus moved, so the focused cell
-    // keeps its place on screen. The browser clamps at the ends; focusing
-    // scrolls the rest of the way.
+    // keeps its place on screen. The ends clamp; focusing scrolls the rest of
+    // the way. Through the virtualizer: a scaled body's px aren't rows.
     if (key.startsWith('Page') && from.section === 'body' && row.section === 'body') {
-      scroller.scrollTop += (row.index - from.index) * this.#rowPx;
+      this.#virtual.scrollBy((row.index - from.index) * this.#rowPx);
     }
     // Ctrl+End onto a bottom pinned row: show the end of the body too, as
     // Ctrl+Home shows its start.
@@ -972,8 +990,19 @@ export class ArgusTable<T = unknown> extends LitElement {
       `[role='row'][aria-rowindex="${String(index)}"] > [data-col="${col}"]`,
     );
     if (!cell) return;
-    cell.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     cell.focus({ preventScroll: true });
+    // A scaled body moves `ratio` px of rows per px scrolled, so the browser can't
+    // scroll a body row into view: the virtualizer does, and the next update
+    // (from its scroll) shows the row and scrolls sideways.
+    if (active.section === 'body' && this.#virtual.scaled) {
+      const layout = layoutOf(this.#table.model);
+      const before = (1 + layout.top) * this.#rowPx;
+      if (this.#virtual.reveal(active.index, before, layout.bottom * this.#rowPx)) {
+        this.#focusPending = true;
+        return;
+      }
+    }
+    cell.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
 
   /**
