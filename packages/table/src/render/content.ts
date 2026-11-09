@@ -63,14 +63,16 @@ export function ariaSort(sorted: 'asc' | 'desc' | false): 'ascending' | 'descend
 
 /**
  * Inline style of a cell or header: a pinned one's sticky inset, from the
- * start or the end edge, and with `virtualizeColumns` the grid column it is
- * placed in (cells are in pool order there, not in column order).
+ * start or the end edge, and with `virtualizeColumns` the grid cell it is
+ * placed in. Cells are in pool order there, not in column order, so the row is
+ * explicit too: auto-placement would wrap a cell that comes after one of a
+ * later column into a new grid row.
  */
 export function cellStyle(
   column: Pinnable & { offset: number; place: number | undefined },
 ): string | undefined {
   const pin = column.pin ? `--_pin-offset: ${String(column.offset)}px` : undefined;
   if (column.place === undefined) return pin;
-  const place = `grid-column: ${String(column.place)}`;
+  const place = `grid-area: 1 / ${String(column.place)}`;
   return pin ? `${pin}; ${place}` : place;
 }

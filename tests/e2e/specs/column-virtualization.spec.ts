@@ -41,17 +41,31 @@ async function view(page: Page) {
         ({ h }, i) =>
           i === 0 || Number(h.ariaColIndex) === Number(inView[i - 1]?.h.ariaColIndex) + 1,
       );
-    // Every visible body row has a cell under each header in view.
+    // Every visible body row has a cell under each header in view, and every
+    // cell and header fills its row's height (none wrapped into a second grid row).
     const rows = [...root.querySelectorAll('[part~="body"] > [part~="row"]')].filter((row) => {
       const r = row.getBoundingClientRect();
       return r.bottom > box.top + 1 && r.top < box.bottom - 1;
     });
-    const aligned = rows.every((row) =>
-      inView.every(({ h, r }) => {
-        const cell = row.querySelector(`[data-col="${h.dataset.col ?? ''}"]`);
-        return cell && Math.abs(cell.getBoundingClientRect().left - r.left) < 1;
-      }),
-    );
+    const onRow = (row: Element) => {
+      const r = row.getBoundingClientRect();
+      return [...row.querySelectorAll(':scope > [role]')].every((cell) => {
+        const c = cell.getBoundingClientRect();
+        return Math.abs(c.top - r.top) < 1 && Math.abs(c.bottom - r.bottom) < 1;
+      });
+    };
+    const headerRow = root.querySelector('[part~="header"] [role="row"]');
+    const aligned =
+      !!headerRow &&
+      onRow(headerRow) &&
+      rows.every(
+        (row) =>
+          onRow(row) &&
+          inView.every(({ h, r }) => {
+            const cell = row.querySelector(`[data-col="${h.dataset.col ?? ''}"]`);
+            return cell && Math.abs(cell.getBoundingClientRect().left - r.left) < 1;
+          }),
+      );
     return {
       ids: inView.map(({ h }) => h.dataset.col ?? ''),
       covered,
