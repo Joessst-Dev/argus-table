@@ -1,8 +1,10 @@
-// Scroll benchmark. Serves the built playground (apps/playground/dist), runs each
-// scenario RUNS times in every browser, and writes medians plus a gate verdict.
+// Benchmark. Serves the built playground (apps/playground/dist) and, for every row
+// count, runs the scroll scenarios plus load, sort, memory and a reach-the-end
+// check RUNS times in every browser. Writes medians plus a gate verdict.
 //
-//   pnpm bench                                   # Chromium, 5 runs
+//   pnpm bench                                   # Chromium, 5 runs, 10k / 100k / 1M rows
 //   BROWSERS=chromium,firefox,webkit RUNS=3 pnpm bench
+//   ROWS=100000 pnpm bench                       # one row count
 //   VARIANTS=pin=none,pin= pnpm bench            # compare playground variants, interleaved
 //
 // Headless numbers on shared machines are noisy: treat absolute values as a lower
@@ -12,10 +14,19 @@ import { readFile, mkdir, writeFile, appendFile } from 'node:fs/promises';
 import { extname, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import os from 'node:os';
+import { execFileSync } from 'node:child_process';
 import { chromium, firefox, webkit, type Browser, type BrowserType, type Page } from 'playwright';
-
-type BrowserName = 'chromium' | 'firefox' | 'webkit';
-type Scenario = 'steady' | 'fast' | 'jumps' | 'horizontal' | 'wheel';
+import type {
+  BrowserName,
+  Meta,
+  PageResult,
+  PageStats,
+  Results,
+  Scenario,
+  ScrollResult,
+  ScrollStats,
+} from './types.ts';
+import { toMarkdown } from './markdown.ts';
 
 interface Raw {
   frames: number[];
@@ -24,33 +35,19 @@ interface Raw {
   shadowNodes: number;
   lightNodes: number;
   renderedRows: number;
-  heapMB: number | null;
+  maxScrollTop: number;
   mismatches?: number;
   jumpFrames?: number[];
 }
 
-interface Stats {
-  frames: number;
-  p50: number;
-  p95: number;
-  p99: number;
-  max: number;
-  over50: number;
-  longTasks: number | null;
-  longTaskMax: number | null;
-  blankFrames: number;
-  mismatches: number;
-  shadowNodes: number;
-  lightNodes: number;
-  renderedRows: number;
-  heapMB: number | null;
-  /** jumps only: median and max of the slowest frame after each jump. */
-  jumpP50: number | null;
-  jumpMax: number | null;
-}
-
 const GATE_P95 = 20;
 const GATE_LONG_TASK = 50;
+/** A sort can't be interrupted inside the page, so after this the page is closed instead. */
+const SORT_TIMEOUT = Number(process.env.SORT_TIMEOUT ?? 60_000);
+/** Scenarios that scroll the body vertically: they must move it to count. */
+const VERTICAL = new Set<Scenario>(['steady', 'fast', 'jumps', 'wheel']);
+/** The playground's default: 20 columns, three of them pinned. */
+const COLUMNS = 20;
 
 const here = dirname(fileURLToPath(import.meta.url));
 const dist = join(here, '..', 'apps', 'playground', 'dist');
@@ -58,23 +55,26 @@ const outDir = join(here, 'results');
 const RUNS = Number(process.env.RUNS ?? 5);
 const engines: Record<BrowserName, BrowserType> = { chromium, firefox, webkit };
 const requested = process.env.BROWSERS ?? 'chromium';
+const list = (value: string | undefined): string[] =>
+  (value ?? '')
+    .split(',')
+    .map((v) => v.trim())
+    .filter(Boolean);
+const ROWS = list(process.env.ROWS ?? '10000,100000,1000000').map(Number);
 // Playground query strings to compare in the same job, e.g. `pin=none,density=compact`.
 // Runs interleave the variants, so they share the runner's state; CI runners vary
 // too much between jobs to compare separate runs.
-const VARIANTS = (process.env.VARIANTS ?? '')
-  .split(',')
-  .map((v) => v.trim())
-  .filter(Boolean);
+const VARIANTS = list(process.env.VARIANTS);
 const variants = VARIANTS.length ? VARIANTS : [''];
-const browsers = (requested === 'all' ? 'chromium,firefox,webkit' : requested)
-  .split(',')
-  .map((b) => b.trim())
-  .filter((b): b is BrowserName => b in engines);
+const browsers = list(requested === 'all' ? 'chromium,firefox,webkit' : requested).filter(
+  (b): b is BrowserName => b in engines,
+);
 
 const TYPES: Record<string, string> = {
   '.html': 'text/html',
   '.js': 'text/javascript',
   '.css': 'text/css',
+  '.woff2': 'font/woff2',
 };
 
 function serve(): Promise<{ server: Server; url: string }> {
@@ -109,8 +109,13 @@ const median = (xs: number[]): number => {
 const pct = (sorted: number[], p: number): number =>
   sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * p))] ?? 0;
 const round = (n: number): number => Math.round(n * 10) / 10;
+/** The median of the numbers among `values`, or null if there are none. */
+const medianOf = (values: (number | null)[]): number | null => {
+  const numbers = values.filter((v): v is number => typeof v === 'number');
+  return numbers.length ? round(median(numbers)) : null;
+};
 
-function stats(raw: Raw, longTasksSupported: boolean): Stats {
+function stats(raw: Raw, scenario: Scenario, longTasksSupported: boolean): ScrollStats {
   const f = [...raw.frames].sort((a, b) => a - b);
   return {
     frames: f.length,
@@ -126,17 +131,15 @@ function stats(raw: Raw, longTasksSupported: boolean): Stats {
     shadowNodes: raw.shadowNodes,
     lightNodes: raw.lightNodes,
     renderedRows: raw.renderedRows,
-    heapMB: raw.heapMB,
+    scrolled: !VERTICAL.has(scenario) || raw.maxScrollTop > 0,
     jumpP50: raw.jumpFrames?.length ? median(raw.jumpFrames) : null,
     jumpMax: raw.jumpFrames?.length ? Math.max(...raw.jumpFrames) : null,
   };
 }
 
-function medianStats(runs: Stats[]): Stats {
-  const pick = (k: keyof Stats): number | null => {
-    const values = runs.map((r) => r[k]).filter((v): v is number => typeof v === 'number');
-    return values.length ? round(median(values)) : null;
-  };
+function medianStats(runs: ScrollStats[]): ScrollStats {
+  const pick = (k: keyof ScrollStats): number | null =>
+    medianOf(runs.map((r) => (typeof r[k] === 'number' ? r[k] : null)));
   return {
     frames: pick('frames') ?? 0,
     p50: pick('p50') ?? 0,
@@ -152,23 +155,40 @@ function medianStats(runs: Stats[]): Stats {
     shadowNodes: pick('shadowNodes') ?? 0,
     lightNodes: Math.max(...runs.map((r) => r.lightNodes)),
     renderedRows: Math.max(...runs.map((r) => r.renderedRows)),
-    heapMB: pick('heapMB'),
+    scrolled: runs.every((r) => r.scrolled),
     jumpP50: pick('jumpP50'),
     jumpMax: pick('jumpMax'),
   };
 }
 
-async function open(browser: Browser, url: string, dir = 'ltr', variant = ''): Promise<Page> {
-  const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-  await page.goto(`${url}/?dir=${dir}&bench${variant ? `&${variant}` : ''}`);
-  await page.waitForFunction(() => '__argusBench' in window);
-  await page.evaluate(
-    () => (window as unknown as { __argusBench: { ready: Promise<unknown> } }).__argusBench.ready,
-  );
-  return page;
+function medianPageStats(runs: PageStats[]): PageStats {
+  const pick = (k: keyof PageStats): number | null =>
+    medianOf(runs.map((r) => (typeof r[k] === 'number' ? r[k] : null)));
+  return {
+    dataMs: pick('dataMs') ?? 0,
+    loadMs: pick('loadMs') ?? 0,
+    // A timed-out run counts as slower than any finished one.
+    sortMs: runs.some((r) => r.sortMs === null) ? null : pick('sortMs'),
+    tableHeapMB: pick('tableHeapMB'),
+    growthMB: pick('growthMB'),
+    domNodes: pick('domNodes'),
+    // Correctness: the worst run.
+    lastByScroll: Math.min(...runs.map((r) => r.lastByScroll)),
+    lastByMethod: Math.min(...runs.map((r) => r.lastByMethod)),
+    reachable: runs.every((r) => r.reachable),
+  };
 }
 
 interface Bench {
+  ready: Promise<{ dataMs: number; rows: number }>;
+  mount(): Promise<{ loadMs: number }>;
+  sort(): Promise<{ sortMs: number }>;
+  reachEnd(): Promise<{
+    expected: number;
+    byScroll: number;
+    byMethod: number;
+    reachable: boolean;
+  }>;
   steady(ms: number, px: number): Promise<Raw>;
   jumps(n: number, hold: number): Promise<Raw>;
   horizontal(ms: number): Promise<Raw>;
@@ -177,6 +197,45 @@ interface Bench {
   reset(): Promise<void>;
 }
 type BenchWindow = Window & { __argusBench: Bench };
+
+/** Opens the playground with the data generated and the table not mounted yet. */
+async function open(
+  browser: Browser,
+  url: string,
+  { dir = 'ltr', rows, variant = '' }: { dir?: string; rows: number; variant?: string },
+): Promise<{ page: Page; dataMs: number }> {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  await page.goto(`${url}/?dir=${dir}&bench&rows=${String(rows)}${variant ? `&${variant}` : ''}`);
+  await page.waitForFunction(() => '__argusBench' in window, null, { timeout: 120_000 });
+  const { dataMs } = await page.evaluate(
+    () => (window as unknown as BenchWindow).__argusBench.ready,
+  );
+  return { page, dataMs };
+}
+
+const mount = (page: Page) =>
+  page.evaluate(() => (window as unknown as BenchWindow).__argusBench.mount());
+
+interface Memory {
+  heapMB: number;
+  nodes: number;
+}
+
+/**
+ * Chromium only: the JS heap and DOM node count after a full garbage collection,
+ * through the DevTools protocol. Firefox and WebKit expose nothing comparable.
+ */
+async function memoryProbe(page: Page, name: BrowserName): Promise<() => Promise<Memory | null>> {
+  if (name !== 'chromium') return () => Promise.resolve(null);
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Performance.enable');
+  return async () => {
+    await cdp.send('HeapProfiler.collectGarbage');
+    const { metrics } = await cdp.send('Performance.getMetrics');
+    const metric = (n: string) => metrics.find((m) => m.name === n)?.value ?? 0;
+    return { heapMB: metric('JSHeapUsedSize') / 1e6, nodes: metric('Nodes') };
+  };
+}
 
 async function runScenarios(page: Page, name: BrowserName): Promise<Record<Scenario, Raw | null>> {
   const steady = await page.evaluate(() =>
@@ -207,6 +266,84 @@ async function runScenarios(page: Page, name: BrowserName): Promise<Record<Scena
   return { steady, fast, jumps, horizontal, wheel };
 }
 
+/** One page: mount, scroll scenarios, reach the end, then sort, with memory samples between. */
+async function measure(
+  page: Page,
+  name: BrowserName,
+  dataMs: number,
+): Promise<{ scroll: Record<Scenario, Raw | null>; page: PageStats; longTasks: boolean }> {
+  const sample = await memoryProbe(page, name);
+  const baseline = await sample();
+  const { loadMs } = await mount(page);
+  const mounted = await sample();
+  const longTasks = await page.evaluate(() =>
+    PerformanceObserver.supportedEntryTypes.includes('longtask'),
+  );
+  const scroll = await runScenarios(page, name);
+  const end = await page.evaluate(() => (window as unknown as BenchWindow).__argusBench.reachEnd());
+  // Before sorting: a sorted row model is a legitimate new allocation, not growth.
+  const scrolled = await sample();
+  const sortMs = await withTimeout(
+    page
+      .evaluate(() => (window as unknown as BenchWindow).__argusBench.sort())
+      .then((r) => r.sortMs),
+    SORT_TIMEOUT,
+  );
+  return {
+    scroll,
+    longTasks,
+    page: {
+      dataMs,
+      loadMs,
+      sortMs,
+      tableHeapMB: baseline && mounted ? round(mounted.heapMB - baseline.heapMB) : null,
+      growthMB: mounted && scrolled ? round(scrolled.heapMB - mounted.heapMB) : null,
+      domNodes: mounted?.nodes ?? null,
+      lastByScroll: end.byScroll,
+      lastByMethod: end.byMethod,
+      reachable: end.reachable,
+    },
+  };
+}
+
+/** Resolves with the promise's value, or null after `ms` (the promise keeps running). */
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<null>((resolve) => {
+    timer = setTimeout(() => {
+      resolve(null);
+    }, ms);
+  });
+  // A late rejection (the page closed under it) is expected: don't let it go unhandled.
+  promise.catch(() => undefined);
+  return Promise.race([promise, timeout]).finally(() => {
+    clearTimeout(timer);
+  });
+}
+
+/**
+ * The argus-table version measured: the package version on its release tag, and
+ * `<version>+<commit>` anywhere else, so unreleased code never passes for a release.
+ */
+async function measuredVersion(): Promise<string> {
+  const { version } = JSON.parse(
+    await readFile(join(here, '..', 'packages', 'table', 'package.json'), 'utf8'),
+  ) as { version: string };
+  const git = (...args: string[]) =>
+    execFileSync('git', args, {
+      cwd: here,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  try {
+    if (git('tag', '--points-at', 'HEAD').split('\n').includes(`argus-table@${version}`))
+      return version;
+    return `${version}+${git('rev-parse', '--short', 'HEAD')}`;
+  } catch {
+    return `${version}+unknown`;
+  }
+}
+
 async function screenshot(page: Page, path: string) {
   await page.evaluate(() => {
     const table = document.querySelector('argus-table');
@@ -226,114 +363,88 @@ const scenarios: Scenario[] = ['steady', 'fast', 'jumps', 'horizontal', 'wheel']
 async function main() {
   const { server, url } = await serve();
   await mkdir(join(outDir, 'screens'), { recursive: true });
-  const results: { browser: BrowserName; variant: string; scenario: Scenario; stats: Stats }[] = [];
-  const versions: Record<string, string> = {};
+  const results: ScrollResult[] = [];
+  const pages: PageResult[] = [];
+  const versions: Meta['versions'] = {};
+  const combos = ROWS.flatMap((rows) => variants.map((variant) => ({ rows, variant })));
 
   for (const name of browsers) {
     const browser = await engines[name].launch();
     versions[name] = browser.version();
-    const collected = new Map<string, Stats[]>();
-    const key = (variant: string, s: Scenario) => `${variant}|${s}`;
+    const collected = new Map<string, ScrollStats[]>();
+    const collectedPages = new Map<string, PageStats[]>();
+    const key = (rows: number, variant: string, s = '') => `${String(rows)}|${variant}|${s}`;
     for (let run = 0; run < RUNS; run++) {
-      // Rotate the order each run so no variant always goes first.
-      for (let i = 0; i < variants.length; i++) {
-        const variant = variants[(run + i) % variants.length] ?? '';
-        const page = await open(browser, url, 'ltr', variant);
-        const longTasksSupported = await page.evaluate(() =>
-          PerformanceObserver.supportedEntryTypes.includes('longtask'),
-        );
-        const raw = await runScenarios(page, name);
+      // Rotate the order each run so no row count or variant always goes first.
+      for (let i = 0; i < combos.length; i++) {
+        const combo = combos[(run + i) % combos.length];
+        if (!combo) continue;
+        const { rows, variant } = combo;
+        const { page, dataMs } = await open(browser, url, { rows, variant });
+        const measured = await measure(page, name, dataMs);
         for (const s of scenarios) {
-          const r = raw[s];
+          const r = measured.scroll[s];
           if (!r) continue;
-          const list = collected.get(key(variant, s)) ?? [];
-          list.push(stats(r, longTasksSupported));
-          collected.set(key(variant, s), list);
+          const runs = collected.get(key(rows, variant, s)) ?? [];
+          runs.push(stats(r, s, measured.longTasks));
+          collected.set(key(rows, variant, s), runs);
         }
-        if (run === 0) {
-          const suffix = variant ? `-${variant.replace(/[^\w-]+/g, '_')}` : '';
+        const pageRuns = collectedPages.get(key(rows, variant)) ?? [];
+        pageRuns.push(measured.page);
+        collectedPages.set(key(rows, variant), pageRuns);
+        // A page still busy with a sort that timed out takes no screenshot.
+        if (run === 0 && measured.page.sortMs !== null) {
+          const suffix = `-${String(rows)}${variant ? `-${variant.replace(/[^\w-]+/g, '_')}` : ''}`;
           await screenshot(page, join(outDir, 'screens', `${name}${suffix}.png`));
         }
-        await page.close();
+        // A page stuck in a sort may not answer: close its context, and don't wait forever.
+        await withTimeout(page.context().close(), 10_000);
+        process.stdout.write(
+          `${name} run ${String(run + 1)}/${String(RUNS)}: ${String(rows)} rows${variant ? ` (${variant})` : ''} done\n`,
+        );
       }
-      process.stdout.write(`${name} run ${String(run + 1)}/${String(RUNS)} done\n`);
     }
-    const rtl = await open(browser, url, 'rtl');
-    await screenshot(rtl, join(outDir, 'screens', `${name}-rtl.png`));
-    await rtl.close();
+    const rtl = await open(browser, url, { dir: 'rtl', rows: 100_000 });
+    await mount(rtl.page);
+    await screenshot(rtl.page, join(outDir, 'screens', `${name}-rtl.png`));
+    await rtl.page.close();
     await browser.close();
 
-    for (const variant of variants) {
+    for (const { rows, variant } of combos) {
       for (const s of scenarios) {
-        const list = collected.get(key(variant, s));
-        if (list?.length)
-          results.push({ browser: name, variant, scenario: s, stats: medianStats(list) });
+        const runs = collected.get(key(rows, variant, s));
+        if (runs?.length)
+          results.push({ browser: name, rows, variant, scenario: s, stats: medianStats(runs) });
       }
+      const pageRuns = collectedPages.get(key(rows, variant));
+      if (pageRuns?.length)
+        pages.push({ browser: name, rows, variant, stats: medianPageStats(pageRuns) });
     }
   }
   server.close();
 
-  const meta = {
+  const meta: Meta = {
     date: new Date().toISOString(),
+    version: await measuredVersion(),
     runner: process.env.RUNNER_NAME ?? os.hostname(),
     os: `${os.type()} ${os.release()}`,
     cpu: `${os.cpus()[0]?.model ?? 'unknown'} × ${String(os.cpus().length)}`,
     versions,
     runs: RUNS,
+    rows: ROWS,
     variants: VARIANTS,
+    columns: COLUMNS,
     gate: { p95: GATE_P95, longTask: GATE_LONG_TASK },
+    sortTimeoutMs: SORT_TIMEOUT,
   };
+  const output: Results = { meta, results, pages };
   const stamp = meta.date.slice(0, 16).replace(/[:T]/g, '-');
   const base = join(outDir, `${stamp}-${browsers.join('+')}`);
-  await writeFile(`${base}.json`, JSON.stringify({ meta, results }, null, 2));
-  const md = toMarkdown(meta, results);
+  await writeFile(`${base}.json`, JSON.stringify(output, null, 2));
+  const md = toMarkdown(output);
   await writeFile(`${base}.md`, md);
   if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, md);
   process.stdout.write(`\n${md}\n`);
-}
-
-function verdict(s: Stats): string {
-  const longTaskOk = s.longTaskMax === null ? s.over50 === 0 : s.longTaskMax <= GATE_LONG_TASK;
-  return s.p95 <= GATE_P95 && longTaskOk ? 'pass' : 'FAIL';
-}
-
-function toMarkdown(
-  meta: {
-    date: string;
-    runner: string;
-    os: string;
-    cpu: string;
-    versions: Record<string, string>;
-    runs: number;
-    variants: string[];
-  },
-  results: { browser: BrowserName; variant: string; scenario: Scenario; stats: Stats }[],
-): string {
-  const withVariant = meta.variants.length > 0;
-  const lines = [
-    `## argus-table scroll benchmark`,
-    '',
-    `${meta.date} · ${meta.runner} · ${meta.os} · ${meta.cpu} · median of ${String(meta.runs)} runs`,
-    '',
-    `Browsers: ${Object.entries(meta.versions)
-      .map(([k, v]) => `${k} ${v}`)
-      .join(', ')}`,
-    '',
-    `Gate: p95 ≤ ${String(GATE_P95)} ms and no long task > ${String(GATE_LONG_TASK)} ms. Advisory: this run never fails a PR.`,
-    'Long tasks come from PerformanceObserver in Chromium; elsewhere "frames > 50 ms" stands in. `wheel` drives real input through Playwright and its frame pacing is limited by the harness, so it is a sanity check, not a gate.',
-    'Page: apps/playground, 100,000 rows × 20 columns, slotted cell content, pooled rows. Scenarios: steady = 60 px/frame for 10 s; fast = 240 px/frame for 10 s; jumps = 20 random jumps held 500 ms; horizontal = full width and back over 5 s.',
-    '',
-    `| Browser |${withVariant ? ' Variant |' : ''} Scenario | p50 | p95 | p99 | max | jump frame p50 / max | frames > 50 ms | long tasks (max) | blank frames | wrong content | rendered rows | light-DOM nodes | heap MB | Gate |`,
-    `| --- |${withVariant ? ' --- |' : ''} --- | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --: | --- |`,
-  ];
-  for (const { browser, variant, scenario, stats: s } of results) {
-    const lt = s.longTasks === null ? 'n/a' : `${String(s.longTasks)} (${String(s.longTaskMax)})`;
-    const jump = s.jumpP50 === null ? '' : `${String(s.jumpP50)} / ${String(s.jumpMax)}`;
-    lines.push(
-      `| ${browser} |${withVariant ? ` ${variant} |` : ''} ${scenario} | ${String(s.p50)} | ${String(s.p95)} | ${String(s.p99)} | ${String(s.max)} | ${jump} | ${String(s.over50)} | ${lt} | ${String(s.blankFrames)} | ${String(s.mismatches)} | ${String(s.renderedRows)} | ${String(s.lightNodes)} | ${String(s.heapMB ?? 'n/a')} | ${verdict(s)} |`,
-    );
-  }
-  return `${lines.join('\n')}\n`;
 }
 
 await main();

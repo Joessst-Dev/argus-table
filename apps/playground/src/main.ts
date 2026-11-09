@@ -5,7 +5,9 @@ import { EXTRA_COLUMNS, makePeople, type Person } from './data.js';
 import { installBenchHooks } from './bench-hooks.js';
 
 // Query parameters: rows (default 100000), cols (default 20), density, dir=rtl,
-// overscan, bench (installs window.__argusBench for benchmarks/run.ts),
+// overscan, bench (installs window.__argusBench for benchmarks/run.ts and leaves
+// the table unmounted until __argusBench.mount(), so the runner can time the first
+// render and measure the heap with the data alone),
 // pin=none to drop the pins (the floor when measuring what pinning costs),
 // theme=default or theme=material to load that stylesheet from @argus-table/themes
 // (material also loads Roboto and sets the table on an inset page), and
@@ -110,7 +112,9 @@ table.density = density;
 if (params.has('overscan')) table.overscan = Number(params.get('overscan'));
 table.columns = columns;
 table.getRowId = (p) => p.id;
+const dataStart = performance.now();
 const people = makePeople(rowCount);
+const dataMs = performance.now() - dataStart;
 if (params.get('source') === 'remote') table.dataSource = remoteSource(people);
 else table.data = people;
 const pinnedSides = new Set(params.get('pinned')?.split(','));
@@ -120,9 +124,8 @@ if (pinnedSides.size > 0) {
     bottom: pinnedSides.has('bottom') ? [summary('sum', 'Total', 1)] : undefined,
   };
 }
-document.body.append(table);
-
-if (params.has('bench')) installBenchHooks(table);
+if (params.has('bench')) installBenchHooks(table, { dataMs });
+else document.body.append(table);
 
 declare global {
   interface Window {

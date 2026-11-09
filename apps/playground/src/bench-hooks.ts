@@ -10,10 +10,32 @@ export interface ScenarioResult {
   shadowNodes: number;
   lightNodes: number;
   renderedRows: number;
-  heapMB: number | null;
+  /** The furthest the body scrolled during the scenario (px); 0 means it didn't scroll at all. */
+  maxScrollTop: number;
   /** jumps only: the slowest frame right after each jump (ms). */
   jumpFrames?: number[];
   mismatches?: number;
+}
+
+export interface MountResult {
+  /** From appending the table to the first frame with its rows painted (ms). */
+  loadMs: number;
+}
+
+export interface SortResult {
+  /** From setting `sorting` to the first frame with the sorted rows painted (ms). */
+  sortMs: number;
+}
+
+export interface ReachEndResult {
+  /** The last body row index the table should show. */
+  expected: number;
+  /** The highest body row index rendered after scrolling to the very bottom. */
+  byScroll: number;
+  /** The highest body row index rendered after `scrollToRow(expected)`. */
+  byMethod: number;
+  /** Both ways reach the last row. False once the rows outgrow the engine's maximum element height. */
+  reachable: boolean;
 }
 
 /** Body rows only: pinned rows (`pinned=…`) also carry the `row` part. */
@@ -26,7 +48,7 @@ const bodyIndex = (table: ArgusTable<Person>, row: Element) =>
 const nextFrame = () => new Promise<number>((resolve) => requestAnimationFrame(resolve));
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-export function installBenchHooks(table: ArgusTable<Person>): void {
+export function installBenchHooks(table: ArgusTable<Person>, info: { dataMs: number }): void {
   const root = () => table.shadowRoot;
   const scroller = () => root()?.querySelector<HTMLElement>('[part~="table"]') ?? null;
   const rows = () => [...(root()?.querySelectorAll<HTMLElement>(BODY_ROWS) ?? [])];
@@ -43,6 +65,7 @@ export function installBenchHooks(table: ArgusTable<Person>): void {
   let blankFrames = 0;
   let longTasks: number[] = [];
   let last = 0;
+  let maxScrollTop = 0;
 
   if (PerformanceObserver.supportedEntryTypes.includes('longtask')) {
     new PerformanceObserver((list) => {
@@ -71,6 +94,7 @@ export function installBenchHooks(table: ArgusTable<Person>): void {
     if (last) frames.push(now - last);
     last = now;
     const el = scroller();
+    if (el) maxScrollTop = Math.max(maxScrollTop, el.scrollTop);
     if (el && isBlank(el)) blankFrames++;
     requestAnimationFrame(tick);
   };
@@ -80,13 +104,13 @@ export function installBenchHooks(table: ArgusTable<Person>): void {
     blankFrames = 0;
     longTasks = [];
     last = 0;
+    maxScrollTop = 0;
     recording = true;
     requestAnimationFrame(tick);
   };
 
   const stop = (): ScenarioResult => {
     recording = false;
-    const memory = (performance as Performance & { memory?: { usedJSHeapSize: number } }).memory;
     return {
       frames,
       blankFrames,
@@ -94,7 +118,7 @@ export function installBenchHooks(table: ArgusTable<Person>): void {
       shadowNodes: root()?.querySelectorAll('*').length ?? 0,
       lightNodes: table.querySelectorAll('*').length,
       renderedRows: rows().length,
-      heapMB: memory ? Math.round(memory.usedJSHeapSize / 1e5) / 10 : null,
+      maxScrollTop,
     };
   };
 
@@ -108,11 +132,73 @@ export function installBenchHooks(table: ArgusTable<Person>): void {
     await nextFrame();
   };
 
+  /** The highest body row index rendered now, or -1. */
+  const lastRendered = () => Math.max(-1, ...rows().map((r) => bodyIndex(table, r)));
+
+  /** Waits for the next update and the frame that paints it. */
+  const painted = async () => {
+    await table.updateComplete;
+    await nextFrame();
+  };
+
   const api = {
-    ready: table.updateComplete.then(() => nextFrame()),
+    /** The data is generated; the table isn't mounted yet (see `mount`). */
+    ready: Promise.resolve({ dataMs: Math.round(info.dataMs), rows: table.data.length }),
     start,
     stop,
     reset,
+
+    /** Appends the table and times its first render, up to the frame that paints the rows. */
+    async mount(): Promise<MountResult> {
+      const t0 = performance.now();
+      document.body.append(table);
+      // The virtualizer only knows the viewport after the first update, so the
+      // rows can arrive one update later.
+      await painted();
+      while (rows().length === 0 && performance.now() - t0 < 30_000) await painted();
+      return { loadMs: Math.round(performance.now() - t0) };
+    },
+
+    /** Sorts by amount and times it up to the frame that paints the sorted rows; then unsorts. */
+    async sort(): Promise<SortResult> {
+      await reset();
+      const t0 = performance.now();
+      table.sorting = [{ id: 'amount', desc: false }];
+      await painted();
+      const sortMs = Math.round(performance.now() - t0);
+      // Hand the sort back to the table, unsorted.
+      table.sorting = [];
+      await painted();
+      table.sorting = undefined;
+      await painted();
+      return { sortMs };
+    },
+
+    /**
+     * Tries to reach the last row by scrolling to the bottom and with `scrollToRow()`.
+     * The body's height is rows × row height, so past the engine's maximum element
+     * height the last rows can't be reached.
+     */
+    async reachEnd(): Promise<ReachEndResult> {
+      await reset();
+      const el = scroller();
+      if (!el) throw new Error('no scroller');
+      const expected = table.data.length - 1;
+      el.scrollTop = el.scrollHeight;
+      await wait(300);
+      const byScroll = lastRendered();
+      await reset();
+      await table.scrollToRow(expected);
+      await wait(300);
+      const byMethod = lastRendered();
+      await reset();
+      return {
+        expected,
+        byScroll,
+        byMethod,
+        reachable: byScroll === expected && byMethod === expected,
+      };
+    },
 
     /** Constant-speed vertical scroll: `px` per frame for `ms`. */
     async steady(ms: number, px: number): Promise<ScenarioResult> {

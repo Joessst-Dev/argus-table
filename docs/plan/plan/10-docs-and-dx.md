@@ -16,5 +16,5 @@ Storybook is the main docs site; a manifest generated from the source keeps docs
 
 - README with a 10-second GIF, install line and a 15-line example.
 - StackBlitz starters for plain HTML, React and Vue.
-- Benchmark page: 10k / 100k / 1M rows, measured scroll FPS and memory, run in CI and published with each release.
+- Benchmark page (Storybook "Benchmarks"): 10k / 100k / 1M rows, scroll frame times, load and sort time, memory (Chromium) and a reach-the-last-row check, run in CI on each release and published through a results PR (`benchmarks/published/`).
 - Generated JSX types (React), Vue `GlobalComponents` types and VS Code `custom-data.json` from the manifest.
