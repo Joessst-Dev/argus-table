@@ -3,7 +3,18 @@
   "private": true,
   "type": "module",
   "nx": {
-    "name": "storybook"
+    "name": "storybook",
+    "targets": {
+      "build": {
+        "inputs": [
+          "production",
+          "^production",
+          "{workspaceRoot}/benchmarks/published/**/*",
+          "{workspaceRoot}/benchmarks/markdown.ts",
+          "{workspaceRoot}/benchmarks/types.ts"
+        ]
+      }
+    }
   },
   "scripts": {
     "storybook": "storybook dev --port 6006",

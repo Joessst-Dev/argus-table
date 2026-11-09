@@ -1,0 +1,120 @@
+import { Meta } from '@storybook/addon-docs/blocks';
+import results from '../../../benchmarks/published/latest.json';
+import { scrollVerdict, pageVerdict } from '../../../benchmarks/markdown.ts';
+
+<Meta title="Benchmarks" />
+
+export const meta = results.meta;
+
+export const label = (n) =>
+  n >= 1e6 && n % 1e6 === 0 ? `${n / 1e6}M` : n >= 1e3 && n % 1e3 === 0 ? `${n / 1e3}k` : String(n);
+
+export const value = (n) => (n === null || n === undefined ? 'n/a' : String(n));
+
+export const right = { textAlign: 'end', whiteSpace: 'nowrap' };
+
+export const SizeTable = ({ rows }) => {
+  const pages = results.pages.filter((p) => p.rows === rows);
+  const scroll = (browser, scenario) =>
+    results.results.find((r) => r.rows === rows && r.browser === browser && r.scenario === scenario)
+      ?.stats;
+  return (
+    <table>
+      <thead>
+        <tr>
+          <th>Browser</th>
+          <th style={right}>steady p95</th>
+          <th style={right}>fast p95</th>
+          <th style={right}>jumps p95</th>
+          <th style={right}>long tasks</th>
+          <th style={right}>blank / wrong</th>
+          <th style={right}>load</th>
+          <th style={right}>sort</th>
+          <th style={right}>table heap</th>
+          <th style={right}>heap growth</th>
+          <th>last row</th>
+          <th>gate</th>
+        </tr>
+      </thead>
+      <tbody>
+        {pages.map(({ browser, stats: page }) => {
+          const runs = ['steady', 'fast', 'jumps', 'horizontal']
+            .map((s) => scroll(browser, s))
+            .filter(Boolean);
+          const pass =
+            pageVerdict(page) === 'pass' &&
+            runs.every((s) => scrollVerdict(s, meta.gate) === 'pass');
+          const p95 = (s) => {
+            const stats = scroll(browser, s);
+            if (!stats) return 'n/a';
+            return stats.scrolled ? `${stats.p95} ms` : 'didn’t scroll';
+          };
+          const longTasks = runs.some((s) => s.longTasks !== null)
+            ? runs.reduce((sum, s) => sum + (s.longTasks ?? 0), 0)
+            : `${runs.reduce((sum, s) => sum + s.over50, 0)} frames > 50 ms`;
+          const blank = runs.reduce((sum, s) => sum + s.blankFrames, 0);
+          const wrong = runs.reduce((sum, s) => sum + s.mismatches, 0);
+          return (
+            <tr key={browser}>
+              <td>{browser}</td>
+              <td style={right}>{p95('steady')}</td>
+              <td style={right}>{p95('fast')}</td>
+              <td style={right}>{p95('jumps')}</td>
+              <td style={right}>{longTasks}</td>
+              <td style={right}>
+                {blank} / {wrong}
+              </td>
+              <td style={right}>{page.loadMs} ms</td>
+              <td style={right}>
+                {page.sortMs === null ? `> ${meta.sortTimeoutMs / 1000} s` : `${page.sortMs} ms`}
+              </td>
+              <td style={right}>{page.tableHeapMB === null ? 'n/a' : `${page.tableHeapMB} MB`}</td>
+              <td style={right}>{page.growthMB === null ? 'n/a' : `${page.growthMB} MB`}</td>
+              <td>
+                {page.reachable
+                  ? 'reached'
+                  : `stops at ${Math.min(page.lastByScroll, page.lastByMethod).toLocaleString('en')}`}
+              </td>
+              <td>{pass ? 'pass' : 'FAIL'}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+};
+
+# Benchmarks
+
+How `<argus-table>` holds up with {meta.rows.map(label).join(', ')} rows of {meta.columns} columns: frame times while scrolling, the first render, sorting, memory, and whether the last row can be reached. Measured for **argus-table {meta.version}** on {meta.date.slice(0, 10)}, median of {meta.runs} runs.
+
+<p>
+  <small>
+    {meta.runner} · {meta.os} · {meta.cpu} ·{' '}
+    {Object.entries(meta.versions)
+      .map(([browser, version]) => `${browser} ${version}`)
+      .join(', ')}
+  </small>
+</p>
+
+{meta.rows.map((rows) => (
+
+  <section key={rows}>
+    <h2>{label(rows)} rows</h2>
+    <SizeTable rows={rows} />
+  </section>
+))}
+
+## What is measured
+
+The page is the [playground](https://github.com/Joessst-Dev/argus-table/tree/main/apps/playground): seeded fake people, 3 pinned columns, a link, a badge and a button among the cells, rendered into the light DOM, with pooled rows.
+
+- **steady / fast / jumps p95:** the 95th-percentile frame time while scrolling 60 px and 240 px per frame for 10 s, and over 20 random jumps. 16.7 ms is a full 60 fps frame. "Didn’t scroll" means the body couldn’t scroll at all, which fails the gate.
+- **long tasks:** main-thread tasks over 50 ms while scrolling (Chromium reports them; elsewhere, frames over 50 ms stand in).
+- **blank / wrong:** frames where the rendered rows didn't cover the view, and rows that showed another row's content after a jump. Both should be 0.
+- **load:** from appending the table to the frame that paints its rows, with the data already in memory. **sort:** from setting `sorting` to the frame that paints the sorted rows; a sort still running after {meta.sortTimeoutMs / 1000} s is abandoned.
+- **table heap, heap growth** (Chromium only, after a forced garbage collection): the JavaScript memory the mounted table adds on top of the data, and how much that grows over all the scrolling (a leak would show here).
+- **last row:** whether scrolling to the bottom and `scrollToRow()` both reach the last row.
+- **gate:** p95 ≤ {meta.gate.p95} ms and no long task over {meta.gate.longTask} ms in every scroll scenario, and the last row reached.
+
+Each release is measured in headless browsers on a shared GitHub Actions runner (the line under the introduction names the machine these numbers come from). Treat them as a lower bound: a real machine with a GPU does better, and WebKit's numbers are bound to the runner. To measure on your own machine, run `pnpm bench` in a clone (see [benchmarks/README.md](https://github.com/Joessst-Dev/argus-table/blob/main/benchmarks/README.md)).

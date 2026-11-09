@@ -9,7 +9,7 @@ Five workflows; `ci.yml` and CodeQL gate merges, the rest publish docs, releases
 | `ci.yml` | Pull request, push to `main` | See job list below | Yes |
 | `docs.yml` | Push to `main`; pull request | Build Storybook; deploy to GitHub Pages on `main`, preview deploy per pull request | No |
 | `release.yml` | Push to `main` | Changesets: open/refresh "Version packages" PR; when merged, publish to npm and create GitHub releases | — |
-| `benchmark.yml` | Nightly; pull request with `perf` label | Run benchmarks, compare with `main`, post results as a PR comment | No (warns) |
+| `benchmark.yml` | Nightly; on demand; pull request with `perf` label; argus-table release | Run benchmarks at 10k / 100k / 1M rows in all three engines, results in the job summary; on a release (or on demand with `publish`), open a PR that updates `benchmarks/published/` for the Storybook Benchmarks page. Comparing a PR with `main` and posting a PR comment come later | No (warns) |
 | `codeql.yml` | Weekly; pull request | CodeQL scan + dependency review | Yes, for high severity |
 
 ## `ci.yml` jobs

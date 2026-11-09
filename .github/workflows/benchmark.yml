@@ -1,8 +1,13 @@
 name: Benchmark
 
-# Scroll benchmark against apps/playground in all three engines. Advisory: it
-# reports p95 frame time and long tasks against the gate (p95 ≤ 20 ms, no long
-# task over 50 ms) in the job summary, but never fails a PR.
+# Benchmark against apps/playground in all three engines at 10k / 100k / 1M rows:
+# scroll frame times, load, sort, memory (Chromium) and whether the last row can be
+# reached. Advisory: it reports against the gate (p95 ≤ 20 ms, no long task over
+# 50 ms, last row reachable) in the job summary, but never fails a PR.
+#
+# On an argus-table release (or a manual run with `publish`), a last job merges the
+# three engines' results into benchmarks/published/ and opens a pull request with
+# them; the Storybook "Benchmarks" page shows the merged file once it is merged.
 on:
   schedule:
     - cron: '17 3 * * *'
@@ -11,26 +16,43 @@ on:
       runs:
         description: Runs per browser
         default: '5'
+      rows:
+        description: Row counts, comma-separated
+        default: '10000,100000,1000000'
       variants:
         description: Playground query strings to compare in the same job, comma-separated (e.g. pin=none,density=compact); `pin=` stands for the default page
         default: ''
+      publish:
+        description: Open a pull request that publishes the results (needs no variants)
+        type: boolean
+        default: false
   pull_request:
     types: [labeled, opened, synchronize, reopened]
+  # Only fires for releases created with the GitHub App token (release.yml uses it
+  # when RELEASE_APP_CLIENT_ID is set): events from GITHUB_TOKEN start no workflows.
+  # Without the app, publish with a manual run instead.
+  release:
+    types: [published]
 
 permissions:
   contents: read
 
 concurrency:
   group: benchmark-${{ github.ref }}
-  cancel-in-progress: true
+  # Only pull requests cancel older runs: a nightly run must not cancel a publish.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   bench:
-    # On PRs, only with the `perf` label.
-    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'perf')
+    # On PRs, only with the `perf` label; on releases, only argus-table's.
+    if: >-
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'perf')) ||
+      (github.event_name == 'release' && startsWith(github.event.release.tag_name, 'argus-table@'))
     name: bench (${{ matrix.browser }})
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 75
     continue-on-error: true
     strategy:
       fail-fast: false
@@ -63,6 +85,7 @@ jobs:
         env:
           BROWSERS: ${{ matrix.browser }}
           RUNS: ${{ inputs.runs || '5' }}
+          ROWS: ${{ inputs.rows || '10000,100000,1000000' }}
           VARIANTS: ${{ inputs.variants || '' }}
         run: pnpm bench
 
@@ -73,3 +96,59 @@ jobs:
           name: benchmark-${{ matrix.browser }}
           path: benchmarks/results
           retention-days: 30
+
+  publish:
+    needs: bench
+    if: >-
+      always() && needs.bench.result != 'cancelled' && needs.bench.result != 'skipped' && (
+        (github.event_name == 'release' && startsWith(github.event.release.tag_name, 'argus-table@')) ||
+        (github.event_name == 'workflow_dispatch' && inputs.publish && inputs.variants == '')
+      )
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the results branch
+      pull-requests: write # open the pull request
+    steps:
+      # A pull request opened with GITHUB_TOKEN starts no workflows, so its
+      # required checks would never run. The release app's token does; without
+      # it, close and reopen the pull request to start CI.
+      - name: GitHub App token
+        id: app-token
+        if: vars.RELEASE_APP_CLIENT_ID != ''
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          token: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
+      - uses: ./.github/actions/setup
+
+      - name: Download results
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: benchmark-*
+          path: benchmarks/results/ci
+
+      - name: Merge
+        run: pnpm --filter @argus-table/benchmarks merge results/ci >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Open pull request
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
+        run: |
+          version=$(node -p "require('./benchmarks/published/latest.json').meta.version")
+          branch="benchmarks/argus-table-${version}-${GITHUB_RUN_ID}"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch -c "$branch"
+          git add benchmarks/published
+          git commit -m "docs(benchmarks): results for argus-table@${version}"
+          git push origin "HEAD:$branch"
+          gh pr create --base main --head "$branch" --label no-changeset \
+            --title "docs(benchmarks): results for argus-table@${version}" \
+            --body "Benchmark results for argus-table@${version} from [run ${GITHUB_RUN_ID}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}), merged from the Chromium, Firefox and WebKit jobs. Merging updates the Storybook Benchmarks page."

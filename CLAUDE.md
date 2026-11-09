@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`<argus-table>`: a framework-agnostic, virtualized data table web component built with Lit 3, TanStack Table v9 (`@tanstack/table-core`) and TanStack Virtual. pnpm + Nx monorepo, Node ≥ 22.12 (`.nvmrc`), pnpm via Corepack. Currently v0.1 (virtualized rows, pinned columns, sorting, resizing, keyboard nav, default theme) plus, for v0.2, `dataSource` infinite loading, pinned rows, auto column widths, column reordering, `<argus-column>` children, the React, Vue and Angular wrappers and the Material-inspired theme; benchmarks and StackBlitz starters are still to come in v0.2.
+`<argus-table>`: a framework-agnostic, virtualized data table web component built with Lit 3, TanStack Table v9 (`@tanstack/table-core`) and TanStack Virtual. pnpm + Nx monorepo, Node ≥ 22.12 (`.nvmrc`), pnpm via Corepack. Currently v0.1 (virtualized rows, pinned columns, sorting, resizing, keyboard nav, default theme) plus, for v0.2, `dataSource` infinite loading, pinned rows, auto column widths, column reordering, `<argus-column>` children, the React, Vue and Angular wrappers, the Material-inspired theme and the benchmarks (Storybook "Benchmarks" page, fed by `benchmarks/published/`); StackBlitz starters and scroll scaling past about 800k rows (the engines' maximum element height) are still to come in v0.2.
 
 `docs/plan/` is the design plan (public API draft, roadmap, architecture diagrams). It describes intended features too, so check the source before assuming something exists (for example `rowHeight: 'auto'` is planned but not implemented). `docs/adr/0001-shadow-vs-light-dom.md` explains the rendering model below.
 
@@ -20,6 +20,7 @@ pnpm build               # every package
 pnpm test:e2e            # Playwright against the built playground (`vite preview` on :4173)
 pnpm test:visual         # screenshot tests inside the CI Playwright Docker image (needs Docker)
 pnpm size                # CDN bundle min+gzip vs packages/table/.size-limit.json (44 kB)
+pnpm bench               # benchmarks/: ROWS=10000,100000,1000000 BROWSERS=… RUNS=… (see benchmarks/README.md)
 pnpm affected            # what CI runs for the branch (base: main)
 pnpm changeset           # add a release note
 ```
@@ -49,7 +50,8 @@ BROWSERS=chromium pnpm --filter @argus-table/e2e exec playwright test specs/sort
 - `tools/generate-wrappers` (private): reads `packages/table/dist/custom-elements.json` and writes each wrapper's generated file. Event detail types come from `@fires {CustomEvent<…>} name` in the element's JSDoc, so every event needs a typed `@fires`. Runs from source with Node's type stripping (`.ts` imports).
 - `packages/themes` (`@argus-table/themes`): plain CSS in `src/`, built by Lightning CSS (`scripts/build.mjs`). Themes only set `--argus-*` tokens and `::part()` rules.
 - `apps/storybook`: stories double as docs and tests (play functions + axe on every story). Each feature gets a story.
-- `apps/playground`: the page that e2e, visual tests and `benchmarks/` drive.
+- `apps/playground`: the page that e2e, visual tests and `benchmarks/` drive. With `?bench` it leaves the table unmounted until `__argusBench.mount()`.
+- `benchmarks/`: `run.ts` measures, `merge.ts` combines per-engine results into `published/` (committed; the Storybook Benchmarks page imports `published/latest.json`).
 - `tests/e2e`, `tests/visual`: Playwright projects.
 
 ## Architecture of `<argus-table>`
