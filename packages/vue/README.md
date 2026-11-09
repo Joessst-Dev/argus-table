@@ -46,14 +46,14 @@ const columns: ColumnDef<Order>[] = [
 </template>
 ```
 
-- **Props** set the element's properties: `columns`, `data`, `dataSource`, `pinnedRows`, `getRowId`, `rowHeight`, `density`, `overscan`, `sorting`, `columnSizing` and `columnOrder`. Other attributes (`aria-label`, `class`, `style`, …) go to the element.
-- **Events** get the element's `CustomEvent`: `sort-change`, `column-resize`, `column-reorder`, `cell-click`, `row-click`, `range-change` and `load-error`. In `@row-click`, `e.detail.row` has your row type. The details are in the [`argus-table` README](https://www.npmjs.com/package/argus-table).
+- **Props** set the element's properties: `columns`, `data`, `dataSource`, `pinnedRows`, `getRowId`, `rowHeight`, `density`, `overscan`, `sorting`, `columnSizing`, `columnOrder`, `selectionMode` and `selection`. Other attributes (`aria-label`, `class`, `style`, …) go to the element.
+- **Events** get the element's `CustomEvent`: `sort-change`, `column-resize`, `column-reorder`, `cell-click`, `row-click`, `range-change`, `load-error` and `row-select`. In `@row-click`, `e.detail.row` has your row type. The details are in the [`argus-table` README](https://www.npmjs.com/package/argus-table).
 - **Cells:** a column's `cell` function returns a string, a number, a DOM node or a Lit template. Vue content in cells is planned.
 - **Height:** the table virtualizes its rows, so it needs a bounded height. Its default is 400 px.
 
 ## v-model
 
-`sorting`, `columnSizing` and `columnOrder` bind two-way:
+`sorting`, `columnSizing`, `columnOrder` and `selection` bind two-way:
 
 ```vue
 <script setup lang="ts">
@@ -65,7 +65,7 @@ const sorting = ref<SortState>([]);
 </template>
 ```
 
-Leave one unbound and the table keeps that state itself. A one-way `:sorting` is controlled: a header click only emits `update:sorting` and `sort-change` with the proposed order, and nothing changes until you set it.
+With `selection-mode="multi"`, `v-model:selection` holds the selected row ids. Leave one unbound and the table keeps that state itself. A one-way `:sorting` is controlled: a header click only emits `update:sorting` and `sort-change` with the proposed order, and nothing changes until you set it.
 
 ## Methods
 

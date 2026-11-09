@@ -23,6 +23,9 @@ import { orders, type Order } from './data.js';
       [data]="orders"
       [(sorting)]="sorting"
       [(columnOrder)]="order"
+      selectionMode="multi"
+      [(selection)]="selected"
+      (rowSelect)="takeIds($event.detail.selection)"
       (columnSizingChange)="takeSizing($event)"
       (rowClick)="takeOrder($event.detail.row)"
       (cellClick)="takeOrder($event.detail.row)"
@@ -42,11 +45,16 @@ export class TypesComponent {
   readonly columns: ColumnDef<Order>[] = [{ id: 'total', accessor: (o) => o.total }];
   readonly sorting = signal<SortState>([]);
   readonly order = signal<string[]>([]);
+  readonly selected = signal<string[]>([]);
   readonly rows = signal<Order[] | null>(null);
   readonly total = (o: Order) => o.total;
 
   takeOrder(order: Order): string {
     return order.id;
+  }
+
+  takeIds(ids: string[]): string {
+    return ids.join();
   }
   takeSorting(sorting: SortState): number {
     return sorting.length;

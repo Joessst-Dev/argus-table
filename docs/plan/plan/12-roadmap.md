@@ -4,7 +4,7 @@
 
 Four phases, each closed by a gate; no phase starts until the gate before it is met.
 
-> **Status (November 2026):** Phase 0's and Phase 1's gates are met. v0.1 is on npm (`argus-table` and `@argus-table/themes` 0.1.0, 7 November 2026, with provenance). The Safari checks are done and the VoiceOver check passed; the NVDA check was skipped for v0.1 (see ADR 0001). Phase 2 is in progress: every feature is on `main`, and the StackBlitz starters (`apps/examples`) go live once v0.2 is on npm.
+> **Status (November 2026):** Phase 0's and Phase 1's gates are met. v0.1 is on npm (`argus-table` and `@argus-table/themes` 0.1.0, 7 November 2026, with provenance). The Safari checks are done and the VoiceOver check passed; the NVDA check was skipped for v0.1 (see ADR 0001). v0.2 is on npm with every Phase 2 feature, the StackBlitz starters are live, and the README GIF and benchmarks are published. Phase 3 has started with row selection (`selectionMode`, `selection`).
 
 **Prove the hard rendering combo first, ship v0.1, then launch with v0.2.**
 

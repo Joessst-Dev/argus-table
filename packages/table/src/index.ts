@@ -7,6 +7,7 @@ export {
   LOAD_ERROR,
   RANGE_CHANGE,
   ROW_CLICK,
+  ROW_SELECT,
   SORT_CHANGE,
 } from './events.js';
 export type * from './types.js';

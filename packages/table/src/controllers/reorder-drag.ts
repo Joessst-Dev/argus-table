@@ -1,3 +1,5 @@
+import { INTERACTIVE } from '../interactive.js';
+
 /** Where a dragged column would land: its new position and the header that shows the drop line. */
 export interface DropTarget {
   /** Position in the whole column order after the move, 0-based. */
@@ -64,8 +66,6 @@ const THRESHOLD = 4;
 /** Width of the band at the scroll area's edges that scrolls, and the top speed there. */
 const EDGE = 40;
 const MAX_SPEED = 16;
-
-const INTERACTIVE = 'button,input,select,textarea,a[href],label,[contenteditable]';
 
 /**
  * Whether a press on a header may start a reorder drag: the primary button of a

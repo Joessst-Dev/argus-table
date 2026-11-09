@@ -82,6 +82,13 @@ describe('PageCache: rows and ids', () => {
     expect(cache.indexOf('13')).toBe(13);
   });
 
+  it('lists the loaded ids in row order, whatever order pages arrive in', () => {
+    const cache = new PageCache<Row>({ pageSize: 2, rowCount: 10, totalKnown: true });
+    load(cache, 3, 2);
+    load(cache, 0, 2);
+    expect(cache.loadedIds()).toEqual(['0', '1', '6', '7']);
+  });
+
   it('gives getRowId the absolute index', () => {
     const seen: number[] = [];
     const cache = new PageCache<Row>({

@@ -16,7 +16,7 @@ Five packages are published to npm; `@argus-table/core` stays private and is bun
 
 ## Generated wrappers
 
-`tools/generate-wrappers` (private, Nx project `generate-wrappers`) reads `packages/table/dist/custom-elements.json` and writes `packages/<framework>/src/generated/elements.ts`: the element properties, one handler or output per `@fires` event (typed from `@fires {CustomEvent<…>}`), and two-way binding for `sorting`, `columnSizing` and `columnOrder`. It fails when a property or event it binds is missing, or when an event has no type.
+`tools/generate-wrappers` (private, Nx project `generate-wrappers`) reads `packages/table/dist/custom-elements.json` and writes `packages/<framework>/src/generated/elements.ts`: the element properties, one handler or output per `@fires` event (typed from `@fires {CustomEvent<…>}`), and two-way binding for `sorting`, `columnSizing`, `columnOrder` and `selection`. It fails when a property or event it binds is missing, when an event has no type, or when an event's Angular output takes the name of a two-way output (`selectionChange` for `[(selection)]`).
 
 - The generated file is committed, so an API change shows up in the wrapper's diff. Each wrapper's `lint` runs the generator with `--check` and fails when the file is stale; `pnpm --filter @argus-table/<framework> generate` rewrites it.
 - The generator runs from source with Node's type stripping. Wrappers depend on it through Nx `implicitDependencies`, not a package dependency, so nothing private lands in a published `package.json`.

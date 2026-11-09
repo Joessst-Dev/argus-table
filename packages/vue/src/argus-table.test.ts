@@ -168,11 +168,10 @@ describe('<ArgusTable>', () => {
     expect(el.sorting).toEqual([]);
   });
 
-  test('binds columnSizing and columnOrder two-way', async () => {
-    const state = reactive<{ sizing: Record<string, number>; order: string[] }>({
-      sizing: {},
-      order: [],
-    });
+  test('binds columnSizing, columnOrder and selection two-way', async () => {
+    const state = reactive<{ sizing: Record<string, number>; order: string[]; selected: string[] }>(
+      { sizing: {}, order: [], selected: [] },
+    );
     const { el } = await mount(() =>
       h(ArgusTable<Order>, {
         style: size,
@@ -185,6 +184,11 @@ describe('<ArgusTable>', () => {
         columnOrder: state.order,
         'onUpdate:columnOrder': (v: string[]) => {
           state.order = v;
+        },
+        selectionMode: 'multi',
+        selection: state.selected,
+        'onUpdate:selection': (v: string[]) => {
+          state.selected = v;
         },
       }),
     );
@@ -207,6 +211,15 @@ describe('<ArgusTable>', () => {
     await settle(el);
     expect(state.order).toEqual(['customer', 'id', 'total']);
     expect(headerText(el)).toEqual(['Customer', 'Order', 'Total']);
+
+    const cell = el.shadowRoot?.querySelector<HTMLElement>(
+      '[role="row"][aria-rowindex="3"] > [role="gridcell"]',
+    );
+    cell?.click();
+    await settle(el);
+    expect(state.selected).toEqual(['1']);
+    expect(el.selection).toEqual(['1']);
+    expect(cell?.parentElement?.getAttribute('aria-selected')).toBe('true');
   });
 
   test('sets undefined when a prop goes away, so the element falls back to its defaults', async () => {

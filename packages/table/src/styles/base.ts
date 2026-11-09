@@ -100,6 +100,22 @@ export const baseStyles = css`
     [part~='row']:hover {
       --_row-surface: var(--argus-row-hover-bg, var(--_row-bg));
     }
+    /* Selected wins over stripes and hover. */
+    [part~='row-selected'],
+    [part~='row-selected']:hover {
+      --_row-bg: var(
+        --argus-row-selected-bg,
+        color-mix(in srgb, Highlight 22%, var(--argus-bg, Canvas))
+      );
+      --_row-surface: var(--_row-bg);
+    }
+    @media (forced-colors: active) {
+      [part~='row-selected'] {
+        forced-color-adjust: none;
+        --_row-bg: Highlight;
+        color: HighlightText;
+      }
+    }
 
     /*
      * Pinned rows: a sticky row group below the header and one at the bottom of

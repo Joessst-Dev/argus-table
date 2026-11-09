@@ -108,6 +108,8 @@ export interface RemoteRows<TData> {
   entryAt(index: number): { id: string; row: TData } | undefined;
   /** The index of a loaded row's id, or `undefined`. */
   indexOf(rowId: string): number | undefined;
+  /** The ids of every loaded row, in row order. */
+  loadedIds(): string[];
 }
 
 export interface TableModelOptions<TData, TContent> {
@@ -151,6 +153,11 @@ export interface TableModel<TData, TContent> {
   rowAt(index: number): RowView<TData> | undefined;
   /** The index of a row id in the current row model (after sorting), or `undefined`. */
   indexOf(rowId: string): number | undefined;
+  /**
+   * The ids of the rows that can be selected, in row order: every row of the row
+   * model, or only the loaded ones for remote rows.
+   */
+  selectableIds(): string[];
   /** The value a column reads from the row at `index`. */
   valueAt(index: number, columnId: string): unknown;
   /** What a column's `cell` function receives for the row at `index`. */
@@ -396,6 +403,11 @@ export function createTableModel<TData, TContent>(
         indexById = { rows: current, map: new Map(current.map((r, i) => [r.id, i])) };
       }
       return indexById.map.get(rowId);
+    },
+
+    selectableIds() {
+      if (options.remote) return options.remote.loadedIds();
+      return rows().map((r) => r.id);
     },
 
     valueAt(index, columnId) {

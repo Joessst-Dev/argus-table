@@ -76,6 +76,12 @@ export class PageCache<TData> {
     return this.#indexById.get(rowId);
   }
 
+  /** The ids of every loaded row, in row order. */
+  loadedIds(): string[] {
+    const pages = [...this.#pages.keys()].sort((a, b) => a - b);
+    return pages.flatMap((page) => (this.#pages.get(page) ?? []).map((entry) => entry.id));
+  }
+
   stateAt(index: number): RowState {
     if (this.entryAt(index)) return 'loaded';
     return this.#failed.has(this.pageOf(index)) ? 'error' : 'loading';

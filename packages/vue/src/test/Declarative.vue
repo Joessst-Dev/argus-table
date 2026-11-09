@@ -56,5 +56,8 @@ defineExpose({ sorting, clicked, table, refresh });
     <ArgusTable :data="orders" @row-click="(e) => e.detail.row.name" />
     <ArgusTable :data="orders" @update:sorting="(s) => s.map((i) => i.id)" />
     <ArgusTable @update:column-sizing="(s) => s['total']" @update:column-order="(o) => o.join()" />
+    <ArgusTable selection-mode="multi" @update:selection="(s) => s.join()" />
+    <!-- @vue-expect-error selection-mode is 'none', 'single' or 'multi' -->
+    <ArgusTable selection-mode="many" />
   </template>
 </template>

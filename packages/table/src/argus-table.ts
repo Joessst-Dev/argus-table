@@ -9,12 +9,18 @@ import {
 import { customElement, property } from 'lit/decorators.js';
 import { styleMap } from 'lit/directives/style-map.js';
 import {
+  clickSelection,
   controllable,
   RowLayout,
+  sameSelection,
+  selectRange,
+  toggleRow,
   type ColumnReorderDetail,
   type ColumnResizeDetail,
   type ColumnView,
   type GridRow,
+  type SelectionStep,
+  type SelectionTarget,
   type TableModel,
 } from '@argus-table/core';
 import { announce } from './announce.js';
@@ -39,10 +45,12 @@ import {
   LOAD_ERROR,
   RANGE_CHANGE,
   ROW_CLICK,
+  ROW_SELECT,
   SORT_CHANGE,
 } from './events.js';
+import { fromInteractive } from './interactive.js';
 import { bodyCap, watchMaxElementHeight } from './max-height.js';
-import { renderBody, type ActiveCell, type Loading } from './render/body.js';
+import { renderBody, type ActiveCell, type Loading, type SelectedAt } from './render/body.js';
 import { renderLightDom } from './render/cells.js';
 import { renderHeader, type HeaderDrag } from './render/header.js';
 import { renderPinnedRows } from './render/pinned-rows.js';
@@ -55,6 +63,8 @@ import type {
   DataSource,
   Density,
   PinnedRows,
+  SelectionMode,
+  SelectionState,
   SortState,
 } from './types.js';
 
@@ -164,6 +174,7 @@ function track<T>(column: ColumnView<T, CellContent>): string {
  * @fires {CustomEvent<CellClickDetail<T>>} argus-cell-click - A body or pinned-row cell was clicked, or Enter was pressed on it. `detail: { row, columnId, value, pinned? }`; `pinned` is `'top'` or `'bottom'` for a pinned row. Fires before `argus-row-click`.
  * @fires {CustomEvent<RowClickDetail<T>>} argus-row-click - A body or pinned row was clicked, or Enter was pressed on one of its cells. `detail: { row, rowId, index, pinned? }`; for a pinned row, `index` is its index in its list.
  * @fires {CustomEvent<RangeChangeDetail>} argus-range-change - The visible rows changed. `detail: { start, end }` (row indices, inclusive).
+ * @fires {CustomEvent<RowSelectDetail>} argus-row-select - The selected rows changed: by a click on a row (Ctrl/Cmd toggles, Shift selects a range), with Space, Shift+Arrow or Shift+PageUp/PageDown on a body cell, or with Ctrl/Cmd+A. Only with a `selectionMode`. `detail: { selection }`: the new row ids, or the proposed ones when `selection` is controlled.
  * @fires {CustomEvent<LoadErrorDetail>} argus-load-error - A `dataSource` page failed to load: `getRows()` rejected or threw. `detail: { error, start, end }` (`end` exclusive). The rows show a Retry button.
  *
  * @slot empty - Shown instead of the body when there are no rows. Default: "No rows".
@@ -181,6 +192,7 @@ function track<T>(column: ColumnView<T, CellContent>): string {
  * @csspart row-even - Body rows with an even index (0-based).
  * @csspart row-odd - Body rows with an odd index.
  * @csspart row-loading - Body rows whose `dataSource` page hasn't loaded yet, or failed.
+ * @csspart row-selected - Body rows whose id is in `selection`.
  * @csspart row-pinned - Every row from `pinnedRows`, on either side. Also has `row`, but no `row-even`/`row-odd`.
  * @csspart row-pinned-top - The rows pinned below the header.
  * @csspart row-pinned-bottom - The rows pinned to the bottom.
@@ -213,7 +225,7 @@ function track<T>(column: ColumnView<T, CellContent>): string {
  * @cssprop [--argus-row-hover-bg] - Background of the hovered row. Default: no change.
  * @cssprop [--argus-pinned-row-bg=var(--argus-bg)] - Background of the pinned rows, pinned columns included.
  * @cssprop [--argus-skeleton-bg] - Colour of the skeleton bars in rows still loading. Default: the text colour at low opacity.
- * @cssprop [--argus-row-selected-bg] - Reserved for row selection, which comes after v0.1. The table doesn't read it yet.
+ * @cssprop [--argus-row-selected-bg] - Background of selected rows, pinned columns included. Default: the system highlight colour, mixed into `--argus-bg`. It wins over `--argus-row-hover-bg`.
  */
 @customElement('argus-table')
 export class ArgusTable<T = unknown> extends LitElement {
@@ -332,12 +344,46 @@ export class ArgusTable<T = unknown> extends LitElement {
     this.#order.set(value);
   }
 
+  /**
+   * How rows can be selected: `none` (the default), `single` or `multi`. A click
+   * on a body row selects it; in `multi` mode Ctrl/Cmd+click toggles a row,
+   * Shift+click selects the range from the last clicked row, and Ctrl/Cmd+A
+   * selects every row. Space toggles the focused row. Clicks on buttons, links
+   * and inputs inside cells don't select. Pinned rows, and `dataSource` rows not
+   * loaded yet, can't be selected.
+   */
+  @property({ attribute: 'selection-mode' })
+  selectionMode: SelectionMode = 'none';
+
+  /**
+   * The selected rows, as row ids (from `getRowId`, or the row's index as a
+   * string), e.g. `['p4', 'p7']`. Uncontrolled until set, like `sorting`: once
+   * set, a click only fires `argus-row-select` with the proposed ids.
+   * `undefined` hands it back. The table never drops ids on its own: they stay
+   * through sorting, a new `data` or reloaded pages. With a `dataSource`,
+   * Ctrl/Cmd+A selects the loaded rows only.
+   */
+  @property({ attribute: false })
+  get selection(): SelectionState {
+    return this.#selection.value;
+  }
+  set selection(value: SelectionState | undefined) {
+    this.#selection.set(value);
+  }
+
   #columnsProp: readonly ColumnDef<T>[] = [];
   #dataProp: readonly T[] = [];
   #overscan = 6;
   readonly #sorting = controllable<SortState>([]);
   readonly #sizing = controllable<ColumnSizingState>({});
   readonly #order = controllable<ColumnOrderState>([]);
+  readonly #selection = controllable<SelectionState>([]);
+  /** `selection` as a set, for the rows rendered; rebuilt when `selection` changes. */
+  #selectedIds: { of: SelectionState; ids: ReadonlySet<string> } | undefined;
+  /** The row a Shift range starts from: the last row clicked or toggled without Shift. */
+  #anchor: string | undefined;
+  /** A selection the table applied itself; its event fires once the update is done. */
+  #appliedSelection: SelectionState | undefined;
   /** Moves the table applied itself, by column; their events fire once the update is done. */
   readonly #appliedReorders = new Map<string, ColumnReorderDetail>();
   /** The header being dragged to a new position, if any. */
@@ -514,6 +560,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     const layout = layoutOf(model);
     this.#internals.ariaRowCount = unknownTotal ? '-1' : String(layout.total);
     this.#internals.ariaColCount = String(model.columns.length);
+    this.#internals.ariaMultiSelectable = this.#mode() === 'multi' ? 'true' : null;
     // The header and pinned rows scroll with the body, one row each.
     const extra = (1 + layout.top + layout.bottom) * this.#rowPx;
     this.#virtual.configure({
@@ -560,6 +607,7 @@ export class ArgusTable<T = unknown> extends LitElement {
         ?data-dragging=${this.#drag !== undefined}
         @keydown=${this.#onKeydown}
         @focusin=${this.#onFocusin}
+        @mousedown=${this.#onMousedown}
         @click=${this.#onClick}
       >
         ${renderHeader(columns, this.#headerHandlers, activeIn('header')?.col, this.#drag)}
@@ -574,6 +622,7 @@ export class ArgusTable<T = unknown> extends LitElement {
                 activeIn('body'),
                 firstIndex('body'),
                 this.#loading(),
+                this.#selectedAt(model),
               )
         }
         ${renderPinnedRows('bottom', layout.bottom, columns, firstIndex('bottom'), activeIn('bottom'))}
@@ -628,6 +677,11 @@ export class ArgusTable<T = unknown> extends LitElement {
       const sorting = this.#appliedSort;
       this.#appliedSort = undefined;
       fire(this, SORT_CHANGE, { sorting });
+    }
+    if (this.#appliedSelection) {
+      const selection = this.#appliedSelection;
+      this.#appliedSelection = undefined;
+      fire(this, ROW_SELECT, { selection });
     }
     const { range } = this.#window;
     const key = range ? `${String(range.start)}:${String(range.end)}` : '';
@@ -790,6 +844,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.#requestSort(id);
       return;
     }
+    if (this.#selectionKey(event, cell, id, inHeader, scroller)) return;
     // Ctrl (Cmd on macOS) only goes with Home and End: to the corners.
     const corner = event.ctrlKey || event.metaKey;
     if (event.altKey || event.shiftKey || (corner && key !== 'Home' && key !== 'End')) return;
@@ -811,30 +866,13 @@ export class ArgusTable<T = unknown> extends LitElement {
     // Rows step by grid position: header, pinned top, body, pinned bottom.
     let pos = layout.position(from);
     const last = layout.total - 1;
-    const bodyFirst = layout.position({ section: 'body', index: 0 });
-    const bodyLast = bodyFirst + layout.body - 1;
-    // Whole rows between the sticky header and pinned rows (each one row tall).
-    const fit = Math.floor(scroller.clientHeight / this.#rowPx + 0.01);
-    const page = Math.max(1, fit - 1 - layout.top - layout.bottom);
     let col = columns.findIndex((c) => c.id === id);
     switch (key) {
       case 'PageDown':
-        // Pages through the body: from above it, a page into it; it stops at its last row.
-        if (layout.body > 0 && pos <= bodyLast) {
-          pos = Math.min(Math.max(pos, bodyFirst - 1) + page, bodyLast);
-        }
-        break;
       case 'PageUp':
-        // Stays in the body; ArrowUp or Ctrl+Home goes on to the rows above it.
-        if (layout.body > 0 && pos > bodyFirst) {
-          pos = Math.max(Math.min(pos, bodyLast + 1) - page, bodyFirst);
-        }
-        break;
       case 'ArrowDown':
-        pos = Math.min(pos + 1, last);
-        break;
       case 'ArrowUp':
-        pos = Math.max(pos - 1, 0);
+        pos = this.#verticalStep(key, pos, layout, scroller);
         break;
       case 'ArrowRight':
         col += this.#direction();
@@ -872,6 +910,101 @@ export class ArgusTable<T = unknown> extends LitElement {
     const target = columns[Math.min(Math.max(col, 0), columns.length - 1)];
     if (target) this.#moveTo(row, target.id, model);
   };
+
+  /**
+   * The grid position ArrowUp/ArrowDown (one row) or PageUp/PageDown (a page of
+   * the body) moves to from `pos`. PageDown from above the body lands a page
+   * into it and stops at its last row; PageUp stays in the body.
+   */
+  #verticalStep(
+    key: 'PageDown' | 'PageUp' | 'ArrowDown' | 'ArrowUp',
+    pos: number,
+    layout: RowLayout,
+    scroller: HTMLElement,
+  ): number {
+    const bodyFirst = layout.position({ section: 'body', index: 0 });
+    const bodyLast = bodyFirst + layout.body - 1;
+    // Whole rows between the sticky header and pinned rows (each one row tall).
+    const fit = Math.floor(scroller.clientHeight / this.#rowPx + 0.01);
+    const page = Math.max(1, fit - 1 - layout.top - layout.bottom);
+    switch (key) {
+      case 'PageDown':
+        return layout.body > 0 && pos <= bodyLast
+          ? Math.min(Math.max(pos, bodyFirst - 1) + page, bodyLast)
+          : pos;
+      case 'PageUp':
+        return layout.body > 0 && pos > bodyFirst
+          ? Math.max(Math.min(pos, bodyLast + 1) - page, bodyFirst)
+          : pos;
+      case 'ArrowDown':
+        return Math.min(pos + 1, layout.total - 1);
+      case 'ArrowUp':
+        return Math.max(pos - 1, 0);
+    }
+  }
+
+  /**
+   * Selection keys, with a `selectionMode`: Space (or Shift+Space) toggles the
+   * focused body row; in `multi` mode, Shift+ArrowUp/ArrowDown and
+   * Shift+PageUp/PageDown move focus through the body and select from the
+   * anchor to it, and Ctrl/Cmd+A selects every row. `true` if it took the key.
+   */
+  #selectionKey(
+    event: KeyboardEvent,
+    cell: HTMLElement,
+    col: string,
+    inHeader: boolean,
+    scroller: HTMLElement,
+  ): boolean {
+    const mode = this.#mode();
+    if (mode === 'none' || event.altKey) return false;
+    const { key } = event;
+    const command = event.ctrlKey || event.metaKey;
+    const model = this.#table.model;
+    if (command && !event.shiftKey && key.toLowerCase() === 'a') {
+      if (mode !== 'multi') return false;
+      // Not the page's text: the rows.
+      event.preventDefault();
+      this.#requestSelection({ selection: model.selectableIds(), anchor: this.#anchor });
+      return true;
+    }
+    if (inHeader || command) return false;
+    const layout = layoutOf(model);
+    const from = gridRowOf(cell.parentElement, layout);
+    if (from?.section !== 'body') return false;
+    if (key === ' ') {
+      // Space would scroll the table.
+      event.preventDefault();
+      const id = model.rowAt(from.index)?.id;
+      if (id !== undefined) this.#requestSelection(toggleRow(this.#selection.value, mode, id));
+      return true;
+    }
+    if (
+      !event.shiftKey ||
+      mode !== 'multi' ||
+      (key !== 'ArrowDown' && key !== 'ArrowUp' && key !== 'PageDown' && key !== 'PageUp')
+    ) {
+      return false;
+    }
+    event.preventDefault();
+    // A range stays in the body: the header and pinned rows can't be selected.
+    const bodyFirst = layout.position({ section: 'body', index: 0 });
+    const pos = this.#verticalStep(key, layout.position(from), layout, scroller);
+    const to = layout.at(Math.min(Math.max(pos, bodyFirst), bodyFirst + layout.body - 1));
+    if (to?.section !== 'body' || to.index === from.index) return true;
+    if (key.startsWith('Page')) this.#virtual.scrollBy((to.index - from.index) * this.#rowPx);
+    const fromId = model.rowAt(from.index)?.id;
+    const anchor =
+      this.#anchorAt(model) ??
+      (fromId === undefined ? undefined : { id: fromId, index: from.index });
+    if (anchor) {
+      const idAt = (index: number) => model.rowAt(index)?.id;
+      const selection = selectRange([], anchor.index, to.index, idAt, false);
+      this.#requestSelection({ selection, anchor: anchor.id });
+    }
+    this.#moveTo(to, col, model);
+    return true;
+  }
 
   /** Focus that lands in a cell (a click, or content inside it) makes that cell active. */
   readonly #onFocusin = (event: FocusEvent) => {
@@ -911,10 +1044,109 @@ export class ArgusTable<T = unknown> extends LitElement {
     }
   };
 
-  /** `argus-cell-click`, then `argus-row-click`, for clicks in the body. */
+  /**
+   * `argus-cell-click`, then `argus-row-click`, for clicks in the body; then,
+   * with a `selectionMode`, the click selects its row.
+   */
   readonly #onClick = (event: MouseEvent) => {
-    this.#activate(event.composedPath());
+    const path = event.composedPath();
+    this.#activate(path);
+    const mode = this.#mode();
+    const target = mode === 'none' ? undefined : this.#selectableRowOf(path);
+    if (!target) return;
+    const model = this.#table.model;
+    this.#requestSelection(
+      clickSelection(
+        this.#selection.value,
+        mode,
+        target,
+        this.#anchorAt(model),
+        { toggle: event.ctrlKey || event.metaKey, range: event.shiftKey },
+        (index) => model.rowAt(index)?.id,
+      ),
+    );
   };
+
+  /**
+   * A Shift+press on a row in `multi` mode selects a range of rows, not the
+   * page's text from the last click: no text selection, and the cell still
+   * takes focus.
+   */
+  readonly #onMousedown = (event: MouseEvent) => {
+    if (!event.shiftKey || event.button !== 0 || this.#mode() !== 'multi') return;
+    const path = event.composedPath();
+    if (!this.#selectableRowOf(path)) return;
+    event.preventDefault();
+    for (const target of path) {
+      const cell = gridCell(target);
+      if (cell) {
+        cell.focus({ preventScroll: true });
+        return;
+      }
+    }
+  };
+
+  /** `selectionMode`, with anything unknown read as `none`. */
+  #mode(): SelectionMode {
+    const mode = this.selectionMode;
+    return mode === 'single' || mode === 'multi' ? mode : 'none';
+  }
+
+  /** Whether each rendered body row is selected; `undefined` without a `selectionMode`. */
+  #selectedAt(model: TableModel<T, CellContent>): SelectedAt | undefined {
+    if (this.#mode() === 'none') return undefined;
+    const selection = this.#selection.value;
+    if (this.#selectedIds?.of !== selection) {
+      this.#selectedIds = { of: selection, ids: new Set(selection) };
+    }
+    const { ids } = this.#selectedIds;
+    return (index) => {
+      const id = model.rowAt(index)?.id;
+      return id === undefined ? undefined : ids.has(id);
+    };
+  }
+
+  /**
+   * The loaded body row a pointer event is on, as a selection target. None for
+   * the header, pinned rows, rows still loading, and presses on interactive
+   * content in a cell (a button, a link, an input).
+   */
+  #selectableRowOf(path: readonly EventTarget[]): SelectionTarget | undefined {
+    const row = path.find(
+      (t): t is HTMLElement => t instanceof HTMLElement && t.getAttribute('role') === 'row',
+    );
+    if (!row || fromInteractive(path, row)) return undefined;
+    const model = this.#table.model;
+    const at = gridRowOf(row, layoutOf(model));
+    if (at?.section !== 'body') return undefined;
+    const id = model.rowAt(at.index)?.id;
+    return id === undefined ? undefined : { id, index: at.index };
+  }
+
+  /** The anchor row and where it is now; `undefined` if it isn't in the rows (or not loaded). */
+  #anchorAt(model: TableModel<T, CellContent>): SelectionTarget | undefined {
+    const id = this.#anchor;
+    const index = id === undefined ? undefined : model.indexOf(id);
+    return id === undefined || index === undefined ? undefined : { id, index };
+  }
+
+  /**
+   * Changes the selection through the controlled/uncontrolled rules, and moves
+   * the anchor. A step that leaves the same rows selected fires nothing.
+   */
+  #requestSelection(step: SelectionStep | undefined): void {
+    if (!step) return;
+    this.#anchor = step.anchor;
+    const old = this.#selection.value;
+    if (sameSelection(step.selection, old)) return;
+    const { value, applied } = this.#selection.request(step.selection);
+    if (applied) {
+      this.#appliedSelection = value;
+      this.requestUpdate('selection', old);
+    } else {
+      fire(this, ROW_SELECT, { selection: value });
+    }
+  }
 
   /**
    * Fires `argus-cell-click` (when a cell is on the path), then `argus-row-click`,

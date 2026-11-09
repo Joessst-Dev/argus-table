@@ -10,6 +10,7 @@ Every piece of table state works like a form input: uncontrolled by default, con
 | Column widths | `columnSizing` | `argus-column-resize` |
 | Pinned columns | `columnPinning` | `argus-column-pin` |
 | Column order | `columnOrder` | `argus-column-reorder` |
+| Selected rows | `selection` | `argus-row-select` |
 | Hidden columns | `columnVisibility` | `argus-column-visibility` |
 | Formula columns | `formulaColumns` | `argus-formula-column-add` / `-change` / `-remove` |
 

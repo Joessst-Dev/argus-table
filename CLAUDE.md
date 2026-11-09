@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`<argus-table>`: a framework-agnostic, virtualized data table web component built with Lit 3, TanStack Table v9 (`@tanstack/table-core`) and TanStack Virtual. pnpm + Nx monorepo, Node ≥ 22.12 (`.nvmrc`), pnpm via Corepack. Currently v0.1 (virtualized rows, pinned columns, sorting, resizing, keyboard nav, default theme) plus, for v0.2, `dataSource` infinite loading, pinned rows, auto column widths, column reordering, `<argus-column>` children, the React, Vue and Angular wrappers, the Material-inspired theme, the benchmarks (Storybook "Benchmarks" page, fed by `benchmarks/published/`), scroll scaling past the engines' maximum element height and the StackBlitz starters (`apps/examples`, live once v0.2 is on npm).
+`<argus-table>`: a framework-agnostic, virtualized data table web component built with Lit 3, TanStack Table v9 (`@tanstack/table-core`) and TanStack Virtual. pnpm + Nx monorepo, Node ≥ 22.12 (`.nvmrc`), pnpm via Corepack. Currently v0.1 (virtualized rows, pinned columns, sorting, resizing, keyboard nav, default theme) plus, for v0.2, `dataSource` infinite loading, pinned rows, auto column widths, column reordering, `<argus-column>` children, the React, Vue and Angular wrappers, the Material-inspired theme, the benchmarks (Storybook "Benchmarks" page, fed by `benchmarks/published/`), scroll scaling past the engines' maximum element height and the StackBlitz starters (`apps/examples`). Phase 3 has started: row selection (`selectionMode`, `selection`).
 
 `docs/plan/` is the design plan (public API draft, roadmap, architecture diagrams). It describes intended features too, so check the source before assuming something exists (for example `rowHeight: 'auto'` is planned but not implemented). `docs/adr/0001-shadow-vs-light-dom.md` explains the rendering model below.
 
@@ -20,7 +20,7 @@ pnpm build               # every package
 pnpm test:e2e            # Playwright against the built playground (`vite preview` on :4173)
 pnpm test:visual         # screenshot tests inside the CI Playwright Docker image (needs Docker)
 pnpm nx run examples:smoke  # pack the packages, npm-install + build each starter, Playwright smoke test (Node ≥ 22.22.3 for the Angular CLI)
-pnpm size                # CDN bundle min+gzip vs packages/table/.size-limit.json (45 kB)
+pnpm size                # CDN bundle min+gzip vs packages/table/.size-limit.json (47 kB)
 pnpm nx run playground:record-demo  # re-record the README demo (brand/demo.gif) from the built playground; FRAMES=<dir> keeps the PNGs
 pnpm bench               # benchmarks/: ROWS=10000,100000,1000000 BROWSERS=… RUNS=… (see benchmarks/README.md)
 pnpm affected            # what CI runs for the branch (base: main)
@@ -79,7 +79,9 @@ BROWSERS=chromium pnpm --filter @argus-table/e2e exec playwright test specs/sort
 
 **`<argus-column>` children** (`argus-column.ts`, `controllers/column-children.ts`): a data-only `ReactiveElement` (no shadow root) that builds a `ColumnDef` from its attributes and properties; a `<template>` child becomes a static cell via Lit's `templateContent`. Columns notify their parent table through a private registry (`watchColumns`) on connect, disconnect and update, so the table has no `MutationObserver` on its children (that would fire on every light-DOM cell render). A non-empty `columns` property wins over the children. `renderLightDom` renders before a private end-marker comment, so children appended later stay outside Lit's part.
 
-**Controlled/uncontrolled state.** `sorting`, `columnSizing` and `columnOrder` use `controllable()` (`core/src/state/controllable.ts`): uncontrolled until the host sets them; once set, user actions only fire the event with the _proposed_ value; setting `undefined` hands ownership back. Follow this pattern for new user-changeable state. When the table applies a change itself, the event fires after the update completes (`#appliedSort`, `#appliedResize`).
+**Row selection** (`selectionMode`, `selection`, event `argus-row-select`): the rules are pure functions in core `state/selection.ts` (`clickSelection`, `toggleRow`, `selectRange`); the element keeps the state through `controllable()`, a `Set` of it for rendering, and the anchor row id (the last row clicked or toggled without Shift). Ranges go by index in the current order and skip rows whose id is unknown (`dataSource` rows not loaded); select-all is `model.selectableIds()` (loaded rows only for a `dataSource`). Ids are never pruned. Only loaded body rows are selectable: not pinned rows, not skeletons. Presses on interactive cell content don't select (`interactive.ts`, shared with the reorder drag). Selection keys are handled in `#selectionKey` before the arrow-key navigation, which leaves Shift alone. The event isn't `argus-selection-change` because the Angular output `selectionChange` belongs to `[(selection)]`; the generator rejects that collision.
+
+**Controlled/uncontrolled state.** `sorting`, `columnSizing`, `columnOrder` and `selection` use `controllable()` (`core/src/state/controllable.ts`): uncontrolled until the host sets them; once set, user actions only fire the event with the _proposed_ value; setting `undefined` hands ownership back. Follow this pattern for new user-changeable state. When the table applies a change itself, the event fires after the update completes (`#appliedSort`, `#appliedResize`).
 
 **Events** are defined in `events.ts`: `argus-*` names, fired via `fire()` as bubbling, composed `CustomEvent`s, with types added to `HTMLElementEventMap`. Detail types live in core.
 
