@@ -194,10 +194,11 @@ describe('accessibility', () => {
 describe('virtualization', () => {
   test('renders a bounded window at 100k rows', async () => {
     const el = await fixture({ columns, data: people(100_000) });
-    // 400px - 40px header = 9 visible rows at 40px, plus 6 overscan below.
+    // A 400px view shows at most 11 rows of 40px, partly; the window adds 6 rows of
+    // overscan on each side (at the top, all 12 below).
     const count = bodyRows(el).length;
     expect(count).toBeGreaterThan(8);
-    expect(count).toBeLessThanOrEqual(10 + 2 * 6);
+    expect(count).toBeLessThanOrEqual(11 + 2 * 6);
     const body = shadow(el).querySelector<HTMLElement>('[part~="body"]');
     expect(parseFloat(body?.style.blockSize ?? '')).toBe(100_000 * 40);
   });
@@ -228,7 +229,23 @@ describe('virtualization', () => {
     expect(after.filter((r) => before.has(r)).length).toBe(Math.min(after.length, before.size));
     // Light-DOM content stays bounded by the pool, not by how far we scrolled.
     const content = [...el.children].filter((c) => c.hasAttribute('slot'));
-    expect(content.length).toBeLessThanOrEqual(3 + 3 * (10 + 2 * 6));
+    expect(content.length).toBeLessThanOrEqual(3 + 3 * (11 + 2 * 6));
+  });
+
+  test('renders a full window from the top, so scrolling creates no rows or slots', async () => {
+    // New slots inside the scroller cut a wheel scroll short in WebKit: a pool that
+    // grew as the overscan above filled moved a few px per wheel step.
+    const el = await fixture({ columns, data: people(100_000) });
+    const rows = new Set(bodyRows(el));
+    const slots = shadow(el).querySelectorAll('slot').length;
+    const content = [...el.children].filter((c) => c.hasAttribute('slot')).length;
+    for (let top = 7; top <= 40 * 30; top += 7) {
+      await scrollTo(el, top);
+      expect(bodyRows(el).every((r) => rows.has(r))).toBe(true);
+      expect(shadow(el).querySelectorAll('slot')).toHaveLength(slots);
+      expect([...el.children].filter((c) => c.hasAttribute('slot'))).toHaveLength(content);
+    }
+    expect(bodyRows(el)).toHaveLength(rows.size);
   });
 
   test('fires argus-range-change after the update with the visible rows', async () => {
