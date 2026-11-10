@@ -11,6 +11,7 @@ export type {
   ArgusTableProps,
   ArgusTableSlots,
 } from './generated/elements.js';
+export type { HeaderSlotProps, VueCellContent, VueColumnDef } from './content.js';
 
 // The element classes, for typing `exposed.element` or a ref to the raw element.
 export type {
@@ -40,6 +41,7 @@ export type {
   ColumnSizingState,
   ColumnVisibilityState,
   ColumnWidth,
+  ContentRenderer,
   DataSource,
   DateFilter,
   Density,

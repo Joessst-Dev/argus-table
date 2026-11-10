@@ -2,7 +2,7 @@
 // Template features the render-function tests can't reach: v-model, boolean
 // attributes, v-for over <ArgusColumn>, a template ref, and (for vue-tsc) the
 // types of events and exposed methods.
-import { ref, useTemplateRef } from 'vue';
+import { h, ref, useTemplateRef } from 'vue';
 import { ArgusColumn, ArgusTable, type ArgusPlugin, type SortState } from '../index.js';
 import { orders, size, type Order } from './data.js';
 
@@ -81,5 +81,24 @@ defineExpose({ sorting, clicked, table, refresh });
     <ArgusTable :data="orders" :plugins="[{ keydown: () => true }]" />
     <!-- @vue-expect-error selection-mode is 'none', 'single' or 'multi' -->
     <ArgusTable selection-mode="many" />
+    <!-- Slots get the row type from `data`. -->
+    <ArgusTable :data="orders">
+      <template #cell-total="{ row, value, rowId }"
+        >{{ row.total.toFixed(2) }} {{ value }} {{ rowId }}</template
+      >
+      <template #header-total="{ columnId }">{{ columnId.toUpperCase() }}</template>
+    </ArgusTable>
+    <ArgusTable :data="orders">
+      <template #cell-total="{ row }">
+        <!-- @vue-expect-error the row is an Order, which has no `name` -->
+        {{ row.name }}
+      </template>
+    </ArgusTable>
+    <ArgusTable
+      :data="orders"
+      :columns="[{ id: 'total', cell: (o) => h('b', o.total.toFixed()) }]"
+    />
+    <!-- @vue-expect-error contentRenderer is the wrapper's own -->
+    <ArgusTable :content-renderer="{ render: () => undefined, release: () => undefined }" />
   </template>
 </template>
