@@ -9,8 +9,9 @@ import { installBenchHooks } from './bench-hooks.js';
 // the table unmounted until __argusBench.mount(), so the runner can time the first
 // render and measure the heap with the data alone),
 // pin=none to drop the pins (the floor when measuring what pinning costs),
-// theme=default or theme=material to load that stylesheet from @argus-table/themes
-// (material also loads Roboto and sets the table on an inset page), and
+// theme=default, material, fluent or bootstrap to load that stylesheet from
+// @argus-table/themes (material also loads Roboto and sets the table on an inset
+// page), and
 // scheme=dark|light to force a colour scheme through data-argus-theme.
 // source=remote loads the rows through a pretend server (dataSource) instead of
 // data, with latency=<ms> (default 100), total=unknown to leave the total out,
@@ -22,21 +23,25 @@ import { installBenchHooks } from './bench-hooks.js';
 // cols above 20 adds more fN columns (from F12 on they repeat F1–F11's values),
 // and vcols sets virtualizeColumns.
 const params = new URLSearchParams(location.search);
-const theme = params.get('theme');
-if (theme === 'default') await import('@argus-table/themes/default.css');
-if (theme === 'material') {
-  await Promise.all([
-    import('@fontsource/roboto/400.css'),
-    import('@fontsource/roboto/500.css'),
-    import('@argus-table/themes/material.css'),
-  ]);
-  document.documentElement.dataset.page = 'inset';
-  // Loaded before the table renders, so screenshots never catch the fallback font.
-  await Promise.all([
-    document.fonts.load('400 14px Roboto'),
-    document.fonts.load('500 14px Roboto'),
-  ]);
-}
+const themes: Record<string, (() => Promise<unknown>) | undefined> = {
+  default: () => import('@argus-table/themes/default.css'),
+  material: async () => {
+    await Promise.all([
+      import('@fontsource/roboto/400.css'),
+      import('@fontsource/roboto/500.css'),
+      import('@argus-table/themes/material.css'),
+    ]);
+    document.documentElement.dataset.page = 'inset';
+    // Loaded before the table renders, so screenshots never catch the fallback font.
+    await Promise.all([
+      document.fonts.load('400 14px Roboto'),
+      document.fonts.load('500 14px Roboto'),
+    ]);
+  },
+  fluent: () => import('@argus-table/themes/fluent.css'),
+  bootstrap: () => import('@argus-table/themes/bootstrap.css'),
+};
+await themes[params.get('theme') ?? '']?.();
 const scheme = params.get('scheme');
 if (scheme === 'dark' || scheme === 'light') {
   document.documentElement.dataset.argusTheme = scheme;

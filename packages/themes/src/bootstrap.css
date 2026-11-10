@@ -1,0 +1,92 @@
+/*
+ * argus-table Bootstrap-inspired theme: looks like a Bootstrap 5
+ * `.table.table-striped.table-hover` (its colours, system font stack, padding,
+ * stripes and the divider under the header), without Bootstrap itself.
+ * Follows the user's light or dark preference. Force a scheme with
+ * data-argus-theme="dark" or "light" on the table or on any ancestor.
+ *
+ * The theme loads no fonts: it uses Bootstrap's system font stack.
+ *
+ * A theme sets tokens and ::part() rules only. To change one value, set the
+ * token after this file. No stripes: argus-table { --argus-row-stripe-bg: var(--argus-bg); }
+ *
+ * color-scheme sits on argus-table itself so that build tools polyfilling
+ * light-dark() switch these colours too (see default.css).
+ */
+argus-table {
+  color-scheme: light dark;
+  /* body-bg, body-color */
+  --argus-bg: light-dark(#ffffff, #212529);
+  --argus-fg: light-dark(#212529, #dee2e6);
+  --argus-font:
+    400 1rem/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', 'Noto Sans',
+    'Liberation Sans', Arial, sans-serif;
+  /* thead sits on the table's background, in its text colour. */
+  --argus-header-bg: var(--argus-bg);
+  --argus-header-fg: var(--argus-fg);
+  /* border-color */
+  --argus-border-color: light-dark(#dee2e6, #495057);
+  --argus-border-width: 1px;
+  --argus-outline: none;
+  --argus-radius: 0;
+  /* .table's 0.5rem padding; its rows are 40px, the table's own comfortable height. */
+  --argus-cell-padding-inline: 8px;
+  /* .table-striped: the text colour at 5% over the background. */
+  --argus-row-stripe-bg: light-dark(#f2f2f2, #2c3034);
+  /* .table-hover: 7.5% */
+  --argus-row-hover-bg: light-dark(#ececec, #323539);
+  /* .table-primary (primary-bg-subtle): clearer than .table-active next to the stripes. */
+  --argus-row-selected-bg: light-dark(#cfe2ff, #031633);
+  --argus-pinned-shadow: 4px 0 6px -4px light-dark(rgb(0 0 0 / 0.15), rgb(0 0 0 / 0.5));
+  /* primary */
+  --argus-resize-handle-color: light-dark(#0d6efd, #6ea8fe);
+  --argus-focus-ring: 2px solid light-dark(#0d6efd, #6ea8fe);
+  --argus-drop-indicator-color: light-dark(#0d6efd, #6ea8fe);
+  /* secondary-bg */
+  --argus-skeleton-bg: light-dark(#e9ecef, #343a40);
+  --argus-pinned-row-bg: var(--argus-bg);
+
+  /* .table-sm: 0.25rem padding, 32px rows (the table's own compact height). */
+  &[density='compact'] {
+    --argus-cell-padding-inline: 4px;
+  }
+  &[density='spacious'] {
+    --argus-cell-padding-inline: 12px;
+  }
+
+  &::part(cell) {
+    font-variant-numeric: tabular-nums;
+  }
+  /* The divider between thead and tbody, in the text colour. */
+  &::part(header-cell) {
+    font-weight: 700;
+    border-block-end: 2px solid currentColor;
+  }
+  /* Pinned rows (totals and the like) set off like a tfoot. */
+  &::part(row-pinned) {
+    font-weight: 700;
+  }
+  &::part(row-pinned-bottom) {
+    box-shadow: 0 -2px 0 currentColor;
+  }
+  &::part(selection-checkbox) {
+    accent-color: light-dark(#0d6efd, #6ea8fe);
+  }
+  &::part(skeleton) {
+    border-radius: 0.375rem;
+  }
+}
+
+/* The attribute on the table itself comes last, so it beats one on an ancestor. */
+[data-argus-theme='dark'] argus-table {
+  color-scheme: dark;
+}
+[data-argus-theme='light'] argus-table {
+  color-scheme: light;
+}
+argus-table[data-argus-theme='dark'] {
+  color-scheme: dark;
+}
+argus-table[data-argus-theme='light'] {
+  color-scheme: light;
+}

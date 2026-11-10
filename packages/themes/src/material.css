@@ -33,7 +33,7 @@ argus-table {
   --argus-row-stripe-bg: var(--argus-bg);
   /* An 8% on-surface state layer over the surface. */
   --argus-row-hover-bg: light-dark(#ece5ed, #252229);
-  /* secondary-container. Reserved for row selection, which comes later. */
+  /* secondary-container */
   --argus-row-selected-bg: light-dark(#e8def8, #4a4458);
   /* Deeper than the default theme's: pinned columns sit a level above the rest. */
   --argus-pinned-shadow: 6px 0 10px -4px light-dark(rgb(0 0 0 / 0.22), rgb(0 0 0 / 0.6));

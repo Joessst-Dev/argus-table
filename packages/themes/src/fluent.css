@@ -1,0 +1,96 @@
+/*
+ * argus-table Fluent-inspired theme: borrows the feel of Fluent 2 on the web
+ * (its neutral greys, one brand blue, Segoe UI, a flat header on the body
+ * colour, the sizes of its Table), not Microsoft's exact spec. Follows the
+ * user's light or dark preference. Force a scheme with data-argus-theme="dark"
+ * or "light" on the table or on any ancestor.
+ *
+ * The theme loads no fonts. Segoe UI comes with Windows; elsewhere the table
+ * uses the system font.
+ *
+ * A theme sets tokens and ::part() rules only. To change one value, set the
+ * token after this file: argus-table { --argus-row-hover-bg: transparent; }
+ *
+ * color-scheme sits on argus-table itself so that build tools polyfilling
+ * light-dark() switch these colours too (see default.css).
+ */
+argus-table {
+  color-scheme: light dark;
+  /* neutralBackground1, neutralForeground1 */
+  --argus-bg: light-dark(#ffffff, #292929);
+  --argus-fg: light-dark(#242424, #ffffff);
+  --argus-font:
+    400 0.875rem/1.43 'Segoe UI Variable Text', 'Segoe UI', -apple-system, BlinkMacSystemFont,
+    Roboto, 'Helvetica Neue', sans-serif;
+  /* The header sits on the body colour; neutralForeground2 */
+  --argus-header-bg: var(--argus-bg);
+  --argus-header-fg: light-dark(#424242, #d6d6d6);
+  /* neutralStroke2 */
+  --argus-border-color: light-dark(#e0e0e0, #525252);
+  --argus-border-width: 1px;
+  --argus-outline: none;
+  --argus-radius: 0;
+  --argus-row-height: 44px;
+  --argus-cell-padding-inline: 12px;
+  --argus-row-stripe-bg: var(--argus-bg);
+  /* neutralBackground1Hover */
+  --argus-row-hover-bg: light-dark(#f5f5f5, #3d3d3d);
+  /* brandBackground2 */
+  --argus-row-selected-bg: light-dark(#ebf3fc, #082338);
+  --argus-pinned-shadow: 4px 0 8px -4px light-dark(rgb(0 0 0 / 0.14), rgb(0 0 0 / 0.5));
+  /* compoundBrandStroke */
+  --argus-resize-handle-color: light-dark(#0f6cbd, #479ef5);
+  /* strokeFocus2: Fluent's focus indicator is black on light, white on dark. */
+  --argus-focus-ring: 2px solid light-dark(#000000, #ffffff);
+  --argus-drop-indicator-color: light-dark(#0f6cbd, #479ef5);
+  /* neutralStencil1 */
+  --argus-skeleton-bg: light-dark(#e6e6e6, #575757);
+  /* neutralBackground2 */
+  --argus-pinned-row-bg: light-dark(#fafafa, #212121);
+
+  /* The Fluent Table's small, medium and a roomier size. */
+  &[density='compact'] {
+    --argus-row-height: 34px;
+    --argus-cell-padding-inline: 8px;
+  }
+  &[density='spacious'] {
+    --argus-row-height: 52px;
+    --argus-cell-padding-inline: 16px;
+  }
+
+  &::part(cell) {
+    font-variant-numeric: tabular-nums;
+  }
+  &::part(header-cell) {
+    font-weight: 600;
+  }
+  /* Pinned rows (totals and the like) read like the header, set off from the body. */
+  &::part(row-pinned) {
+    color: var(--argus-header-fg);
+    font-weight: 600;
+  }
+  /* neutralStroke1 */
+  &::part(row-pinned-bottom) {
+    box-shadow: 0 -1px 0 light-dark(#d1d1d1, #666666);
+  }
+  &::part(selection-checkbox) {
+    accent-color: light-dark(#0f6cbd, #479ef5);
+  }
+  &::part(skeleton) {
+    border-radius: 4px;
+  }
+}
+
+/* The attribute on the table itself comes last, so it beats one on an ancestor. */
+[data-argus-theme='dark'] argus-table {
+  color-scheme: dark;
+}
+[data-argus-theme='light'] argus-table {
+  color-scheme: light;
+}
+argus-table[data-argus-theme='dark'] {
+  color-scheme: dark;
+}
+argus-table[data-argus-theme='light'] {
+  color-scheme: light;
+}

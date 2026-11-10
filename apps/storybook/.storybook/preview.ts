@@ -7,6 +7,8 @@ import manifest from 'argus-table/custom-elements.json';
 // As strings, so the toolbar can switch the theme on and off.
 import defaultTheme from '@argus-table/themes/default.css?inline';
 import materialTheme from '@argus-table/themes/material.css?inline';
+import fluentTheme from '@argus-table/themes/fluent.css?inline';
+import bootstrapTheme from '@argus-table/themes/bootstrap.css?inline';
 // The Material-inspired theme uses Roboto but loads no fonts itself.
 import '@fontsource/roboto/400.css';
 import '@fontsource/roboto/500.css';
@@ -16,7 +18,7 @@ import '@fontsource/roboto/500.css';
 setCustomElementsManifest(manifest);
 
 interface Globals {
-  theme?: 'none' | 'default' | 'material';
+  theme?: 'none' | 'default' | 'material' | 'fluent' | 'bootstrap';
   scheme?: 'auto' | 'light' | 'dark';
   density?: 'story' | Density;
   dir?: 'ltr' | 'rtl';
@@ -35,7 +37,13 @@ const withToolbar: Decorator = (story, { globals }) => {
       for (const table of el.querySelectorAll('argus-table')) table.density = density;
     });
   };
-  const themeCss = { none: undefined, default: defaultTheme, material: materialTheme }[theme];
+  const themeCss = {
+    none: undefined,
+    default: defaultTheme,
+    material: materialTheme,
+    fluent: fluentTheme,
+    bootstrap: bootstrapTheme,
+  }[theme];
   return html`${
       themeCss
         ? html`<style>
@@ -69,6 +77,8 @@ const preview: Preview = {
           { value: 'none', title: 'No theme (base styles)' },
           { value: 'default', title: 'Default' },
           { value: 'material', title: 'Material-inspired' },
+          { value: 'fluent', title: 'Fluent-inspired' },
+          { value: 'bootstrap', title: 'Bootstrap-inspired' },
         ],
         dynamicTitle: true,
       },

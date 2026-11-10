@@ -13,7 +13,7 @@ import '@argus-table/themes/default.css';
 
 Or with a `<link>`: `<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@argus-table/themes/dist/default.css">`.
 
-Load one theme per page: `default.css` or `material.css`.
+Load one theme per page: `default.css`, `material.css`, `fluent.css` or `bootstrap.css`.
 
 ## Default
 
@@ -38,6 +38,31 @@ It borrows the feel of Material 3, not Google's exact spec: the baseline purple 
 - **Fonts:** the theme loads no fonts. Load Roboto 400 and 500 on the page, from [`@fontsource/roboto`](https://fontsource.org/fonts/roboto) as above or from Google Fonts. Without Roboto, the table uses the system font.
 - **Rows:** taller than the table's defaults: 40, 52 and 60px for `compact`, `comfortable` (the default) and `spacious`, with 12, 16 and 20px of inline padding. A `row-height` set on the table still wins.
 - **Scheme and overrides:** work the same as in the default theme. `data-argus-theme` on the table or an ancestor forces light or dark, and any token can be set after the theme.
+
+## Fluent-inspired
+
+```js
+import '@argus-table/themes/fluent.css';
+```
+
+It borrows the feel of Fluent 2 on the web, not Microsoft's exact spec: neutral greys, one brand blue, Segoe UI, a flat header on the body colour and the sizes of Fluent's Table. Selected rows get a light brand tint, and the focus ring is black (white in dark mode), as in Fluent.
+
+- **Fonts:** the theme loads no fonts. Segoe UI comes with Windows and isn't on npm; elsewhere the table uses the system font.
+- **Rows:** 34, 44 and 52px for `compact`, `comfortable` (the default) and `spacious`, with 8, 12 and 16px of inline padding. A `row-height` set on the table still wins.
+- **Scheme and overrides:** work the same as in the default theme.
+
+## Bootstrap-inspired
+
+```js
+import '@argus-table/themes/bootstrap.css';
+```
+
+It looks like a Bootstrap 5 `.table.table-striped.table-hover`, without loading Bootstrap: its colours in light and dark, the system font stack, 0.5rem cell padding, striped rows, a hover colour and the 2px divider under the header. Selected rows use the `.table-primary` colour, which stands out from the stripes better than `.table-active`.
+
+- **Fonts:** Bootstrap's system font stack; nothing to load.
+- **Rows:** the table's own heights, which match Bootstrap's: 40px at `comfortable` (the default) and 32px at `compact`, like `.table-sm` with its 0.25rem padding.
+- **No stripes:** `argus-table { --argus-row-stripe-bg: var(--argus-bg); }` after the theme.
+- **Scheme and overrides:** work the same as in the default theme.
 
 The full list of tokens and parts is in the argus-table docs.
 

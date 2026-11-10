@@ -18,6 +18,8 @@
   "exports": {
     "./default.css": "./dist/default.css",
     "./material.css": "./dist/material.css",
+    "./fluent.css": "./dist/fluent.css",
+    "./bootstrap.css": "./dist/bootstrap.css",
     "./package.json": "./package.json"
   },
   "files": [
