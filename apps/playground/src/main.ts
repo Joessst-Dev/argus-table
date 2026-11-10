@@ -23,25 +23,30 @@ import { installBenchHooks } from './bench-hooks.js';
 // cols above 20 adds more fN columns (from F12 on they repeat F1–F11's values),
 // and vcols sets virtualizeColumns.
 const params = new URLSearchParams(location.search);
-const themes: Record<string, (() => Promise<unknown>) | undefined> = {
-  default: () => import('@argus-table/themes/default.css'),
-  material: async () => {
-    await Promise.all([
-      import('@fontsource/roboto/400.css'),
-      import('@fontsource/roboto/500.css'),
-      import('@argus-table/themes/material.css'),
-    ]);
-    document.documentElement.dataset.page = 'inset';
-    // Loaded before the table renders, so screenshots never catch the fallback font.
-    await Promise.all([
-      document.fonts.load('400 14px Roboto'),
-      document.fonts.load('500 14px Roboto'),
-    ]);
-  },
-  fluent: () => import('@argus-table/themes/fluent.css'),
-  bootstrap: () => import('@argus-table/themes/bootstrap.css'),
-};
-await themes[params.get('theme') ?? '']?.();
+// A Map, not an object literal: a query value like `toString` or `constructor`
+// must not reach Object.prototype's methods.
+const themes = new Map<string, () => Promise<unknown>>([
+  ['default', () => import('@argus-table/themes/default.css')],
+  [
+    'material',
+    async () => {
+      await Promise.all([
+        import('@fontsource/roboto/400.css'),
+        import('@fontsource/roboto/500.css'),
+        import('@argus-table/themes/material.css'),
+      ]);
+      document.documentElement.dataset.page = 'inset';
+      // Loaded before the table renders, so screenshots never catch the fallback font.
+      await Promise.all([
+        document.fonts.load('400 14px Roboto'),
+        document.fonts.load('500 14px Roboto'),
+      ]);
+    },
+  ],
+  ['fluent', () => import('@argus-table/themes/fluent.css')],
+  ['bootstrap', () => import('@argus-table/themes/bootstrap.css')],
+]);
+await themes.get(params.get('theme') ?? '')?.();
 const scheme = params.get('scheme');
 if (scheme === 'dark' || scheme === 'light') {
   document.documentElement.dataset.argusTheme = scheme;
