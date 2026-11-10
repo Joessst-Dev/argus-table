@@ -1,67 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { html } from 'lit';
 import { expect } from 'storybook/test';
-import type { ColumnDef, PinnedRows } from 'argus-table';
+import type { PinnedRows } from 'argus-table';
 import 'argus-table';
-
-interface Order {
-  id: string;
-  customer: string;
-  city: string;
-  status: 'open' | 'paid' | 'shipped';
-  total: number;
-}
-
-const cities = ['Lisbon', 'Oslo', 'Quito', 'Hanoi', 'Accra'];
-const statuses = ['open', 'paid', 'shipped'] as const;
-const data: Order[] = Array.from({ length: 1_000 }, (_, i) => ({
-  id: `o${String(i + 1)}`,
-  customer: `Customer ${String(i + 1)}`,
-  city: cities[i % cities.length] ?? '',
-  status: statuses[i % statuses.length] ?? 'open',
-  total: Math.round(((i * 7919) % 100_000) / 10) / 10,
-}));
-
-const money = (value: number) => value.toLocaleString('en', { minimumFractionDigits: 2 });
-const totals: Order = {
-  id: 'total',
-  customer: 'Total',
-  city: '',
-  status: 'open',
-  total: Math.round(data.reduce((s, o) => s + o.total, 0) * 100) / 100,
-};
-
-const columns: ColumnDef<Order>[] = [
-  { id: 'id', header: 'Order', accessor: 'id', width: 100, pin: 'start' },
-  {
-    id: 'customer',
-    header: 'Customer',
-    accessor: 'customer',
-    width: { flex: 1 },
-    minWidth: 160,
-    sortable: true,
-  },
-  { id: 'city', header: 'City', accessor: 'city', width: 140 },
-  {
-    id: 'status',
-    header: 'Status',
-    accessor: 'status',
-    width: 120,
-    // Page CSS (below), not the theme: cell content is in the light DOM.
-    cell: (order, { pinned }) =>
-      pinned ? '' : html`<span class="chip chip-${order.status}">${order.status}</span>`,
-  },
-  {
-    id: 'total',
-    header: 'Total',
-    accessor: 'total',
-    width: 130,
-    align: 'end',
-    sortable: true,
-    pin: 'end',
-    cell: (order) => money(order.total),
-  },
-];
+import { getOrderId, orderColumns, orders, totals, type Order } from './theme-orders.js';
 
 interface Args {
   scheme: 'auto' | 'light' | 'dark';
@@ -108,10 +50,10 @@ const meta = {
           style="block-size: 420px"
           aria-label="Orders"
           density=${density}
-          .columns=${columns}
-          .data=${data}
+          .columns=${orderColumns}
+          .data=${orders}
           .pinnedRows=${pinnedRows}
-          .getRowId=${(o: Order) => o.id}
+          .getRowId=${getOrderId}
         ></argus-table>
       </div>`;
   },

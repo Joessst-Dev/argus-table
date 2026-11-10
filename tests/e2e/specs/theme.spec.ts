@@ -18,7 +18,7 @@ async function headerStyle(page: Page): Promise<{ background: string; border: st
   });
 }
 
-for (const theme of ['default', 'material']) {
+for (const theme of ['default', 'material', 'fluent', 'bootstrap']) {
   test.describe(`${theme} theme in the automatic colour scheme`, () => {
     for (const colorScheme of ['light', 'dark'] as const) {
       test(`header is opaque and bordered (${colorScheme})`, async ({ page }) => {
@@ -56,4 +56,41 @@ test('material theme rounds and outlines the table, with taller rows', async ({ 
     };
   });
   expect(style).toEqual({ radius: '12px', outline: 'solid', rowHeight: 52 });
+});
+
+test('fluent theme puts the header on the body colour, with 44px rows', async ({ page }) => {
+  await open(page, { theme: 'fluent', rows: 200, cols: 8 });
+  const style = await page.evaluate(() => {
+    const root = document.querySelector('argus-table')?.shadowRoot;
+    const header = root?.querySelector('[part~="header-cell"]');
+    const row = root?.querySelector('[part~="row-even"]');
+    if (!header || !row) throw new Error('no table');
+    return {
+      header: getComputedStyle(header).backgroundColor,
+      row: getComputedStyle(row).backgroundColor,
+      rowHeight: row.getBoundingClientRect().height,
+    };
+  });
+  expect(style.header).toBe(style.row);
+  expect(style.rowHeight).toBe(44);
+});
+
+test('bootstrap theme stripes the rows, under a 2px header divider', async ({ page }) => {
+  await open(page, { theme: 'bootstrap', rows: 200, cols: 8 });
+  const style = await page.evaluate(() => {
+    const root = document.querySelector('argus-table')?.shadowRoot;
+    const header = root?.querySelector('[part~="header-cell"]');
+    const even = root?.querySelector('[part~="row-even"]');
+    const odd = root?.querySelector('[part~="row-odd"]');
+    if (!header || !even || !odd) throw new Error('no table');
+    return {
+      divider: getComputedStyle(header).borderBlockEndWidth,
+      even: getComputedStyle(even).backgroundColor,
+      odd: getComputedStyle(odd).backgroundColor,
+      rowHeight: even.getBoundingClientRect().height,
+    };
+  });
+  expect(style.divider).toBe('2px');
+  expect(style.odd).not.toBe(style.even);
+  expect(style.rowHeight).toBe(40);
 });

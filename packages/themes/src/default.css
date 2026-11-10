@@ -24,7 +24,6 @@ argus-table {
   --argus-radius: 0;
   --argus-row-stripe-bg: var(--argus-bg);
   --argus-row-hover-bg: light-dark(#f3f5f8, #1f242d);
-  /* Reserved for row selection, which comes after v0.1. */
   --argus-row-selected-bg: light-dark(#e8eefb, #1c2740);
   --argus-pinned-shadow: 4px 0 6px -4px light-dark(rgb(0 0 0 / 0.16), rgb(0 0 0 / 0.55));
   --argus-resize-handle-color: light-dark(#2f5bd3, #8aa6f2);

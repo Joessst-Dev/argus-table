@@ -17,7 +17,7 @@ async function open(page: Page, query: Record<string, string>): Promise<void> {
   });
 }
 
-for (const theme of ['default', 'material']) {
+for (const theme of ['default', 'material', 'fluent', 'bootstrap']) {
   for (const density of ['compact', 'comfortable', 'spacious']) {
     for (const scheme of ['light', 'dark']) {
       test(`${theme} theme, ${density}, ${scheme}`, async ({ page }) => {
@@ -45,7 +45,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
   });
 }
 
-for (const theme of ['default', 'material']) {
+for (const theme of ['default', 'material', 'fluent', 'bootstrap']) {
   test(`${theme} theme, RTL, pinned and scrolled sideways`, async ({ page }) => {
     await open(page, { theme, scheme: 'light', dir: 'rtl', cols: '14' });
     await page.evaluate(async () => {
