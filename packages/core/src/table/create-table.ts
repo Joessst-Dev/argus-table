@@ -15,16 +15,22 @@ import {
 import { storeReactivityBindings } from '@tanstack/table-core/store-reactivity-bindings';
 import { moveColumn, normalizeOrder } from '../columns/column-order.js';
 import { resolveColumns, type ResolvedColumn } from '../columns/resolve-columns.js';
+import { distinctValues, rowPredicate } from '../filters/filter.js';
+import { filteredRowModel, setRowPredicate } from './filtered-row-model.js';
 import { sortedRowModel, valuesChanged } from './sorted-row-model.js';
 import type {
   CellContext,
   ColumnAlign,
   ColumnDef,
+  ColumnFilter,
+  ColumnFilterState,
   ColumnOrderState,
   ColumnPin,
   ColumnPinningState,
   ColumnSizingState,
   ColumnVisibilityState,
+  FilterKind,
+  FilterValue,
   PinnedRows,
   RowPin,
   SortState,
@@ -41,6 +47,9 @@ const features = tableFeatures({
   // columns itself (see `buildViews`), so they cost no bundle size.
   columnSizingFeature,
   rowSortingFeature,
+  // Our own filtering, without TanStack's filtering feature (see filtered-row-model.ts).
+  // TanStack's types tie this slot to that feature; at runtime the core row models read it.
+  ...({ filteredRowModel: filteredRowModel() } as object),
   // Our own: TanStack's is very slow in Firefox at scale (see sorted-row-model.ts).
   sortedRowModel: sortedRowModel(),
   // Registered by name so `sortFn: 'auto'` can pick one by value type.
@@ -104,6 +113,10 @@ export interface ColumnView<TData, TContent> {
   reorderable: boolean;
   pinnable: boolean;
   hideable: boolean;
+  /** The kind of filter users can set, or `undefined` when they can't filter the column. */
+  filter: FilterKind | undefined;
+  /** `true` when `columnFilters` has a filter for the column. */
+  filtered: boolean;
   align: ColumnAlign;
   sorted: SortDirection;
   header: ColumnDef<TData, TContent>['header'];
@@ -111,7 +124,7 @@ export interface ColumnView<TData, TContent> {
   hasAccessor: boolean;
 }
 
-/** A row of the current (sorted) row model. */
+/** A row of the current (filtered and sorted) row model. */
 export interface RowView<TData> {
   id: string;
   /** Index in the current row model, 0-based. */
@@ -157,6 +170,16 @@ export interface TableModelOptions<TData, TContent> {
   /** Visibility set at runtime, over the columns' own `hidden`; its owner is the caller. */
   columnVisibility?: ColumnVisibilityState | undefined;
   /**
+   * Column filters; its owner is the caller. Rows that fail one leave the row model.
+   * Remote rows aren't filtered: the source does it.
+   */
+  columnFilters?: ColumnFilterState | undefined;
+  /**
+   * Words to find in the shown columns' values as text, ignoring case: a row stays
+   * when each word is in one of its values. Remote rows aren't filtered.
+   */
+  quickFilter?: string | undefined;
+  /**
    * Measured widths of `width: 'auto'` columns, in px by id. Clamped to the column's
    * bounds; a resized width wins. Ids of other columns are ignored.
    */
@@ -187,7 +210,7 @@ export interface TableModel<TData, TContent> {
   readonly totalWidth: number;
   /** The row at an index of the current row model; `undefined` for a remote row not loaded yet. */
   rowAt(index: number): RowView<TData> | undefined;
-  /** The index of a row id in the current row model (after sorting), or `undefined`. */
+  /** The index of a row id in the current row model (after filtering and sorting), or `undefined`. */
   indexOf(rowId: string): number | undefined;
   /**
    * The ids of the rows that can be selected, in row order: every row of the row
@@ -240,6 +263,26 @@ export interface TableModel<TData, TContent> {
     hidden: boolean,
     base?: ColumnVisibilityState,
   ): ColumnVisibilityState | undefined;
+  /**
+   * The filter state after setting a column's filter, or clearing it with `undefined`,
+   * starting from `base` (default: the current `columnFilters`). `undefined` for an
+   * unknown column, setting a filter on a column without `filter`, or no change.
+   */
+  nextFilters(
+    columnId: string,
+    filter: ColumnFilter | undefined,
+    base?: ColumnFilterState,
+  ): ColumnFilterState | undefined;
+  /**
+   * The values a `'set'` filter on the column offers: its `filterOptions`, else (not for
+   * remote rows) the distinct values of the rows the other filters keep, sorted, at most
+   * `limit` of them (`truncated` when there are more). `undefined` for an unknown column,
+   * or remote rows without `filterOptions`.
+   */
+  filterValues(
+    columnId: string,
+    limit?: number,
+  ): { values: FilterValue[]; truncated: boolean } | undefined;
   /** Number of rows pinned to a side. */
   pinnedCount(side: RowPin): number;
   /**
@@ -287,6 +330,8 @@ function selectionView<TData, TContent>(pinEdge: boolean): ColumnView<TData, TCo
     reorderable: false,
     pinnable: false,
     hideable: false,
+    filter: undefined,
+    filtered: false,
     align: 'center',
     sorted: false,
     header: undefined,
@@ -409,6 +454,20 @@ export function createTableModel<TData, TContent>(
 
   const table: Table<Features, AnyRow> = constructTable(tableOptions());
 
+  // The row test of the filters, the quick filter and the shown columns (which the quick
+  // filter reads). Remote rows are filtered by their source.
+  const predicateFor = (except?: string) =>
+    options.remote
+      ? undefined
+      : rowPredicate(
+          byId,
+          options.columnFilters,
+          options.quickFilter,
+          resolved.filter((c) => c.hasAccessor && !hiddenOf(c)),
+          except,
+        );
+  setRowPredicate(table, predicateFor());
+
   const rows = () => table.getRowModel().rows;
   const pinned = (side: RowPin): readonly TData[] => options.pinnedRows?.[side] ?? [];
 
@@ -441,6 +500,8 @@ export function createTableModel<TData, TContent>(
       reorderable: def.reorderable,
       pinnable: def.pinnable,
       hideable: def.hideable,
+      filter: def.filter,
+      filtered: options.columnFilters?.[def.id] !== undefined,
       align: def.align,
       sorted: sort ? (sort.desc ? 'desc' : 'asc') : false,
       header: def.header,
@@ -534,9 +595,16 @@ export function createTableModel<TData, TContent>(
       ) {
         order = undefined;
       }
+      const refilter =
+        merged.columns !== options.columns ||
+        merged.columnFilters !== options.columnFilters ||
+        merged.quickFilter !== options.quickFilter ||
+        merged.columnVisibility !== options.columnVisibility ||
+        merged.remote !== options.remote;
       options = merged;
       views = undefined;
       allViews = undefined;
+      if (refilter) setRowPredicate(table, predicateFor());
       table.setOptions((prev) => ({ ...prev, ...tableOptions() }));
       if (reread.length && !options.remote) {
         // TanStack caches each value on its row by column id, and keeps rows
@@ -660,6 +728,33 @@ export function createTableModel<TData, TContent>(
       const othersShown = resolved.some((c) => c !== column && !hiddenOf(c, base));
       if (hidden && (!column.hideable || !othersShown)) return undefined;
       return { ...base, [columnId]: !hidden };
+    },
+
+    nextFilters(columnId, filter, base = options.columnFilters ?? {}) {
+      const column = byId.get(columnId);
+      if (!column) return undefined;
+      const current = base[columnId];
+      if (filter === undefined) {
+        if (current === undefined) return undefined;
+        const next = { ...base };
+        Reflect.deleteProperty(next, columnId);
+        return next;
+      }
+      if (column.filter === undefined) return undefined;
+      if (current && JSON.stringify(current) === JSON.stringify(filter)) return undefined;
+      return { ...base, [columnId]: filter };
+    },
+
+    filterValues(columnId, limit = 1000) {
+      const column = byId.get(columnId);
+      if (!column) return undefined;
+      if (column.filterOptions) return { values: [...column.filterOptions], truncated: false };
+      if (options.remote) return undefined;
+      const rows = table.getCoreRowModel().rows as unknown as Iterable<{
+        original: TData;
+        index: number;
+      }>;
+      return distinctValues(rows, column, predicateFor(columnId), limit);
     },
 
     pinnedCount(side) {

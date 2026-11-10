@@ -255,7 +255,7 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPl
           })
         : new Map<string, Compiled<T>>();
       state.compiled = compiled;
-      // The server sorts with `dataSource`, and it doesn't know the formulas.
+      // The server sorts and filters with `dataSource`, and it doesn't know the formulas.
       const remote = host.element.dataSource !== undefined;
       return defs.map((def) => {
         const c = compiled.get(def.id);
@@ -269,6 +269,7 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPl
           align: def.align ?? (numeric ? 'end' : undefined),
           header: marker || anchor ? headerFor(def, marker, anchor) : def.header,
           sortable: remote ? false : def.sortable,
+          filter: remote ? undefined : def.filter,
         };
       });
     },

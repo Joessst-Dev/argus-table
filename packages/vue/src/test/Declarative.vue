@@ -67,6 +67,14 @@ defineExpose({ sorting, clicked, table, refresh });
       @column-pin="(e) => e.detail.pin"
       @column-hide="(e) => e.detail.hidden"
     />
+    <ArgusTable
+      quick-filter="berlin"
+      @update:column-filters="(f) => f['total']?.kind"
+      @column-filter="(e) => e.detail.filter?.kind"
+    />
+    <ArgusColumn column-id="x" filter="set" :filter-options="['a', 1, null]" />
+    <!-- @vue-expect-error filter is 'text', 'number', 'date' or 'set' -->
+    <ArgusColumn column-id="x" filter="list" />
     <ArgusColumn column-id="x" hidden :pinnable="false" :hideable="false" />
     <ArgusTable :data="orders" :plugins="plugins" />
     <!-- @vue-expect-error a plugin needs a name -->

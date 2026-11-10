@@ -1,5 +1,5 @@
 import type { ArgusTable } from './argus-table.js';
-import type { ColumnDef, ColumnPin } from './types.js';
+import type { ColumnDef, ColumnFilter, ColumnPin, FilterKind, FilterValue } from './types.js';
 
 /**
  * An add-on for `<argus-table>`, set through its `plugins` property:
@@ -62,6 +62,13 @@ export interface ColumnInfo {
   width: number;
   /** The sort direction, if the table is sorted by this column. */
   sorted: 'asc' | 'desc' | undefined;
+  /**
+   * The kind of filter users can set (the column's `filter`), or `undefined` when they
+   * can't filter it. Optional, like any later addition.
+   */
+  filter?: FilterKind | undefined;
+  /** The column's filter in `columnFilters`, if it has one. */
+  filterValue?: ColumnFilter | undefined;
 }
 
 /**
@@ -104,6 +111,23 @@ export interface PluginHost<T = unknown> {
    * when hiding the last column shown.
    */
   setHidden?(columnId: string, hidden: boolean): void;
+  /**
+   * Sets a column's filter, or (`undefined`) clears it. Follows the `columnFilters`
+   * rules: when it is controlled, only `argus-column-filter` fires with the proposed
+   * filters. Does nothing without a change, or when setting a filter on a column
+   * without `filter`.
+   */
+  setFilter?(columnId: string, filter: ColumnFilter | undefined): void;
+  /**
+   * The values a `'set'` filter on the column can offer: its `filterOptions`, else the
+   * distinct values of the rows the other filters keep, sorted, at most `limit`
+   * (default 1000; `truncated` when there are more). `undefined` with a `dataSource`
+   * and no `filterOptions`, and for an unknown column.
+   */
+  filterValues?(
+    columnId: string,
+    limit?: number,
+  ): { values: FilterValue[]; truncated: boolean } | undefined;
   /** Moves focus to a column's header, after the next update. */
   focusHeader(columnId: string): void;
   /** Says something to screen readers through a polite live region. */

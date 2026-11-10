@@ -247,6 +247,26 @@ export const baseStyles = css`
       order: -1;
       margin-inline: 0 0.4em;
     }
+    /* A funnel: the column is filtered. */
+    [part~='filter-indicator'] {
+      flex: none;
+      inline-size: 0.7em;
+      block-size: 0.7em;
+      margin-inline-start: 0.35em;
+      background: var(--argus-filter-indicator-color, currentColor);
+      clip-path: polygon(0 0, 100% 0, 62% 48%, 62% 100%, 38% 82%, 38% 48%);
+    }
+    [data-align='end'] [part~='filter-indicator'] {
+      order: -2;
+      margin-inline: 0 0.35em;
+    }
+    @media (forced-colors: active) {
+      /* Backgrounds are forced to Canvas there, which would hide the funnel. */
+      [part~='filter-indicator'] {
+        forced-color-adjust: none;
+        background: CanvasText;
+      }
+    }
     /*
      * Pinned columns: sticky inside the scroll container, with offsets from the
      * table model. Logical insets make RTL work without extra rules.

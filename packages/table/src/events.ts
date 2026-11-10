@@ -1,5 +1,6 @@
 import type {
   CellClickDetail,
+  ColumnFilterDetail,
   ColumnHideDetail,
   ColumnPinDetail,
   ColumnReorderDetail,
@@ -29,6 +30,9 @@ export const COLUMN_PIN = 'argus-column-pin';
 /** Fired when a column was hidden or shown (uncontrolled), or with the proposed visibility (controlled). */
 export const COLUMN_HIDE = 'argus-column-hide';
 
+/** Fired when a column's filter was set, changed or cleared (uncontrolled), or with the proposed filters (controlled). */
+export const COLUMN_FILTER = 'argus-column-filter';
+
 /** Fired when a body row was clicked, after `argus-cell-click`. */
 export const ROW_CLICK = 'argus-row-click';
 
@@ -49,6 +53,7 @@ declare global {
     'argus-column-reorder': CustomEvent<ColumnReorderDetail>;
     'argus-column-pin': CustomEvent<ColumnPinDetail>;
     'argus-column-hide': CustomEvent<ColumnHideDetail>;
+    'argus-column-filter': CustomEvent<ColumnFilterDetail>;
     'argus-row-click': CustomEvent<RowClickDetail<unknown>>;
     'argus-cell-click': CustomEvent<CellClickDetail<unknown>>;
     'argus-load-error': CustomEvent<LoadErrorDetail>;

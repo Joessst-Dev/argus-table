@@ -5,6 +5,7 @@ import type {
   ArgusTable as ArgusTableElement,
   ArgusColumn as ArgusColumnElement,
   CellClickDetail,
+  ColumnFilterDetail,
   ColumnHideDetail,
   ColumnPinDetail,
   ColumnReorderDetail,
@@ -35,6 +36,8 @@ export type ArgusTableElementProps<T = unknown> = Partial<
     | 'columnOrder'
     | 'columnPinning'
     | 'columnVisibility'
+    | 'columnFilters'
+    | 'quickFilter'
     | 'selectionMode'
     | 'selectionCheckboxes'
     | 'selection'
@@ -64,6 +67,10 @@ export interface ArgusTableEventProps<T = unknown> {
   'onColumn-hide'?: (event: CustomEvent<ColumnHideDetail>) => void;
   /** `v-model:columnVisibility`: the new `columnVisibility` from `argus-column-hide`. */
   'onUpdate:columnVisibility'?: (value: ArgusTableElement<T>['columnVisibility']) => void;
+  /** `argus-column-filter`: A column's filter was set, changed or cleared, through a plugin such as the column menu. `detail: { columnId, filter, filters }`: `filter` is the column's new filter, or `undefined` when it was cleared; `filters` is the new state, or the proposed one when `columnFilters` is controlled. */
+  'onColumn-filter'?: (event: CustomEvent<ColumnFilterDetail>) => void;
+  /** `v-model:columnFilters`: the new `columnFilters` from `argus-column-filter`. */
+  'onUpdate:columnFilters'?: (value: ArgusTableElement<T>['columnFilters']) => void;
   /** `argus-cell-click`: A body or pinned-row cell was clicked, or Enter was pressed on it. `detail: { row, columnId, value, pinned? }`; `pinned` is `'top'` or `'bottom'` for a pinned row. Fires before `argus-row-click`. */
   'onCell-click'?: (event: CustomEvent<CellClickDetail<T>>) => void;
   /** `argus-row-click`: A body or pinned row was clicked, or Enter was pressed on one of its cells. `detail: { row, rowId, index, pinned? }`; for a pinned row, `index` is its index in its list. */
@@ -93,6 +100,8 @@ export interface ArgusTableEmit<T = unknown> {
   (event: 'update:columnPinning', value: ArgusTableElement<T>['columnPinning']): void;
   (event: 'column-hide', payload: CustomEvent<ColumnHideDetail>): void;
   (event: 'update:columnVisibility', value: ArgusTableElement<T>['columnVisibility']): void;
+  (event: 'column-filter', payload: CustomEvent<ColumnFilterDetail>): void;
+  (event: 'update:columnFilters', value: ArgusTableElement<T>['columnFilters']): void;
   (event: 'cell-click', payload: CustomEvent<CellClickDetail<T>>): void;
   (event: 'row-click', payload: CustomEvent<RowClickDetail<T>>): void;
   (event: 'range-change', payload: CustomEvent<RangeChangeDetail>): void;
@@ -143,6 +152,8 @@ export const ArgusTable = defineWrapper({
     'columnOrder',
     'columnPinning',
     'columnVisibility',
+    'columnFilters',
+    'quickFilter',
     'selectionMode',
     'selectionCheckboxes',
     'selection',
@@ -174,6 +185,11 @@ export const ArgusTable = defineWrapper({
       name: 'argus-column-hide',
       emit: 'column-hide',
       model: { property: 'columnVisibility', detailKey: 'visibility' },
+    },
+    {
+      name: 'argus-column-filter',
+      emit: 'column-filter',
+      model: { property: 'columnFilters', detailKey: 'filters' },
     },
     { name: 'argus-cell-click', emit: 'cell-click' },
     { name: 'argus-row-click', emit: 'row-click' },
@@ -212,6 +228,9 @@ export type ArgusColumnElementProps<T = unknown> = Partial<
     | 'sortable'
     | 'resizable'
     | 'reorderable'
+    | 'filter'
+    | 'filterFn'
+    | 'filterOptions'
   >
 >;
 
@@ -258,6 +277,9 @@ export const ArgusColumn = defineWrapper({
     'sortable',
     'resizable',
     'reorderable',
+    'filter',
+    'filterFn',
+    'filterOptions',
   ],
   booleans: ['pinnable', 'hideable', 'sortable', 'resizable', 'reorderable'],
   events: [],

@@ -201,3 +201,68 @@ export const PinAndHide: Story = {
     await waitFor(() => expect(headerOrder(table)).toEqual(start));
   },
 };
+
+const filterColumns = orderColumns.map((c) =>
+  c.id === 'customer'
+    ? { ...c, filter: 'text' as const }
+    : c.id === 'city' || c.id === 'status'
+      ? { ...c, filter: 'set' as const }
+      : c.id === 'total'
+        ? { ...c, filter: 'number' as const }
+        : c,
+);
+
+/** Rendered body rows' text in a column. */
+const columnTexts = (table: ArgusTable<Order>, id: string) =>
+  [...(table.shadowRoot?.querySelectorAll(`[part~="row"] [data-col="${id}"]`) ?? [])].map((cell) =>
+    cell.querySelector('slot')?.assignedElements()[0]?.textContent.trim(),
+  );
+
+/**
+ * Columns with a `filter` kind get Filter… in their menu: a small form for a `text`
+ * condition, a `number` or `date` comparison or range, or the values of a `set`
+ * (searchable, listed from the rows the other filters leave). Typed values apply as
+ * typing pauses, Enter or Done closes the form on its header, Escape closes it as
+ * it is, and Clear (or Clear filter in the menu) removes the column's filter. The
+ * form sets `columnFilters`; with it controlled, it only fires `argus-column-filter`.
+ * `headerMenu({ filter: false })` turns the items off.
+ */
+export const Filter: Story = {
+  render: () =>
+    html`<argus-table
+      style="block-size: 420px; inline-size: 720px"
+      .columns=${filterColumns}
+      .data=${data}
+      .plugins=${plugins}
+    ></argus-table>`,
+  play: async ({ canvasElement }) => {
+    const table = await tableIn(canvasElement);
+    await userEvent.click(buttonOf(table, 'city'));
+    await userEvent.click(item(await openMenu(table), 'Filter…'));
+    const form = await waitFor(() => {
+      const found = table.querySelector<HTMLElement>('.argus-header-filter:popover-open');
+      if (!found) throw new Error('form not open');
+      return found;
+    });
+    const oslo = [...form.querySelectorAll('.argus-header-filter-values label')].find(
+      (l) => l.textContent.trim() === 'Oslo',
+    );
+    if (!oslo) throw new Error('no Oslo');
+    // Only Oslo: uncheck all, then check it.
+    await userEvent.click(form.querySelector('.argus-header-filter-all input') ?? form);
+    await userEvent.click(oslo);
+    await waitFor(() =>
+      expect(table.columnFilters).toEqual({ city: { kind: 'set', values: ['Oslo'] } }),
+    );
+    await waitFor(() => expect(new Set(columnTexts(table, 'city'))).toEqual(new Set(['Oslo'])));
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() =>
+      expect(headerOf(table, 'city').part.contains('header-cell-filtered')).toBe(true),
+    );
+
+    // Back to how the story started.
+    await userEvent.click(buttonOf(table, 'city'));
+    await userEvent.click(item(await openMenu(table), 'Clear filter'));
+    await waitFor(() => expect(table.columnFilters).toEqual({}));
+  },
+};

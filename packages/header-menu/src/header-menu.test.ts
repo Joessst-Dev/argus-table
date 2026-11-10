@@ -609,3 +609,229 @@ describe('pin and hide items', () => {
     ]);
   });
 });
+
+describe('filter items and form', () => {
+  const filterColumns: ColumnDef<Row>[] = [
+    { id: 'name', header: 'Name', accessor: 'name', width: 160, sortable: true, filter: 'text' },
+    { id: 'age', header: 'Age', accessor: 'age', width: 120, filter: 'number' },
+    { id: 'note', header: 'Note', accessor: 'note', width: 120, filter: 'set' },
+  ];
+  const labels = (menu: HTMLElement) => items(menu).map((i) => i.textContent.trim());
+  const item = (menu: HTMLElement, label: string) => {
+    const found = items(menu).find((i) => i.textContent.trim() === label);
+    if (!found) throw new Error(`no item ${label}`);
+    return found;
+  };
+  const formOf = (el: ArgusTable<Row>) =>
+    el.querySelector<HTMLElement>('.argus-header-filter:popover-open');
+  /** Opens a column's filter form from its menu. */
+  async function openForm(el: ArgusTable<Row>, id: string): Promise<HTMLElement> {
+    buttonOf(el, id)?.click();
+    item(await opened(el), 'Filter…').click();
+    await settle(el);
+    const form = formOf(el);
+    if (!form) throw new Error('form not open');
+    return form;
+  }
+  const labelled = (form: HTMLElement, label: string) => {
+    const found = [...form.querySelectorAll('label')].find((l) =>
+      l.textContent.trim().startsWith(label),
+    );
+    if (!found) throw new Error(`no field ${label}`);
+    return found;
+  };
+  const field = (form: HTMLElement, label: string): HTMLInputElement => {
+    const control = labelled(form, label).querySelector('input');
+    if (!control) throw new Error(`no input ${label}`);
+    return control;
+  };
+  const select = (form: HTMLElement, label: string): HTMLSelectElement => {
+    const control = labelled(form, label).querySelector('select');
+    if (!control) throw new Error(`no select ${label}`);
+    return control;
+  };
+  const type = (input: HTMLInputElement, value: string) => {
+    input.value = value;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+  const choose = (select: HTMLSelectElement, value: string) => {
+    select.value = value;
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  };
+  const checks = (form: HTMLElement) =>
+    [...form.querySelectorAll<HTMLLabelElement>('.argus-header-filter-values label')].map((l) => [
+      l.textContent.trim(),
+      l.querySelector('input')?.checked,
+    ]);
+  const announced = async () => {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    return document.querySelector('[data-argus-announcer]')?.textContent;
+  };
+
+  test('Filter… follows the sort items on columns with a filter kind; Clear filter once filtered', async () => {
+    const el = await fixture({
+      columns: filterColumns,
+      columnFilters: { age: { kind: 'number', op: 'gt', value: 15 } },
+    });
+    // Uncontrolled from here on, keeping the filter.
+    el.columnFilters = undefined;
+    buttonOf(el, 'name')?.click();
+    let menu = await opened(el);
+    expect(labels(menu)).toEqual([
+      'Sort ascending',
+      'Sort descending',
+      'Unsorted',
+      'Filter…',
+      'Fit width',
+    ]);
+    expect(item(menu, 'Filter…').getAttribute('aria-haspopup')).toBe('dialog');
+    key(focused(), 'Escape');
+    await settle(el);
+    buttonOf(el, 'age')?.click();
+    menu = await opened(el);
+    expect(labels(menu)).toEqual(['Filter…', 'Clear filter', 'Fit width']);
+    item(menu, 'Clear filter').click();
+    await settle(el);
+    expect(el.columnFilters).toEqual({});
+    expect(el.shadowRoot?.activeElement).toBe(headerOf(el, 'age'));
+    // The table says how many rows the filters leave.
+    expect(await announced()).toBe('3 rows');
+  });
+
+  test('leaves Filter… out without a filter kind, with filter: false, and for a remote set without options', async () => {
+    const el = await fixture({
+      plugins: [headerMenu<Row>({ pin: false, hide: false, filter: false })],
+      columns: filterColumns,
+    });
+    buttonOf(el, 'name')?.click();
+    expect(labels(await opened(el))).not.toContain('Filter…');
+    key(focused(), 'Escape');
+
+    const remote = await fixture({
+      columns: filterColumns.map((c) => (c.id === 'note' ? { ...c, resizable: false } : c)),
+      data: undefined,
+      dataSource: { getRows: () => Promise.resolve({ rows: data, total: 3 }) },
+    });
+    // The note column has nothing else in the menu.
+    expect(buttonOf(remote, 'note') ?? null).toBeNull();
+    remote.columns = filterColumns.map((c) =>
+      c.id === 'note' ? { ...c, resizable: false, filterOptions: ['x', 'y'] } : c,
+    );
+    await settle(remote);
+    expect(buttonOf(remote, 'note')).toBeInstanceOf(HTMLButtonElement);
+  });
+
+  test('a text filter applies as you type, and Enter closes the form on its header', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const el = await fixture({ columns: filterColumns });
+      const form = await openForm(el, 'name');
+      expect(form.getAttribute('role')).toBe('dialog');
+      expect(form.getAttribute('aria-label')).toBe('Filter Name');
+      // Focus starts on the condition.
+      expect(document.activeElement).toBe(select(form, 'Condition'));
+      const value = field(form, 'Value');
+      type(value, 'n');
+      await settle(el);
+      expect(el.columnFilters).toEqual({});
+      vi.advanceTimersByTime(250);
+      await settle(el);
+      expect(el.columnFilters).toEqual({ name: { kind: 'text', op: 'contains', value: 'n' } });
+      expect(names(el)).toEqual(['Ann']);
+
+      type(value, 'b');
+      value.focus();
+      key(value, 'Enter');
+      await settle(el);
+      // Applied at once, not after the debounce.
+      expect(names(el)).toEqual(['Bob']);
+      expect(formOf(el)).toBeNull();
+      expect(el.shadowRoot?.activeElement).toBe(headerOf(el, 'name'));
+      expect(headerOf(el, 'name').part.contains('header-cell-filtered')).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test('a number filter takes a range, and opens with the filter it has', async () => {
+    const el = await fixture({ columns: filterColumns });
+    let form = await openForm(el, 'age');
+    choose(select(form, 'Condition'), 'between');
+    await settle(el);
+    type(field(form, 'From'), '15');
+    type(field(form, 'To'), '30');
+    form.querySelectorAll<HTMLButtonElement>('.argus-header-filter-button')[1]?.click();
+    await settle(el);
+    expect(el.columnFilters).toEqual({ age: { kind: 'number', op: 'between', value: 15, to: 30 } });
+    expect(names(el)).toEqual(['Ann', 'Cid']);
+
+    form = await openForm(el, 'age');
+    expect(select(form, 'Condition').value).toBe('between');
+    expect(field(form, 'From').value).toBe('15');
+    expect(field(form, 'To').value).toBe('30');
+    // Escape closes it as it is.
+    key(document.activeElement ?? form, 'Escape');
+    await settle(el);
+    expect(formOf(el)).toBeNull();
+    expect(el.shadowRoot?.activeElement).toBe(headerOf(el, 'age'));
+    expect(el.columnFilters).toEqual({ age: { kind: 'number', op: 'between', value: 15, to: 30 } });
+  });
+
+  test('a set filter lists the values the other filters leave, and checks them off', async () => {
+    const el = await fixture({
+      columns: filterColumns,
+      columnFilters: { age: { kind: 'number', op: 'ge', value: 20 } },
+    });
+    el.columnFilters = undefined;
+    const form = await openForm(el, 'note');
+    // Bob (note y) is filtered out by age.
+    expect(checks(form)).toEqual([
+      ['x', true],
+      ['z', true],
+    ]);
+    const boxes = form.querySelectorAll<HTMLInputElement>('.argus-header-filter-values input');
+    boxes[1]?.click();
+    await settle(el);
+    expect(el.columnFilters.note).toEqual({ kind: 'set', values: ['x'] });
+    expect(names(el)).toEqual(['Ann']);
+    const all = field(form, 'Select all');
+    expect(all.indeterminate).toBe(true);
+
+    // Select all clears the column's filter.
+    all.click();
+    await settle(el);
+    expect(el.columnFilters.note).toBeUndefined();
+
+    type(field(form, 'Search values'), 'Z');
+    await settle(el);
+    expect(checks(form)).toEqual([['z', true]]);
+    expect(field(form, 'Select all shown')).toBeInstanceOf(HTMLInputElement);
+  });
+
+  test('Clear clears the filter and closes; controlled filters are only proposed', async () => {
+    const el = await fixture({
+      columns: filterColumns,
+      columnFilters: { name: { kind: 'text', op: 'equals', value: 'ann' } },
+    });
+    const events: unknown[] = [];
+    el.addEventListener('argus-column-filter', (e) => events.push(e.detail));
+    const form = await openForm(el, 'name');
+    expect(field(form, 'Value').value).toBe('ann');
+    form.querySelector<HTMLButtonElement>('.argus-header-filter-button')?.click();
+    await settle(el);
+    expect(events).toEqual([{ columnId: 'name', filter: undefined, filters: {} }]);
+    // Controlled: nothing changed until the host sets it.
+    expect(el.columnFilters).toEqual({ name: { kind: 'text', op: 'equals', value: 'ann' } });
+    expect(formOf(el)).toBeNull();
+    expect(el.shadowRoot?.activeElement).toBe(headerOf(el, 'name'));
+  });
+
+  test('a press outside closes the form without moving focus back', async () => {
+    const el = await fixture({ columns: filterColumns });
+    const form = await openForm(el, 'age');
+    form.hidePopover();
+    await settle(el);
+    expect(formOf(el)).toBeNull();
+    expect(el.querySelector('.argus-header-filter')).toBeNull();
+  });
+});

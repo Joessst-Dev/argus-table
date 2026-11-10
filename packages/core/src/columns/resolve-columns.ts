@@ -1,4 +1,4 @@
-import type { ColumnAlign, ColumnDef, ColumnPin } from '../types.js';
+import type { ColumnAlign, ColumnDef, ColumnPin, FilterKind } from '../types.js';
 
 /** Width used when a column sets none. */
 export const DEFAULT_WIDTH = 150;
@@ -41,8 +41,14 @@ export interface ResolvedColumn<TData, TContent> {
   reorderable: boolean;
   pinnable: boolean;
   hideable: boolean;
+  /** The kind of filter users can set, or `undefined` when they can't filter the column. */
+  filter: FilterKind | undefined;
+  filterFn: ColumnDef<TData, TContent>['filterFn'];
+  filterOptions: ColumnDef<TData, TContent>['filterOptions'];
   align: ColumnAlign;
 }
+
+const FILTER_KINDS: readonly unknown[] = ['text', 'number', 'date', 'set'] satisfies FilterKind[];
 
 const pathCache = new Map<string, readonly string[]>();
 
@@ -130,6 +136,9 @@ export function resolveColumns<TData, TContent>(
       reorderable: def.reorderable !== false,
       pinnable: def.pinnable !== false,
       hideable: def.hideable !== false,
+      filter: FILTER_KINDS.includes(def.filter) ? def.filter : undefined,
+      filterFn: def.filterFn,
+      filterOptions: def.filterOptions,
       align: def.align ?? 'start',
     };
   });
