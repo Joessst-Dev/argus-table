@@ -46,7 +46,8 @@ const CSS = `
     inline-size: 1em;
     block-size: 1em;
   }
-  .argus-header-menu {
+  .argus-header-menu,
+  .argus-header-filter {
     position: fixed;
     inset: auto;
     margin: 0;
@@ -63,6 +64,71 @@ const CSS = `
     font-weight: normal;
     text-align: start;
     white-space: nowrap;
+  }
+  .argus-header-filter {
+    display: grid;
+    gap: 8px;
+    padding: 10px 12px;
+    inline-size: 15em;
+    white-space: normal;
+  }
+  .argus-header-filter-field {
+    display: grid;
+    gap: 2px;
+    font-size: 0.85em;
+  }
+  .argus-header-filter :is(input:not([type='checkbox']), select, button) {
+    box-sizing: border-box;
+    min-inline-size: 0;
+    padding: 4px 6px;
+    border: var(--argus-border-width, 1px) solid
+      var(--argus-border-color, color-mix(in srgb, currentColor 30%, transparent));
+    border-radius: 4px;
+    background: var(--argus-menu-bg, var(--argus-bg, Canvas));
+    color: inherit;
+    font: inherit;
+    font-size: 1rem;
+  }
+  .argus-header-filter :is(input, select, button):focus-visible {
+    outline: var(--argus-focus-ring, 2px solid Highlight);
+    outline-offset: 1px;
+  }
+  .argus-header-filter-values {
+    display: grid;
+    max-block-size: 14em;
+    overflow: auto;
+  }
+  .argus-header-filter-check {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+    padding-block: 2px;
+    overflow-wrap: anywhere;
+  }
+  .argus-header-filter-check input {
+    flex: none;
+    margin: 0;
+  }
+  .argus-header-filter-all {
+    padding-block-end: 4px;
+    border-block-end: 1px solid
+      var(--argus-border-color, color-mix(in srgb, currentColor 20%, transparent));
+  }
+  .argus-header-filter-note {
+    margin: 0;
+    font-size: 0.85em;
+    opacity: 0.75;
+  }
+  .argus-header-filter-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+  .argus-header-filter-button {
+    cursor: pointer;
+  }
+  .argus-header-filter-button:hover {
+    background: var(--argus-menu-item-active-bg, color-mix(in srgb, currentColor 10%, transparent));
   }
   .argus-header-menu-item {
     display: flex;
@@ -121,7 +187,8 @@ const CSS = `
     background: var(--argus-border-color, color-mix(in srgb, currentColor 20%, transparent));
   }
   @media (forced-colors: active) {
-    .argus-header-menu {
+    .argus-header-menu,
+    .argus-header-filter {
       border-color: CanvasText;
     }
     .argus-header-menu-item:focus,

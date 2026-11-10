@@ -7,6 +7,13 @@ import type {
   ColumnPin,
   PluginHost,
 } from 'argus-table';
+import {
+  FILTER_DEBOUNCE_MS,
+  filterOf,
+  renderForm,
+  startForm,
+  type FilterForm,
+} from './filter-form.js';
 import { adoptStyles } from './styles.js';
 
 /** Which column's menu is open in one table, and the table's API. */
@@ -20,6 +27,8 @@ interface TableState<T> {
   /** Each column's text header (or its id), for items and announcements about it, hidden ones too. */
   labels: Map<string, string>;
   options: Required<HeaderMenuOptions>;
+  /** The open filter form, if any (never at the same time as a menu). */
+  form: FilterForm | undefined;
 }
 
 /** What `headerMenu()` puts in the menu besides sorting and fitting widths. */
@@ -31,6 +40,11 @@ export interface HeaderMenuOptions {
    * group to show them again. Default: `true`.
    */
   hide?: boolean;
+  /**
+   * Filter… for columns with a `filter` kind, which opens a form to set the column's
+   * filter, and Clear filter on a filtered column. Default: `true`.
+   */
+  filter?: boolean;
 }
 
 let tables = 0;
@@ -105,7 +119,11 @@ const ICON = html`<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
  */
 export function headerMenu<T = unknown>(options: HeaderMenuOptions = {}): ArgusPlugin<T> {
   const states = new WeakMap<HTMLElement, TableState<T>>();
-  const resolved = { pin: options.pin !== false, hide: options.hide !== false };
+  const resolved = {
+    pin: options.pin !== false,
+    hide: options.hide !== false,
+    filter: options.filter !== false,
+  };
 
   const stateOf = (host: PluginHost<T>): TableState<T> => {
     let state = states.get(host.element);
@@ -118,6 +136,7 @@ export function headerMenu<T = unknown>(options: HeaderMenuOptions = {}): ArgusP
         ids: `argus-hm-${String(tables)}`,
         labels: new Map(),
         options: resolved,
+        form: undefined,
       };
       states.set(host.element, state);
     }
@@ -141,6 +160,8 @@ export function headerMenu<T = unknown>(options: HeaderMenuOptions = {}): ArgusP
       return () => {
         host.element.removeEventListener('contextmenu', onContextMenu);
         state.open = undefined;
+        clearTimeout(state.form?.timer);
+        state.form = undefined;
       };
     },
 
@@ -193,6 +214,20 @@ const labelOf = <T>(state: TableState<T>, id: string) => state.labels.get(id) ??
 const canPin = <T>(state: TableState<T>, column: ColumnInfo) =>
   state.options.pin && column.pinnable && state.host.setPin !== undefined;
 
+/**
+ * Whether the menu can filter this column: it allows it, the column has a filter kind,
+ * and for a set filter the table can list the values (with a `dataSource`, only from
+ * `filterOptions`).
+ */
+const canFilter = <T>(state: TableState<T>, column: ColumnInfo) =>
+  state.options.filter &&
+  column.filter !== undefined &&
+  state.host.setFilter !== undefined &&
+  (column.filter !== 'set' ||
+    (state.host.filterValues !== undefined &&
+      (state.host.element.dataSource === undefined ||
+        state.host.filterValues(column.id) !== undefined)));
+
 /** The columns shown and hidden, when the menu hides and shows columns. */
 function visibility<T>(state: TableState<T>): { shown: ColumnInfo[]; hidden: ColumnInfo[] } {
   const { host } = state;
@@ -212,7 +247,9 @@ const canHide = (column: ColumnInfo, shown: readonly ColumnInfo[]) =>
  */
 function hasMenu<T>(state: TableState<T>, column: ColumnInfo | undefined): column is ColumnInfo {
   if (column === undefined) return false;
-  if (column.sortable || column.resizable || canPin(state, column)) return true;
+  if (column.sortable || column.resizable || canPin(state, column) || canFilter(state, column)) {
+    return true;
+  }
   const { shown, hidden } = visibility(state);
   if (hidden.length > 0 || canHide(column, shown)) return true;
   return contributions(state.host, column.id).length > 0;
@@ -248,7 +285,9 @@ function header<T>(state: TableState<T>, def: ColumnDef<T>, labelId: string): Ce
       }}
     >
       ${ICON}</button
-    >${isOpen ? menu(state, column, labelId, menuId) : nothing}</span
+    >${isOpen ? menu(state, column, labelId, menuId) : nothing}${
+      state.form?.columnId === def.id ? filterForm(state, state.form, labelId) : nothing
+    }</span
   >`;
 }
 
@@ -297,6 +336,36 @@ function menu<T>(
             ${item.label}
           </button>`,
       )
+    : undefined;
+  const filterItems = canFilter(state, column)
+    ? html`<button
+          class="argus-header-menu-item"
+          type="button"
+          role="menuitem"
+          tabindex="-1"
+          aria-haspopup="dialog"
+          @click=${() => {
+            close(state, undefined);
+            void openFilter(state, id);
+          }}
+        >
+          Filter…</button
+        >${
+          column.filterValue
+            ? html`<button
+                class="argus-header-menu-item"
+                type="button"
+                role="menuitem"
+                tabindex="-1"
+                @click=${() => {
+                  close(state, id);
+                  clearFilter(state, id);
+                }}
+              >
+                Clear filter
+              </button>`
+            : nothing
+        }`
     : undefined;
   const { shown, hidden } = visibility(state);
   const hide = canHide(column, shown)
@@ -400,6 +469,7 @@ function menu<T>(
   >
     ${[
       column.sortable ? sortItems : undefined,
+      filterItems,
       pinItems,
       column.resizable ? fit : undefined,
       hide,
@@ -411,6 +481,67 @@ function menu<T>(
   </div>`;
 }
 
+/** The open filter form, wired to the table. */
+function filterForm<T>(state: TableState<T>, form: FilterForm, labelId: string): TemplateResult {
+  const { host } = state;
+  const apply = () => {
+    clearTimeout(form.timer);
+    form.timer = undefined;
+    // A form that was closed meanwhile applied what it had when it closed.
+    if (state.form !== form) return;
+    host.setFilter?.(form.columnId, filterOf(form));
+  };
+  return renderForm(form, {
+    label: labelOf(state, form.columnId),
+    id: `${labelId}-filter`,
+    apply,
+    applySoon: () => {
+      clearTimeout(form.timer);
+      form.timer = setTimeout(apply, FILTER_DEBOUNCE_MS);
+    },
+    rerender: () => {
+      host.requestUpdate();
+    },
+    close: (focusHeader) => {
+      if (state.form !== form) return;
+      // A typed change still waiting is applied, not lost.
+      if (form.timer !== undefined) apply();
+      state.form = undefined;
+      if (focusHeader) host.focusHeader(form.columnId);
+      else host.requestUpdate();
+    },
+    clear: () => {
+      if (state.form !== form) return;
+      clearTimeout(form.timer);
+      state.form = undefined;
+      clearFilter(state, form.columnId);
+      host.focusHeader(form.columnId);
+    },
+  });
+}
+
+/** Clears a column's filter. The table announces the rows it leaves. */
+function clearFilter<T>(state: TableState<T>, columnId: string): void {
+  state.host.setFilter?.(columnId, undefined);
+}
+
+/** Opens a column's filter form under its menu button and focuses its first field. */
+async function openFilter<T>(state: TableState<T>, columnId: string): Promise<void> {
+  const column = state.host.column(columnId);
+  const form = column && startForm(state.host, column);
+  if (!form) return;
+  state.form = form;
+  state.host.requestUpdate();
+  await state.host.element.updateComplete;
+  const popover = state.host.element.querySelector<HTMLElement>(
+    `.argus-header-filter[data-column="${CSS.escape(columnId)}"]`,
+  );
+  if (!popover || state.form !== form) return;
+  if (!popover.matches(':popover-open')) popover.showPopover();
+  follow(() => state.form === form, popover);
+  popover.querySelector<HTMLElement>('input, select')?.focus();
+}
+
 /** Opens a column's menu, places it under its button and focuses its checked (or first) item. */
 async function open<T>(state: TableState<T>, columnId: string): Promise<void> {
   state.open = columnId;
@@ -419,7 +550,7 @@ async function open<T>(state: TableState<T>, columnId: string): Promise<void> {
   const popover = menuOf(state, columnId);
   if (!popover || state.open !== columnId) return;
   if (!popover.matches(':popover-open')) popover.showPopover();
-  follow(state, columnId, popover);
+  follow(() => state.open === columnId, popover);
   const items = itemsOf(popover);
   // The sort the column has, else the first item.
   const checked = items.find(
@@ -503,14 +634,14 @@ const itemsOf = (popover: HTMLElement) => [
 ];
 
 /**
- * Keeps the menu under its button while it is open: the table scrolls inside
- * its own shadow root, where scroll events don't reach the page. Once a frame,
- * for one menu at a time.
+ * Keeps a menu or filter form under its column's menu button while it is open: the
+ * table scrolls inside its own shadow root, where scroll events don't reach the page.
+ * Once a frame, for one popover at a time.
  */
-function follow<T>(state: TableState<T>, columnId: string, popover: HTMLElement): void {
-  const button = popover.previousElementSibling;
+function follow(isOpen: () => boolean, popover: HTMLElement): void {
+  const button = popover.parentElement?.querySelector('.argus-header-menu-button');
   const step = () => {
-    if (state.open !== columnId || !popover.isConnected || !(button instanceof HTMLElement)) return;
+    if (!isOpen() || !popover.isConnected || !(button instanceof HTMLElement)) return;
     place(popover, button);
     requestAnimationFrame(step);
   };
