@@ -3,6 +3,7 @@
 // outputs carry the element's types.
 import { Component, signal } from '@angular/core';
 import {
+  ARGUS_TABLE,
   ArgusColumnComponent,
   ArgusTableComponent,
   type ArgusPlugin,
@@ -19,7 +20,7 @@ import { orders, type Order } from './data.js';
 
 @Component({
   selector: 'argus-types',
-  imports: [ArgusTableComponent, ArgusColumnComponent],
+  imports: [ArgusTableComponent, ArgusColumnComponent, ARGUS_TABLE],
   template: `
     <argus-table
       aria-label="Orders"
@@ -53,6 +54,19 @@ import { orders, type Order } from './data.js';
       <argus-column column-id="status" filter="set" [filterOptions]="['open', 'paid']" />
     </argus-table>
     <argus-table [data]="rows()" />
+    <argus-table [data]="orders">
+      <!-- With argusCellOf, let-row has the row type. -->
+      <ng-template
+        argusCell="total"
+        [argusCellOf]="orders"
+        let-row
+        let-value="value"
+        let-id="rowId"
+      >
+        {{ row.total.toFixed(2) }} {{ value }} {{ id.length }}
+      </ng-template>
+      <ng-template argusHeader="total" let-column>{{ column.toUpperCase() }}</ng-template>
+    </argus-table>
     <argus-table [data]="orders" [plugins]="plugins" />
   `,
 })

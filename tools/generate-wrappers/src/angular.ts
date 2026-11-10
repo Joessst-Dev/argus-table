@@ -19,6 +19,27 @@ function attributeStrings(p: ElementProperty): string {
 
 const pascal = (camel: string) => camel.charAt(0).toUpperCase() + camel.slice(1);
 
+/**
+ * Inputs typed for Angular content (`argusTemplate()` in `header` and `cell`), and
+ * `contentRenderer`, which the component sets itself and leaves out of the inputs.
+ * Types from `content.ts`.
+ */
+const CONTENT_INPUTS: Readonly<Record<string, string | null>> = {
+  columns: 'readonly AngularColumnDef<T>[]',
+  header: 'AngularCellContent | (() => AngularCellContent)',
+  cell: '(row: T, context: CellContext<T>) => AngularCellContent',
+  contentRenderer: null,
+};
+
+/** A content input's type; the row type is `unknown` for an element that isn't generic. */
+function typeFor(property: string, generic: boolean): string {
+  const type = CONTENT_INPUTS[property] ?? 'unknown';
+  return generic ? type : type.replace(/\bT\b/g, 'unknown');
+}
+
+/** Whether an element renders content: its component then extends `ArgusTableBase`. */
+const rendersContent = (el: ElementInfo) => el.properties.some((p) => p.name === 'contentRenderer');
+
 function component(el: ElementInfo): string {
   const name = `${el.className}Component`;
   const element = `${el.className}Element`;
@@ -26,14 +47,26 @@ function component(el: ElementInfo): string {
   const ta = el.generic ? '<T>' : '';
   const modelOf = (event: string) => el.models.find((m) => m.event === event);
 
-  const inputs = el.properties.map((p) => {
-    const attribute = p.attribute === undefined ? 'undefined' : `'${p.attribute}'`;
-    return `
+  const content = rendersContent(el);
+  const inputs = el.properties
+    .filter((p) => CONTENT_INPUTS[p.name] !== null)
+    .map((p) => {
+      const attribute = p.attribute === undefined ? 'undefined' : `'${p.attribute}'`;
+      const type =
+        typeof CONTENT_INPUTS[p.name] === 'string'
+          ? `(${typeFor(p.name, el.generic)})`
+          : `${element}${ta}['${p.name}']${attributeStrings(p)}`;
+      // The base puts its template plugin before the user's plugins.
+      const body =
+        content && p.name === 'plugins'
+          ? 'this.setPlugins(value);'
+          : `setProperty(this.element, '${p.name}', ${attribute}, value);`;
+      return `
   /** ${doc(p.description)} */
-  @Input() set ${p.name}(value: ${element}${ta}['${p.name}']${attributeStrings(p)} | null | undefined) {
-    setProperty(this.element, '${p.name}', ${attribute}, value);
+  @Input() set ${p.name}(value: ${type} | null | undefined) {
+    ${body}
   }`;
-  });
+    });
 
   const outputs = el.events.flatMap((e) => {
     const lines = [
@@ -87,9 +120,13 @@ ${el.events.map((e) => `    '(${e.name})': 'handle${pascal(e.angular)}($event)',
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,${host}
 })
-export class ${name}${tp} {
+export class ${name}${tp}${content ? ` extends ArgusTableBase${ta}` : ''} {${
+    content
+      ? ''
+      : `
   /** The \`<${el.tagName}>\` element. */
-  readonly element: ${element}${ta} = inject<ElementRef<${element}${ta}>>(ElementRef).nativeElement;
+  readonly element: ${element}${ta} = inject<ElementRef<${element}${ta}>>(ElementRef).nativeElement;`
+  }
 ${inputs.join('\n')}
 ${outputs.join('\n')}
 ${methods.join('\n')}
@@ -101,7 +138,20 @@ ${handlers.join('\n')}
 /** The whole generated module, unformatted. */
 export function emitAngular(elements: readonly ElementInfo[]): string {
   const classes = elements.map((el) => `${el.className} as ${el.className}Element`);
-  const types = [...classes, ...eventTypes(elements)].join(', ');
+  const usesContent = elements.some((el) =>
+    el.properties.some((p) => typeof CONTENT_INPUTS[p.name] === 'string'),
+  );
+  const named = eventTypes(elements);
+  if (usesContent && !named.includes('CellContext')) named.push('CellContext');
+  named.sort();
+  const types = [...classes, ...named].join(', ');
+  const contentNames = [
+    ...(elements.some(rendersContent) ? ['ArgusTableBase'] : []),
+    ...(usesContent ? ['type AngularCellContent', 'type AngularColumnDef'] : []),
+  ];
+  const contentImport = contentNames.length
+    ? `import { ${contentNames.join(', ')} } from '../content.js';\n`
+    : '';
   const hasEvents = elements.some((el) => el.events.length > 0);
   const core = [
     'ChangeDetectionStrategy',
@@ -117,6 +167,6 @@ export function emitAngular(elements: readonly ElementInfo[]): string {
   return `${header('angular')}
 import { ${core} } from '@angular/core';
 import type { ${types} } from 'argus-table';
-import { setProperty } from '../set-property.js';
+${contentImport}import { setProperty } from '../set-property.js';
 ${elements.map(component).join('')}`;
 }

@@ -63,8 +63,34 @@ Add `@import '@argus-table/themes/default.css';` to your global styles for the d
 
 - **Inputs** set the element's properties: `columns`, `data`, `dataSource`, `pinnedRows`, `getRowId`, `rowHeight`, `density`, `overscan`, `virtualizeColumns`, `sorting`, `columnSizing`, `columnOrder`, `selectionMode`, `selectionCheckboxes`, `selection` and `plugins`. Other attributes (`aria-label`, `class`, `style`, …) stay on the element. `null`, as from the `async` pipe, means unset.
 - **Outputs** emit the element's `CustomEvent`: `sortChange`, `columnResize`, `columnReorder`, `cellClick`, `rowClick`, `rangeChange` and `loadError`. In `(rowClick)`, `$event.detail.row` has your row type. The details are in the [`argus-table` README](https://www.npmjs.com/package/argus-table).
-- **Cells:** a column's `cell` function returns a string, a number, a DOM node or a Lit template. Angular templates in cells are planned.
+- **Cells and headers** can be Angular templates: `<ng-template argusCell="<column id>">` and `argusHeader` inside `<argus-table>`, or `argusTemplate()` from a `cell` function. See [Angular templates in cells](#angular-templates-in-cells).
 - **Height:** the table virtualizes its rows, so it needs a bounded height. Its default is 400 px.
+
+## Angular templates in cells
+
+Give a column its cells or header with a template inside the table, named by column id:
+
+```ts
+@Component({
+  imports: [ARGUS_TABLE, StatusBadge],
+  template: `
+    <argus-table [columns]="columns" [data]="orders()">
+      <ng-template argusCell="status" [argusCellOf]="orders()" let-row let-value="value">
+        <app-status-badge [status]="value" [order]="row.id" />
+      </ng-template>
+      <ng-template argusHeader="total" let-column>Total <app-info-tip [topic]="column" /></ng-template>
+    </argus-table>
+  `,
+})
+```
+
+- `argusCell` templates get the row as `let-row` and `value`, `rowId`, `index`, `columnId` and `pinned` from the context. With `[argusCellOf]="rows"`, `row` has your row type in strict templates. `argusHeader` templates get the column id.
+- They work for `[columns]` arrays and `<argus-column>` children alike, and a template that goes away (`@if`) gives the column back its own content.
+- From a `cell` function, return `argusTemplate(templateRef, context)`: `cell: (row) => argusTemplate(this.badge, { $implicit: row })`.
+- The views keep your component's bindings and DI. Hold the state they read in signals (as zoneless apps do), so changes reach the cells.
+- Cells are pooled: as the table scrolls, a cell shows another row and its view **gets a new context instead of being re-created**. Keep per-row state in your data (or keyed by `rowId`), not in a cell component's own fields.
+- Template content renders before the browser paints and before `width: 'auto'` measures. The templates reach the columns as the table's first plugin, so `headerMenu()` and `formulas()` wrap templated headers as usual.
+- `ARGUS_TABLE` holds the table and column components and both directives, for `imports`.
 
 ## Two-way binding
 
