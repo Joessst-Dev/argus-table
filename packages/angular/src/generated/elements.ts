@@ -155,6 +155,11 @@ export class ArgusTableComponent<T = unknown> {
     setProperty(this.element, 'selection', undefined, value);
   }
 
+  /** Renders header and cell content the table can't render itself, such as React elements, Vue VNodes or Angular templates: `{ render(target, content), release(target), flush?() }`. A `header` or `cell` that returns anything other than a string, a number, a DOM node or a Lit template hands it to the renderer, with a target element the table keeps while the cell is reused for other rows. The framework wrappers set it; set it yourself only for another framework. */
+  @Input() set contentRenderer(value: ArgusTableElement<T>['contentRenderer'] | null | undefined) {
+    setProperty(this.element, 'contentRenderer', undefined, value);
+  }
+
   /** Add-ons, such as `headerMenu()` from `@argus-table/header-menu`. Each one can change the column definitions, handle keys on a focused header or cell, and use the table through a small API. They run in array order. Replace the array to change them; an array with the same plugins in the same order changes nothing. `null` or `undefined` means `[]`. */
   @Input() set plugins(value: ArgusTableElement<T>['plugins'] | null | undefined) {
     setProperty(this.element, 'plugins', undefined, value);

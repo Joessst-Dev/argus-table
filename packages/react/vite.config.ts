@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite';
 
-// Library build: ESM only, one file per source module. React, @lit/react and
+// Library build: ESM only, one file per source module. React, React DOM, @lit/react and
 // argus-table stay external; argus-table registers the elements when imported.
 // `'use client'` heads every file so the components work in React Server
 // Components apps (Next.js): the elements only exist in the browser. A
@@ -16,7 +16,7 @@ export default defineConfig({
       formats: ['es'],
     },
     rollupOptions: {
-      external: [/^react(\/.*)?$/, /^@lit\/react$/, /^argus-table$/],
+      external: [/^react(-dom)?(\/.*)?$/, /^@lit\/react$/, /^argus-table$/],
       output: {
         preserveModules: true,
         preserveModulesRoot: 'src',

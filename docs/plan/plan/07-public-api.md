@@ -278,7 +278,8 @@ interface ArgusPlugin<T> {
 | `row(index)`                                  | The body row at `index` in the current order; `undefined` past the end and for a `dataSource` row not loaded yet. Optional, like any later addition: check it exists                                                                              |
 
 - Clicks on interactive content in a header (a button, a link, an input, a popover, a dialog) don't sort, so a plugin can put controls and dialogs in headers.
-- Later hooks are optional additions, so they won't break existing plugins: cell lifecycle callbacks for framework content in pooled cells, and a `state` hook once `getState()`/`setState()` exist.
+- `content(value)` (optional, like any later addition) wraps a column's own header or cell content for the plugin's template, so framework content still reaches the table's `contentRenderer` (see [Framework content](#framework-content)): `` html`<b>${host.content(own)}</b>` ``. The column menu and formula headers use it.
+- Later hooks are optional additions, so they won't break existing plugins: a `state` hook once `getState()`/`setState()` exist.
 
 ### Column menu (`@argus-table/header-menu`)
 
@@ -376,8 +377,27 @@ Each `argus-*` event drops its prefix and takes the framework's style:
 - Angular: standalone components (`ArgusTableComponent`, `ArgusColumnComponent`) on the elements' own tags, so templates need no `CUSTOM_ELEMENTS_SCHEMA`. Inputs are `@Input()` setters that write to the element, and two-way binding is an input with a `…Change` output, so a one-way `[sorting]` stays controlled. Angular passes a static attribute to an input of the same name as a string (`width="90"`); a string for a property that has an attribute goes to the attribute, so the element converts it as in HTML, and the input types accept those strings. `null` (the `async` pipe) means unset.
 - Events bubble, so a table nested in another table's cell fires its events on the outer table too. The Angular outputs only re-emit the outer table's own events (`event.target`).
 - `<argus-column>` is wrapped too (`ArgusColumn`), so loops over columns work. The wrapper component takes the element's name, so the element classes are re-exported as the types `ArgusTableElement` and `ArgusColumnElement`.
-- Cell and header content is still a Lit template, a node, a string or a number. Framework content in cells (JSX, Vue slots, `ng-template`) is planned separately: cells are pooled, so it needs a hook in the element.
+- React: `cell` and `header` may return JSX (any React node). It renders through portals in the app's tree, so it sees the app's providers; see [Framework content](#framework-content). Vue slots and Angular templates follow.
 - Bindings set `undefined` when a prop is removed, so `columns`, `data` and `overscan` read `null` and `undefined` as their defaults.
+
+## Framework content
+
+`header` and `cell` may return content the table doesn't render itself, such as React elements. The table hands it to its `contentRenderer`, which the framework wrappers set ([ADR 0002](../../adr/0002-framework-content.md)):
+
+```ts
+interface ContentRenderer {
+  render(target: HTMLElement, content: unknown): void; // on every update, per cell showing it
+  release(target: HTMLElement): void; // the cell shows no such content any more
+  flush?(): void; // once per update that rendered or released, before measuring
+}
+```
+
+- Foreign content is anything other than a string, a number, a Lit template or directive result, a DOM node, `null`/`undefined`, or an array of those.
+- Each header or cell showing it gets a target element (`div.argus-content`, `display: contents`) that stays while the cell is reused for other rows. Framework content there updates in place as the table scrolls, rather than remounting, which is why a cell component's own state belongs to the pooled cell, not to a row.
+- `release` comes when the cell goes away (scrolled out and not reused, a hidden or removed column, fewer rows), when it shows plain content again (a row still loading), when the renderer changes, and when the table is disconnected; reconnecting renders it again.
+- `flush` lets a renderer batch: it runs after the light DOM renders and before `width: 'auto'` measures, so content must be committed synchronously there.
+- Without a renderer, foreign content renders nothing, with one console warning.
+- `ColumnDef<T, TContent>` takes the content type as its second parameter (default `CellContent`); the wrappers widen it (`ReactColumnDef<T>` in React).
 
 ## Slots
 

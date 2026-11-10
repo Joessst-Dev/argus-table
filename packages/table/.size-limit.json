@@ -3,6 +3,6 @@
     "name": "CDN build (argus-table, Lit and TanStack inlined)",
     "path": "dist/cdn/argus-table.js",
     "gzip": true,
-    "limit": "51 kB"
+    "limit": "52 kB"
   }
 ]
