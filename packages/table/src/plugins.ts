@@ -84,4 +84,9 @@ export interface PluginHost<T = unknown> {
   invalidateColumns(): void;
   /** Renders again: header and cell functions run with the plugin's new state. */
   requestUpdate(): void;
+  /**
+   * The body row at `index` in the current order (sorted, as shown), or
+   * `undefined` past the end and for a `dataSource` row that isn't loaded.
+   */
+  row?(index: number): T | undefined;
 }

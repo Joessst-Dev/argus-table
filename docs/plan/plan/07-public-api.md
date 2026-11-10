@@ -206,13 +206,16 @@ interface ArgusPlugin<T> {
 | `announce(message)` | Says something through the table's polite live region |
 | `invalidateColumns()` | Runs the `columns` hooks again on the next update |
 | `requestUpdate()` | Re-renders: header and cell functions run again |
+| `row(index)` | The body row at `index` in the current order; `undefined` past the end and for a `dataSource` row not loaded yet. Optional, like any later addition: check it exists |
 
-- Clicks on interactive content in a header (a button, a link, an input, a popover) don't sort, so a plugin can put controls in headers.
+- Clicks on interactive content in a header (a button, a link, an input, a popover, a dialog) don't sort, so a plugin can put controls and dialogs in headers.
 - Later hooks are optional additions, so they won't break existing plugins: cell lifecycle callbacks for framework content in pooled cells, a `state` hook once `getState()`/`setState()` exist, and pin and visibility commands once `columnPinning` and `columnVisibility` are state.
 
 ### Column menu (`@argus-table/header-menu`)
 
-Each sortable or resizable column gets a button (`tabindex="-1"`, "Column menu") at the end of its header content. Its menu sorts the column ascending or descending, clears its sort, and fits its width (a resize, as with a double-click on the handle); items that don't apply to the column are left out. Alt+ArrowDown, the context menu key, Shift+F10 or a right-click on a header opens it; see [Accessibility](08-accessibility.md). The menu is a native `popover` rendered inside the header's light-DOM content: it inherits the table's tokens and sits in the top layer, unclipped by the table. Styling: the classes `argus-header-menu-button`, `argus-header-menu` and `argus-header-menu-item`, and the tokens `--argus-menu-bg`, `--argus-menu-fg`, `--argus-menu-shadow` and `--argus-menu-item-active-bg`. Pin, hide and formula entries come with the state they need.
+Each sortable or resizable column gets a button (`tabindex="-1"`, "Column menu") at the end of its header content. Its menu sorts the column ascending or descending, clears its sort, and fits its width (a resize, as with a double-click on the handle); items that don't apply to the column are left out. Alt+ArrowDown, the context menu key, Shift+F10 or a right-click on a header opens it; see [Accessibility](08-accessibility.md). The menu is a native `popover` rendered inside the header's light-DOM content: it inherits the table's tokens and sits in the top layer, unclipped by the table. Styling: the classes `argus-header-menu-button`, `argus-header-menu` and `argus-header-menu-item`, and the tokens `--argus-menu-bg`, `--argus-menu-fg`, `--argus-menu-shadow` and `--argus-menu-item-active-bg`. Pin and hide entries come with the state they need.
+
+Other plugins add items through a method header-menu looks for on every plugin in `plugins`: `headerMenuItems(columnId, host)` returns groups `{ label?, items }` of items `{ label, detail?, danger?, run() }` (the exported `HeaderMenuContributor`, `HeaderMenuGroup` and `HeaderMenuItem` types). Groups follow the built-in items, each after a separator; a labelled one is a `role="group"` with a heading. `run()` runs after the menu closes and places focus itself. A column with items gets a menu even if it can't sort or resize. This is header-menu's contract, not the table's: plugins that don't know about it are unaffected.
 
 ### Formula columns (`@argus-table/formulas`)
 
@@ -227,7 +230,7 @@ table.plugins = [formulas({ functions: { VAT: { fn: (n) => Number(n) * 0.19, arg
 - List it before `headerMenu()`: formulas name columns by their text header, which the header menu wraps in a function.
 - Errors are values: the cell shows the code (`#DIV/0!` and so on) in an element with the class `argus-formula-error` and a tooltip that explains it, coloured by `--argus-formula-error-color`. They sort last. A column's own `cell` gets values only.
 - With a `dataSource`, formula columns can't be sorted: the server sorts and doesn't know them.
-- Adding, editing and removing formula columns from the UI (an editor and header-menu entries, with `argus-formula-column-*` events carrying the proposed `ColumnDef`) is the next step.
+- `editing: 'view' | 'edit' | 'none'` (default `'view'`) puts formula items in `headerMenu()`'s menu: view a formula, or edit, rename, delete and add formula columns in a modal editor loaded on first use. Changes are proposed through `argus-formula-column-add`, `-change` and `-remove` (`detail.column`, `detail.columns`, and `detail.previous` on a change); the app sets `columns` to `detail.columns`. See [Formula columns](09-formula-columns.md#ui).
 
 ## Events
 

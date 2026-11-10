@@ -1,7 +1,17 @@
 import { FormulaSyntaxError } from './errors.js';
 
 export type TokenKind =
-  'number' | 'string' | 'ref' | 'name' | 'operator' | 'comma' | 'open' | 'close' | 'end';
+  | 'number'
+  | 'string'
+  | 'ref'
+  | 'name'
+  | 'operator'
+  | 'comma'
+  | 'open'
+  | 'close'
+  | 'end'
+  /** Only in lenient mode: a part that can't be read (an unclosed text, a stray character). */
+  | 'error';
 
 /**
  * A piece of a formula. `value` is the number's digits, the text without its
@@ -20,10 +30,22 @@ const NUMBER = /\d+(?:\.\d*)?(?:[eE][+-]?\d+)?|\.\d+(?:[eE][+-]?\d+)?/y;
 const NAME = /[A-Za-z_][A-Za-z0-9_.]*/y;
 const SPACE = /\s+/y;
 
-/** Splits a formula into tokens, ending with an `end` token. */
-export function tokenize(source: string): Token[] {
+/**
+ * Splits a formula into tokens, ending with an `end` token.
+ *
+ * @param lenient - instead of throwing, mark what can't be read as an `error`
+ *   token and go on (for syntax highlighting while the formula is typed).
+ * @throws FormulaSyntaxError, unless `lenient`.
+ */
+export function tokenize(source: string, lenient = false): Token[] {
   const tokens: Token[] = [];
   let at = 0;
+  // Throws, or in lenient mode records the bad part and moves past it.
+  const bad = (message: string, start: number, end: number): void => {
+    if (!lenient) throw new FormulaSyntaxError(message, start, end);
+    tokens.push({ kind: 'error', value: source.slice(start, end), start, end });
+    at = end;
+  };
   const match = (pattern: RegExp): string | undefined => {
     pattern.lastIndex = at;
     return pattern.exec(source)?.[0];
@@ -41,11 +63,9 @@ export function tokenize(source: string): Token[] {
     if (char === '"') {
       // Text in double quotes; "" inside it is one quote.
       let value = '';
+      let closed = false;
       at++;
-      for (;;) {
-        if (at >= source.length) {
-          throw new FormulaSyntaxError('The text has no closing quote.', start, source.length);
-        }
+      while (at < source.length) {
         const c = source.charAt(at);
         if (c === '"') {
           if (source.charAt(at + 1) === '"') {
@@ -54,24 +74,27 @@ export function tokenize(source: string): Token[] {
             continue;
           }
           at++;
+          closed = true;
           break;
         }
         value += c;
         at++;
       }
-      tokens.push({ kind: 'string', value, start, end: at });
+      if (closed) tokens.push({ kind: 'string', value, start, end: at });
+      else bad('The text has no closing quote.', start, source.length);
       continue;
     }
 
     if (char === '[') {
       const close = source.indexOf(']', at + 1);
       if (close < 0) {
-        throw new FormulaSyntaxError('The column name has no closing ].', start, source.length);
+        bad('The column name has no closing ].', start, source.length);
+        continue;
       }
       const value = source.slice(at + 1, close).trim();
+      if (value) tokens.push({ kind: 'ref', value, start, end: close + 1 });
+      else bad('The column name is empty.', start, close + 1);
       at = close + 1;
-      if (!value) throw new FormulaSyntaxError('The column name is empty.', start, at);
-      tokens.push({ kind: 'ref', value, start, end: at });
       continue;
     }
 
@@ -103,7 +126,7 @@ export function tokenize(source: string): Token[] {
       continue;
     }
 
-    throw new FormulaSyntaxError(`Unexpected character "${char}".`, start, start + 1);
+    bad(`Unexpected character "${char}".`, start, start + 1);
   }
 
   tokens.push({ kind: 'end', value: '', start: source.length, end: source.length });

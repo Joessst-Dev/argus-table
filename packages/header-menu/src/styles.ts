@@ -95,6 +95,26 @@ const CSS = `
     outline: var(--argus-focus-ring, 2px solid Highlight);
     outline-offset: -2px;
   }
+  .argus-header-menu-item-label {
+    flex: 1 1 auto;
+  }
+  .argus-header-menu-item-detail {
+    max-inline-size: 16em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    opacity: 0.7;
+    font-family: var(--argus-menu-detail-font, ui-monospace, monospace);
+    font-size: 0.85em;
+  }
+  .argus-header-menu-item-danger {
+    color: var(--argus-menu-danger-fg, inherit);
+  }
+  .argus-header-menu-group-label {
+    padding: 6px 12px 2px calc(8px + 1.5em);
+    font-size: 0.85em;
+    font-weight: 600;
+    opacity: 0.75;
+  }
   .argus-header-menu [role='separator'] {
     block-size: 1px;
     margin-block: 4px;

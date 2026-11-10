@@ -80,7 +80,40 @@ table.plugins = [
 // [price] + VAT([price])
 ```
 
-`fn` gets the argument values. If one is an error, the cell shows that error and `fn` doesn't run; if `fn` throws, the cell shows `#VALUE!`. `args` is `[fewest, most]` (default: any number), and `returns` sets the alignment. Your names can replace built-in ones.
+`fn` gets the argument values. If one is an error, the cell shows that error and `fn` doesn't run; if `fn` throws, the cell shows `#VALUE!`. `args` is `[fewest, most]` (default: any number), and `returns` sets the alignment. `params` (`['net']`, `'[digits]'` for an optional one) and `description` feed the editor's hint. Your names can replace built-in ones.
+
+## Editing from the column menu
+
+With [`@argus-table/header-menu`](https://www.npmjs.com/package/@argus-table/header-menu), users can work with formulas from the column menu. `editing` sets how far:
+
+| `editing`          | Column menu                                                                                                  |
+| ------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `'view'` (default) | "View formula…" on formula columns, showing the formula; it opens the editor read-only                       |
+| `'edit'`           | "Edit formula…", "Rename…" and "Delete column" on formula columns, and "Add formula column…" on every column |
+| `'none'`           | Nothing                                                                                                      |
+
+```js
+table.plugins = [formulas({ editing: 'edit' }), headerMenu()];
+const apply = (event) => {
+  table.columns = event.detail.columns;
+  saveLayout(event.detail.columns); // if you keep the user's columns
+};
+table.addEventListener('argus-formula-column-add', apply);
+table.addEventListener('argus-formula-column-change', apply);
+table.addEventListener('argus-formula-column-remove', apply);
+```
+
+**Your app owns the columns.** The plugin doesn't change them: it fires an event with the change, and you apply it. Each event's `detail` has the `column` added, changed or removed, and `columns`: the table's columns with the change applied. `argus-formula-column-change` also has the `previous` column. Renaming a column also renames it in the formulas that use its header. With `<argus-column>` children, change your markup instead (`detail.column` has what to add or change). A new column gets an id from its name (`gross`, `gross-2`…) and is sortable.
+
+The editor is a modal dialog, loaded the first time it opens (about 7 kB). It has:
+
+- a name and a formula field, both checked before saving: an empty or taken name, a syntax error, an unknown column or function, a wrong number of arguments and a cycle are explained under the field and underlined in the formula;
+- syntax colouring, and suggestions as you type: columns after `[`, functions and `TRUE`/`FALSE` by name (ArrowUp/ArrowDown to choose, Enter or Tab to take one, Escape to close the list; Alt+ArrowDown opens it);
+- the arguments of the function the cursor is in, with the current one underlined;
+- buttons that insert a column, and a list of all functions;
+- a preview of the result on the first five rows, in the table's current order, with the result type.
+
+Labels are in English.
 
 ## Errors
 
@@ -113,7 +146,18 @@ Each formula is parsed and compiled once into plain functions: there is no `eval
 | `argus-formula-mark`  | The `ƒx` before a formula's header |
 | `argus-formula-label` | The header text next to the mark   |
 
-Pass `formulas({ marker: false })` to leave headers alone. The add-on's CSS is in the `argus-formulas` cascade layer, so your rules win. Set `--argus-formula-error-color` on `argus-table` or a theme to colour error values (default: the text colour).
+Pass `formulas({ marker: false })` to leave headers alone. The add-on's CSS is in the `argus-formulas` cascade layer, so your rules win. The editor is light-DOM content of a header, so it takes the tokens set on `argus-table` or a theme:
+
+| Token                                                                                                                                                 | Default                                                         |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `--argus-formula-error-color`                                                                                                                         | The text colour: error values, problems and their underline     |
+| `--argus-dialog-bg`, `--argus-dialog-fg`                                                                                                              | `--argus-menu-bg` / `--argus-menu-fg`, then the table's colours |
+| `--argus-dialog-accent`, `--argus-dialog-accent-fg`                                                                                                   | `Highlight`, `HighlightText`: the save button                   |
+| `--argus-dialog-shadow`, `--argus-dialog-backdrop`                                                                                                    | A soft shadow; black at 40% behind the dialog                   |
+| `--argus-formula-font`                                                                                                                                | `ui-monospace` and other monospace fonts                        |
+| `--argus-formula-function-color`, `--argus-formula-ref-bg`, `--argus-formula-ref-color`, `--argus-formula-number-color`, `--argus-formula-text-color` | The text colour; column names on a faint tint                   |
+
+The editor also uses the table's `--argus-border-color`, `--argus-focus-ring`, `--argus-header-bg`, `--argus-font` and the menu tokens for its suggestion list. Its classes start with `argus-formula-` (the dialog is `argus-formula-editor`).
 
 ## Without a bundler
 

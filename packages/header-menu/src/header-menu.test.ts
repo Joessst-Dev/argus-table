@@ -1,7 +1,12 @@
-import { afterEach, describe, expect, test } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import 'argus-table';
-import type { ArgusTable, ColumnDef } from 'argus-table';
-import { headerMenu } from './index.js';
+import type { ArgusPlugin, ArgusTable, ColumnDef } from 'argus-table';
+import {
+  headerMenu,
+  type HeaderMenuContributor,
+  type HeaderMenuGroup,
+  type HeaderMenuItem,
+} from './index.js';
 
 interface Row {
   id: string;
@@ -325,6 +330,102 @@ describe('header menu placement', () => {
     await settle(el);
     expect(openMenu(el)).toBe(menu);
     expect(document.activeElement && menu.contains(document.activeElement)).toBe(true);
+  });
+});
+
+describe('items from other plugins', () => {
+  const ran: string[] = [];
+  const contributor = (
+    groups: (columnId: string) => HeaderMenuGroup[],
+  ): ArgusPlugin<Row> & HeaderMenuContributor<Row> => ({
+    name: 'contributor',
+    headerMenuItems: (columnId) => groups(columnId),
+  });
+  const item = (label: string, extra: Partial<HeaderMenuItem> = {}): HeaderMenuItem => ({
+    label,
+    run: () => ran.push(label),
+    ...extra,
+  });
+
+  afterEach(() => {
+    ran.length = 0;
+  });
+
+  test('come after the built-in items, in groups with separators and headings', async () => {
+    const el = await fixture({
+      plugins: [
+        headerMenu<Row>(),
+        contributor((id) => [
+          {
+            label: 'Formula',
+            items: [item(`Edit ${id}`, { detail: '[a] * 2' }), item('Delete', { danger: true })],
+          },
+          { items: [item('Add…')] },
+          { label: 'Empty', items: [] },
+        ]),
+      ],
+    });
+    buttonOf(el, 'age')?.click();
+    const menu = await opened(el);
+    expect(items(menu).map((i) => i.textContent.replace(/\s+/g, ' ').trim())).toEqual([
+      'Sort ascending',
+      'Sort descending',
+      'Unsorted',
+      'Fit width',
+      'Edit age [a] * 2',
+      'Delete',
+      'Add…',
+    ]);
+    expect(menu.querySelectorAll('[role="separator"]')).toHaveLength(3);
+    const group = menu.querySelector('[role="group"]');
+    const heading = group?.getAttribute('aria-labelledby') ?? '';
+    expect(menu.querySelector(`[id="${heading}"]`)?.textContent).toBe('Formula');
+    expect(items(menu)[5]?.classList.contains('argus-header-menu-item-danger')).toBe(true);
+  });
+
+  test('give a menu to columns that can neither sort nor resize', async () => {
+    const el = await fixture({
+      plugins: [
+        headerMenu<Row>(),
+        contributor((id) => (id === 'note' ? [{ items: [item('Note it')] }] : [])),
+      ],
+    });
+    buttonOf(el, 'note')?.click();
+    const menu = await opened(el);
+    expect(items(menu).map((i) => i.textContent.trim())).toEqual(['Note it']);
+    expect(menu.querySelector('[role="separator"]')).toBeNull();
+  });
+
+  test('run after the menu closes, and leave focus to the item', async () => {
+    const el = await fixture({
+      plugins: [headerMenu<Row>(), contributor(() => [{ items: [item('Go')] }])],
+    });
+    buttonOf(el, 'name')?.click();
+    const menu = await opened(el);
+    items(menu)[4]?.click();
+    expect(ran).toEqual(['Go']);
+    await settle(el);
+    expect(openMenu(el)).toBeNull();
+    expect(el.shadowRoot?.activeElement).not.toBe(headerOf(el, 'name'));
+  });
+
+  test('a contributor that throws is reported and skipped', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const el = await fixture({
+      plugins: [
+        headerMenu<Row>(),
+        contributor(() => {
+          throw new Error('boom');
+        }),
+      ],
+    });
+    buttonOf(el, 'name')?.click();
+    const menu = await opened(el);
+    expect(items(menu)).toHaveLength(4);
+    expect(error).toHaveBeenCalledWith(
+      'argus-table: plugin "contributor" threw in headerMenuItems',
+      expect.any(Error),
+    );
   });
 });
 

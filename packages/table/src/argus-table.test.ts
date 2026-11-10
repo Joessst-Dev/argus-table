@@ -610,6 +610,24 @@ describe('sorting', () => {
     expect(el.sorting).toEqual([]);
   });
 
+  test('ignores clicks anywhere in a dialog in a header', async () => {
+    const withDialog = sortColumns.map((c) =>
+      c.id === 'age'
+        ? {
+            ...c,
+            header: html`Age
+              <dialog open><p>Edit</p></dialog>`,
+          }
+        : c,
+    );
+    const el = await fixture({ columns: withDialog, data });
+    el.querySelector('dialog p')?.dispatchEvent(
+      new MouseEvent('click', { bubbles: true, composed: true }),
+    );
+    await settle(el);
+    expect(el.sorting).toEqual([]);
+  });
+
   test('sorts with Enter and Space on a focused header', async () => {
     const el = await fixture({ columns: sortColumns, data });
     const age = headerCell(el, 1);

@@ -4,7 +4,7 @@
 
 End users can add their own columns computed from other columns, Excel-style, through the UI: one formula per column, run on every row, referencing columns by name. It ships as the optional package `@argus-table/formulas`, so the core stays small.
 
-> **Status:** step 1 is built: the engine and the `formulas()` plugin, with formula columns declared in `columns` (`formula` on a column definition, or `<argus-column formula>`). Step 2 is the UI: the editor and the header-menu entries to add, edit, rename and delete formula columns.
+> **Status:** built. Step 1: the engine and the `formulas()` plugin, with formula columns declared in `columns` (`formula` on a column definition, or `<argus-column formula>`). Step 2: the editor and the column-menu entries to view, add, edit, rename and delete formula columns.
 
 ## Syntax
 
@@ -44,11 +44,11 @@ Age in days  = DAYS(TODAY(), [created_at])
 
 The flowchart is in [Code architecture: Formula pipeline](../code-architecture/05-formula-pipeline.md).
 
-## UI (step 2)
+## UI
 
-- "Add formula column…" entry in the column header menu, enabled with the `formulas` property.
-- Formula editor: autocomplete for column and function names, syntax highlighting, argument hints, live preview on the first 5 rows, inline error messages.
-- Edit, rename and delete through the column header menu.
+- **Column menu.** `formulas({ editing })` adds items to `headerMenu()`'s menu through its `headerMenuItems` protocol (any plugin can add items that way). `'view'` (the default) shows "View formula…" with the formula on formula columns; `'edit'` adds "Edit formula…", "Rename…" and "Delete column" on formula columns and "Add formula column…" on every column; `'none'` adds nothing. Pin and hide come with `columnPinning` and `columnVisibility` state.
+- **Editor**, a modal `<dialog>` loaded on first use (`import()`, about 7 kB): column name, formula with syntax colouring (a transparent input over a coloured copy), suggestions for columns after `[` and functions by name (an ARIA combobox), the argument hint of the function at the cursor, buttons to insert a column or a function, a preview of the first five rows in the table's order with the result type, and problems explained under each field and underlined in the formula. Read-only in `'view'`.
+- **Placement.** The dialog renders into an element the plugin puts in the header content of the column it was opened from: the table's tokens reach it there (themes set them on `argus-table`), and the grid keeps only rows as children. A press inside it doesn't sort or start a drag (`dialog` counts as interactive content), and Escape or Cancel returns focus to that header.
 
 See the "Add formula column" and "Column header menu" [mockups](../mockups.md).
 
@@ -56,11 +56,13 @@ See the "Add formula column" and "Column header menu" [mockups](../mockups.md).
 
 - `formula` on a column definition, `<argus-column formula="…">`: the formula lives with its column, so order, pinning, width and the framework wrappers' `columns` binding apply as to any column. (This replaces the earlier `formulaColumns` property, designed before plugin hooks existed.)
 - `formulas({ functions, marker })`: the plugin. `functions` adds functions per plugin instance (`{ VAT: { fn, args: [1, 1], returns: 'number' } }`), in place of a global `registerFunction`; `marker: false` drops the `ƒx` before formula headers.
-- Step 2: events `argus-formula-column-add`, `argus-formula-column-change`, `argus-formula-column-remove` carry the proposed column definition so the host app, which owns `columns`, can apply and save it; `formulaEditing: 'none' | 'view' | 'edit'` controls whether end users can see or change formulas; formulas are included in `getState()` / `setState()` once those exist.
+- `editing: 'view' | 'edit' | 'none'` (in place of a `formulaEditing` property) controls whether end users can see or change formulas.
+- Events `argus-formula-column-add`, `argus-formula-column-change` and `argus-formula-column-remove` (bubbling, composed, fired on the table) propose a change: `detail.column`, `detail.columns` (the plugin's input columns with the change applied) and, for a change, `detail.previous`. The app owns `columns` and applies them; the table never changes its columns by itself. A rename also renames the column in formulas that name it by its old header. A new column's id comes from its name (`gross`, `gross-2`).
+- Formulas will be part of `getState()` / `setState()` once those exist.
 
 ## Open points
 
 - [x] Server-side `dataSource`: the server can't sort or filter by a formula column. Decided: formula columns aren't sortable with a `dataSource`. Still open: passing the syntax tree to `getRows` so a server can implement them.
-- [x] Size budget for `@argus-table/formulas`: 8 kB min+gzip (`lit` and `argus-table` excluded; 7.3 kB at first release), checked by `pnpm size`.
-- [x] Function implementations: written in-house rather than borrowed from [`@formulajs/formulajs`](https://www.jsdelivr.com/package/npm/@formulajs/formulajs): the 34 functions, parser and plugin fit the budget above together, with spreadsheet error values and coercions throughout.
+- [x] Size budgets for `@argus-table/formulas`, min+gzip with `lit` and `argus-table` excluded, checked by `pnpm size`: 9 kB for the plugin (8.5 kB with the menu items; 7.3 kB in step 1) and 8 kB for the editor, which loads on first use (7.4 kB).
+- [x] Function implementations: written in-house rather than borrowed from [`@formulajs/formulajs`](https://www.jsdelivr.com/package/npm/@formulajs/formulajs): the 34 functions, parser and plugin fit the plugin's budget together, with spreadsheet error values and coercions throughout.
 - [x] Rejected engines: [HyperFormula](https://hyperformula.handsontable.com/docs/guide/licensing.md) (GPLv3/proprietary, incompatible with MIT users) and [expr-eval](https://nvd.nist.gov/vuln/detail/CVE-2025-12735) (critical code-execution CVE).
