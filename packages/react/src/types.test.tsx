@@ -7,6 +7,7 @@ import {
   type ArgusPlugin,
   type ArgusTableElement,
   type ColumnDef,
+  type ReactColumnDef,
   type RowClickDetail,
 } from './index.js';
 
@@ -83,6 +84,40 @@ export const column = (
 
 // @ts-expect-error: `pin` is 'start' or 'end'.
 export const badPin = <ArgusColumn columnId="x" pin="left" />;
+
+// JSX in cells and headers: the row type flows into `cell`.
+const jsxColumns: ReactColumnDef<Order>[] = [
+  { id: 'id', header: <b>Order</b>, cell: (o) => <a href={`/orders/${o.id}`}>{o.id}</a> },
+  {
+    id: 'total',
+    header: () => <i>Total</i>,
+    cell: (o, ctx) => <span title={ctx.rowId}>{o.total}</span>,
+  },
+];
+export const withJsx = <ArgusTable data={orders} columns={jsxColumns} />;
+
+export const jsxInline = (
+  <ArgusTable<Order>
+    data={orders}
+    columns={[{ id: 'total', cell: (o) => <b>{o.total.toFixed(2)}</b> }]}
+  />
+);
+
+export const wrongJsxRow = (
+  <ArgusTable<Order>
+    data={orders}
+    // @ts-expect-error: an Order has no `name`.
+    columns={[{ id: 'x', cell: (o) => <b>{o.name}</b> }]}
+  />
+);
+
+export const jsxColumn = (
+  <ArgusColumn<Order> columnId="total" header={<b>Total</b>} cell={(o) => <b>{o.total}</b>} />
+);
+
+const noop = () => undefined;
+// @ts-expect-error: `contentRenderer` is the wrapper's own.
+export const noRenderer = <ArgusTable contentRenderer={{ render: noop, release: noop }} />;
 
 test('types compile', () => {
   // Checked by `tsc`; nothing to run.

@@ -8,13 +8,19 @@ import type { ColumnDef as CoreColumnDef } from '@argus-table/core';
  */
 export type CellContent = TemplateResult | Node | string | number;
 
-/** One column of `<argus-table>`: what it shows, how wide it is, and how it behaves. */
-export type ColumnDef<T = unknown> = CoreColumnDef<T, CellContent>;
+/**
+ * One column of `<argus-table>`: what it shows, how wide it is, and how it behaves.
+ * `TContent` is what `header` and `cell` may return; the framework wrappers widen it
+ * to their own content (React nodes, Vue VNodes), which reaches the table's
+ * `contentRenderer`.
+ */
+export type ColumnDef<T = unknown, TContent = CellContent> = CoreColumnDef<T, TContent>;
 
 /** Row density. Each one sets defaults for `--argus-row-height` and `--argus-cell-padding-inline`. */
 export type Density = 'compact' | 'comfortable' | 'spacious';
 
 export type { ArgusPlugin, CellTarget, ColumnInfo, PluginHost } from './plugins.js';
+export type { ContentRenderer } from './render/content-directive.js';
 
 export type {
   CellClickDetail,

@@ -4,6 +4,7 @@ import {
   nothing,
   type CSSResultGroup,
   type PropertyValues,
+  type RootPart,
   type TemplateResult,
 } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
@@ -62,6 +63,7 @@ import { fromInteractive, INTERACTIVE } from './interactive.js';
 import { bodyCap, watchMaxElementHeight } from './max-height.js';
 import { renderBody, type ActiveCell, type Loading, type SelectedAt } from './render/body.js';
 import { renderLightDom } from './render/cells.js';
+import { content, flushContent, type ContentRenderer } from './render/content-directive.js';
 import { renderHeader, type CheckAll, type HeaderDrag } from './render/header.js';
 import type { CheckboxHandlers } from './render/content.js';
 import { renderPinnedRows } from './render/pinned-rows.js';
@@ -487,6 +489,17 @@ export class ArgusTable<T = unknown> extends LitElement {
   }
 
   /**
+   * Renders header and cell content the table can't render itself, such as React
+   * elements, Vue VNodes or Angular templates: `{ render(target, content),
+   * release(target), flush?() }`. A `header` or `cell` that returns anything other
+   * than a string, a number, a DOM node or a Lit template hands it to the renderer,
+   * with a target element the table keeps while the cell is reused for other rows.
+   * The framework wrappers set it; set it yourself only for another framework.
+   */
+  @property({ attribute: false })
+  contentRenderer?: ContentRenderer;
+
+  /**
    * Add-ons, such as `headerMenu()` from `@argus-table/header-menu`. Each one can
    * change the column definitions, handle keys on a focused header or cell, and
    * use the table through a small API. They run in array order. Replace the
@@ -593,6 +606,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.requestUpdate();
     },
     row: (index) => this.#table.model.rowAt(index)?.original,
+    content: (value) => content(value),
   };
   readonly #plugins = new PluginController<T>(this, this.#pluginHost);
   #columnsById:
@@ -607,6 +621,9 @@ export class ArgusTable<T = unknown> extends LitElement {
   #warnedColumns = false;
   /** End of the light-DOM part holding cell content, so later children stay outside it. */
   #contentEnd: Comment | undefined;
+  /** The light-DOM part: disconnected with the table, so foreign content is released. */
+  #lightPart: RootPart | undefined;
+  #lightConnected = true;
   readonly #data = new DataController<T>(this);
   /** Scroll back to the top after the update (a new sort order for a data source). */
   #scrollToTop = false;
@@ -635,6 +652,11 @@ export class ArgusTable<T = unknown> extends LitElement {
     super.connectedCallback();
     if (!this.hasAttribute('role')) this.setAttribute('role', 'grid');
     if (this.hasUpdated) this.#observeProbe();
+    if (this.#lightPart && !this.#lightConnected) {
+      this.#lightConnected = true;
+      this.#lightPart.setConnected(true);
+      flushContent(this);
+    }
     // A zoom change changes the tallest body the engine renders.
     this.#unwatchMaxHeight = watchMaxElementHeight(() => {
       this.requestUpdate();
@@ -644,6 +666,12 @@ export class ArgusTable<T = unknown> extends LitElement {
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#probeObserver?.disconnect();
+    // Framework content in the cells is unmounted until the table comes back.
+    if (this.#lightPart && this.#lightConnected) {
+      this.#lightConnected = false;
+      this.#lightPart.setConnected(false);
+      flushContent(this);
+    }
     this.#unwatchMaxHeight?.();
     this.#unwatchMaxHeight = undefined;
   }
@@ -886,7 +914,18 @@ export class ArgusTable<T = unknown> extends LitElement {
 
   protected override updated(changed: PropertyValues<this>): void {
     const model = this.#table.model;
-    renderLightDom(this, model, this.#window.rows, this.#rendered, this.#lightDomEnd());
+    const part = renderLightDom(
+      this,
+      model,
+      this.#window.rows,
+      this.#rendered,
+      this.#lightDomEnd(),
+    );
+    // A new marker starts a new part (the old one was removed): its content is gone.
+    if (this.#lightPart && this.#lightPart !== part) this.#lightPart.setConnected(false);
+    this.#lightPart = part;
+    // Foreign content is committed before anything measures it.
+    flushContent(this);
     this.#measureAutoWidths(model);
     if (this.#scrollToTop) {
       this.#scrollToTop = false;

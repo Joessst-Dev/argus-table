@@ -5,6 +5,7 @@ import { createComponent } from '@lit/react';
 import { ArgusTable as ArgusTableElement, ArgusColumn as ArgusColumnElement } from 'argus-table';
 import type {
   CellClickDetail,
+  CellContext,
   ColumnFilterDetail,
   ColumnHideDetail,
   ColumnPinDetail,
@@ -16,13 +17,13 @@ import type {
   RowSelectDetail,
   SortChangeDetail,
 } from 'argus-table';
+import { withContent, type ReactCellContent, type ReactColumnDef } from '../content.js';
 import { ownEvents } from '../own-events.js';
 
 /** The properties of `<argus-table>` that `<ArgusTable>` sets on the element. */
 export type ArgusTableElementProps<T = unknown> = Partial<
   Pick<
     ArgusTableElement<T>,
-    | 'columns'
     | 'data'
     | 'dataSource'
     | 'pinnedRows'
@@ -43,7 +44,9 @@ export type ArgusTableElementProps<T = unknown> = Partial<
     | 'selection'
     | 'plugins'
   >
->;
+> & {
+  columns?: readonly ReactColumnDef<T>[] | null;
+};
 
 /** The event props of `<ArgusTable>`: each gets the element's `CustomEvent`. */
 export interface ArgusTableEventProps<T = unknown> {
@@ -83,39 +86,42 @@ export type ArgusTableProps<T = unknown> = Omit<
   };
 
 /** `<argus-table>` as a React component. */
-export const ArgusTable = ownEvents(
-  createComponent({
-    tagName: 'argus-table',
-    elementClass: ArgusTableElement,
-    react: React,
-    events: {
-      onSortChange: 'argus-sort-change',
-      onColumnResize: 'argus-column-resize',
-      onColumnReorder: 'argus-column-reorder',
-      onColumnPin: 'argus-column-pin',
-      onColumnHide: 'argus-column-hide',
-      onColumnFilter: 'argus-column-filter',
-      onCellClick: 'argus-cell-click',
-      onRowClick: 'argus-row-click',
-      onRangeChange: 'argus-range-change',
-      onRowSelect: 'argus-row-select',
-      onLoadError: 'argus-load-error',
-    },
-    displayName: 'ArgusTable',
-  }),
-  [
-    'onSortChange',
-    'onColumnResize',
-    'onColumnReorder',
-    'onColumnPin',
-    'onColumnHide',
-    'onColumnFilter',
-    'onCellClick',
-    'onRowClick',
-    'onRangeChange',
-    'onRowSelect',
-    'onLoadError',
-  ],
+export const ArgusTable = withContent(
+  ownEvents(
+    createComponent({
+      tagName: 'argus-table',
+      elementClass: ArgusTableElement,
+      react: React,
+      events: {
+        onSortChange: 'argus-sort-change',
+        onColumnResize: 'argus-column-resize',
+        onColumnReorder: 'argus-column-reorder',
+        onColumnPin: 'argus-column-pin',
+        onColumnHide: 'argus-column-hide',
+        onColumnFilter: 'argus-column-filter',
+        onCellClick: 'argus-cell-click',
+        onRowClick: 'argus-row-click',
+        onRangeChange: 'argus-range-change',
+        onRowSelect: 'argus-row-select',
+        onLoadError: 'argus-load-error',
+      },
+      displayName: 'ArgusTable',
+    }),
+    [
+      'onSortChange',
+      'onColumnResize',
+      'onColumnReorder',
+      'onColumnPin',
+      'onColumnHide',
+      'onColumnFilter',
+      'onCellClick',
+      'onRowClick',
+      'onRangeChange',
+      'onRowSelect',
+      'onLoadError',
+    ],
+    'ArgusTable',
+  ),
   'ArgusTable',
 ) as unknown as <T = unknown>(props: ArgusTableProps<T>) => React.ReactElement | null;
 
@@ -124,10 +130,8 @@ export type ArgusColumnElementProps<T = unknown> = Partial<
   Pick<
     ArgusColumnElement<T>,
     | 'columnId'
-    | 'header'
     | 'accessor'
     | 'formula'
-    | 'cell'
     | 'width'
     | 'minWidth'
     | 'maxWidth'
@@ -142,7 +146,10 @@ export type ArgusColumnElementProps<T = unknown> = Partial<
     | 'filterFn'
     | 'filterOptions'
   >
->;
+> & {
+  header?: ReactCellContent | (() => ReactCellContent);
+  cell?: (row: T, context: CellContext<T>) => ReactCellContent;
+};
 
 /** Props of `<ArgusColumn>`: element properties and the usual HTML attributes. */
 export type ArgusColumnProps<T = unknown> = Omit<

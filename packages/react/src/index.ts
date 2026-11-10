@@ -1,4 +1,5 @@
 export { ArgusColumn, ArgusTable } from './generated/elements.js';
+export type { ReactCellContent, ReactColumnDef } from './content.js';
 export type {
   ArgusColumnElementProps,
   ArgusColumnProps,
@@ -35,6 +36,7 @@ export type {
   ColumnSizingState,
   ColumnVisibilityState,
   ColumnWidth,
+  ContentRenderer,
   DataSource,
   DateFilter,
   Density,

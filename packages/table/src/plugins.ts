@@ -141,4 +141,11 @@ export interface PluginHost<T = unknown> {
    * `undefined` past the end and for a `dataSource` row that isn't loaded.
    */
   row?(index: number): T | undefined;
+  /**
+   * Wraps a column's own header or cell content for a template of the plugin's: in
+   * `html\`<b>${host.content(own)}</b>\``, framework content (React elements, Vue
+   * VNodes) still reaches the table's `contentRenderer`, and plain content renders
+   * as usual. Use it wherever a plugin nests what `header` or `cell` returned.
+   */
+  content?(value: unknown): unknown;
 }

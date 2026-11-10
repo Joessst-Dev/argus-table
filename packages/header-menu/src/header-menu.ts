@@ -257,9 +257,11 @@ function hasMenu<T>(state: TableState<T>, column: ColumnInfo | undefined): colum
 
 /** The column's own header, then the menu button, then the menu while it is open. */
 function header<T>(state: TableState<T>, def: ColumnDef<T>, labelId: string): CellContent {
-  const own = typeof def.header === 'function' ? def.header() : def.header;
+  const raw = typeof def.header === 'function' ? def.header() : def.header;
   const column = state.host.column(def.id);
-  if (!hasMenu(state, column)) return own ?? '';
+  if (!hasMenu(state, column)) return raw ?? '';
+  // Through the table, so framework content (React, Vue) renders in our template too.
+  const own = state.host.content ? state.host.content(raw) : raw;
   const isOpen = state.open === def.id;
   const menuId = `${labelId}-menu`;
   return html`<span class="argus-header-menu-header"

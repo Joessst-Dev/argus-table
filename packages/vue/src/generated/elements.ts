@@ -41,6 +41,7 @@ export type ArgusTableElementProps<T = unknown> = Partial<
     | 'selectionMode'
     | 'selectionCheckboxes'
     | 'selection'
+    | 'contentRenderer'
     | 'plugins'
   >
 >;
@@ -157,6 +158,7 @@ export const ArgusTable = defineWrapper({
     'selectionMode',
     'selectionCheckboxes',
     'selection',
+    'contentRenderer',
     'plugins',
   ],
   booleans: ['virtualizeColumns', 'selectionCheckboxes'],

@@ -134,14 +134,18 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPl
       return def.cell ? def.cell(row, context) : display(value);
     };
 
-  const headerFor = (def: ColumnDef<T>, mark: boolean, anchor: HTMLElement | undefined) => () => {
-    const own = typeof def.header === 'function' ? def.header() : def.header;
-    if (!mark) return html`${own ?? nothing}${anchor ?? nothing}`;
-    return html`<span class="argus-formula-header"
-        ><span class="argus-formula-mark" aria-hidden="true">ƒx</span
-        ><span class="argus-formula-label">${own ?? nothing}</span></span
-      >${anchor ?? nothing}`;
-  };
+  const headerFor =
+    (def: ColumnDef<T>, mark: boolean, anchor: HTMLElement | undefined, host: PluginHost<T>) =>
+    () => {
+      const raw = typeof def.header === 'function' ? def.header() : def.header;
+      // Through the table, so framework content (React, Vue) renders in our template too.
+      const own = host.content ? host.content(raw) : raw;
+      if (!mark) return html`${own ?? nothing}${anchor ?? nothing}`;
+      return html`<span class="argus-formula-header"
+          ><span class="argus-formula-mark" aria-hidden="true">ƒx</span
+          ><span class="argus-formula-label">${own ?? nothing}</span></span
+        >${anchor ?? nothing}`;
+    };
 
   /**
    * Opens the editor in the header of `columnId` (a modal dialog in the
@@ -260,14 +264,14 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPl
       return defs.map((def) => {
         const c = compiled.get(def.id);
         const anchor = def.id === editingId ? state.anchor : undefined;
-        if (!c) return anchor ? { ...def, header: headerFor(def, false, anchor) } : def;
+        if (!c) return anchor ? { ...def, header: headerFor(def, false, anchor, host) } : def;
         const numeric = c.type === 'number' || c.type === 'date';
         return {
           ...def,
           accessor: c.accessor,
           cell: cellFor(def, c),
           align: def.align ?? (numeric ? 'end' : undefined),
-          header: marker || anchor ? headerFor(def, marker, anchor) : def.header,
+          header: marker || anchor ? headerFor(def, marker, anchor, host) : def.header,
           sortable: remote ? false : def.sortable,
           filter: remote ? undefined : def.filter,
         };

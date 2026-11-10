@@ -230,6 +230,50 @@ describe('emitReact', () => {
   });
 });
 
+describe('emitReact with content', () => {
+  test('types header, cell and columns for React content and wraps a table that renders it', () => {
+    const defaults = manifest();
+    const [, columnModule] = defaults.modules;
+    const tableMembers = defaults.modules[0]?.declarations?.[0]?.members ?? [];
+    const column = columnModule?.declarations?.[0];
+    if (!column) throw new Error('fixture');
+    const withTable = manifest({
+      tableMembers: [
+        ...tableMembers,
+        { kind: 'field', name: 'columns', type: { text: 'readonly ColumnDef<T>[]' } },
+        { kind: 'field', name: 'contentRenderer', type: { text: 'ContentRenderer | undefined' } },
+      ],
+    });
+    const base: Manifest = {
+      modules: [
+        ...withTable.modules.slice(0, 1),
+        {
+          declarations: [
+            {
+              ...column,
+              members: [
+                ...(column.members ?? []),
+                { kind: 'field', name: 'header', type: { text: 'CellContent' } },
+                { kind: 'field', name: 'cell', type: { text: '(row: T) => CellContent' } },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const source = emitReact([readElement(base, 'argus-table'), readElement(base, 'argus-column')]);
+    expect(source).toContain(
+      "import { withContent, type ReactCellContent, type ReactColumnDef } from '../content.js';",
+    );
+    expect(source).toContain('columns?: readonly ReactColumnDef<T>[] | null;');
+    expect(source).not.toMatch(/'contentRenderer'|contentRenderer\?:/);
+    expect(source).toContain('header?: ReactCellContent | (() => ReactCellContent);');
+    expect(source).toContain('cell?: (row: T, context: CellContext<T>) => ReactCellContent;');
+    expect(source).toContain('export const ArgusTable = withContent(ownEvents(');
+    expect(source).not.toContain('export const ArgusColumn = withContent(');
+  });
+});
+
 describe('emitVue', () => {
   const m = manifest();
   const source = emitVue([readElement(m, 'argus-table'), readElement(m, 'argus-column')]);

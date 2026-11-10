@@ -1,5 +1,6 @@
 export { ArgusColumn } from './argus-column.js';
 export { ArgusTable } from './argus-table.js';
+export { content } from './render/content-directive.js';
 export {
   CELL_CLICK,
   COLUMN_FILTER,

@@ -1,10 +1,11 @@
-import { html, render } from 'lit';
+import { html, render, type RootPart } from 'lit';
 import { repeat } from 'lit/directives/repeat.js';
 import type { ColumnView, RowPin, TableModel } from '@argus-table/core';
 import type { RenderedColumn } from '../controllers/column-window.js';
 import type { WindowRow } from '../controllers/virtual-controller.js';
 import type { CellContent } from '../types.js';
-import { cellSlot, formatValue, headerSlot, pinnedSlot, toChild } from './content.js';
+import { cellSlot, formatValue, headerSlot, pinnedSlot } from './content.js';
+import { content } from './content-directive.js';
 
 type Column<T> = ColumnView<T, CellContent>;
 
@@ -14,7 +15,9 @@ type Column<T> = ColumnView<T, CellContent>;
  * so recycled content updates in place instead of moving (ADR 0001). The part
  * ends at `renderBefore`, so the host's other children (`<argus-column>`) stay
  * outside it, wherever they are added. `rendered` are the columns the shadow
- * root renders, with their slots and keys.
+ * root renders, with their slots and keys. What `header` and `cell` return goes
+ * through `content()`, so foreign content reaches the table's `contentRenderer`.
+ * Returns the part, which the table disconnects when it is disconnected.
  */
 export function renderLightDom<T>(
   host: HTMLElement,
@@ -22,10 +25,10 @@ export function renderLightDom<T>(
   rows: readonly WindowRow[],
   rendered: readonly RenderedColumn<T>[],
   renderBefore: ChildNode,
-): void {
+): RootPart {
   // The selection column renders its checkboxes in the shadow root: no content here.
   const columns = rendered.filter((c) => c.kind === 'data');
-  render(
+  return render(
     html`${repeat(
       columns,
       (c) => c.key,
@@ -48,7 +51,7 @@ export function renderLightDom<T>(
 
 function headerContent<T>(column: Column<T>): unknown {
   const { header } = column;
-  return toChild(typeof header === 'function' ? header() : header);
+  return content(typeof header === 'function' ? header() : header);
 }
 
 /** Content of the rows pinned to one side, slotted by side, index and column. */
@@ -75,7 +78,7 @@ function pinnedCell<T>(
 ) {
   if (column.cell) {
     const context = model.pinnedCellContext(side, index, column.id);
-    return context ? toChild(column.cell(context.row, context)) : '';
+    return context ? content(column.cell(context.row, context)) : '';
   }
   return column.hasAccessor ? formatValue(model.pinnedValueAt(side, index, column.id)) : '';
 }
@@ -83,7 +86,7 @@ function pinnedCell<T>(
 function cellContent<T>(model: TableModel<T, CellContent>, index: number, column: Column<T>) {
   if (column.cell) {
     const context = model.cellContext(index, column.id);
-    return context ? toChild(column.cell(context.row, context)) : '';
+    return context ? content(column.cell(context.row, context)) : '';
   }
   return column.hasAccessor ? formatValue(model.valueAt(index, column.id)) : '';
 }

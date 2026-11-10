@@ -21,4 +21,6 @@ flowchart LR
     class events main
 ```
 
+In `updated()`, header and cell content renders into the light DOM first. Content a framework renders (React elements and so on) goes to the table's `contentRenderer`, whose `flush()` runs right after, before auto widths are measured and before the browser paints ([ADR 0002](../../adr/0002-framework-content.md)).
+
 The one-extra-pass limit prevents layout loops when auto row heights and auto column widths affect each other. Expensive work (row models, column resolution) is memoised, so a pure scroll only re-runs the virtualizer and render.
