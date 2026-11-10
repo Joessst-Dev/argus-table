@@ -13,7 +13,7 @@ import '@argus-table/themes/default.css';
 
 Or with a `<link>`: `<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@argus-table/themes/dist/default.css">`.
 
-Load one theme per page: `default.css`, `material.css`, `fluent.css` or `bootstrap.css`.
+Load one theme per page: `default.css`, `material.css`, `fluent.css`, `bootstrap.css` or `minimal.css`.
 
 ## Default
 
@@ -62,6 +62,21 @@ It looks like a Bootstrap 5 `.table.table-striped.table-hover`, without loading 
 - **Fonts:** Bootstrap's system font stack; nothing to load.
 - **Rows:** the table's own heights, which match Bootstrap's: 40px at `comfortable` (the default) and 32px at `compact`, like `.table-sm` with its 0.25rem padding.
 - **No stripes:** `argus-table { --argus-row-stripe-bg: var(--argus-bg); }` after the theme.
+- **Scheme and overrides:** work the same as in the default theme.
+
+## Minimal
+
+```js
+import '@fontsource/instrument-sans/400.css';
+import '@fontsource/instrument-sans/500.css';
+import '@fontsource/instrument-sans/600.css';
+import '@argus-table/themes/minimal.css';
+```
+
+A quiet, airy table that reads like a timeline: header and body on one surface, no column lines, faint hairlines between rows, small uppercase column labels and one amber accent for focus, the sorted column, the resize handle and selection. Designed dark first, with a light version.
+
+- **Fonts:** the theme loads no fonts. Load Instrument Sans 400, 500 and 600 on the page, from [`@fontsource/instrument-sans`](https://fontsource.org/fonts/instrument-sans) as above or from Google Fonts. Without it, the table uses the system font.
+- **Rows:** 44, 56 and 68px for `compact`, `comfortable` (the default) and `spacious`, with 12, 16 and 24px of inline padding. A `row-height` set on the table still wins.
 - **Scheme and overrides:** work the same as in the default theme.
 
 The full list of tokens and parts is in the argus-table docs.

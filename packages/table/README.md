@@ -51,7 +51,7 @@ npm i argus-table @argus-table/themes
 - **Label:** give it a name with `aria-label` or `aria-labelledby`.
 - **Columns and data** are JavaScript properties, because they hold objects and functions.
 - **Cells:** a column's `cell` function can return a string, a number, a DOM node or a Lit template.
-- **Theme:** `default.css` is neutral and uses the page's font. `material.css` (load Roboto yourself), `fluent.css` and `bootstrap.css` are Material-, Fluent- and Bootstrap-inspired alternatives. All are optional, and the table is usable without any.
+- **Theme:** `default.css` is neutral and uses the page's font. `material.css` (load Roboto yourself), `fluent.css` and `bootstrap.css` are Material-, Fluent- and Bootstrap-inspired alternatives, and `minimal.css` (load Instrument Sans yourself) is a quiet, airy one with an amber accent. All are optional, and the table is usable without any.
 
 ## Rows from a server
 

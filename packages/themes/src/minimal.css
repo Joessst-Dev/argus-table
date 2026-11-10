@@ -1,0 +1,98 @@
+/*
+ * argus-table minimal theme: a quiet, airy table in the spirit of a timeline.
+ * One surface for header and body, no column lines, faint hairlines between
+ * rows, small uppercase column labels, roomy 56px rows and one amber accent.
+ * Designed dark first; follows the user's light or dark preference. Force a
+ * scheme with data-argus-theme="dark" or "light" on the table or on any
+ * ancestor.
+ *
+ * The theme loads no fonts. Load Instrument Sans (400, 500 and 600) on the
+ * page, for example from @fontsource/instrument-sans; without it the table
+ * uses the system font.
+ *
+ * A theme sets tokens and ::part() rules only. To change one value, set the
+ * token after this file: argus-table { --argus-row-hover-bg: transparent; }
+ *
+ * color-scheme sits on argus-table itself so that build tools polyfilling
+ * light-dark() switch these colours too (see default.css).
+ */
+argus-table {
+  color-scheme: light dark;
+  --argus-bg: light-dark(#ffffff, #0f1012);
+  --argus-fg: light-dark(#17181b, #ecedef);
+  --argus-font:
+    400 0.9375rem/1.4 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* Header and body share one surface; the labels are muted. */
+  --argus-header-bg: var(--argus-bg);
+  --argus-header-fg: light-dark(#5b616b, #a1a6af);
+  /* No column lines, only a faint hairline between rows. */
+  --argus-border-color: light-dark(#ecedef, #22252a);
+  --argus-border-width: 1px;
+  --argus-outline: none;
+  --argus-radius: 0;
+  --argus-row-height: 56px;
+  --argus-cell-padding-inline: 16px;
+  --argus-row-stripe-bg: var(--argus-bg);
+  --argus-row-hover-bg: light-dark(#f5f6f7, #191b1f);
+  /* The amber at a low strength over the background. */
+  --argus-row-selected-bg: light-dark(#fdf4e7, #2a241b);
+  --argus-pinned-shadow: 8px 0 12px -8px light-dark(rgb(0 0 0 / 0.14), rgb(0 0 0 / 0.7));
+  /* The amber accent; darker in light mode so the focus ring keeps its contrast. */
+  --argus-resize-handle-color: light-dark(#b45309, #f0b35b);
+  --argus-focus-ring: 2px solid light-dark(#b45309, #f0b35b);
+  --argus-drop-indicator-color: light-dark(#b45309, #f0b35b);
+  --argus-skeleton-bg: light-dark(#eceef1, #23262b);
+  --argus-pinned-row-bg: var(--argus-bg);
+
+  &[density='compact'] {
+    --argus-row-height: 44px;
+    --argus-cell-padding-inline: 12px;
+  }
+  &[density='spacious'] {
+    --argus-row-height: 68px;
+    --argus-cell-padding-inline: 24px;
+  }
+
+  &::part(cell) {
+    font-variant-numeric: tabular-nums;
+  }
+  /* Small uppercase labels, spaced out. */
+  &::part(header-cell) {
+    font-size: 0.6875rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  &::part(header-cell-sorted) {
+    color: light-dark(#b45309, #f0b35b);
+  }
+  /* Totals and the like: bold, set off from the body by a stronger hairline. */
+  &::part(row-pinned) {
+    font-weight: 600;
+  }
+  &::part(row-pinned-top) {
+    box-shadow: 0 1px 0 light-dark(#d5d8dd, #3a3f46);
+  }
+  &::part(row-pinned-bottom) {
+    box-shadow: 0 -1px 0 light-dark(#d5d8dd, #3a3f46);
+  }
+  &::part(selection-checkbox) {
+    accent-color: light-dark(#b45309, #f0b35b);
+  }
+  &::part(skeleton) {
+    border-radius: 4px;
+  }
+}
+
+/* The attribute on the table itself comes last, so it beats one on an ancestor. */
+[data-argus-theme='dark'] argus-table {
+  color-scheme: dark;
+}
+[data-argus-theme='light'] argus-table {
+  color-scheme: light;
+}
+argus-table[data-argus-theme='dark'] {
+  color-scheme: dark;
+}
+argus-table[data-argus-theme='light'] {
+  color-scheme: light;
+}

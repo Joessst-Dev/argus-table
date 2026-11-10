@@ -25,7 +25,7 @@ Styling works in three layers, from easiest to most powerful; a theme is just a 
 | Material-inspired | v0.2 (shipped) | Material 3 baseline colours, Roboto (loaded by the page), 40 / 52 / 60 px rows, a rounded outlined surface (`--argus-radius`, `--argus-outline`), deeper shadows on pinned edges |
 | Fluent-inspired | v0.3 (shipped) | Fluent 2 neutral greys and brand blue, Segoe UI (falls back to the system font), a flat header on the body colour, 34 / 44 / 52 px rows, a brand-tinted selection and a black / white focus ring |
 | Bootstrap-inspired | v0.3 (shipped) | Bootstrap 5 `.table.table-striped.table-hover`: its colours, system font stack, 0.5 rem padding (0.25 rem compact), stripes, hover and the 2 px divider under the header; selected rows use `.table-primary` |
-| Minimal / social | v0.4 | Borderless, airy rows, timeline feel (instead of "Twitter style") |
+| Minimal | v0.3 (shipped) | Header and body on one surface, no column lines, faint row hairlines, small uppercase labels, 44 / 56 / 68 px rows, one amber accent, Instrument Sans (loaded by the page); designed dark first |
 
 Each theme is `@argus-table/themes/<name>.css`, built with Lightning CSS (nesting lowered, minified). A theme contains only token declarations and `::part()` rules on `argus-table`, plus `color-scheme` for `[data-argus-theme]`; a test in the package checks that every token and part it uses is documented on the element. Every theme supports `data-argus-theme="dark"` and `"light"` on the table or an ancestor; the attribute on the table wins.
 

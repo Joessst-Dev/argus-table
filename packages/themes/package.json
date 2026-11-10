@@ -20,6 +20,7 @@
     "./material.css": "./dist/material.css",
     "./fluent.css": "./dist/fluent.css",
     "./bootstrap.css": "./dist/bootstrap.css",
+    "./minimal.css": "./dist/minimal.css",
     "./package.json": "./package.json"
   },
   "files": [
