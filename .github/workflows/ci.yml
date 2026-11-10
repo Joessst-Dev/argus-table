@@ -20,9 +20,12 @@ concurrency:
 # Every job runs on every event (no path filters) and `nx affected` exits 0
 # when nothing is affected, so required checks always report.
 
+# The runners are pinned (not ubuntu-latest) so that an image change is a
+# deliberate update: Playwright's browsers and their system libraries are per
+# Ubuntu release.
 jobs:
   setup:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       base: ${{ steps.shas.outputs.base }}
       head: ${{ steps.shas.outputs.head }}
@@ -36,7 +39,7 @@ jobs:
 
   lint:
     needs: setup
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -49,7 +52,7 @@ jobs:
 
   unit:
     needs: setup
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -63,14 +66,18 @@ jobs:
 
       - name: Read Playwright version
         id: playwright
-        run: echo "version=$(pnpm --filter argus-table exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "version=$(pnpm --filter argus-table exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+          # The browsers are built per OS release (ubuntu24, ubuntu26): a cache made
+          # on one must not be restored on another.
+          echo "image=${ImageOS:-$RUNNER_OS}" >> "$GITHUB_OUTPUT"
 
       - name: Cache Playwright browsers
         id: browser-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ matrix.browser }}-${{ steps.playwright.outputs.version }}
+          key: playwright-${{ steps.playwright.outputs.image }}-${{ matrix.browser }}-${{ steps.playwright.outputs.version }}
 
       - name: Install ${{ matrix.browser }}
         if: steps.browser-cache.outputs.cache-hit != 'true'
@@ -89,7 +96,7 @@ jobs:
     # Every Storybook story runs as a test in Chromium: it renders, its play
     # function runs, and axe checks it. A violation fails the story.
     needs: setup
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -98,14 +105,18 @@ jobs:
 
       - name: Read Playwright version
         id: playwright
-        run: echo "version=$(pnpm --filter @argus-table/storybook exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "version=$(pnpm --filter @argus-table/storybook exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+          # The browsers are built per OS release (ubuntu24, ubuntu26): a cache made
+          # on one must not be restored on another.
+          echo "image=${ImageOS:-$RUNNER_OS}" >> "$GITHUB_OUTPUT"
 
       - name: Cache Playwright browsers
         id: browser-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-chromium-${{ steps.playwright.outputs.version }}
+          key: playwright-${{ steps.playwright.outputs.image }}-chromium-${{ steps.playwright.outputs.version }}
 
       - name: Install Chromium
         if: steps.browser-cache.outputs.cache-hit != 'true'
@@ -122,7 +133,7 @@ jobs:
 
   e2e:
     needs: setup
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -136,14 +147,18 @@ jobs:
 
       - name: Read Playwright version
         id: playwright
-        run: echo "version=$(pnpm --filter @argus-table/e2e exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "version=$(pnpm --filter @argus-table/e2e exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+          # The browsers are built per OS release (ubuntu24, ubuntu26): a cache made
+          # on one must not be restored on another.
+          echo "image=${ImageOS:-$RUNNER_OS}" >> "$GITHUB_OUTPUT"
 
       - name: Cache Playwright browsers
         id: browser-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ matrix.browser }}-${{ steps.playwright.outputs.version }}
+          key: playwright-${{ steps.playwright.outputs.image }}-${{ matrix.browser }}-${{ steps.playwright.outputs.version }}
 
       - name: Install ${{ matrix.browser }}
         if: steps.browser-cache.outputs.cache-hit != 'true'
@@ -172,7 +187,7 @@ jobs:
     # Packs the published packages, installs each starter in apps/examples
     # against the tarballs with npm, builds it and smoke-tests it in Chromium.
     needs: setup
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -181,14 +196,18 @@ jobs:
 
       - name: Read Playwright version
         id: playwright
-        run: echo "version=$(pnpm --filter @argus-table/examples exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "version=$(pnpm --filter @argus-table/examples exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+          # The browsers are built per OS release (ubuntu24, ubuntu26): a cache made
+          # on one must not be restored on another.
+          echo "image=${ImageOS:-$RUNNER_OS}" >> "$GITHUB_OUTPUT"
 
       - name: Cache Playwright browsers
         id: browser-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-chromium-${{ steps.playwright.outputs.version }}
+          key: playwright-${{ steps.playwright.outputs.image }}-chromium-${{ steps.playwright.outputs.version }}
 
       - name: Install Chromium
         if: steps.browser-cache.outputs.cache-hit != 'true'
@@ -222,7 +241,7 @@ jobs:
     # Inside the Playwright image, so fonts and rendering match the baselines in
     # tests/visual/__screenshots__ (made by visual-update.yml in the same image).
     needs: setup
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     container:
       image: mcr.microsoft.com/playwright:v1.63.0-noble
       options: --ipc=host
@@ -251,7 +270,7 @@ jobs:
 
   build:
     needs: setup
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -264,7 +283,7 @@ jobs:
     # Always runs (not `affected`): the budget is a gate, and a dependency bump
     # can grow the bundle without touching packages/table.
     needs: setup
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup
@@ -280,7 +299,7 @@ jobs:
       github.head_ref != 'changeset-release/main' &&
       !contains(github.event.pull_request.labels.*.name, 'no-changeset')
     needs: setup
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
