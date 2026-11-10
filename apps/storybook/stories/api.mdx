@@ -25,3 +25,29 @@ Generated from the element's JSDoc through the Custom Elements Manifest, so it m
 ## Controlled and uncontrolled state
 
 `sorting`, `columnSizing`, `columnOrder` and `selection` work either way. Leave them unset and the table keeps its own state, then fires the event. Set them and the table only proposes: it fires the event with the new state and waits for you to set the property. Set them back to `undefined` to hand control back to the table.
+
+## Plugins
+
+`plugins` takes add-ons, such as the column menu from `@argus-table/header-menu` (see Add-ons/Header menu). A plugin is an object with a `name` and any of these hooks:
+
+```ts
+import type { ArgusPlugin } from 'argus-table';
+
+const plugin: ArgusPlugin<Order> = {
+  name: 'my-plugin',
+  // While the table is connected; return a cleanup.
+  connect(host) {
+    return () => {};
+  },
+  // Change the column definitions before the table reads them.
+  columns: (defs, host) => [
+    ...defs,
+    { id: 'gross', header: 'Gross', accessor: (o) => o.total * 1.19 },
+  ],
+  // A key on a focused header or cell, before the table: return true to claim it.
+  keydown: (event, target, host) => false,
+};
+table.plugins = [plugin];
+```
+
+The `host` reads resolved columns (`column(id)`), finds the header or cell of an event (`cellOf(event)`), sorts (`setSort(id, 'asc' | 'desc' | null)`, under the `sorting` rules), focuses a header (`focusHeader(id)`), announces to screen readers (`announce(message)`), runs the `columns` hooks again (`invalidateColumns()`) and re-renders (`requestUpdate()`). The table itself is `host.element`. Plugins run in array order; one that throws is reported in the console and skipped.

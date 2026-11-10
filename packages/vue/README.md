@@ -46,7 +46,7 @@ const columns: ColumnDef<Order>[] = [
 </template>
 ```
 
-- **Props** set the element's properties: `columns`, `data`, `dataSource`, `pinnedRows`, `getRowId`, `rowHeight`, `density`, `overscan`, `virtualizeColumns`, `sorting`, `columnSizing`, `columnOrder`, `selectionMode`, `selectionCheckboxes` and `selection`. Other attributes (`aria-label`, `class`, `style`, …) go to the element.
+- **Props** set the element's properties: `columns`, `data`, `dataSource`, `pinnedRows`, `getRowId`, `rowHeight`, `density`, `overscan`, `virtualizeColumns`, `sorting`, `columnSizing`, `columnOrder`, `selectionMode`, `selectionCheckboxes`, `selection` and `plugins`. Other attributes (`aria-label`, `class`, `style`, …) go to the element.
 - **Events** get the element's `CustomEvent`: `sort-change`, `column-resize`, `column-reorder`, `cell-click`, `row-click`, `range-change`, `load-error` and `row-select`. In `@row-click`, `e.detail.row` has your row type. The details are in the [`argus-table` README](https://www.npmjs.com/package/argus-table).
 - **Cells:** a column's `cell` function returns a string, a number, a DOM node or a Lit template. Vue content in cells is planned.
 - **Height:** the table virtualizes its rows, so it needs a bounded height. Its default is 400 px.

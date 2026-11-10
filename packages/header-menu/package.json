@@ -1,0 +1,52 @@
+{
+  "name": "@argus-table/header-menu",
+  "version": "0.2.2",
+  "description": "A column menu for argus-table: sort and fit a column from a button in its header, or from the keyboard.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Joessst-Dev/argus-table.git",
+    "directory": "packages/header-menu"
+  },
+  "type": "module",
+  "nx": {
+    "name": "header-menu"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "vite build && tsc -p tsconfig.build.json && publint --strict && attw --pack . --profile esm-only",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "argus-table": "workspace:^",
+    "lit": "^3.3.0"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
+    "@vitest/browser-playwright": "^5.1.0",
+    "argus-table": "workspace:^",
+    "lit": "^3.3.3",
+    "playwright": "1.63.0",
+    "publint": "^0.3.25",
+    "vite": "^8.3.5",
+    "vitest": "^5.1.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

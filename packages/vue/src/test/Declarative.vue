@@ -3,13 +3,17 @@
 // attributes, v-for over <ArgusColumn>, a template ref, and (for vue-tsc) the
 // types of events and exposed methods.
 import { ref, useTemplateRef } from 'vue';
-import { ArgusColumn, ArgusTable, type SortState } from '../index.js';
+import { ArgusColumn, ArgusTable, type ArgusPlugin, type SortState } from '../index.js';
 import { orders, size, type Order } from './data.js';
 
 const ids = defineModel<string[]>('ids', { required: true });
 const sorting = ref<SortState>([]);
 const clicked = ref<Order[]>([]);
 const table = useTemplateRef('table');
+// Not reactive: a plugin's identity must stay the same between renders.
+const plugins: ArgusPlugin<Order>[] = [
+  { name: 'totals', columns: (defs) => [...defs, { id: 'x2', accessor: (o) => o.total * 2 }] },
+];
 
 function onRowClick(e: CustomEvent<{ row: Order }>) {
   // The row type comes from `data`: `e.detail.row.total` is a number.
@@ -57,6 +61,9 @@ defineExpose({ sorting, clicked, table, refresh });
     <ArgusTable :data="orders" @update:sorting="(s) => s.map((i) => i.id)" />
     <ArgusTable @update:column-sizing="(s) => s['total']" @update:column-order="(o) => o.join()" />
     <ArgusTable selection-mode="multi" selection-checkboxes @update:selection="(s) => s.join()" />
+    <ArgusTable :data="orders" :plugins="plugins" />
+    <!-- @vue-expect-error a plugin needs a name -->
+    <ArgusTable :data="orders" :plugins="[{ keydown: () => true }]" />
     <!-- @vue-expect-error selection-mode is 'none', 'single' or 'multi' -->
     <ArgusTable selection-mode="many" />
   </template>

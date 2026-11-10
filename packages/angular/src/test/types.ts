@@ -5,6 +5,7 @@ import { Component, signal } from '@angular/core';
 import {
   ArgusColumnComponent,
   ArgusTableComponent,
+  type ArgusPlugin,
   type ColumnDef,
   type ColumnSizingState,
   type SortState,
@@ -39,6 +40,7 @@ import { orders, type Order } from './data.js';
       <argus-column [columnId]="'calc'" [accessor]="total" [width]="'auto'" [sortable]="true" />
     </argus-table>
     <argus-table [data]="rows()" />
+    <argus-table [data]="orders" [plugins]="plugins" />
   `,
 })
 export class TypesComponent {
@@ -49,6 +51,9 @@ export class TypesComponent {
   readonly selected = signal<string[]>([]);
   readonly rows = signal<Order[] | null>(null);
   readonly total = (o: Order) => o.total;
+  readonly plugins: ArgusPlugin<Order>[] = [
+    { name: 'totals', columns: (defs) => [...defs, { id: 'x2', accessor: (o) => o.total * 2 }] },
+  ];
 
   takeOrder(order: Order): string {
     return order.id;

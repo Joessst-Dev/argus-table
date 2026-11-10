@@ -54,14 +54,15 @@ import { ArgusTable } from '@argus-table/react';
 
 ## Packages
 
-| Package                 | Purpose                                          | Status       |
-| ----------------------- | ------------------------------------------------ | ------------ |
-| `argus-table`           | The `<argus-table>` element                      | v0.2         |
-| `@argus-table/themes`   | Optional themes: default, Material-inspired      | v0.2         |
-| `@argus-table/react`    | React components with typed props and events     | v0.2         |
-| `@argus-table/vue`      | Vue components with typed props, events, v-model | v0.2         |
-| `@argus-table/angular`  | Angular components with typed inputs and outputs | v0.2         |
-| `@argus-table/formulas` | Optional formula columns                         | After launch |
+| Package                    | Purpose                                            | Status       |
+| -------------------------- | -------------------------------------------------- | ------------ |
+| `argus-table`              | The `<argus-table>` element                        | v0.2         |
+| `@argus-table/themes`      | Optional themes: default, Material-inspired        | v0.2         |
+| `@argus-table/react`       | React components with typed props and events       | v0.2         |
+| `@argus-table/vue`         | Vue components with typed props, events, v-model   | v0.2         |
+| `@argus-table/angular`     | Angular components with typed inputs and outputs   | v0.2         |
+| `@argus-table/header-menu` | Optional column menu: sort and fit from the header | Next release |
+| `@argus-table/formulas`    | Optional formula columns                           | After launch |
 
 ## Project plan
 

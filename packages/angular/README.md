@@ -61,7 +61,7 @@ export class OrdersComponent {
 
 Add `@import '@argus-table/themes/default.css';` to your global styles for the default theme.
 
-- **Inputs** set the element's properties: `columns`, `data`, `dataSource`, `pinnedRows`, `getRowId`, `rowHeight`, `density`, `overscan`, `virtualizeColumns`, `sorting`, `columnSizing`, `columnOrder`, `selectionMode`, `selectionCheckboxes` and `selection`. Other attributes (`aria-label`, `class`, `style`, …) stay on the element. `null`, as from the `async` pipe, means unset.
+- **Inputs** set the element's properties: `columns`, `data`, `dataSource`, `pinnedRows`, `getRowId`, `rowHeight`, `density`, `overscan`, `virtualizeColumns`, `sorting`, `columnSizing`, `columnOrder`, `selectionMode`, `selectionCheckboxes`, `selection` and `plugins`. Other attributes (`aria-label`, `class`, `style`, …) stay on the element. `null`, as from the `async` pipe, means unset.
 - **Outputs** emit the element's `CustomEvent`: `sortChange`, `columnResize`, `columnReorder`, `cellClick`, `rowClick`, `rangeChange` and `loadError`. In `(rowClick)`, `$event.detail.row` has your row type. The details are in the [`argus-table` README](https://www.npmjs.com/package/argus-table).
 - **Cells:** a column's `cell` function returns a string, a number, a DOM node or a Lit template. Angular templates in cells are planned.
 - **Height:** the table virtualizes its rows, so it needs a bounded height. Its default is 400 px.
