@@ -43,6 +43,7 @@ argus-table {
   /* strokeFocus2: Fluent's focus indicator is black on light, white on dark. */
   --argus-focus-ring: 2px solid light-dark(#000000, #ffffff);
   --argus-drop-indicator-color: light-dark(#0f6cbd, #479ef5);
+  --argus-filter-indicator-color: light-dark(#0f6cbd, #479ef5);
   /* neutralStencil1 */
   --argus-skeleton-bg: light-dark(#e6e6e6, #575757);
   /* neutralBackground2 */

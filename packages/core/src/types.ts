@@ -40,7 +40,7 @@ export interface CellContext<TData> {
    * `getRowId` gets `'top-0'`, `'bottom-0'` and so on.
    */
   rowId: string;
-  /** Index of the row in the current (sorted) row model; for a pinned row, its index in its list. */
+  /** Index of the row in the current (filtered and sorted) row model; for a pinned row, its index in its list. */
   index: number;
   /** The column's id. */
   columnId: string;
@@ -119,6 +119,22 @@ export interface ColumnDef<TData, TContent = unknown> {
    * Default: `true`. `hidden` and `columnVisibility` still apply.
    */
   hideable?: boolean;
+  /**
+   * The kind of filter users can set on the column, for example from the column menu:
+   * `'text'`, `'number'`, `'date'` or `'set'` (pick from a list of values). Without it
+   * users can't filter the column; `columnFilters` still applies.
+   */
+  filter?: FilterKind;
+  /**
+   * Replaces the built-in matching for this column: return `true` to keep the row.
+   * Receives the value read by `accessor`, the column's filter and the row.
+   */
+  filterFn?: (value: unknown, filter: ColumnFilter, row: TData) => boolean;
+  /**
+   * The values a `'set'` filter offers. Needed with a `dataSource`; with `data` the
+   * table lists the distinct values of the column when this isn't set.
+   */
+  filterOptions?: readonly FilterValue[];
   /** Text alignment. Default: `'start'`. */
   align?: ColumnAlign;
 }
@@ -154,6 +170,65 @@ export type ColumnPinningState = Record<string, ColumnPin | false>;
  * a column whose definition is `hidden`. A column not listed keeps its `hidden`.
  */
 export type ColumnVisibilityState = Record<string, boolean>;
+
+/** The kinds of filter a column can offer. */
+export type FilterKind = 'text' | 'number' | 'date' | 'set';
+
+/** A value a `'set'` filter can pick. */
+export type FilterValue = string | number | boolean | null;
+
+/** Comparisons of a `'text'` filter. `'empty'` and `'notEmpty'` ignore `value`. */
+export type TextFilterOp = 'contains' | 'equals' | 'startsWith' | 'empty' | 'notEmpty';
+
+/**
+ * Comparisons of a `'number'` or `'date'` filter. `'between'` is inclusive and needs
+ * `to`; `'empty'` and `'notEmpty'` ignore `value`.
+ */
+export type RangeFilterOp =
+  'eq' | 'ne' | 'lt' | 'le' | 'gt' | 'ge' | 'between' | 'empty' | 'notEmpty';
+
+/** Keeps rows whose value as text matches, ignoring case. */
+export interface TextFilter {
+  kind: 'text';
+  op: TextFilterOp;
+  value?: string;
+}
+
+/** Keeps rows whose number compares as `op` says. */
+export interface NumberFilter {
+  kind: 'number';
+  op: RangeFilterOp;
+  value?: number;
+  /** The upper bound of `'between'`. */
+  to?: number;
+}
+
+/**
+ * Keeps rows whose date compares as `op` says, by local day. `value` and `to` are
+ * ISO dates (`'2026-11-10'`); cell values can be `Date`s, timestamps or ISO strings.
+ */
+export interface DateFilter {
+  kind: 'date';
+  op: RangeFilterOp;
+  value?: string;
+  /** The last day of `'between'`. */
+  to?: string;
+}
+
+/** Keeps rows whose value is one of `values` (`null` stands for an empty value). */
+export interface SetFilter {
+  kind: 'set';
+  values: FilterValue[];
+}
+
+/** One column's filter. */
+export type ColumnFilter = TextFilter | NumberFilter | DateFilter | SetFilter;
+
+/**
+ * Filters set at runtime, keyed by column id. A row shows when it passes every filter
+ * (and `quickFilter`). Filters on hidden columns still apply; unknown ids are ignored.
+ */
+export type ColumnFilterState = Record<string, ColumnFilter>;
 
 /**
  * How rows can be selected: `'none'` (the default), `'single'` (one row at a time)
@@ -210,6 +285,16 @@ export interface ColumnHideDetail {
   visibility: ColumnVisibilityState;
 }
 
+/** `detail` of `argus-column-filter`: fires when a column's filter is set, changed or cleared. */
+export interface ColumnFilterDetail {
+  /** The column filtered. */
+  columnId: string;
+  /** Its new filter, or `undefined` when it was cleared. */
+  filter: ColumnFilter | undefined;
+  /** The whole new filter state. */
+  filters: ColumnFilterState;
+}
+
 /** `detail` of `argus-row-click`. */
 export interface RowClickDetail<TData> {
   row: TData;
@@ -235,7 +320,7 @@ export interface RangeChangeDetail {
   end: number;
 }
 
-/** What `getRows()` receives: a range of rows, the sort order and an abort signal. */
+/** What `getRows()` receives: a range of rows, the sort order, the filters and an abort signal. */
 export interface RowsRequest {
   /** Index of the first row, inclusive. */
   start: number;
@@ -243,6 +328,10 @@ export interface RowsRequest {
   end: number;
   /** The current sort order; sorting happens on the server. `[]` when unsorted. */
   sorting: SortState;
+  /** The column filters; filtering happens on the server. `{}` when nothing is filtered. */
+  filters: ColumnFilterState;
+  /** The `quickFilter` text to match in any column. `''` when unset. */
+  quickFilter: string;
   /** Aborted when the rows are no longer needed: scrolled far away, or the source was reset. */
   signal: AbortSignal;
 }

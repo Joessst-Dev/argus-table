@@ -7,6 +7,8 @@ import {
   ArgusTableComponent,
   type ArgusPlugin,
   type ColumnDef,
+  type ColumnFilter,
+  type ColumnFilterState,
   type ColumnPin,
   type ColumnPinningState,
   type ColumnSizingState,
@@ -31,6 +33,9 @@ import { orders, type Order } from './data.js';
       [(columnVisibility)]="visibility"
       (columnPin)="takePin($event.detail.pin)"
       (columnHide)="takeFlag($event.detail.hidden)"
+      [(columnFilters)]="filters"
+      quickFilter="berlin"
+      (columnFilter)="takeFilter($event.detail.filter)"
       selectionMode="multi"
       selectionCheckboxes
       [(selection)]="selected"
@@ -45,6 +50,7 @@ import { orders, type Order } from './data.js';
       <argus-column column-id="id" header="Order" accessor="id" width="90" pin="start" sortable />
       <argus-column columnId="total" width="2fr" minWidth="40" resizable="false" align="end" />
       <argus-column [columnId]="'calc'" [accessor]="total" [width]="'auto'" [sortable]="true" />
+      <argus-column column-id="status" filter="set" [filterOptions]="['open', 'paid']" />
     </argus-table>
     <argus-table [data]="rows()" />
     <argus-table [data]="orders" [plugins]="plugins" />
@@ -57,6 +63,7 @@ export class TypesComponent {
   readonly order = signal<string[]>([]);
   readonly pinning = signal<ColumnPinningState>({});
   readonly visibility = signal<ColumnVisibilityState>({});
+  readonly filters = signal<ColumnFilterState>({});
   readonly selected = signal<string[]>([]);
   readonly rows = signal<Order[] | null>(null);
   readonly total = (o: Order) => o.total;
@@ -82,6 +89,9 @@ export class TypesComponent {
   }
   takeFlag(flag: boolean): boolean {
     return flag;
+  }
+  takeFilter(filter: ColumnFilter | undefined): string | undefined {
+    return filter?.kind;
   }
   takeNumber(n: number): number {
     return n;

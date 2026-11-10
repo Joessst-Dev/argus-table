@@ -1,5 +1,13 @@
 import { html } from 'lit';
-import type { ArgusTable, ColumnDef, DataSource, Density, RowsRequest } from 'argus-table';
+import type {
+  ArgusTable,
+  ColumnDef,
+  ColumnFilter,
+  ColumnFilterState,
+  DataSource,
+  Density,
+  RowsRequest,
+} from 'argus-table';
 import 'argus-table';
 import { EXTRA_COLUMNS, makePeople, type Person } from './data.js';
 import { installBenchHooks } from './bench-hooks.js';
@@ -24,6 +32,10 @@ import { installBenchHooks } from './bench-hooks.js';
 // and vcols sets virtualizeColumns.
 // hide=email,status hides those columns (columnVisibility), and
 // pins=email:start,name:false sets columnPinning (start, end, or false to unpin).
+// filter=<JSON> sets columnFilters, e.g. filter={"city":{"kind":"set","values":["Osaka"]}}
+// (URL-encoded), and q=<text> sets quickFilter. Name (text), city, country, status
+// (set), amount (number) and date (date) can be filtered; the pretend server
+// (source=remote) filters too.
 const params = new URLSearchParams(location.search);
 // A switch, not a lookup table: the query value never picks a function to call.
 switch (params.get('theme')) {
@@ -93,15 +105,39 @@ const allColumns: ColumnDef<Person>[] = [
     align: 'end',
     pin: 'start',
   },
-  { id: 'name', header: 'Name', accessor: 'name', width: 180, pin: 'start', sortable: true },
+  {
+    id: 'name',
+    header: 'Name',
+    accessor: 'name',
+    width: 180,
+    pin: 'start',
+    sortable: true,
+    filter: 'text',
+  },
   // Summary rows (pinned=…) have no email or status.
   { id: 'email', header: 'Email', width: 260, cell: (p, ctx) => (ctx.pinned ? '' : emailLink(p)) },
-  { id: 'city', header: 'City', accessor: 'location.city', width: 120, sortable: true },
-  { id: 'country', header: 'Country', accessor: 'location.country', width: 90 },
+  {
+    id: 'city',
+    header: 'City',
+    accessor: 'location.city',
+    width: 120,
+    sortable: true,
+    filter: 'set',
+  },
+  {
+    id: 'country',
+    header: 'Country',
+    accessor: 'location.country',
+    width: 90,
+    filter: 'set',
+  },
   {
     id: 'status',
     header: 'Status',
+    accessor: 'status',
     width: 110,
+    filter: 'set',
+    filterOptions: ['active', 'invited', 'paused', 'blocked'],
     cell: (p, ctx) => (ctx.pinned ? '' : html`<span class="status">${p.status}</span>`),
   },
   {
@@ -111,9 +147,10 @@ const allColumns: ColumnDef<Person>[] = [
     width: 120,
     align: 'end',
     sortable: true,
+    filter: 'number',
     cell: (p) => p.amount.toFixed(2),
   },
-  { id: 'date', header: 'Date', accessor: 'date', width: 120 },
+  { id: 'date', header: 'Date', accessor: 'date', width: 120, filter: 'date' },
   // 9 named columns and the fN ones make up `cols`: 20 by default.
   ...Array.from({ length: Math.max(EXTRA_COLUMNS, colCount - 9) }, (_, i): ColumnDef<Person> => ({
     id: `f${String(i + 1)}`,
@@ -156,6 +193,9 @@ if (pins.length > 0) {
     }),
   );
 }
+const filterParam = params.get('filter');
+if (filterParam) table.columnFilters = JSON.parse(filterParam) as ColumnFilterState;
+if (params.has('q')) table.quickFilter = params.get('q') ?? '';
 table.columns = columns;
 table.getRowId = (p) => p.id;
 const dataStart = performance.now();
@@ -196,7 +236,66 @@ function summary(id: string, name: string, divisor: number): Person {
   };
 }
 
-/** A pretend server over the people: sorts, waits, honours `signal`, can fail a page once. */
+/** What a column reads from a person: its accessor function or path. */
+function readColumn(id: string, p: Person): unknown {
+  const column = columns.find((c) => c.id === id);
+  return typeof column?.accessor === 'function'
+    ? column.accessor(p, 0)
+    : column?.accessor
+        ?.split('.')
+        .reduce<unknown>((v, k) => (v as Record<string, unknown> | undefined)?.[k], p);
+}
+
+/** A value as the pretend server searches it: strings and numbers only. */
+const textOf = (value: unknown) =>
+  typeof value === 'string' || typeof value === 'number' ? String(value).toLowerCase() : '';
+
+/** The pretend server's own filtering: enough of the filter kinds for tests and demos. */
+function matches(value: unknown, filter: ColumnFilter): boolean {
+  const empty = value === undefined || value === null || value === '';
+  if (filter.kind === 'set') return filter.values.includes(empty ? null : (value as string));
+  if (filter.op === 'empty') return empty;
+  if (filter.op === 'notEmpty') return !empty;
+  if (filter.kind === 'text') {
+    const text = textOf(value);
+    const needle = (filter.value ?? '').toLowerCase();
+    if (filter.op === 'equals') return text === needle;
+    return filter.op === 'startsWith' ? text.startsWith(needle) : text.includes(needle);
+  }
+  // Numbers, and ISO dates, which compare as text.
+  const v = value as number | string;
+  const from = filter.value;
+  const to = filter.to;
+  switch (filter.op) {
+    case 'eq':
+      return v === from;
+    case 'ne':
+      return v !== from;
+    case 'lt':
+      return from === undefined || v < from;
+    case 'le':
+      return from === undefined || v <= from;
+    case 'gt':
+      return from === undefined || v > from;
+    case 'ge':
+      return from === undefined || v >= from;
+    case 'between':
+      return (from === undefined || v >= from) && (to === undefined || v <= to);
+  }
+}
+
+function filterPeople(people: Person[], filters: ColumnFilterState, quick: string): Person[] {
+  const entries = Object.entries(filters);
+  const words = quick.toLowerCase().split(/\s+/).filter(Boolean);
+  if (entries.length === 0 && words.length === 0) return people;
+  return people.filter(
+    (p) =>
+      entries.every(([id, filter]) => matches(readColumn(id, p), filter)) &&
+      words.every((w) => columns.some((c) => textOf(readColumn(c.id, p)).includes(w))),
+  );
+}
+
+/** A pretend server over the people: sorts, filters, waits, honours `signal`, can fail a page once. */
 function remoteSource(people: Person[]): DataSource<Person> {
   const latency = Number(params.get('latency') ?? 100);
   const withTotal = params.get('total') !== 'unknown';
@@ -206,8 +305,8 @@ function remoteSource(people: Person[]): DataSource<Person> {
   const log: RowsRequest[] = (window.__argusRequests = []);
   return {
     pageSize,
-    getRows: ({ start, end, sorting, signal }) => {
-      log.push({ start, end, sorting, signal });
+    getRows: ({ start, end, sorting, filters, quickFilter, signal }) => {
+      log.push({ start, end, sorting, filters, quickFilter, signal });
       return new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
           if (failing.delete(Math.floor(start / pageSize))) {
@@ -220,27 +319,18 @@ function remoteSource(people: Person[]): DataSource<Person> {
             const key = `${by.id}:${String(by.desc)}`;
             let sorted = sortedBy.get(key);
             if (!sorted) {
-              const column = columns.find((c) => c.id === by.id);
-              const read = (p: Person): unknown =>
-                typeof column?.accessor === 'function'
-                  ? column.accessor(p, 0)
-                  : column?.accessor
-                      ?.split('.')
-                      .reduce<unknown>(
-                        (v, k) => (v as Record<string, unknown> | undefined)?.[k],
-                        p,
-                      );
               const dir = by.desc ? -1 : 1;
               sorted = [...people].sort((a, b) => {
-                const x = read(a) as string | number;
-                const y = read(b) as string | number;
+                const x = readColumn(by.id, a) as string | number;
+                const y = readColumn(by.id, b) as string | number;
                 return x < y ? -dir : x > y ? dir : 0;
               });
               sortedBy.set(key, sorted);
             }
             rows = sorted;
           }
-          resolve({ rows: rows.slice(start, end), total: withTotal ? people.length : undefined });
+          rows = filterPeople(rows, filters, quickFilter);
+          resolve({ rows: rows.slice(start, end), total: withTotal ? rows.length : undefined });
         }, latency);
         signal.addEventListener('abort', () => {
           clearTimeout(timer);

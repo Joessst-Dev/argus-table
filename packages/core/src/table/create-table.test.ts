@@ -645,6 +645,160 @@ describe('createTableModel: column visibility', () => {
   });
 });
 
+describe('createTableModel: filtering', () => {
+  // Bonn (Cleo 30), Aachen (ada –), Celle (Bea 9), Dresden (Dan 41).
+  const filterable = columns.map((c) =>
+    c.id === 'city'
+      ? { ...c, filter: 'set' as const }
+      : c.id === 'age'
+        ? { ...c, filter: 'number' as const }
+        : c.id === 'name'
+          ? { ...c, filter: 'text' as const }
+          : c,
+  );
+  const fmodel = (overrides: Partial<TableModelOptions<Person, string>> = {}) =>
+    model({ columns: filterable, ...overrides });
+
+  it('keeps the rows every filter passes, with indexes and ids in the filtered order', () => {
+    const m = fmodel({ columnFilters: { age: { kind: 'number', op: 'gt', value: 10 } } });
+    expect(names(m)).toEqual(['Cleo', 'Dan']);
+    expect(m.rowAt(1)).toEqual({ id: '3', index: 1, original: people[3] });
+    expect(m.indexOf('3')).toBe(1);
+    expect(m.indexOf('2')).toBeUndefined();
+    expect(m.selectableIds()).toEqual(['0', '3']);
+    expect(m.cellContext(1, 'name')?.index).toBe(1);
+  });
+
+  it('sorts the filtered rows', () => {
+    const m = fmodel({
+      sorting: [{ id: 'name', desc: true }],
+      columnFilters: { city: { kind: 'set', values: ['Bonn', 'Aachen', 'Celle'] } },
+    });
+    expect(names(m)).toEqual(['Cleo', 'Bea', 'ada']);
+  });
+
+  it('filters again when the filters, the quick filter or the columns change', () => {
+    const m = fmodel();
+    expect(m.rowCount).toBe(4);
+    m.update({ quickFilter: 'en' });
+    // Aachen and Dresden.
+    expect(names(m)).toEqual(['ada', 'Dan']);
+    m.update({ quickFilter: 'a' });
+    expect(names(m)).toEqual(['ada', 'Bea', 'Dan']);
+    m.update({ columnFilters: { name: { kind: 'text', op: 'startsWith', value: 'b' } } });
+    expect(names(m)).toEqual(['Bea']);
+    m.update({ quickFilter: '', columnFilters: {} });
+    expect(m.rowCount).toBe(4);
+  });
+
+  it('searches only the shown columns with the quick filter', () => {
+    const m = fmodel({ quickFilter: 'bonn' });
+    expect(names(m)).toEqual(['Cleo']);
+    m.update({ columnVisibility: { city: false } });
+    expect(m.rowCount).toBe(0);
+  });
+
+  it('keeps filtering by a hidden column', () => {
+    const m = fmodel({
+      columnVisibility: { age: false },
+      columnFilters: { age: { kind: 'number', op: 'empty' } },
+    });
+    expect(names(m)).toEqual(['ada']);
+  });
+
+  it('filters by new values when an accessor changes', () => {
+    const m = fmodel({ columnFilters: { age: { kind: 'number', op: 'gt', value: 35 } } });
+    expect(names(m)).toEqual(['Dan']);
+    m.update({
+      columns: filterable.map((c) =>
+        c.id === 'age' ? { ...c, accessor: (p: Person) => (p.age ?? 0) * 2 } : c,
+      ),
+    });
+    expect(names(m)).toEqual(['Cleo', 'Dan']);
+  });
+
+  it('keeps the row model while nothing filtering reads changes', () => {
+    let calls = 0;
+    const m = fmodel({
+      columns: filterable.map((c) =>
+        c.id === 'age' ? { ...c, accessor: (p: Person) => (calls++, p.age) } : c,
+      ),
+      columnFilters: { age: { kind: 'number', op: 'notEmpty' } },
+    });
+    expect(m.rowCount).toBe(3);
+    const after = calls;
+    const first = m.rowAt(0);
+    m.update({ columnSizing: { age: 99 } });
+    expect(m.rowAt(0)).toBe(first);
+    expect(calls).toBe(after);
+  });
+
+  it('reports which columns filter and are filtered', () => {
+    const m = fmodel({ columnFilters: { age: { kind: 'number', op: 'notEmpty' } } });
+    const age = m.columns.find((c) => c.id === 'age');
+    expect(age?.filter).toBe('number');
+    expect(age?.filtered).toBe(true);
+    expect(m.columns.find((c) => c.id === 'note')).toMatchObject({
+      filter: undefined,
+      filtered: false,
+    });
+  });
+
+  it('proposes filter states', () => {
+    const m = fmodel({ columnFilters: { age: { kind: 'number', op: 'notEmpty' } } });
+    expect(m.nextFilters('name', { kind: 'text', op: 'contains', value: 'a' })).toEqual({
+      age: { kind: 'number', op: 'notEmpty' },
+      name: { kind: 'text', op: 'contains', value: 'a' },
+    });
+    expect(m.nextFilters('age', undefined)).toEqual({});
+    // The same filter, a column that can't filter, an unknown one, nothing to clear.
+    expect(m.nextFilters('age', { kind: 'number', op: 'notEmpty' })).toBeUndefined();
+    expect(m.nextFilters('note', { kind: 'text', op: 'empty' })).toBeUndefined();
+    expect(m.nextFilters('zz', undefined)).toBeUndefined();
+    expect(m.nextFilters('name', undefined)).toBeUndefined();
+    // From another base.
+    expect(m.nextFilters('name', { kind: 'text', op: 'empty' }, {})).toEqual({
+      name: { kind: 'text', op: 'empty' },
+    });
+  });
+
+  it('lists the values a set filter offers, under the other filters', () => {
+    const m = fmodel({
+      columnFilters: {
+        city: { kind: 'set', values: ['Bonn'] },
+        age: { kind: 'number', op: 'notEmpty' },
+      },
+    });
+    expect(m.filterValues('city')).toEqual({
+      values: ['Bonn', 'Celle', 'Dresden'],
+      truncated: false,
+    });
+    expect(m.filterValues('city', 1)).toEqual({ values: ['Bonn'], truncated: true });
+    expect(m.filterValues('zz')).toBeUndefined();
+  });
+
+  it('offers filterOptions as they are', () => {
+    const m = fmodel({
+      columns: filterable.map((c) => (c.id === 'city' ? { ...c, filterOptions: ['X', 'Y'] } : c)),
+    });
+    expect(m.filterValues('city')).toEqual({ values: ['X', 'Y'], truncated: false });
+  });
+
+  it('leaves remote rows to their source', () => {
+    const m = fmodel({
+      remote: {
+        rowCount: 5,
+        entryAt: () => undefined,
+        indexOf: () => undefined,
+        loadedIds: () => [],
+      },
+      columnFilters: { age: { kind: 'number', op: 'gt', value: 100 } },
+    });
+    expect(m.rowCount).toBe(5);
+    expect(m.filterValues('city')).toBeUndefined();
+  });
+});
+
 describe('createTableModel: caching', () => {
   it('keeps the row model when only unrelated options change', () => {
     const m = model();

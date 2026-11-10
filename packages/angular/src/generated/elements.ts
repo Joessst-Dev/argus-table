@@ -14,6 +14,7 @@ import type {
   ArgusTable as ArgusTableElement,
   ArgusColumn as ArgusColumnElement,
   CellClickDetail,
+  ColumnFilterDetail,
   ColumnHideDetail,
   ColumnPinDetail,
   ColumnReorderDetail,
@@ -38,6 +39,7 @@ import { setProperty } from '../set-property.js';
     '(argus-column-reorder)': 'handleColumnReorder($event)',
     '(argus-column-pin)': 'handleColumnPin($event)',
     '(argus-column-hide)': 'handleColumnHide($event)',
+    '(argus-column-filter)': 'handleColumnFilter($event)',
     '(argus-cell-click)': 'handleCellClick($event)',
     '(argus-row-click)': 'handleRowClick($event)',
     '(argus-range-change)': 'handleRangeChange($event)',
@@ -126,6 +128,16 @@ export class ArgusTableComponent<T = unknown> {
     setProperty(this.element, 'columnVisibility', undefined, value);
   }
 
+  /** Filters by column id, e.g. `{ city: { kind: 'set', values: ['Berlin'] } }` or `{ total: { kind: 'number', op: 'gt', value: 100 } }`. A row shows when it passes every filter and `quickFilter`. Filters on hidden columns still apply; unknown ids are ignored. A column's `filterFn` replaces the built-in matching. With a `dataSource`, the filters go to `getRows()` and the server filters. Users set filters through plugins (the column menu) on columns with a `filter` kind. Uncontrolled until set, like `sorting`: once set, a change from a plugin only fires `argus-column-filter` with the proposed filters. `undefined` hands it back. */
+  @Input() set columnFilters(value: ArgusTableElement<T>['columnFilters'] | null | undefined) {
+    setProperty(this.element, 'columnFilters', undefined, value);
+  }
+
+  /** Shows only rows that contain each word of this text in one of their shown columns, ignoring case, e.g. from a search box. Values are matched as text (dates as `2026-11-10`); objects aren't searched. With a `dataSource`, it goes to `getRows()` and the server filters. `''` (the default) shows every row. */
+  @Input() set quickFilter(value: ArgusTableElement<T>['quickFilter'] | null | undefined) {
+    setProperty(this.element, 'quickFilter', 'quick-filter', value);
+  }
+
   /** How rows can be selected: `none` (the default), `single` or `multi`. A click on a body row selects it; in `multi` mode Ctrl/Cmd+click toggles a row, Shift+click selects the range from the last clicked row, and Ctrl/Cmd+A selects every row. Space toggles the focused row. Clicks on buttons, links and inputs inside cells don't select. Pinned rows, and `dataSource` rows not loaded yet, can't be selected. */
   @Input() set selectionMode(value: ArgusTableElement<T>['selectionMode'] | null | undefined) {
     setProperty(this.element, 'selectionMode', 'selection-mode', value);
@@ -180,6 +192,14 @@ export class ArgusTableComponent<T = unknown> {
   /** The new `columnVisibility` from `argus-column-hide`, for `[(columnVisibility)]`. */
   @Output() readonly columnVisibilityChange = new EventEmitter<
     ArgusTableElement<T>['columnVisibility']
+  >();
+
+  /** `argus-column-filter`: A column's filter was set, changed or cleared, through a plugin such as the column menu. `detail: { columnId, filter, filters }`: `filter` is the column's new filter, or `undefined` when it was cleared; `filters` is the new state, or the proposed one when `columnFilters` is controlled. */
+  @Output() readonly columnFilter = new EventEmitter<CustomEvent<ColumnFilterDetail>>();
+
+  /** The new `columnFilters` from `argus-column-filter`, for `[(columnFilters)]`. */
+  @Output() readonly columnFiltersChange = new EventEmitter<
+    ArgusTableElement<T>['columnFilters']
   >();
 
   /** `argus-cell-click`: A body or pinned-row cell was clicked, or Enter was pressed on it. `detail: { row, columnId, value, pinned? }`; `pinned` is `'top'` or `'bottom'` for a pinned row. Fires before `argus-row-click`. */
@@ -259,6 +279,14 @@ export class ArgusTableComponent<T = unknown> {
     const e = event as CustomEvent<ColumnHideDetail>;
     this.columnHide.emit(e);
     this.columnVisibilityChange.emit(e.detail.visibility);
+  }
+
+  protected handleColumnFilter(event: Event): void {
+    // Events bubble: skip those of a table nested in a cell.
+    if (event.target !== this.element) return;
+    const e = event as CustomEvent<ColumnFilterDetail>;
+    this.columnFilter.emit(e);
+    this.columnFiltersChange.emit(e.detail.filters);
   }
 
   protected handleCellClick(event: Event): void {
@@ -401,5 +429,20 @@ export class ArgusColumnComponent<T = unknown> {
     value: ArgusColumnElement<T>['reorderable'] | '' | 'true' | 'false' | null | undefined,
   ) {
     setProperty(this.element, 'reorderable', 'reorderable', value);
+  }
+
+  /** The kind of filter users can set, e.g. from the column menu: `text`, `number`, `date` or `set`. Unset: users can't filter the column. */
+  @Input() set filter(value: ArgusColumnElement<T>['filter'] | null | undefined) {
+    setProperty(this.element, 'filter', 'filter', value);
+  }
+
+  /** Replaces the built-in matching for this column's filter. Property only. */
+  @Input() set filterFn(value: ArgusColumnElement<T>['filterFn'] | null | undefined) {
+    setProperty(this.element, 'filterFn', undefined, value);
+  }
+
+  /** The values a `set` filter offers; needed with a `dataSource`. Property only. */
+  @Input() set filterOptions(value: ArgusColumnElement<T>['filterOptions'] | null | undefined) {
+    setProperty(this.element, 'filterOptions', undefined, value);
   }
 }

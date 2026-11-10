@@ -10,6 +10,7 @@ v1 is a fast, styleable read-only table; editing and spreadsheet features wait.
 - Fixed columns (left and right) and fixed rows (top and bottom)
 - Column resizing by drag, plus content-based auto width
 - Infinite loading from a remote data source with unknown total count
+- Filtering by column (text, number, date, a set of values) and a quick search, on the client or passed to a remote source
 - Restyle everything with CSS only: tokens, parts and slotted cell content
 - Two themes at launch (default + Material-inspired), more after
 - Works in plain HTML, React, Vue and Angular with typed usage

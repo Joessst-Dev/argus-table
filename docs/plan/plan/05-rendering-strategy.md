@@ -33,7 +33,7 @@ The table renders as a div-based CSS grid with ARIA grid roles, not a native `<t
 
 ## Infinite loading
 
-- Virtualization and data loading are separate. A `dataSource` returns pages: `getRows({ start, end, sorting, signal }) → { rows, total? }`, with `end` exclusive. (A `filter` field joins once the table filters.)
+- Virtualization and data loading are separate. A `dataSource` returns pages: `getRows({ start, end, sorting, filters, quickFilter, signal }) → { rows, total? }`, with `end` exclusive. The server sorts and filters; a new filter starts a fresh cache without the old row count.
 - Unknown `total` grows the scroll height as pages arrive: one page of skeletons sits below the last loaded row, and a short page marks the end.
 - Rows not loaded yet render as skeleton placeholders; requests wait for 50 ms of quiet and are cancelled with `AbortController` when they scroll away.
 - With a `dataSource`, sorting runs on the server (passed to `getRows`); with `data`, client-side (TanStack row models). Remote rows bypass TanStack's row models; it still handles columns, pinning, sizing and sort state.

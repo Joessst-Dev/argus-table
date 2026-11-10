@@ -14,9 +14,14 @@ type Sorting = readonly { id: string; desc: boolean }[];
 // accessor): the rows and the sorting are the same, the sorted order is not.
 const valueVersions = new WeakMap<object, number>();
 
-/** Makes the sorted row model of `table` sort again on its next read. */
+/** Makes the filtered and sorted row models of `table` filter and sort again on their next read. */
 export function valuesChanged(table: object): void {
   valueVersions.set(table, (valueVersions.get(table) ?? 0) + 1);
+}
+
+/** The values version of `table`, bumped by `valuesChanged()`. */
+export function valueVersion(table: object): number | undefined {
+  return valueVersions.get(table);
 }
 
 interface SortKey {
@@ -59,7 +64,7 @@ export function sortedRowModel<TFeatures extends TableFeatures, TData extends Ro
     return (): RowModel<TFeatures, TData> => {
       const source = table.getPreSortedRowModel();
       const sorting = (table.options.state as { sorting?: Sorting } | undefined)?.sorting;
-      const version = valueVersions.get(table);
+      const version = valueVersion(table);
       const prev = last;
       if (prev && prev.sorting === sorting && prev.source === source && prev.version === version) {
         return prev.model;

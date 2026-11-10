@@ -36,6 +36,7 @@ function manifest(
                 name: 'columnVisibility',
                 type: { text: 'ColumnVisibilityState' },
               },
+              { kind: 'field', name: 'columnFilters', type: { text: 'ColumnFilterState' } },
               { kind: 'field', name: 'selection', type: { text: 'SelectionState' } },
               { kind: 'field', name: 'styles', static: true, type: { text: 'CSSResultGroup' } },
               { kind: 'method', name: 'refresh' },
@@ -53,6 +54,10 @@ function manifest(
               },
               { name: 'argus-column-pin', type: { text: 'CustomEvent<ColumnPinDetail>' } },
               { name: 'argus-column-hide', type: { text: 'CustomEvent<ColumnHideDetail>' } },
+              {
+                name: 'argus-column-filter',
+                type: { text: 'CustomEvent<ColumnFilterDetail>' },
+              },
               { name: 'argus-row-click', type: { text: 'CustomEvent<RowClickDetail<T>>' } },
               {
                 name: 'argus-row-select',
@@ -120,6 +125,7 @@ describe('readElement', () => {
       'columnOrder',
       'columnPinning',
       'columnVisibility',
+      'columnFilters',
       'selection',
     ]);
     expect(table.methods).toEqual(['refresh']);
@@ -137,6 +143,7 @@ describe('readElement', () => {
       ['columnOrder', 'argus-column-reorder', 'order'],
       ['columnPinning', 'argus-column-pin', 'pinning'],
       ['columnVisibility', 'argus-column-hide', 'visibility'],
+      ['columnFilters', 'argus-column-filter', 'filters'],
       ['selection', 'argus-row-select', 'selection'],
     ]);
   });
@@ -201,10 +208,10 @@ describe('emitReact', () => {
       "import { ArgusTable as ArgusTableElement, ArgusColumn as ArgusColumnElement } from 'argus-table';",
     );
     expect(source).toContain(
-      "import type { ColumnHideDetail, ColumnPinDetail, ColumnReorderDetail, ColumnResizeDetail, RowClickDetail, RowSelectDetail, SortChangeDetail } from 'argus-table';",
+      "import type { ColumnFilterDetail, ColumnHideDetail, ColumnPinDetail, ColumnReorderDetail, ColumnResizeDetail, RowClickDetail, RowSelectDetail, SortChangeDetail } from 'argus-table';",
     );
     expect(source).toContain(
-      "export type ArgusTableElementProps<T = unknown> = Partial<Pick<ArgusTableElement<T>, 'data' | 'rowHeight' | 'sorting' | 'columnSizing' | 'columnOrder' | 'columnPinning' | 'columnVisibility' | 'selection'>>;",
+      "export type ArgusTableElementProps<T = unknown> = Partial<Pick<ArgusTableElement<T>, 'data' | 'rowHeight' | 'sorting' | 'columnSizing' | 'columnOrder' | 'columnPinning' | 'columnVisibility' | 'columnFilters' | 'selection'>>;",
     );
     expect(source).toContain('onRowClick?: (event: CustomEvent<RowClickDetail<T>>) => void;');
     expect(source).toContain("onSortChange: 'argus-sort-change',");
@@ -212,7 +219,7 @@ describe('emitReact', () => {
     expect(source).toContain("import { ownEvents } from '../own-events.js';");
     expect(source).toContain('export const ArgusTable = ownEvents(createComponent({');
     expect(source).toContain(
-      "}), ['onSortChange', 'onColumnResize', 'onColumnReorder', 'onColumnPin', 'onColumnHide', 'onRowClick', 'onRowSelect'], 'ArgusTable') as unknown as <T = unknown>(props: ArgusTableProps<T>) => React.ReactElement | null;",
+      "}), ['onSortChange', 'onColumnResize', 'onColumnReorder', 'onColumnPin', 'onColumnHide', 'onColumnFilter', 'onRowClick', 'onRowSelect'], 'ArgusTable') as unknown as <T = unknown>(props: ArgusTableProps<T>) => React.ReactElement | null;",
     );
     // No events: no event props interface, and no type parameter when nothing uses T.
     expect(source).not.toContain('ArgusColumnEventProps');

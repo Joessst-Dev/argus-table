@@ -22,4 +22,5 @@ The biggest risk is the rendering combo (virtualization + sticky + slotted conte
 - [x] Framework wrappers at launch: decided, React, Vue and Angular wrappers all ship with v0.2
 - [x] Row selection in v1 or v2? v1: `selectionMode` and `selection` (row ids), with the event `argus-row-select`. `selection-checkboxes` adds a checkbox column with a select-all header.
 - [ ] Expose TanStack's table instance as an escape hatch, or keep it private?
-- [ ] Formula columns with server-side data: disable sorting/filtering, or pass the syntax tree to `getRows`? (see [Formula columns](09-formula-columns.md))
+- [x] Formula columns with server-side data: disable sorting/filtering, or pass the syntax tree to `getRows`? Decided for now: disabled (no sorting, no filter kind) with a `dataSource`; passing the syntax tree stays open (see [Formula columns](09-formula-columns.md))
+- [x] Filtering in v1? Yes: `columnFilters` (text, number, date and set filters, a per-column `filterFn`) and `quickFilter`, with the filter form in the column menu. The table filters with its own row model rather than TanStack's filtering feature (bundle size, Firefox speed), which raised the CDN budget from 50 to 51 kB.

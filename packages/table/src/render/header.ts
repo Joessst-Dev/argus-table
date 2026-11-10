@@ -67,6 +67,7 @@ export function renderHeader<T>(
             role="columnheader"
             aria-colindex=${c.colIndex}
             aria-sort=${ariaSort(c.sorted) ?? nothing}
+            aria-description=${c.filtered ? 'Filtered' : nothing}
             data-col=${c.id}
             data-sort-col=${c.sortable ? c.id : nothing}
             data-move-col=${c.reorderable ? c.id : nothing}
@@ -81,6 +82,7 @@ export function renderHeader<T>(
                 : html`<slot name=${headerSlot(c.slot)}></slot>`
             }
             ${c.sortable ? html`<span class="sort-indicator" aria-hidden="true"></span>` : nothing}
+            ${c.filtered ? html`<span part="filter-indicator" aria-hidden="true"></span>` : nothing}
             ${c.resizable ? resizeHandle(c) : nothing}
             ${
               drag?.target?.columnId === c.id
@@ -99,6 +101,7 @@ export function renderHeader<T>(
 
 function headerParts<T>(c: RenderedColumn<T>, drag: HeaderDrag | undefined): string {
   let parts = c.sorted ? 'header-cell header-cell-sorted' : 'header-cell';
+  if (c.filtered) parts += ' header-cell-filtered';
   if (c.kind === 'selection') parts += ' header-cell-selection';
   if (drag?.columnId === c.id) parts += ' header-cell-dragging';
   return parts;

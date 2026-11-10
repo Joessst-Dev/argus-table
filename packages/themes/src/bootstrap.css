@@ -42,6 +42,7 @@ argus-table {
   --argus-resize-handle-color: light-dark(#0d6efd, #6ea8fe);
   --argus-focus-ring: 2px solid light-dark(#0d6efd, #6ea8fe);
   --argus-drop-indicator-color: light-dark(#0d6efd, #6ea8fe);
+  --argus-filter-indicator-color: light-dark(#0d6efd, #6ea8fe);
   /* secondary-bg */
   --argus-skeleton-bg: light-dark(#e9ecef, #343a40);
   --argus-pinned-row-bg: var(--argus-bg);

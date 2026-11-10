@@ -1,6 +1,7 @@
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
 import {
   PageCache,
+  type ColumnFilterState,
   type DataSource,
   type LoadErrorDetail,
   type RowState,
@@ -16,18 +17,26 @@ export const LOAD_DEBOUNCE_MS = 50;
 export interface DataConfig<T> {
   source: DataSource<T> | undefined;
   sorting: SortState;
+  filters: ColumnFilterState;
+  quickFilter: string;
   getRowId: ((row: T, index: number) => string) | undefined;
 }
 
 /**
  * Loads `dataSource` pages for the rendered rows (infinite loading). It owns the
- * page cache: a new source, sort order or row id function starts a fresh one, and
+ * page cache: a new source, sort order, filter or row id function starts a fresh one, and
  * answers for an old cache are dropped. Requests wait until the range has been
  * quiet for `LOAD_DEBOUNCE_MS`; pages that scrolled away are aborted.
  */
 export class DataController<T> implements ReactiveController {
   readonly #host: ReactiveControllerHost;
-  #config: DataConfig<T> = { source: undefined, sorting: [], getRowId: undefined };
+  #config: DataConfig<T> = {
+    source: undefined,
+    sorting: [],
+    filters: {},
+    quickFilter: '',
+    getRowId: undefined,
+  };
   #cache: PageCache<T> | undefined;
   readonly #requests = new Map<number, AbortController>();
   #range: { start: number; end: number } | undefined;
@@ -56,8 +65,9 @@ export class DataController<T> implements ReactiveController {
   }
 
   /**
-   * Takes the source, sort order and row id function. Any change starts a fresh
-   * cache; a sort or row id change keeps the row count (the rows are the same).
+   * Takes the source, sort order, filters and row id function. Any change starts a
+   * fresh cache; a sort or row id change keeps the row count (the rows are the same),
+   * a new source or filter doesn't (the rows aren't).
    */
   configure(next: DataConfig<T>): void {
     const prev = this.#config;
@@ -66,7 +76,12 @@ export class DataController<T> implements ReactiveController {
       this.#reset(undefined);
       return;
     }
-    if (next.source !== prev.source || !this.#cache) {
+    if (
+      next.source !== prev.source ||
+      !this.#cache ||
+      next.filters !== prev.filters ||
+      next.quickFilter !== prev.quickFilter
+    ) {
       this.#reset({ rowCount: undefined, totalKnown: false });
     } else if (next.sorting !== prev.sorting || next.getRowId !== prev.getRowId) {
       this.#reset({ rowCount: this.#cache.rowCount, totalKnown: this.#cache.totalKnown });
@@ -173,7 +188,14 @@ export class DataController<T> implements ReactiveController {
     let pending: Promise<unknown>;
     try {
       pending = Promise.resolve(
-        source.getRows({ start, end, sorting: this.#config.sorting, signal: controller.signal }),
+        source.getRows({
+          start,
+          end,
+          sorting: this.#config.sorting,
+          filters: this.#config.filters,
+          quickFilter: this.#config.quickFilter,
+          signal: controller.signal,
+        }),
       );
     } catch (error) {
       pending = Promise.reject(error instanceof Error ? error : new Error(String(error)));

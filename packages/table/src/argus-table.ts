@@ -17,6 +17,7 @@ import {
   selectRange,
   SELECTION_COLUMN_ID,
   toggleRow,
+  type ColumnFilterDetail,
   type ColumnHideDetail,
   type ColumnPinDetail,
   type ColumnReorderDetail,
@@ -45,6 +46,7 @@ import { TableController } from './controllers/table-controller.js';
 import { VirtualController, type VirtualWindow } from './controllers/virtual-controller.js';
 import {
   CELL_CLICK,
+  COLUMN_FILTER,
   COLUMN_HIDE,
   COLUMN_PIN,
   COLUMN_REORDER,
@@ -68,6 +70,8 @@ import { baseStyles } from './styles/base.js';
 import type {
   CellContent,
   ColumnDef,
+  ColumnFilter,
+  ColumnFilterState,
   ColumnOrderState,
   ColumnPin,
   ColumnPinningState,
@@ -188,6 +192,7 @@ function track<T>(column: ColumnView<T, CellContent>): string {
  * @fires {CustomEvent<ColumnReorderDetail>} argus-column-reorder - A column was moved: by dragging its header, or with Alt+Shift+Arrow on its focused header. Columns move within their own group (start-pinned, scrolling, end-pinned). `detail: { columnId, order }`: the new order, or the proposed one when `columnOrder` is controlled. Fires once per move, on drop.
  * @fires {CustomEvent<ColumnPinDetail>} argus-column-pin - A column was pinned to a side or unpinned, through a plugin such as the column menu. `detail: { columnId, pin, pinning }`: `pin` is `'start'`, `'end'` or `false`; `pinning` is the new state, or the proposed one when `columnPinning` is controlled.
  * @fires {CustomEvent<ColumnHideDetail>} argus-column-hide - A column was hidden or shown, through a plugin such as the column menu. `detail: { columnId, hidden, visibility }`: `hidden` is `true` when it was hidden; `visibility` is the new state, or the proposed one when `columnVisibility` is controlled.
+ * @fires {CustomEvent<ColumnFilterDetail>} argus-column-filter - A column's filter was set, changed or cleared, through a plugin such as the column menu. `detail: { columnId, filter, filters }`: `filter` is the column's new filter, or `undefined` when it was cleared; `filters` is the new state, or the proposed one when `columnFilters` is controlled.
  * @fires {CustomEvent<CellClickDetail<T>>} argus-cell-click - A body or pinned-row cell was clicked, or Enter was pressed on it. `detail: { row, columnId, value, pinned? }`; `pinned` is `'top'` or `'bottom'` for a pinned row. Fires before `argus-row-click`.
  * @fires {CustomEvent<RowClickDetail<T>>} argus-row-click - A body or pinned row was clicked, or Enter was pressed on one of its cells. `detail: { row, rowId, index, pinned? }`; for a pinned row, `index` is its index in its list.
  * @fires {CustomEvent<RangeChangeDetail>} argus-range-change - The visible rows changed. `detail: { start, end }` (row indices, inclusive).
@@ -201,6 +206,8 @@ function track<T>(column: ColumnView<T, CellContent>): string {
  * @csspart header-row - The header row.
  * @csspart header-cell - Every header cell.
  * @csspart header-cell-sorted - The header of the sorted column. The direction is in `aria-sort`.
+ * @csspart header-cell-filtered - Added to `header-cell` on the headers of filtered columns.
+ * @csspart filter-indicator - The mark in the header of a filtered column, after the sort indicator.
  * @csspart header-cell-dragging - Added to `header-cell` on the header being dragged to a new position.
  * @csspart drop-indicator - The line on the edge of the header where a dragged column would land.
  * @csspart resize-handle - The drag handle on the inline-end edge of a resizable column's header. A double-click fits the column to its content.
@@ -241,6 +248,7 @@ function track<T>(column: ColumnView<T, CellContent>): string {
  * @cssprop [--argus-pinned-shadow] - Shadow on the pinned edge, as a `box-shadow` falling toward the end side (`4px 0 6px -4px …`). Mirrored for the end edge and in RTL; `none` removes it.
  * @cssprop [--argus-resize-handle-color] - Colour of the resize handle's line, shown on hover, focus and drag.
  * @cssprop [--argus-focus-ring=2px solid Highlight] - Outline of the focused header or cell.
+ * @cssprop [--argus-filter-indicator-color=currentColor] - Colour of the mark in the header of a filtered column.
  * @cssprop [--argus-drop-indicator-color=Highlight] - Colour of the line that marks where a dragged column would land.
  * @cssprop [--argus-row-hover-bg] - Background of the hovered row. Default: no change.
  * @cssprop [--argus-pinned-row-bg=var(--argus-bg)] - Background of the pinned rows, pinned columns included.
@@ -409,6 +417,38 @@ export class ArgusTable<T = unknown> extends LitElement {
   }
 
   /**
+   * Filters by column id, e.g. `{ city: { kind: 'set', values: ['Berlin'] } }` or
+   * `{ total: { kind: 'number', op: 'gt', value: 100 } }`. A row shows when it passes
+   * every filter and `quickFilter`. Filters on hidden columns still apply; unknown ids
+   * are ignored. A column's `filterFn` replaces the built-in matching. With a
+   * `dataSource`, the filters go to `getRows()` and the server filters. Users set
+   * filters through plugins (the column menu) on columns with a `filter` kind.
+   * Uncontrolled until set, like `sorting`: once set, a change from a plugin only
+   * fires `argus-column-filter` with the proposed filters. `undefined` hands it back.
+   */
+  @property({ attribute: false })
+  get columnFilters(): ColumnFilterState {
+    return this.#filters.value;
+  }
+  set columnFilters(value: ColumnFilterState | undefined) {
+    this.#filters.set(value);
+  }
+
+  /**
+   * Shows only rows that contain each word of this text in one of their shown
+   * columns, ignoring case, e.g. from a search box. Values are matched as text
+   * (dates as `2026-11-10`); objects aren't searched. With a `dataSource`, it goes
+   * to `getRows()` and the server filters. `''` (the default) shows every row.
+   */
+  @property({ attribute: 'quick-filter' })
+  get quickFilter(): string {
+    return this.#quickFilter;
+  }
+  set quickFilter(value: string | null | undefined) {
+    this.#quickFilter = value ?? '';
+  }
+
+  /**
    * How rows can be selected: `none` (the default), `single` or `multi`. A click
    * on a body row selects it; in `multi` mode Ctrl/Cmd+click toggles a row,
    * Shift+click selects the range from the last clicked row, and Ctrl/Cmd+A
@@ -472,6 +512,12 @@ export class ArgusTable<T = unknown> extends LitElement {
   readonly #order = controllable<ColumnOrderState>([]);
   readonly #pinning = controllable<ColumnPinningState>({});
   readonly #visibility = controllable<ColumnVisibilityState>({});
+  readonly #filters = controllable<ColumnFilterState>({});
+  #quickFilter = '';
+  /** Filters the table applied itself, by column; their events fire once the update is done. */
+  readonly #appliedFilters = new Map<string, ColumnFilterDetail>();
+  /** Announce the row count after the update: the filters changed. */
+  #announceRows = false;
   /** Pins the table applied itself, by column; their events fire once the update is done. */
   readonly #appliedPins = new Map<string, ColumnPinDetail>();
   /** Hidden or shown columns the table applied itself; their events fire once the update is done. */
@@ -525,6 +571,10 @@ export class ArgusTable<T = unknown> extends LitElement {
     setHidden: (columnId, hidden) => {
       this.#requestHide(columnId, hidden);
     },
+    setFilter: (columnId, filter) => {
+      this.#requestFilter(columnId, filter);
+    },
+    filterValues: (columnId, limit) => this.#table.model.filterValues(columnId, limit),
     cellOf: (event) => this.#cellTarget(event),
     setSort: (columnId, direction) => {
       this.#setSort(columnId, direction);
@@ -678,17 +728,26 @@ export class ArgusTable<T = unknown> extends LitElement {
     const columns = this.#plugins.transform(this.#effectiveColumns());
     this.#columnsChanged = columns !== this.#columns;
     this.#columns = columns;
-    if (changed.has('dataSource') || changed.has('sorting') || changed.has('getRowId')) {
+    const filtersChanged = changed.has('columnFilters') || changed.has('quickFilter');
+    if (
+      changed.has('dataSource') ||
+      changed.has('sorting') ||
+      changed.has('getRowId') ||
+      filtersChanged
+    ) {
       this.#data.configure({
         source: this.dataSource,
         sorting: this.#sorting.value,
+        filters: this.#filters.value,
+        quickFilter: this.#quickFilter,
         getRowId: this.getRowId,
       });
-      // A new order starts over from the first row, so show it.
-      if (this.dataSource && this.hasUpdated && changed.has('sorting')) {
+      // A new order or filter starts over from the first row, so show it.
+      if (this.dataSource && this.hasUpdated && (changed.has('sorting') || filtersChanged)) {
         this.#scrollToTop = !changed.has('dataSource');
       }
     }
+    if (filtersChanged && this.hasUpdated) this.#announceRows = true;
     if (
       this.#columnsChanged ||
       changed.has('data') ||
@@ -698,6 +757,8 @@ export class ArgusTable<T = unknown> extends LitElement {
       changed.has('columnOrder') ||
       changed.has('columnPinning') ||
       changed.has('columnVisibility') ||
+      changed.has('columnFilters') ||
+      changed.has('quickFilter') ||
       changed.has('pinnedRows')
     ) {
       if (this.#columnsChanged) {
@@ -712,6 +773,8 @@ export class ArgusTable<T = unknown> extends LitElement {
         columnOrder: this.#order.value,
         columnPinning: this.#pinning.value,
         columnVisibility: this.#visibility.value,
+        columnFilters: this.#filters.value,
+        quickFilter: this.#quickFilter,
         pinnedRows: this.pinnedRows,
       });
     }
@@ -869,6 +932,15 @@ export class ArgusTable<T = unknown> extends LitElement {
       const details = [...this.#appliedHides.values()];
       this.#appliedHides.clear();
       for (const detail of details) fire(this, COLUMN_HIDE, detail);
+    }
+    if (this.#appliedFilters.size > 0) {
+      const details = [...this.#appliedFilters.values()];
+      this.#appliedFilters.clear();
+      for (const detail of details) fire(this, COLUMN_FILTER, detail);
+    }
+    if (this.#announceRows) {
+      this.#announceRows = false;
+      this.#announceRowCount(model);
     }
     if (this.#appliedSort) {
       const sorting = this.#appliedSort;
@@ -1362,7 +1434,16 @@ export class ArgusTable<T = unknown> extends LitElement {
       return n === ids.length ? 'all' : 'some';
     };
     if (this.#data.rows) return count();
-    const key = [this.#selection.value, this.data, this.getRowId];
+    // Everything the rows of the model depend on: the data and what filters it.
+    const key = [
+      this.#selection.value,
+      this.data,
+      this.getRowId,
+      this.#columns,
+      this.#filters.value,
+      this.#quickFilter,
+      this.#visibility.value,
+    ];
     const cached = this.#checkAll;
     if (cached?.key.length !== key.length || key.some((k, i) => k !== cached.key[i])) {
       this.#checkAll = { key, state: count() };
@@ -1695,6 +1776,31 @@ export class ArgusTable<T = unknown> extends LitElement {
     }
   }
 
+  /** Sets or clears a column's filter through the controlled/uncontrolled rules. */
+  #requestFilter(columnId: string, filter: ColumnFilter | undefined): void {
+    const old = this.#filters.value;
+    const next = this.#table.model.nextFilters(columnId, filter, old);
+    if (!next) return;
+    const { value, applied } = this.#filters.request(next);
+    if (applied) {
+      for (const detail of this.#appliedFilters.values()) detail.filters = value;
+      this.#appliedFilters.set(columnId, { columnId, filter, filters: value });
+      this.requestUpdate('columnFilters', old);
+    } else {
+      fire(this, COLUMN_FILTER, { columnId, filter, filters: value });
+    }
+  }
+
+  /**
+   * Says how many rows the filters leave ("42 rows"). With a `dataSource` the count
+   * isn't known until the first page answers, so nothing is said.
+   */
+  #announceRowCount(model: TableModel<T, CellContent>): void {
+    if (this.#data.rows) return;
+    const n = model.rowCount;
+    announce(this.ownerDocument, n === 1 ? '1 row' : `${String(n)} rows`);
+  }
+
   /**
    * Moves a column to position `to` among the shown data columns (within its pin group),
    * through the controlled/uncontrolled rules. Starts from the latest requested
@@ -1877,6 +1983,8 @@ export class ArgusTable<T = unknown> extends LitElement {
       hidden: view.hidden,
       width: view.width,
       sorted: view.sorted === false ? undefined : view.sorted,
+      filter: view.filter,
+      filterValue: this.#filters.value[id],
     };
   }
 

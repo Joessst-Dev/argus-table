@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { html } from 'lit';
 import 'argus-table';
-import type { ArgusTable, ColumnDef, DataSource } from 'argus-table';
+import type { ArgusPlugin, ArgusTable, ColumnDef, DataSource, PluginHost } from 'argus-table';
 import { headerMenu } from '@argus-table/header-menu';
 import { formulas } from './index.js';
 
@@ -250,6 +250,55 @@ describe('sorting', () => {
     headerOf(el, 'total').click();
     await settle(el);
     expect(el.sorting).toEqual([]);
+  });
+
+  test('formula columns can’t filter with a dataSource either', async () => {
+    let host: PluginHost<Row> | undefined;
+    const grab: ArgusPlugin<Row> = {
+      name: 'grab',
+      connect(h) {
+        host = h;
+        return undefined;
+      },
+    };
+    const dataSource: DataSource<Row> = {
+      getRows: ({ start, end }) => Promise.resolve({ rows: data.slice(start, end), total: 3 }),
+    };
+    const columns = withFormulas({ id: 'total', formula: '[price] * [qty]', filter: 'number' });
+    const el = await fixture({ data: undefined, dataSource, columns, plugins: [formulas(), grab] });
+    expect(host?.column('total')?.filter).toBeUndefined();
+    el.dataSource = undefined;
+    el.data = data;
+    // The plugin reads `dataSource` when the columns run again.
+    el.columns = [...columns];
+    await settle(el);
+    expect(host?.column('total')?.filter).toBe('number');
+  });
+});
+
+describe('filtering', () => {
+  test('filters by computed values; errors count as empty', async () => {
+    const el = await fixture({
+      columns: withFormulas(
+        { id: 'total', formula: '[price] * [qty]', filter: 'number' },
+        { id: 'per', formula: '[price] / [qty]', filter: 'number' },
+      ),
+    });
+    el.columnFilters = { total: { kind: 'number', op: 'ge', value: 2 } };
+    await settle(el);
+    expect(texts(el, 'name')).toEqual(['Apple', 'Banana']);
+    // Cherry's quantity is 0: #DIV/0!.
+    el.columnFilters = { per: { kind: 'number', op: 'empty' } };
+    await settle(el);
+    expect(texts(el, 'name')).toEqual(['Cherry']);
+  });
+
+  test('the quick filter finds computed values', async () => {
+    const el = await fixture({
+      columns: withFormulas({ id: 'total', formula: '[price] * [qty]' }),
+      quickFilter: '24',
+    });
+    expect(texts(el, 'name')).toEqual(['Apple']);
   });
 });
 

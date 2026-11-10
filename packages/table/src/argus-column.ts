@@ -8,6 +8,8 @@ import type {
   ColumnDef,
   ColumnPin,
   ColumnWidth,
+  FilterKind,
+  FilterValue,
 } from './types.js';
 
 /**
@@ -138,6 +140,21 @@ export class ArgusColumn<T = unknown> extends ReactiveElement {
   @property({ converter: flagConverter })
   reorderable?: boolean;
 
+  /**
+   * The kind of filter users can set, e.g. from the column menu: `text`, `number`,
+   * `date` or `set`. Unset: users can't filter the column.
+   */
+  @property()
+  filter?: FilterKind;
+
+  /** Replaces the built-in matching for this column's filter. Property only. */
+  @property({ attribute: false })
+  filterFn?: ColumnDef<T>['filterFn'];
+
+  /** The values a `set` filter offers; needed with a `dataSource`. Property only. */
+  @property({ attribute: false })
+  filterOptions?: readonly FilterValue[];
+
   #parent: Element | null = null;
   #def: ColumnDef<T> | undefined;
   readonly #children = new MutationObserver(() => {
@@ -200,6 +217,9 @@ export class ArgusColumn<T = unknown> extends ReactiveElement {
       sortable: this.sortable,
       resizable: this.resizable,
       reorderable: this.reorderable,
+      filter: this.filter,
+      filterFn: this.filterFn,
+      filterOptions: this.filterOptions,
     });
   }
 
