@@ -1,0 +1,10 @@
+[
+  {
+    "name": "formulas() with every built-in function (min+gzip, lit and argus-table excluded)",
+    "path": "dist/index.js",
+    "import": "{ formulas }",
+    "ignore": ["lit", "argus-table"],
+    "gzip": true,
+    "limit": "8 kB"
+  }
+]

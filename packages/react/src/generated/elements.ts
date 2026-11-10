@@ -107,6 +107,7 @@ export type ArgusColumnElementProps<T = unknown> = Partial<
     | 'columnId'
     | 'header'
     | 'accessor'
+    | 'formula'
     | 'cell'
     | 'width'
     | 'minWidth'

@@ -96,6 +96,13 @@ describe('<argus-column>', () => {
     expect(el.sorting).toEqual([{ id: 'a', desc: false }]);
   });
 
+  test('passes a formula on for a plugin to read', async () => {
+    const el = await mount(`
+      <argus-column column-id="t" header="Total" formula="[price] * [qty]"></argus-column>
+    `);
+    expect(column(el, 't').toColumnDef()).toMatchObject({ formula: '[price] * [qty]' });
+  });
+
   test('pins columns from the pin attribute', async () => {
     const el = await mount(`
       <argus-column column-id="name" header="Name" accessor="name" pin="start"></argus-column>

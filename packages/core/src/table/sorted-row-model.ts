@@ -10,6 +10,15 @@ import { column_getCanSort, column_getSortFn } from '@tanstack/table-core/static
 
 type Sorting = readonly { id: string; desc: boolean }[];
 
+// Bumped per table when a column reads its values differently (same id, new
+// accessor): the rows and the sorting are the same, the sorted order is not.
+const valueVersions = new WeakMap<object, number>();
+
+/** Makes the sorted row model of `table` sort again on its next read. */
+export function valuesChanged(table: object): void {
+  valueVersions.set(table, (valueVersions.get(table) ?? 0) + 1);
+}
+
 interface SortKey {
   /** Each row's value by its position in the unsorted rows, resolved for `compare`. */
   keys: unknown[];
@@ -40,15 +49,23 @@ interface SortKey {
 export function sortedRowModel<TFeatures extends TableFeatures, TData extends RowData>() {
   return (table: Table<TFeatures, TData>) => {
     let last:
-      | { sorting: unknown; source: RowModel<TFeatures, TData>; model: RowModel<TFeatures, TData> }
+      | {
+          sorting: unknown;
+          source: RowModel<TFeatures, TData>;
+          version: number | undefined;
+          model: RowModel<TFeatures, TData>;
+        }
       | undefined;
     return (): RowModel<TFeatures, TData> => {
       const source = table.getPreSortedRowModel();
       const sorting = (table.options.state as { sorting?: Sorting } | undefined)?.sorting;
+      const version = valueVersions.get(table);
       const prev = last;
-      if (prev && prev.sorting === sorting && prev.source === source) return prev.model;
+      if (prev && prev.sorting === sorting && prev.source === source && prev.version === version) {
+        return prev.model;
+      }
       const model = sortRows(table, source, sorting ?? []);
-      last = { sorting, source, model };
+      last = { sorting, source, version, model };
       return model;
     };
   };

@@ -17,7 +17,7 @@ import {
 import { storeReactivityBindings } from '@tanstack/table-core/store-reactivity-bindings';
 import { moveColumn, normalizeOrder } from '../columns/column-order.js';
 import { resolveColumns, type ResolvedColumn } from '../columns/resolve-columns.js';
-import { sortedRowModel } from './sorted-row-model.js';
+import { sortedRowModel, valuesChanged } from './sorted-row-model.js';
 import type {
   CellContext,
   ColumnAlign,
@@ -216,6 +216,18 @@ export interface TableModel<TData, TContent> {
 
 const defaultRowId = (_row: unknown, index: number) => String(index);
 
+/**
+ * Ids of the columns kept from `before` whose accessor changed: a new function,
+ * or a different path. A new column has nothing cached and isn't listed.
+ */
+function changedAccessors<TData, TContent>(
+  before: readonly ColumnDef<TData, TContent>[],
+  after: readonly ColumnDef<TData, TContent>[],
+): string[] {
+  const old = new Map(before.map((c) => [c.id, c.accessor]));
+  return after.filter((c) => old.has(c.id) && old.get(c.id) !== c.accessor).map((c) => c.id);
+}
+
 /** The selection column's view: first, pinned to the start, fixed, and inert to sorting, sizing and moves. */
 function selectionView<TData, TContent>(pinEdge: boolean): ColumnView<TData, TContent> {
   return {
@@ -404,7 +416,9 @@ export function createTableModel<TData, TContent>(
         (key) => next[key] !== options[key],
       );
       if (!changed) return;
+      let reread: string[] = [];
       if (next.columns && next.columns !== options.columns) {
+        reread = changedAccessors(options.columns, next.columns);
         resolved = resolveColumns(next.columns);
         byId = new Map(resolved.map((c) => [c.id, c]));
         tanStackById = new Map(resolved.map((c) => [c.id, toTanStack(c)]));
@@ -422,6 +436,15 @@ export function createTableModel<TData, TContent>(
       options = merged;
       views = undefined;
       table.setOptions((prev) => ({ ...prev, ...tableOptions() }));
+      if (reread.length && !options.remote) {
+        // TanStack caches each value on its row by column id, and keeps rows
+        // while the data is the same: drop the values of the columns that now
+        // read differently, and sort again.
+        for (const row of table.getCoreRowModel().rows) {
+          for (const id of reread) Reflect.deleteProperty(row._valuesCache, id);
+        }
+        valuesChanged(table);
+      }
     },
 
     get columns() {

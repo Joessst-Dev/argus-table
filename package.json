@@ -16,7 +16,7 @@
     "test:e2e": "nx run-many -t e2e",
     "test:visual": "sh scripts/visual.sh",
     "build": "nx run-many -t build",
-    "size": "nx run argus-table:build && pnpm --filter argus-table size",
+    "size": "nx run-many -t build -p argus-table formulas && pnpm --filter argus-table --filter @argus-table/formulas size",
     "affected": "nx affected -t lint test build",
     "graph": "nx graph",
     "format": "prettier --write .",

@@ -28,7 +28,7 @@ Generated from the element's JSDoc through the Custom Elements Manifest, so it m
 
 ## Plugins
 
-`plugins` takes add-ons, such as the column menu from `@argus-table/header-menu` (see Add-ons/Header menu). A plugin is an object with a `name` and any of these hooks:
+`plugins` takes add-ons, such as the column menu from `@argus-table/header-menu` (see Add-ons/Header menu) and formula columns from `@argus-table/formulas` (see Add-ons/Formulas: a column with `formula: '[price] * [qty]'` computes its value per row). A plugin is an object with a `name` and any of these hooks:
 
 ```ts
 import type { ArgusPlugin } from 'argus-table';

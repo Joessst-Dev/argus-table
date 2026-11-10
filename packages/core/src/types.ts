@@ -68,6 +68,12 @@ export interface ColumnDef<TData, TContent = unknown> {
    * then needs a `cell` function to show anything.
    */
   accessor?: string | ((row: TData, index: number) => unknown);
+  /**
+   * A spreadsheet formula computed per row from other columns, such as
+   * `'[price] * [quantity]'`. The `formulas()` plugin from `@argus-table/formulas`
+   * reads it and replaces `accessor`; without that plugin the table ignores it.
+   */
+  formula?: string;
   /** Custom cell content. Without it, the cell shows the accessor's value as text. */
   cell?: (row: TData, context: CellContext<TData>) => TContent;
   /**
