@@ -2,6 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { tokenize } from '../engine/tokenize.js';
 import { callAt, completionAt, highlight } from './assist.js';
 
+/** A formula with its cursor marked by one `|`: the formula without it, and the cursor's offset. */
+function unmark(marked: string): { source: string; cursor: number } {
+  const parts = marked.split('|');
+  if (parts.length !== 2) throw new Error(`mark the cursor once: ${marked}`);
+  const [before = '', after = ''] = parts;
+  return { source: before + after, cursor: before.length };
+}
+
 const FUNCTIONS = ['ABS', 'AND', 'AVERAGE', 'IF', 'IFERROR', 'ROUND', 'ROUNDUP', 'TODAY', 'TRIM'];
 const COLUMNS = ['Unit price', 'Quantity', 'Total', 'Status'];
 
@@ -67,8 +75,7 @@ describe('callAt', () => {
     ['[a] + |', undefined],
     ['ROUND|', undefined],
   ])('%s', (marked, expected) => {
-    const cursor = marked.indexOf('|');
-    const source = marked.replace('|', '');
+    const { source, cursor } = unmark(marked);
     expect(callAt(source, cursor)).toEqual(expected);
   });
 
@@ -79,8 +86,8 @@ describe('callAt', () => {
 
 describe('completionAt', () => {
   const at = (marked: string) => {
-    const cursor = marked.indexOf('|');
-    return completionAt(marked.replace('|', ''), cursor, COLUMNS, FUNCTIONS);
+    const { source, cursor } = unmark(marked);
+    return completionAt(source, cursor, COLUMNS, FUNCTIONS);
   };
 
   it('offers columns after an unclosed [, starting matches first', () => {
