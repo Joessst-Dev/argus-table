@@ -1,5 +1,12 @@
 import { html, nothing, type TemplateResult } from 'lit';
-import type { ArgusPlugin, CellContent, ColumnDef, ColumnInfo, PluginHost } from 'argus-table';
+import type {
+  ArgusPlugin,
+  CellContent,
+  ColumnDef,
+  ColumnInfo,
+  ColumnPin,
+  PluginHost,
+} from 'argus-table';
 import { adoptStyles } from './styles.js';
 
 /** Which column's menu is open in one table, and the table's API. */
@@ -10,6 +17,20 @@ interface TableState<T> {
   pressedOpen: boolean;
   /** Prefix of the ids that tie each menu to its header label. */
   ids: string;
+  /** Each column's text header (or its id), for items and announcements about it, hidden ones too. */
+  labels: Map<string, string>;
+  options: Required<HeaderMenuOptions>;
+}
+
+/** What `headerMenu()` puts in the menu besides sorting and fitting widths. */
+export interface HeaderMenuOptions {
+  /** Pin to start, Pin to end and Don't pin, for columns with `pinnable` (the default). Default: `true`. */
+  pin?: boolean;
+  /**
+   * Hide column for columns with `hideable` (the default), and a "Hidden columns"
+   * group to show them again. Default: `true`.
+   */
+  hide?: boolean;
 }
 
 let tables = 0;
@@ -19,6 +40,12 @@ const SORT_ITEMS = [
   { direction: 'desc', label: 'Sort descending' },
   { direction: null, label: 'Unsorted' },
 ] as const;
+
+const PIN_ITEMS = [
+  { pin: 'start', label: 'Pin to start', done: 'pinned to the start' },
+  { pin: 'end', label: 'Pin to end', done: 'pinned to the end' },
+  { pin: false, label: "Don't pin", done: 'unpinned' },
+] as const satisfies readonly { pin: ColumnPin | false; label: string; done: string }[];
 
 /**
  * An item another plugin adds to the column menu, through `headerMenuItems`.
@@ -61,9 +88,10 @@ const ICON = html`<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
 </svg>`;
 
 /**
- * A column menu for `<argus-table>`: a button in each header of a sortable or
- * resizable column opens a menu to sort the column ascending or descending,
- * clear its sort, or fit its width to its content.
+ * A column menu for `<argus-table>`: a button in each header opens a menu to
+ * sort the column ascending or descending, clear its sort, pin it to a side or
+ * unpin it, fit its width to its content, hide it, and show hidden columns
+ * again. Items that don't apply to a column are left out.
  *
  * ```ts
  * import { headerMenu } from '@argus-table/header-menu';
@@ -75,14 +103,22 @@ const ICON = html`<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
  * or Space runs an item, and Escape closes it; focus goes back to the header.
  * One plugin can serve several tables.
  */
-export function headerMenu<T = unknown>(): ArgusPlugin<T> {
+export function headerMenu<T = unknown>(options: HeaderMenuOptions = {}): ArgusPlugin<T> {
   const states = new WeakMap<HTMLElement, TableState<T>>();
+  const resolved = { pin: options.pin !== false, hide: options.hide !== false };
 
   const stateOf = (host: PluginHost<T>): TableState<T> => {
     let state = states.get(host.element);
     if (!state) {
       tables++;
-      state = { host, open: undefined, pressedOpen: false, ids: `argus-hm-${String(tables)}` };
+      state = {
+        host,
+        open: undefined,
+        pressedOpen: false,
+        ids: `argus-hm-${String(tables)}`,
+        labels: new Map(),
+        options: resolved,
+      };
       states.set(host.element, state);
     }
     return state;
@@ -97,7 +133,7 @@ export function headerMenu<T = unknown>(): ArgusPlugin<T> {
       // Right-click, the context menu key and Shift+F10 on a header open its menu.
       const onContextMenu = (event: MouseEvent) => {
         const target = host.cellOf(event);
-        if (target?.section !== 'header' || !hasMenu(host, host.column(target.columnId))) return;
+        if (target?.section !== 'header' || !hasMenu(state, host.column(target.columnId))) return;
         event.preventDefault();
         void open(state, target.columnId);
       };
@@ -110,6 +146,7 @@ export function headerMenu<T = unknown>(): ArgusPlugin<T> {
 
     columns(defs, host) {
       const state = stateOf(host);
+      state.labels = new Map(defs.map((def) => [def.id, textOf(def)]));
       return defs.map((def, index) => ({
         ...def,
         header: () => header(state, def, `${state.ids}-${String(index)}`),
@@ -118,9 +155,10 @@ export function headerMenu<T = unknown>(): ArgusPlugin<T> {
 
     keydown(event, target, host) {
       if (target.section !== 'header' || event.key !== 'ArrowDown' || !event.altKey) return false;
-      if (!hasMenu(host, host.column(target.columnId))) return false;
+      const state = stateOf(host);
+      if (!hasMenu(state, host.column(target.columnId))) return false;
       event.preventDefault();
-      void open(stateOf(host), target.columnId);
+      void open(state, target.columnId);
       return true;
     },
   };
@@ -143,17 +181,48 @@ function contributions<T>(host: PluginHost<T>, columnId: string): HeaderMenuGrou
   return groups;
 }
 
-/** Columns with something in the menu: sortable or resizable ones, or with items from other plugins. */
-function hasMenu<T>(host: PluginHost<T>, column: ColumnInfo | undefined): column is ColumnInfo {
+/** A column's text header, or its id when the header isn't text. */
+function textOf<T>(def: ColumnDef<T>): string {
+  const { header } = def;
+  return typeof header === 'string' || typeof header === 'number' ? String(header) : def.id;
+}
+
+const labelOf = <T>(state: TableState<T>, id: string) => state.labels.get(id) ?? id;
+
+/** Whether the menu can pin and unpin this column. */
+const canPin = <T>(state: TableState<T>, column: ColumnInfo) =>
+  state.options.pin && column.pinnable && state.host.setPin !== undefined;
+
+/** The columns shown and hidden, when the menu hides and shows columns. */
+function visibility<T>(state: TableState<T>): { shown: ColumnInfo[]; hidden: ColumnInfo[] } {
+  const { host } = state;
+  if (!state.options.hide || !host.setHidden || !host.columns) return { shown: [], hidden: [] };
+  const all = host.columns();
+  return { shown: all.filter((c) => !c.hidden), hidden: all.filter((c) => c.hidden) };
+}
+
+/** Whether the menu can hide this column: it allows it, and another column stays shown. */
+const canHide = (column: ColumnInfo, shown: readonly ColumnInfo[]) =>
+  column.hideable && shown.length > 1;
+
+/**
+ * Columns with something in the menu: sortable, resizable, pinnable or hideable
+ * ones, every column while some are hidden (to show them), and columns with items
+ * from other plugins.
+ */
+function hasMenu<T>(state: TableState<T>, column: ColumnInfo | undefined): column is ColumnInfo {
   if (column === undefined) return false;
-  return column.sortable || column.resizable || contributions(host, column.id).length > 0;
+  if (column.sortable || column.resizable || canPin(state, column)) return true;
+  const { shown, hidden } = visibility(state);
+  if (hidden.length > 0 || canHide(column, shown)) return true;
+  return contributions(state.host, column.id).length > 0;
 }
 
 /** The column's own header, then the menu button, then the menu while it is open. */
 function header<T>(state: TableState<T>, def: ColumnDef<T>, labelId: string): CellContent {
   const own = typeof def.header === 'function' ? def.header() : def.header;
   const column = state.host.column(def.id);
-  if (!hasMenu(state.host, column)) return own ?? '';
+  if (!hasMenu(state, column)) return own ?? '';
   const isOpen = state.open === def.id;
   const menuId = `${labelId}-menu`;
   return html`<span class="argus-header-menu-header"
@@ -198,6 +267,7 @@ function menu<T>(
             type="button"
             role="menuitemradio"
             tabindex="-1"
+            data-group="sort"
             aria-checked=${(column.sorted ?? null) === item.direction ? 'true' : 'false'}
             @click=${() => {
               close(state, id);
@@ -208,6 +278,66 @@ function menu<T>(
           </button>`,
       )
     : [];
+  const pinItems = canPin(state, column)
+    ? PIN_ITEMS.map(
+        (item) =>
+          html`<button
+            class="argus-header-menu-item"
+            type="button"
+            role="menuitemradio"
+            tabindex="-1"
+            aria-checked=${(column.pin ?? false) === item.pin ? 'true' : 'false'}
+            @click=${() => {
+              close(state, id);
+              if ((column.pin ?? false) === item.pin) return;
+              state.host.setPin?.(id, item.pin);
+              state.host.announce(`${labelOf(state, id)} ${item.done}`);
+            }}
+          >
+            ${item.label}
+          </button>`,
+      )
+    : undefined;
+  const { shown, hidden } = visibility(state);
+  const hide = canHide(column, shown)
+    ? html`<button
+        class="argus-header-menu-item"
+        type="button"
+        role="menuitem"
+        tabindex="-1"
+        @click=${() => {
+          hideColumn(state, id, shown);
+        }}
+      >
+        Hide column
+      </button>`
+    : undefined;
+  const show = (columns: readonly ColumnInfo[], label: string) =>
+    html`<button
+      class="argus-header-menu-item"
+      type="button"
+      role="menuitem"
+      tabindex="-1"
+      @click=${() => {
+        close(state, id);
+        for (const c of columns) state.host.setHidden?.(c.id, false);
+        state.host.announce(
+          columns.length === 1
+            ? `${labelOf(state, columns[0]?.id ?? '')} shown`
+            : `${String(columns.length)} columns shown`,
+        );
+      }}
+    >
+      ${label}
+    </button>`;
+  const showLabelId = `${menuId}-hidden`;
+  const showGroup = hidden.length
+    ? html`<div role="group" aria-labelledby=${showLabelId}>
+        <div class="argus-header-menu-group-label" id=${showLabelId}>Hidden columns</div>
+        ${hidden.map((c) => show([c], `Show ${labelOf(state, c.id)}`))}
+        ${hidden.length > 1 ? show(hidden, 'Show all') : nothing}
+      </div>`
+    : undefined;
   const groups = contributions(state.host, id).map((group, g) => {
     const items = group.items.map(
       (item) =>
@@ -268,7 +398,14 @@ function menu<T>(
         close(state, undefined);
     }}
   >
-    ${[column.sortable ? sortItems : undefined, column.resizable ? fit : undefined, ...groups]
+    ${[
+      column.sortable ? sortItems : undefined,
+      pinItems,
+      column.resizable ? fit : undefined,
+      hide,
+      showGroup,
+      ...groups,
+    ]
       .filter((section) => section !== undefined)
       .map((section, i) => (i ? [html`<div role="separator"></div>`, section] : section))}
   </div>`;
@@ -284,7 +421,10 @@ async function open<T>(state: TableState<T>, columnId: string): Promise<void> {
   if (!popover.matches(':popover-open')) popover.showPopover();
   follow(state, columnId, popover);
   const items = itemsOf(popover);
-  const checked = items.find((item) => item.getAttribute('aria-checked') === 'true');
+  // The sort the column has, else the first item.
+  const checked = items.find(
+    (item) => item.dataset.group === 'sort' && item.getAttribute('aria-checked') === 'true',
+  );
   (checked ?? items[0])?.focus();
 }
 
@@ -294,6 +434,18 @@ function close<T>(state: TableState<T>, focusColumn: string | undefined): void {
   state.open = undefined;
   if (focusColumn === undefined) state.host.requestUpdate();
   else state.host.focusHeader(focusColumn);
+}
+
+/**
+ * Hides a column, with focus on the header that takes its place: the next
+ * shown column, else the one before it.
+ */
+function hideColumn<T>(state: TableState<T>, columnId: string, shown: readonly ColumnInfo[]): void {
+  const at = shown.findIndex((c) => c.id === columnId);
+  const next = shown[at + 1] ?? shown[at - 1];
+  close(state, next?.id);
+  state.host.setHidden?.(columnId, true);
+  state.host.announce(`${labelOf(state, columnId)} hidden`);
 }
 
 async function fitWidth<T>(state: TableState<T>, columnId: string, labelId: string) {

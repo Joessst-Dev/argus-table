@@ -58,8 +58,8 @@ const item = (menu: HTMLElement, label: string) => {
 
 /**
  * `@argus-table/header-menu` is a plugin: `table.plugins = [headerMenu()]`. Each
- * sortable or resizable column gets a button in its header, which opens a menu
- * to sort the column, clear its sort, or fit its width to its content. A
+ * column gets a button in its header, which opens a menu to sort the column,
+ * clear its sort, pin it, fit its width to its content, or hide it. A
  * right-click on a header opens it too.
  */
 export const Default: Story = {
@@ -158,5 +158,46 @@ export const Open: Story = {
     await expect(menu.getBoundingClientRect().bottom).toBeGreaterThan(
       table.getBoundingClientRect().bottom,
     );
+  },
+};
+
+/** Header ids in visual order. */
+const headerOrder = (table: ArgusTable<Order>) =>
+  [...(table.shadowRoot?.querySelectorAll<HTMLElement>('[role="columnheader"]') ?? [])]
+    .sort((a, b) => Number(a.ariaColIndex) - Number(b.ariaColIndex))
+    .map((h) => h.dataset.col);
+
+/**
+ * Pin to start, Pin to end and Don't pin set `columnPinning`; Hide column sets
+ * `columnVisibility`, and every menu lists the hidden columns to show them
+ * again. With the properties controlled, the menu only fires `argus-column-pin`
+ * and `argus-column-hide`. `pinnable: false` and `hideable: false` leave a column
+ * out, and `headerMenu({ pin: false, hide: false })` turns the items off.
+ */
+export const PinAndHide: Story = {
+  render: () =>
+    html`<argus-table
+      style="block-size: 420px; inline-size: 720px"
+      .columns=${orderColumns}
+      .data=${data}
+      .plugins=${plugins}
+    ></argus-table>`,
+  play: async ({ canvasElement }) => {
+    const table = await tableIn(canvasElement);
+    const start = headerOrder(table);
+    await userEvent.click(buttonOf(table, 'customer'));
+    await userEvent.click(item(await openMenu(table), 'Pin to start'));
+    await waitFor(() => expect(table.columnPinning).toEqual({ customer: 'start' }));
+    await userEvent.click(buttonOf(table, 'customer'));
+    await userEvent.click(item(await openMenu(table), 'Hide column'));
+    await waitFor(() => expect(headerOrder(table)).not.toContain('customer'));
+
+    // Back to how the story started.
+    const other = headerOrder(table).find((id) => id !== undefined) ?? '';
+    await userEvent.click(buttonOf(table, other));
+    await userEvent.click(item(await openMenu(table), 'Show Customer'));
+    await userEvent.click(buttonOf(table, 'customer'));
+    await userEvent.click(item(await openMenu(table), "Don't pin"));
+    await waitFor(() => expect(headerOrder(table)).toEqual(start));
   },
 };

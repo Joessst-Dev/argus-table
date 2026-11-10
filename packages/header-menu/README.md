@@ -1,6 +1,6 @@
 # @argus-table/header-menu
 
-A column menu for [`<argus-table>`](https://www.npmjs.com/package/argus-table). It's a plugin: each sortable or resizable column gets a button in its header that opens a menu to sort the column, clear its sort, or fit its width to its content.
+A column menu for [`<argus-table>`](https://www.npmjs.com/package/argus-table). It's a plugin: each column gets a button in its header that opens a menu to sort the column, clear its sort, pin it to a side, fit its width to its content, or hide it, and to show hidden columns again.
 
 **[Docs and live examples](https://joessst-dev.github.io/argus-table/)** · [GitHub](https://github.com/Joessst-Dev/argus-table)
 
@@ -32,12 +32,18 @@ const plugins = [headerMenu<Order>()];
 
 One `headerMenu()` can serve several tables.
 
+### Options
+
+`headerMenu({ pin: false })` leaves out the pin items and `headerMenu({ hide: false })` the hide and show items; both default to `true`. With both off, only sortable and resizable columns (and columns with items from other plugins) get a menu. To keep a single column out, set `pinnable: false` or `hideable: false` on it.
+
 ## What it does
 
-- **Sort ascending**, **Sort descending** and **Unsorted** for sortable columns, **Fit width** for resizable ones. They go through the table's own rules: with a controlled `sorting` or `columnSizing`, the menu only fires `argus-sort-change` or `argus-column-resize`, like a header click or a double-click on the resize handle.
+- **Sort ascending**, **Sort descending** and **Unsorted** for sortable columns, **Fit width** for resizable ones.
+- **Pin to start**, **Pin to end** and **Don't pin** for columns with `pinnable` (the default), **Hide column** for columns with `hideable` (the default) while another column is shown, and a **Hidden columns** group with **Show …** for each hidden column (and **Show all**) in every menu. Hiding a column moves focus to the header that takes its place.
+- Every item goes through the table's own rules: with a controlled `sorting`, `columnSizing`, `columnPinning` or `columnVisibility`, the menu only fires `argus-sort-change`, `argus-column-resize`, `argus-column-pin` or `argus-column-hide`, like a header click or a double-click on the resize handle.
 - **Mouse:** the button in the header, or a right-click on the header.
 - **Keyboard:** on a focused header, Alt+ArrowDown, the context menu key or Shift+F10 opens the menu. ArrowUp and ArrowDown move (they wrap), Home and End jump, Enter or Space runs an item, Escape or Tab closes the menu. Focus goes back to the header.
-- **Screen readers:** the button is labelled "Column menu" and the menu is labelled by the column's header. Fitting a column announces its new width. Labels are in English.
+- **Screen readers:** the button is labelled "Column menu" and the menu is labelled by the column's header. Fitting, pinning, hiding and showing a column are announced. Labels are in English.
 - The menu is a native [popover](https://developer.mozilla.org/docs/Web/API/Popover_API) in the top layer, so a short table or a pinned column doesn't clip it.
 
 ## Items from other plugins
