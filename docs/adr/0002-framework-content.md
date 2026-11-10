@@ -34,5 +34,5 @@ Two facts make this harder than it sounds:
 ## Consequences
 
 - Framework cells behave like pooled list items in a virtualized list: a component's own state belongs to its pooled cell, not to a row. The wrapper docs say so: keep per-row state in the data, or key it by `rowId`.
-- A React app needs `react-dom` (portals and `flushSync`), now a peer dependency of `@argus-table/react`.
+- Each wrapper brings its renderer: React portals committed with `flushSync` (`react-dom` is now a peer of `@argus-table/react`), Vue's synchronous `render()` with the wrapper's app context and injections, and Angular embedded views moved into the target (the CDK portal pattern) with `detectChanges()`. Vue slots (`#cell-<id>`) and Angular templates (`argusCell`) reach the columns through an internal plugin that each wrapper puts first in `plugins`.
 - The element grows by the directive (about 0.9 kB gzip), which with filtering took the CDN bundle to 51.2 kB and its budget from 51 to 52 kB. Plain content takes the same path as before, plus one directive per cell.

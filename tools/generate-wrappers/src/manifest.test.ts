@@ -279,6 +279,33 @@ describe('emitReact with content', () => {
   });
 });
 
+describe('emitAngular with content', () => {
+  test('extends ArgusTableBase, types content inputs and drops contentRenderer', () => {
+    const base = contentManifest();
+    const source = emitAngular([
+      readElement(base, 'argus-table'),
+      readElement(base, 'argus-column'),
+    ]);
+    expect(source).toContain(
+      "import { ArgusTableBase, type AngularCellContent, type AngularColumnDef } from '../content.js';",
+    );
+    expect(source).toContain(
+      'export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {',
+    );
+    expect(source).toContain(
+      '@Input() set columns(value: (readonly AngularColumnDef<T>[]) | null | undefined)',
+    );
+    expect(source).not.toContain('set contentRenderer');
+    expect(source).toContain(
+      '@Input() set cell(value: ((row: T, context: CellContext<T>) => AngularCellContent) | null | undefined)',
+    );
+    // The column component keeps its own element field.
+    expect(source).toMatch(
+      /export class ArgusColumnComponent<T = unknown> \{\n {2}\/\*\* The `<argus-column>` element/,
+    );
+  });
+});
+
 describe('emitVue with content', () => {
   test('types content, adds cell and header slots, and marks the spec', () => {
     const base = contentManifest();

@@ -14,6 +14,7 @@ import type {
   ArgusTable as ArgusTableElement,
   ArgusColumn as ArgusColumnElement,
   CellClickDetail,
+  CellContext,
   ColumnFilterDetail,
   ColumnHideDetail,
   ColumnPinDetail,
@@ -25,6 +26,7 @@ import type {
   RowSelectDetail,
   SortChangeDetail,
 } from 'argus-table';
+import { ArgusTableBase, type AngularCellContent, type AngularColumnDef } from '../content.js';
 import { setProperty } from '../set-property.js';
 
 /** `<argus-table>` as an Angular component, on the element's own tag. */
@@ -47,13 +49,9 @@ import { setProperty } from '../set-property.js';
     '(argus-load-error)': 'handleLoadError($event)',
   },
 })
-export class ArgusTableComponent<T = unknown> {
-  /** The `<argus-table>` element. */
-  readonly element: ArgusTableElement<T> =
-    inject<ElementRef<ArgusTableElement<T>>>(ElementRef).nativeElement;
-
+export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
   /** Column definitions. Property only: functions can't be attributes. While empty, the table reads its `<argus-column>` children instead. `null` or `undefined` means `[]`. */
-  @Input() set columns(value: ArgusTableElement<T>['columns'] | null | undefined) {
+  @Input() set columns(value: readonly AngularColumnDef<T>[] | null | undefined) {
     setProperty(this.element, 'columns', undefined, value);
   }
 
@@ -155,14 +153,9 @@ export class ArgusTableComponent<T = unknown> {
     setProperty(this.element, 'selection', undefined, value);
   }
 
-  /** Renders header and cell content the table can't render itself, such as React elements, Vue VNodes or Angular templates: `{ render(target, content), release(target), flush?() }`. A `header` or `cell` that returns anything other than a string, a number, a DOM node or a Lit template hands it to the renderer, with a target element the table keeps while the cell is reused for other rows. The framework wrappers set it; set it yourself only for another framework. */
-  @Input() set contentRenderer(value: ArgusTableElement<T>['contentRenderer'] | null | undefined) {
-    setProperty(this.element, 'contentRenderer', undefined, value);
-  }
-
   /** Add-ons, such as `headerMenu()` from `@argus-table/header-menu`. Each one can change the column definitions, handle keys on a focused header or cell, and use the table through a small API. They run in array order. Replace the array to change them; an array with the same plugins in the same order changes nothing. `null` or `undefined` means `[]`. */
   @Input() set plugins(value: ArgusTableElement<T>['plugins'] | null | undefined) {
-    setProperty(this.element, 'plugins', undefined, value);
+    this.setPlugins(value);
   }
 
   /** `argus-sort-change`: A sortable header was clicked, or activated with Enter or Space. `detail: { sorting }`: the new order, or the proposed one when `sorting` is controlled. */
@@ -349,7 +342,7 @@ export class ArgusColumnComponent<T = unknown> {
   }
 
   /** Header content: text as an attribute; a Lit template, a node or a function as a property. */
-  @Input() set header(value: ArgusColumnElement<T>['header'] | null | undefined) {
+  @Input() set header(value: (AngularCellContent | (() => AngularCellContent)) | null | undefined) {
     setProperty(this.element, 'header', 'header', value);
   }
 
@@ -364,7 +357,9 @@ export class ArgusColumnComponent<T = unknown> {
   }
 
   /** Cell content from the row: `(row, context) => content`. Property only; wins over a `<template>` child. */
-  @Input() set cell(value: ArgusColumnElement<T>['cell'] | null | undefined) {
+  @Input() set cell(
+    value: ((row: T, context: CellContext<T>) => AngularCellContent) | null | undefined,
+  ) {
     setProperty(this.element, 'cell', undefined, value);
   }
 
