@@ -50,7 +50,14 @@ export interface ColumnInfo {
   id: string;
   sortable: boolean;
   resizable: boolean;
+  /** Whether the user may pin and unpin it (`pinnable`). */
+  pinnable: boolean;
+  /** Whether the user may hide it (`hideable`). */
+  hideable: boolean;
+  /** The pin in effect: `columnPinning`'s, else the column's own. */
   pin: ColumnPin | undefined;
+  /** `true` while the column is hidden (`columnVisibility`, else the column's `hidden`). */
+  hidden: boolean;
   /** Current width in px. */
   width: number;
   /** The sort direction, if the table is sorted by this column. */
@@ -64,8 +71,16 @@ export interface ColumnInfo {
  */
 export interface PluginHost<T = unknown> {
   readonly element: ArgusTable<T>;
-  /** A column of `columns` (or the children) as resolved, after every plugin's `columns`. */
+  /**
+   * A column of `columns` (or the children) as resolved, after every plugin's
+   * `columns`. Hidden columns too, with `hidden: true`.
+   */
   column(id: string): ColumnInfo | undefined;
+  /**
+   * Every column, hidden ones included, in the column order (start-pinned,
+   * scrolling, end-pinned), for lists such as "show hidden columns".
+   */
+  columns?(): ColumnInfo[];
   /** The header or cell an event happened in, if any. */
   cellOf(event: Event): CellTarget | undefined;
   /**
@@ -76,6 +91,19 @@ export interface PluginHost<T = unknown> {
    * would make it controlled.
    */
   setSort(columnId: string, direction: 'asc' | 'desc' | null): void;
+  /**
+   * Pins a column to a side, or (`false`) unpins it. Follows the `columnPinning`
+   * rules: when it is controlled, only `argus-column-pin` fires with the proposed
+   * pins. Does nothing for a column with `pinnable: false`, or without a change.
+   */
+  setPin?(columnId: string, pin: ColumnPin | false): void;
+  /**
+   * Hides or shows a column. Follows the `columnVisibility` rules: when it is
+   * controlled, only `argus-column-hide` fires with the proposed visibility. Does
+   * nothing without a change, when hiding a column with `hideable: false`, or
+   * when hiding the last column shown.
+   */
+  setHidden?(columnId: string, hidden: boolean): void;
   /** Moves focus to a column's header, after the next update. */
   focusHeader(columnId: string): void;
   /** Says something to screen readers through a polite live region. */

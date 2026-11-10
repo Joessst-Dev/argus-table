@@ -39,8 +39,11 @@ describe('resolveColumns', () => {
       minWidth: DEFAULT_MIN_WIDTH,
       maxWidth: Number.POSITIVE_INFINITY,
       pin: undefined,
+      hidden: false,
       sortable: false,
       resizable: true,
+      pinnable: true,
+      hideable: true,
       align: 'start',
       hasAccessor: true,
     });
@@ -83,9 +86,23 @@ describe('resolveColumns', () => {
     expect(bad).toMatchObject({ flex: undefined, width: DEFAULT_WIDTH });
   });
 
-  it('ignores flex on pinned columns, which need a known width', () => {
-    const [col] = resolveColumns<Order, string>([{ id: 'a', width: { flex: 1 }, pin: 'start' }]);
-    expect(col).toMatchObject({ flex: undefined, width: DEFAULT_WIDTH, pin: 'start' });
+  it('keeps a width for flex columns while they are pinned, which need a known width', () => {
+    const [col, narrow, fixed] = resolveColumns<Order, string>([
+      { id: 'a', width: { flex: 1 }, pin: 'start' },
+      { id: 'b', width: { flex: 1 }, maxWidth: 90 },
+      { id: 'c', width: 70 },
+    ]);
+    // The model drops flex while a column is pinned and uses `pinnedWidth` instead.
+    expect(col).toMatchObject({ flex: 1, pinnedWidth: DEFAULT_WIDTH, pin: 'start' });
+    expect(narrow).toMatchObject({ flex: 1, pinnedWidth: 90 });
+    expect(fixed).toMatchObject({ width: 70, pinnedWidth: 70 });
+  });
+
+  it('reads hidden, pinnable and hideable', () => {
+    const [col] = resolveColumns<Order, string>([
+      { id: 'a', hidden: true, pinnable: false, hideable: false },
+    ]);
+    expect(col).toMatchObject({ hidden: true, pinnable: false, hideable: false });
   });
 
   it("resolves width 'auto' to the clamped default until it is measured", () => {

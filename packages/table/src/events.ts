@@ -1,5 +1,7 @@
 import type {
   CellClickDetail,
+  ColumnHideDetail,
+  ColumnPinDetail,
   ColumnReorderDetail,
   ColumnResizeDetail,
   LoadErrorDetail,
@@ -21,6 +23,12 @@ export const COLUMN_RESIZE = 'argus-column-resize';
 /** Fired when a column was moved (uncontrolled), or with the proposed order (controlled). */
 export const COLUMN_REORDER = 'argus-column-reorder';
 
+/** Fired when a column was pinned or unpinned (uncontrolled), or with the proposed pins (controlled). */
+export const COLUMN_PIN = 'argus-column-pin';
+
+/** Fired when a column was hidden or shown (uncontrolled), or with the proposed visibility (controlled). */
+export const COLUMN_HIDE = 'argus-column-hide';
+
 /** Fired when a body row was clicked, after `argus-cell-click`. */
 export const ROW_CLICK = 'argus-row-click';
 
@@ -39,6 +47,8 @@ declare global {
     'argus-sort-change': CustomEvent<SortChangeDetail>;
     'argus-column-resize': CustomEvent<ColumnResizeDetail>;
     'argus-column-reorder': CustomEvent<ColumnReorderDetail>;
+    'argus-column-pin': CustomEvent<ColumnPinDetail>;
+    'argus-column-hide': CustomEvent<ColumnHideDetail>;
     'argus-row-click': CustomEvent<RowClickDetail<unknown>>;
     'argus-cell-click': CustomEvent<CellClickDetail<unknown>>;
     'argus-load-error': CustomEvent<LoadErrorDetail>;

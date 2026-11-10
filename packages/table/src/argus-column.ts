@@ -65,6 +65,9 @@ const flagConverter: ComplexAttributeConverter<boolean | undefined> = {
  * A `<template>` child is the content of every cell in the column (static: the same
  * for each row). Set the `cell` property for content that depends on the row.
  *
+ * The standard `hidden` attribute (or property) hides the column, like `hidden` in
+ * `columns`; the table's `columnVisibility` overrides it.
+ *
  * @summary Declarative column of an `<argus-table>`.
  */
 @customElement('argus-column')
@@ -107,9 +110,17 @@ export class ArgusColumn<T = unknown> extends ReactiveElement {
   @property({ attribute: 'max-width', type: Number })
   maxWidth?: number;
 
-  /** Pins the column to the `start` or `end` side. */
+  /** Pins the column to the `start` or `end` side. The table's `columnPinning` overrides it. */
   @property()
   pin?: ColumnPin;
+
+  /** Whether the user can pin or unpin the column. Default: `true`; `pinnable="false"` turns it off. */
+  @property({ converter: flagConverter })
+  pinnable?: boolean;
+
+  /** Whether the user can hide the column. Default: `true`; `hideable="false"` turns it off. */
+  @property({ converter: flagConverter })
+  hideable?: boolean;
 
   /** Text alignment: `start`, `center` or `end`. Default: `start`. */
   @property()
@@ -133,6 +144,16 @@ export class ArgusColumn<T = unknown> extends ReactiveElement {
     this.#def = undefined;
     this.requestUpdate();
   });
+
+  /** `hidden` is the standard attribute: it updates the column like its own properties. */
+  static override get observedAttributes(): string[] {
+    return [...super.observedAttributes, 'hidden'];
+  }
+
+  override attributeChangedCallback(name: string, old: string | null, value: string | null): void {
+    super.attributeChangedCallback(name, old, value);
+    if (name === 'hidden') this.requestUpdate();
+  }
 
   /** Data only: no shadow root, nothing rendered. */
   protected override createRenderRoot(): HTMLElement {
@@ -172,6 +193,9 @@ export class ArgusColumn<T = unknown> extends ReactiveElement {
       minWidth: this.minWidth,
       maxWidth: this.maxWidth,
       pin: this.pin,
+      hidden: this.hasAttribute('hidden'),
+      pinnable: this.pinnable,
+      hideable: this.hideable,
       align: this.align,
       sortable: this.sortable,
       resizable: this.resizable,

@@ -4,14 +4,14 @@
 
 Every piece of table state works like a form input: uncontrolled by default, controlled when the host sets the property.
 
-| State | Property | Change event |
-| --- | --- | --- |
-| Sorting | `sorting` | `argus-sort-change` |
-| Column widths | `columnSizing` | `argus-column-resize` |
-| Pinned columns | `columnPinning` | `argus-column-pin` |
-| Column order | `columnOrder` | `argus-column-reorder` |
-| Selected rows | `selection` | `argus-row-select` |
-| Hidden columns | `columnVisibility` | `argus-column-visibility` |
+| State           | Property                                                                              | Change event                                                                      |
+| --------------- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Sorting         | `sorting`                                                                             | `argus-sort-change`                                                               |
+| Column widths   | `columnSizing`                                                                        | `argus-column-resize`                                                             |
+| Pinned columns  | `columnPinning`                                                                       | `argus-column-pin`                                                                |
+| Column order    | `columnOrder`                                                                         | `argus-column-reorder`                                                            |
+| Selected rows   | `selection`                                                                           | `argus-row-select`                                                                |
+| Hidden columns  | `columnVisibility`                                                                    | `argus-column-hide` (also when a column is shown)                                 |
 | Formula columns | `columns` (a column's `formula`; the app owns them, the formula editor only proposes) | `argus-formula-column-add` / `-change` / `-remove` (from `@argus-table/formulas`) |
 
 - **Uncontrolled** (property never set): the table keeps the state, updates it, then fires the event.

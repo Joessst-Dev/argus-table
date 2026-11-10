@@ -2,6 +2,8 @@ export { ArgusColumn } from './argus-column.js';
 export { ArgusTable } from './argus-table.js';
 export {
   CELL_CLICK,
+  COLUMN_HIDE,
+  COLUMN_PIN,
   COLUMN_REORDER,
   COLUMN_RESIZE,
   LOAD_ERROR,

@@ -5,6 +5,8 @@ import type {
   ArgusTable as ArgusTableElement,
   ArgusColumn as ArgusColumnElement,
   CellClickDetail,
+  ColumnHideDetail,
+  ColumnPinDetail,
   ColumnReorderDetail,
   ColumnResizeDetail,
   LoadErrorDetail,
@@ -31,6 +33,8 @@ export type ArgusTableElementProps<T = unknown> = Partial<
     | 'sorting'
     | 'columnSizing'
     | 'columnOrder'
+    | 'columnPinning'
+    | 'columnVisibility'
     | 'selectionMode'
     | 'selectionCheckboxes'
     | 'selection'
@@ -52,6 +56,14 @@ export interface ArgusTableEventProps<T = unknown> {
   'onColumn-reorder'?: (event: CustomEvent<ColumnReorderDetail>) => void;
   /** `v-model:columnOrder`: the new `columnOrder` from `argus-column-reorder`. */
   'onUpdate:columnOrder'?: (value: ArgusTableElement<T>['columnOrder']) => void;
+  /** `argus-column-pin`: A column was pinned to a side or unpinned, through a plugin such as the column menu. `detail: { columnId, pin, pinning }`: `pin` is `'start'`, `'end'` or `false`; `pinning` is the new state, or the proposed one when `columnPinning` is controlled. */
+  'onColumn-pin'?: (event: CustomEvent<ColumnPinDetail>) => void;
+  /** `v-model:columnPinning`: the new `columnPinning` from `argus-column-pin`. */
+  'onUpdate:columnPinning'?: (value: ArgusTableElement<T>['columnPinning']) => void;
+  /** `argus-column-hide`: A column was hidden or shown, through a plugin such as the column menu. `detail: { columnId, hidden, visibility }`: `hidden` is `true` when it was hidden; `visibility` is the new state, or the proposed one when `columnVisibility` is controlled. */
+  'onColumn-hide'?: (event: CustomEvent<ColumnHideDetail>) => void;
+  /** `v-model:columnVisibility`: the new `columnVisibility` from `argus-column-hide`. */
+  'onUpdate:columnVisibility'?: (value: ArgusTableElement<T>['columnVisibility']) => void;
   /** `argus-cell-click`: A body or pinned-row cell was clicked, or Enter was pressed on it. `detail: { row, columnId, value, pinned? }`; `pinned` is `'top'` or `'bottom'` for a pinned row. Fires before `argus-row-click`. */
   'onCell-click'?: (event: CustomEvent<CellClickDetail<T>>) => void;
   /** `argus-row-click`: A body or pinned row was clicked, or Enter was pressed on one of its cells. `detail: { row, rowId, index, pinned? }`; for a pinned row, `index` is its index in its list. */
@@ -77,6 +89,10 @@ export interface ArgusTableEmit<T = unknown> {
   (event: 'update:columnSizing', value: ArgusTableElement<T>['columnSizing']): void;
   (event: 'column-reorder', payload: CustomEvent<ColumnReorderDetail>): void;
   (event: 'update:columnOrder', value: ArgusTableElement<T>['columnOrder']): void;
+  (event: 'column-pin', payload: CustomEvent<ColumnPinDetail>): void;
+  (event: 'update:columnPinning', value: ArgusTableElement<T>['columnPinning']): void;
+  (event: 'column-hide', payload: CustomEvent<ColumnHideDetail>): void;
+  (event: 'update:columnVisibility', value: ArgusTableElement<T>['columnVisibility']): void;
   (event: 'cell-click', payload: CustomEvent<CellClickDetail<T>>): void;
   (event: 'row-click', payload: CustomEvent<RowClickDetail<T>>): void;
   (event: 'range-change', payload: CustomEvent<RangeChangeDetail>): void;
@@ -125,6 +141,8 @@ export const ArgusTable = defineWrapper({
     'sorting',
     'columnSizing',
     'columnOrder',
+    'columnPinning',
+    'columnVisibility',
     'selectionMode',
     'selectionCheckboxes',
     'selection',
@@ -146,6 +164,16 @@ export const ArgusTable = defineWrapper({
       name: 'argus-column-reorder',
       emit: 'column-reorder',
       model: { property: 'columnOrder', detailKey: 'order' },
+    },
+    {
+      name: 'argus-column-pin',
+      emit: 'column-pin',
+      model: { property: 'columnPinning', detailKey: 'pinning' },
+    },
+    {
+      name: 'argus-column-hide',
+      emit: 'column-hide',
+      model: { property: 'columnVisibility', detailKey: 'visibility' },
     },
     { name: 'argus-cell-click', emit: 'cell-click' },
     { name: 'argus-row-click', emit: 'row-click' },
@@ -178,6 +206,8 @@ export type ArgusColumnElementProps<T = unknown> = Partial<
     | 'minWidth'
     | 'maxWidth'
     | 'pin'
+    | 'pinnable'
+    | 'hideable'
     | 'align'
     | 'sortable'
     | 'resizable'
@@ -222,12 +252,14 @@ export const ArgusColumn = defineWrapper({
     'minWidth',
     'maxWidth',
     'pin',
+    'pinnable',
+    'hideable',
     'align',
     'sortable',
     'resizable',
     'reorderable',
   ],
-  booleans: ['sortable', 'resizable', 'reorderable'],
+  booleans: ['pinnable', 'hideable', 'sortable', 'resizable', 'reorderable'],
   events: [],
   methods: [],
 }) as unknown as <T = unknown>(

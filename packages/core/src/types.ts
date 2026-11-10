@@ -89,8 +89,16 @@ export interface ColumnDef<TData, TContent = unknown> {
   minWidth?: number;
   /** Upper bound for resizing, in px. Default: no limit. */
   maxWidth?: number;
-  /** Pins the column to the start or end side. */
+  /**
+   * Pins the column to the start or end side. `columnPinning` overrides it for a
+   * column it lists.
+   */
   pin?: ColumnPin;
+  /**
+   * Hides the column: it isn't rendered, but its values still sort and its formulas
+   * still read it. `columnVisibility` overrides it for a column it lists. Default: `false`.
+   */
+  hidden?: boolean;
   /** Whether the header can be clicked to sort. Default: `false`. */
   sortable?: boolean;
   /** Whether the column can be resized. Default: `true`. */
@@ -101,6 +109,16 @@ export interface ColumnDef<TData, TContent = unknown> {
    * end-pinned). Other columns can still move past one that sets `false`.
    */
   reorderable?: boolean;
+  /**
+   * Whether the user can pin or unpin the column, for example from the column menu.
+   * Default: `true`. `pin` and `columnPinning` still apply.
+   */
+  pinnable?: boolean;
+  /**
+   * Whether the user can hide the column, for example from the column menu.
+   * Default: `true`. `hidden` and `columnVisibility` still apply.
+   */
+  hideable?: boolean;
   /** Text alignment. Default: `'start'`. */
   align?: ColumnAlign;
 }
@@ -124,6 +142,18 @@ export type ColumnSizingState = Record<string, number>;
  * end-pinned). An empty array means the order of `columns`.
  */
 export type ColumnOrderState = string[];
+
+/**
+ * Pins set at runtime, keyed by column id: `'start'` or `'end'` pins a column, `false`
+ * unpins a column whose definition pins it. A column not listed keeps its `pin`.
+ */
+export type ColumnPinningState = Record<string, ColumnPin | false>;
+
+/**
+ * Visibility set at runtime, keyed by column id: `false` hides a column, `true` shows
+ * a column whose definition is `hidden`. A column not listed keeps its `hidden`.
+ */
+export type ColumnVisibilityState = Record<string, boolean>;
 
 /**
  * How rows can be selected: `'none'` (the default), `'single'` (one row at a time)
@@ -158,6 +188,26 @@ export interface ColumnReorderDetail {
   columnId: string;
   /** The whole new order. */
   order: ColumnOrderState;
+}
+
+/** `detail` of `argus-column-pin`. */
+export interface ColumnPinDetail {
+  /** The column pinned or unpinned. */
+  columnId: string;
+  /** Its new pin, or `false` when it no longer is pinned. */
+  pin: ColumnPin | false;
+  /** The whole new pinning state. */
+  pinning: ColumnPinningState;
+}
+
+/** `detail` of `argus-column-hide`: fires when a column is hidden and when it is shown. */
+export interface ColumnHideDetail {
+  /** The column hidden or shown. */
+  columnId: string;
+  /** `true` when the column was hidden, `false` when it was shown. */
+  hidden: boolean;
+  /** The whole new visibility state. */
+  visibility: ColumnVisibilityState;
 }
 
 /** `detail` of `argus-row-click`. */

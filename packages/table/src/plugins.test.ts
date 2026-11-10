@@ -328,7 +328,10 @@ describe('plugin host', () => {
       id: 'name',
       sortable: true,
       resizable: true,
+      pinnable: true,
+      hideable: true,
       pin: 'start',
+      hidden: false,
       width: 200,
       sorted: undefined,
     });

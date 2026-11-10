@@ -1,5 +1,4 @@
 import {
-  columnPinningFeature,
   columnSizingFeature,
   constructTable,
   rowSortingFeature,
@@ -8,7 +7,6 @@ import {
   sortFn_datetime,
   sortFn_text,
   tableFeatures,
-  type Column,
   type ColumnDef as TanStackColumnDef,
   type Row,
   type Table,
@@ -24,7 +22,9 @@ import type {
   ColumnDef,
   ColumnOrderState,
   ColumnPin,
+  ColumnPinningState,
   ColumnSizingState,
+  ColumnVisibilityState,
   PinnedRows,
   RowPin,
   SortState,
@@ -37,7 +37,8 @@ import type {
 const features = tableFeatures({
   // Vanilla (framework-free) reactivity; required by `constructTable`.
   coreReactivityFeature: storeReactivityBindings(),
-  columnPinningFeature,
+  // No pinning, ordering or visibility feature: the model groups, orders and hides
+  // columns itself (see `buildViews`), so they cost no bundle size.
   columnSizingFeature,
   rowSortingFeature,
   // Our own: TanStack's is very slow in Firefox at scale (see sorted-row-model.ts).
@@ -71,8 +72,9 @@ export interface ColumnView<TData, TContent> {
   id: string;
   /** `'data'` for a column of `columns`; `'selection'` for the checkbox column. */
   kind: 'data' | 'selection';
-  /** 1-based position in visual order, for `aria-colindex`. */
+  /** 1-based position in visual order, for `aria-colindex`. `0` for a hidden column. */
   colIndex: number;
+  /** The pin in effect: `columnPinning`'s, else the column's own. */
   pin: ColumnPin | undefined;
   /**
    * Sticky inset in px: from the start edge for `'start'` columns, from the end edge
@@ -81,6 +83,11 @@ export interface ColumnView<TData, TContent> {
   offset: number;
   /** `true` on the pinned column next to the scrolling area (one per pinned side). */
   pinEdge: boolean;
+  /**
+   * `true` for a hidden column. Only `allColumns` lists hidden columns; `columns`
+   * holds the ones the table shows.
+   */
+  hidden: boolean;
   /** Current width in px (a resized width wins over the column's own). */
   width: number;
   /** Share of free space, or `undefined` for a fixed width. A resized column stops flexing. */
@@ -95,6 +102,8 @@ export interface ColumnView<TData, TContent> {
   sortable: boolean;
   resizable: boolean;
   reorderable: boolean;
+  pinnable: boolean;
+  hideable: boolean;
   align: ColumnAlign;
   sorted: SortDirection;
   header: ColumnDef<TData, TContent>['header'];
@@ -143,6 +152,10 @@ export interface TableModelOptions<TData, TContent> {
    * empty array (the default) keeps the order of `columns`.
    */
   columnOrder?: ColumnOrderState | undefined;
+  /** Pins set at runtime, over the columns' own `pin`; its owner is the caller. */
+  columnPinning?: ColumnPinningState | undefined;
+  /** Visibility set at runtime, over the columns' own `hidden`; its owner is the caller. */
+  columnVisibility?: ColumnVisibilityState | undefined;
   /**
    * Measured widths of `width: 'auto'` columns, in px by id. Clamped to the column's
    * bounds; a resized width wins. Ids of other columns are ignored.
@@ -161,11 +174,16 @@ export interface TableModelOptions<TData, TContent> {
 export interface TableModel<TData, TContent> {
   /** Updates any subset of the options. Unchanged references are ignored. */
   update(options: Partial<TableModelOptions<TData, TContent>>): void;
-  /** Columns in visual order. */
+  /** The columns the table shows, in visual order. */
   readonly columns: readonly ColumnView<TData, TContent>[];
+  /**
+   * Every column of `columns`, hidden ones included (with `hidden: true` and
+   * `colIndex: 0`), in the order of `orderOf()`. Not the selection column.
+   */
+  readonly allColumns: readonly ColumnView<TData, TContent>[];
   /** Number of rows in the current row model. */
   readonly rowCount: number;
-  /** Sum of all column widths in px (flex columns count their minimum). */
+  /** Sum of the shown columns' widths in px (flex columns count their minimum). */
   readonly totalWidth: number;
   /** The row at an index of the current row model; `undefined` for a remote row not loaded yet. */
   rowAt(index: number): RowView<TData> | undefined;
@@ -196,11 +214,32 @@ export interface TableModel<TData, TContent> {
    */
   orderOf(base?: readonly string[]): ColumnOrderState;
   /**
-   * The order after moving a column to position `to` (0-based, in the whole order,
-   * counted after the move), starting from `base` (default: the current order).
-   * `undefined` if the column can't move, `to` is outside its pin group, or nothing changes.
+   * The order after moving a column to position `to` (0-based among the shown data
+   * columns, in visual order, counted after the move; hidden columns keep their place),
+   * starting from `base` (default: the current order). `undefined` if the column can't
+   * move or is hidden, `to` is outside its pin group, or nothing changes.
    */
   nextOrder(columnId: string, to: number, base?: readonly string[]): ColumnOrderState | undefined;
+  /**
+   * The pinning state after pinning a column to a side, or unpinning it with `false`,
+   * starting from `base` (default: the current `columnPinning`). `undefined` for an
+   * unknown column, one with `pinnable: false`, or no change.
+   */
+  nextPinning(
+    columnId: string,
+    pin: ColumnPin | false,
+    base?: ColumnPinningState,
+  ): ColumnPinningState | undefined;
+  /**
+   * The visibility state after hiding or showing a column, starting from `base`
+   * (default: the current `columnVisibility`). `undefined` for an unknown column,
+   * hiding one with `hideable: false` or the last one shown, or no change.
+   */
+  nextVisibility(
+    columnId: string,
+    hidden: boolean,
+    base?: ColumnVisibilityState,
+  ): ColumnVisibilityState | undefined;
   /** Number of rows pinned to a side. */
   pinnedCount(side: RowPin): number;
   /**
@@ -237,6 +276,7 @@ function selectionView<TData, TContent>(pinEdge: boolean): ColumnView<TData, TCo
     pin: 'start',
     offset: 0,
     pinEdge,
+    hidden: false,
     width: SELECTION_COLUMN_WIDTH,
     flex: undefined,
     auto: false,
@@ -245,6 +285,8 @@ function selectionView<TData, TContent>(pinEdge: boolean): ColumnView<TData, TCo
     sortable: false,
     resizable: false,
     reorderable: false,
+    pinnable: false,
+    hideable: false,
     align: 'center',
     sorted: false,
     header: undefined,
@@ -268,9 +310,12 @@ function toTanStack<TData, TContent>(
 }
 
 /**
- * Creates the table model over TanStack Table. It owns no state: sorting, sizing and order
- * come in through `update()`, and `nextSorting()`, `nextSizing()` and `nextOrder()` only propose
+ * Creates the table model over TanStack Table. It owns no state: sorting, sizing, order,
+ * pinning and visibility come in through `update()`, and the `next*()` methods only propose
  * changes, so the caller decides (controlled or uncontrolled) whether to apply them.
+ *
+ * Hidden columns stay in TanStack, so their values still sort and read; only the
+ * views leave them out. Pin groups, sticky offsets and the order are the model's own.
  */
 export function createTableModel<TData, TContent>(
   initial: TableModelOptions<TData, TContent>,
@@ -281,52 +326,68 @@ export function createTableModel<TData, TContent>(
   // TanStack column defs by id, kept between updates that don't change `columns`.
   let tanStackById = new Map(resolved.map((c) => [c.id, toTanStack(c)]));
   let views: ColumnView<TData, TContent>[] | undefined;
-  // TanStack's sizing state: measured auto widths under the resized ones. Kept stable
-  // between updates that don't touch either.
+  // The pin and visibility in effect: the state's, else the column's own.
+  const pinOf = (
+    column: ResolvedColumn<TData, TContent>,
+    pinning = options.columnPinning,
+  ): ColumnPin | undefined => {
+    const state = pinning?.[column.id];
+    if (state === 'start' || state === 'end') return state;
+    return state === false ? undefined : column.pin;
+  };
+  const hiddenOf = (
+    column: ResolvedColumn<TData, TContent>,
+    visibility = options.columnVisibility,
+  ): boolean => {
+    const state = visibility?.[column.id];
+    return typeof state === 'boolean' ? !state : column.hidden;
+  };
+  const shown = (id: string) => {
+    const column = byId.get(id);
+    return column !== undefined && !hiddenOf(column);
+  };
+  // TanStack's sizing state: measured auto widths and the widths of pinned flex columns
+  // under the resized ones. Kept stable between updates that don't touch them.
   let sizing: ColumnSizingState | undefined;
   const sizingState = (): ColumnSizingState => {
     if (sizing) return sizing;
     const auto = options.autoWidths;
-    if (!auto) return (sizing = options.columnSizing);
     const merged: ColumnSizingState = {};
+    let any = false;
     for (const column of resolved) {
-      const px = auto[column.id];
+      // A pinned column can't flex: it takes a fixed width for its sticky offsets.
+      if (column.flex !== undefined && pinOf(column) !== undefined) {
+        merged[column.id] = column.pinnedWidth;
+        any = true;
+      }
+      const px = auto?.[column.id];
       if (!column.auto || px === undefined || !Number.isFinite(px)) continue;
       merged[column.id] = Math.min(column.maxWidth, Math.max(column.minWidth, px));
+      any = true;
     }
-    return (sizing = { ...merged, ...options.columnSizing });
+    return (sizing = any ? { ...merged, ...options.columnSizing } : options.columnSizing);
   };
-  // The normalized order, kept stable between updates that touch neither columns nor order.
+  // What ordering needs, with the pin in effect.
+  const orderable = () =>
+    resolved.map((c) => ({ id: c.id, pin: pinOf(c), reorderable: c.reorderable }));
+  // The normalized order, kept stable between updates that touch neither columns,
+  // order nor pinning.
   let order: ColumnOrderState | undefined;
   const orderState = (): ColumnOrderState =>
-    (order ??= normalizeOrder(options.columnOrder ?? [], resolved));
+    (order ??= normalizeOrder(options.columnOrder ?? [], orderable()));
   const rowViews = new WeakMap<Row<Features, AnyRow>, RowView<TData>>();
   // Built lazily per row model (sorting or new data gives a new array).
   let indexById: { rows: readonly Row<Features, AnyRow>[]; map: Map<string, number> } | undefined;
 
-  // The order reaches TanStack as the order of its column defs (the scrolling
-  // columns follow it) and of the pinning arrays (the pinned ones do). Rebuilt only
-  // when the order changes: a new columns array makes TanStack rebuild its columns,
-  // though not its row models, which depend on data and sorting alone.
+  // TanStack gets its column defs in the order, hidden ones included. Rebuilt only when
+  // the order changes: a new columns array makes TanStack rebuild its columns, though
+  // not its row models, which depend on data and sorting alone.
   let ordered:
-    | {
-        order: ColumnOrderState;
-        columns: TanStackColumnDef<Features, AnyRow>[];
-        pinning: { start: string[]; end: string[] };
-      }
-    | undefined;
+    { order: ColumnOrderState; columns: TanStackColumnDef<Features, AnyRow>[] } | undefined;
   const orderedColumns = () => {
     const current = orderState();
     if (ordered?.order !== current) {
-      const pinOf = (id: string) => byId.get(id)?.pin;
-      ordered = {
-        order: current,
-        columns: current.flatMap((id) => tanStackById.get(id) ?? []),
-        pinning: {
-          start: current.filter((id) => pinOf(id) === 'start'),
-          end: current.filter((id) => pinOf(id) === 'end'),
-        },
-      };
+      ordered = { order: current, columns: current.flatMap((id) => tanStackById.get(id) ?? []) };
     }
     return ordered;
   };
@@ -340,12 +401,10 @@ export function createTableModel<TData, TContent>(
     state: {
       sorting: options.sorting,
       columnSizing: sizingState(),
-      columnPinning: orderedColumns().pinning,
     },
     // State is owned by the caller; TanStack's own setters must not change it.
     onSortingChange: () => undefined,
     onColumnSizingChange: () => undefined,
-    onColumnPinningChange: () => undefined,
   });
 
   const table: Table<Features, AnyRow> = constructTable(tableOptions());
@@ -353,60 +412,96 @@ export function createTableModel<TData, TContent>(
   const rows = () => table.getRowModel().rows;
   const pinned = (side: RowPin): readonly TData[] => options.pinnedRows?.[side] ?? [];
 
-  const buildViews = (): ColumnView<TData, TContent>[] => {
-    const start = table.getStartLeafColumns();
-    const center = table.getCenterLeafColumns();
-    const end = table.getEndLeafColumns();
-    const sorting = options.sorting;
-    const view = (
-      column: Column<Features, AnyRow>,
-      colIndex: number,
-      offset: number,
-      pinEdge: boolean,
-    ): ColumnView<TData, TContent> => {
-      const def = byId.get(column.id);
-      if (!def) throw new Error(`argus-table: unknown column '${column.id}'.`);
-      const sort = sorting.find((s) => s.id === column.id);
-      return {
-        id: def.id,
-        kind: 'data',
-        colIndex,
-        pin: def.pin,
-        offset,
-        pinEdge,
-        width: column.getSize(),
-        flex: options.columnSizing[def.id] === undefined ? def.flex : undefined,
-        auto: def.auto && options.columnSizing[def.id] === undefined,
-        minWidth: def.minWidth,
-        maxWidth: def.maxWidth,
-        sortable: def.sortable,
-        resizable: def.resizable,
-        reorderable: def.reorderable,
-        align: def.align,
-        sorted: sort ? (sort.desc ? 'desc' : 'asc') : false,
-        header: def.header,
-        cell: def.cell,
-        hasAccessor: def.hasAccessor,
-      };
+  const widthOf = (id: string) => table.getColumn(id)?.getSize() ?? 0;
+  const view = (
+    def: ResolvedColumn<TData, TContent>,
+    colIndex: number,
+    offset: number,
+    pinEdge: boolean,
+    width: number,
+  ): ColumnView<TData, TContent> => {
+    const sort = options.sorting.find((s) => s.id === def.id);
+    const pin = pinOf(def);
+    const resized = options.columnSizing[def.id] !== undefined;
+    return {
+      id: def.id,
+      kind: 'data',
+      colIndex,
+      pin,
+      offset,
+      pinEdge,
+      hidden: colIndex === 0,
+      width,
+      flex: pin === undefined && !resized ? def.flex : undefined,
+      auto: def.auto && !resized,
+      minWidth: def.minWidth,
+      maxWidth: def.maxWidth,
+      sortable: def.sortable,
+      resizable: def.resizable,
+      reorderable: def.reorderable,
+      pinnable: def.pinnable,
+      hideable: def.hideable,
+      align: def.align,
+      sorted: sort ? (sort.desc ? 'desc' : 'asc') : false,
+      header: def.header,
+      cell: def.cell,
+      hasAccessor: def.hasAccessor,
     };
+  };
+
+  const buildViews = (): ColumnView<TData, TContent>[] => {
+    const groups: Record<ColumnPin | 'center', ResolvedColumn<TData, TContent>[]> = {
+      start: [],
+      center: [],
+      end: [],
+    };
+    for (const id of orderState()) {
+      const def = byId.get(id);
+      if (def && !hiddenOf(def)) groups[pinOf(def) ?? 'center'].push(def);
+    }
+    const { start, center, end } = groups;
     // The selection column comes first: it shifts every column one place on, and
     // the other start-pinned columns its width further from the start edge.
     const lead = options.selectionColumn ? 1 : 0;
     if (lead && byId.has(SELECTION_COLUMN_ID)) {
       throw new Error(`argus-table: the column id '${SELECTION_COLUMN_ID}' is reserved.`);
     }
-    const inset = lead * SELECTION_COLUMN_WIDTH;
-    const list = [
-      ...start.map((c, i) =>
-        view(c, lead + i + 1, inset + c.getStart('start'), i === start.length - 1),
-      ),
-      ...center.map((c, i) => view(c, lead + start.length + i + 1, c.getStart('center'), false)),
-      ...end.map((c, i) =>
-        view(c, lead + start.length + center.length + i + 1, c.getAfter('end'), i === 0),
-      ),
-    ];
+    // Offsets: start columns from the start edge (after the selection column), the
+    // scrolling ones within the scrolling area, end columns from the end edge.
+    let x = lead * SELECTION_COLUMN_WIDTH;
+    const list = start.map((def, i) => {
+      const width = widthOf(def.id);
+      const v = view(def, lead + i + 1, x, i === start.length - 1, width);
+      x += width;
+      return v;
+    });
+    x = 0;
+    for (const [i, def] of center.entries()) {
+      const width = widthOf(def.id);
+      list.push(view(def, lead + start.length + i + 1, x, false, width));
+      x += width;
+    }
+    const ends: ColumnView<TData, TContent>[] = [];
+    x = 0;
+    for (const [i, def] of [...end.entries()].reverse()) {
+      const width = widthOf(def.id);
+      ends.unshift(view(def, lead + start.length + center.length + i + 1, x, i === 0, width));
+      x += width;
+    }
+    list.push(...ends);
     if (lead) list.unshift(selectionView(start.length === 0));
     return list;
+  };
+
+  let allViews: ColumnView<TData, TContent>[] | undefined;
+  const buildAllViews = (shownViews: readonly ColumnView<TData, TContent>[]) => {
+    const byShownId = new Map(shownViews.map((v) => [v.id, v]));
+    return orderState().flatMap((id) => {
+      const shownView = byShownId.get(id);
+      if (shownView) return [shownView];
+      const def = byId.get(id);
+      return def ? [view(def, 0, 0, false, widthOf(id))] : [];
+    });
   };
 
   return {
@@ -423,18 +518,25 @@ export function createTableModel<TData, TContent>(
         byId = new Map(resolved.map((c) => [c.id, c]));
         tanStackById = new Map(resolved.map((c) => [c.id, toTanStack(c)]));
       }
+      const pinningChanged = merged.columnPinning !== options.columnPinning;
       if (
         merged.columns !== options.columns ||
         merged.columnSizing !== options.columnSizing ||
-        merged.autoWidths !== options.autoWidths
+        merged.autoWidths !== options.autoWidths ||
+        pinningChanged
       ) {
         sizing = undefined;
       }
-      if (merged.columns !== options.columns || merged.columnOrder !== options.columnOrder) {
+      if (
+        merged.columns !== options.columns ||
+        merged.columnOrder !== options.columnOrder ||
+        pinningChanged
+      ) {
         order = undefined;
       }
       options = merged;
       views = undefined;
+      allViews = undefined;
       table.setOptions((prev) => ({ ...prev, ...tableOptions() }));
       if (reread.length && !options.remote) {
         // TanStack caches each value on its row by column id, and keeps rows
@@ -451,12 +553,16 @@ export function createTableModel<TData, TContent>(
       return (views ??= buildViews());
     },
 
+    get allColumns() {
+      return (allViews ??= buildAllViews(this.columns));
+    },
+
     get rowCount() {
       return options.remote?.rowCount ?? rows().length;
     },
 
     get totalWidth() {
-      return table.getTotalSize() + (options.selectionColumn ? SELECTION_COLUMN_WIDTH : 0);
+      return this.columns.reduce((sum, column) => sum + column.width, 0);
     },
 
     rowAt(index) {
@@ -535,11 +641,25 @@ export function createTableModel<TData, TContent>(
     },
 
     orderOf(base) {
-      return base === undefined ? orderState() : normalizeOrder(base, resolved);
+      return base === undefined ? orderState() : normalizeOrder(base, orderable());
     },
 
     nextOrder(columnId, to, base) {
-      return moveColumn(base ?? orderState(), resolved, columnId, to);
+      return moveColumn(base ?? orderState(), orderable(), columnId, to, shown);
+    },
+
+    nextPinning(columnId, pin, base = options.columnPinning) {
+      const column = byId.get(columnId);
+      if (!column?.pinnable || (pinOf(column, base) ?? false) === pin) return undefined;
+      return { ...base, [columnId]: pin };
+    },
+
+    nextVisibility(columnId, hidden, base = options.columnVisibility) {
+      const column = byId.get(columnId);
+      if (!column || hiddenOf(column, base) === hidden) return undefined;
+      const othersShown = resolved.some((c) => c !== column && !hiddenOf(c, base));
+      if (hidden && (!column.hideable || !othersShown)) return undefined;
+      return { ...base, [columnId]: !hidden };
     },
 
     pinnedCount(side) {

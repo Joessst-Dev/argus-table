@@ -7,7 +7,10 @@ import {
   ArgusTableComponent,
   type ArgusPlugin,
   type ColumnDef,
+  type ColumnPin,
+  type ColumnPinningState,
   type ColumnSizingState,
+  type ColumnVisibilityState,
   type SortState,
 } from '../index.js';
 import { orders, type Order } from './data.js';
@@ -24,6 +27,10 @@ import { orders, type Order } from './data.js';
       [data]="orders"
       [(sorting)]="sorting"
       [(columnOrder)]="order"
+      [(columnPinning)]="pinning"
+      [(columnVisibility)]="visibility"
+      (columnPin)="takePin($event.detail.pin)"
+      (columnHide)="takeFlag($event.detail.hidden)"
       selectionMode="multi"
       selectionCheckboxes
       [(selection)]="selected"
@@ -48,6 +55,8 @@ export class TypesComponent {
   readonly columns: ColumnDef<Order>[] = [{ id: 'total', accessor: (o) => o.total }];
   readonly sorting = signal<SortState>([]);
   readonly order = signal<string[]>([]);
+  readonly pinning = signal<ColumnPinningState>({});
+  readonly visibility = signal<ColumnVisibilityState>({});
   readonly selected = signal<string[]>([]);
   readonly rows = signal<Order[] | null>(null);
   readonly total = (o: Order) => o.total;
@@ -67,6 +76,12 @@ export class TypesComponent {
   }
   takeSizing(sizing: ColumnSizingState): number {
     return Object.keys(sizing).length;
+  }
+  takePin(pin: ColumnPin | false): string {
+    return String(pin);
+  }
+  takeFlag(flag: boolean): boolean {
+    return flag;
   }
   takeNumber(n: number): number {
     return n;

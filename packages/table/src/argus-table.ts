@@ -17,6 +17,8 @@ import {
   selectRange,
   SELECTION_COLUMN_ID,
   toggleRow,
+  type ColumnHideDetail,
+  type ColumnPinDetail,
   type ColumnReorderDetail,
   type ColumnResizeDetail,
   type ColumnView,
@@ -43,6 +45,8 @@ import { TableController } from './controllers/table-controller.js';
 import { VirtualController, type VirtualWindow } from './controllers/virtual-controller.js';
 import {
   CELL_CLICK,
+  COLUMN_HIDE,
+  COLUMN_PIN,
   COLUMN_REORDER,
   COLUMN_RESIZE,
   fire,
@@ -65,7 +69,10 @@ import type {
   CellContent,
   ColumnDef,
   ColumnOrderState,
+  ColumnPin,
+  ColumnPinningState,
   ColumnSizingState,
+  ColumnVisibilityState,
   DataSource,
   Density,
   PinnedRows,
@@ -179,6 +186,8 @@ function track<T>(column: ColumnView<T, CellContent>): string {
  * @fires {CustomEvent<SortChangeDetail>} argus-sort-change - A sortable header was clicked, or activated with Enter or Space. `detail: { sorting }`: the new order, or the proposed one when `sorting` is controlled.
  * @fires {CustomEvent<ColumnResizeDetail>} argus-column-resize - A column was resized: by dragging its handle, with Alt+Arrow on its header, by a double-click on its handle (fit to content) or by `autosizeColumns()`. `detail: { columnId, width, sizing }`: the new widths, or the proposed ones when `columnSizing` is controlled. Fires on every frame of a drag, and once per column that `autosizeColumns()` changes.
  * @fires {CustomEvent<ColumnReorderDetail>} argus-column-reorder - A column was moved: by dragging its header, or with Alt+Shift+Arrow on its focused header. Columns move within their own group (start-pinned, scrolling, end-pinned). `detail: { columnId, order }`: the new order, or the proposed one when `columnOrder` is controlled. Fires once per move, on drop.
+ * @fires {CustomEvent<ColumnPinDetail>} argus-column-pin - A column was pinned to a side or unpinned, through a plugin such as the column menu. `detail: { columnId, pin, pinning }`: `pin` is `'start'`, `'end'` or `false`; `pinning` is the new state, or the proposed one when `columnPinning` is controlled.
+ * @fires {CustomEvent<ColumnHideDetail>} argus-column-hide - A column was hidden or shown, through a plugin such as the column menu. `detail: { columnId, hidden, visibility }`: `hidden` is `true` when it was hidden; `visibility` is the new state, or the proposed one when `columnVisibility` is controlled.
  * @fires {CustomEvent<CellClickDetail<T>>} argus-cell-click - A body or pinned-row cell was clicked, or Enter was pressed on it. `detail: { row, columnId, value, pinned? }`; `pinned` is `'top'` or `'bottom'` for a pinned row. Fires before `argus-row-click`.
  * @fires {CustomEvent<RowClickDetail<T>>} argus-row-click - A body or pinned row was clicked, or Enter was pressed on one of its cells. `detail: { row, rowId, index, pinned? }`; for a pinned row, `index` is its index in its list.
  * @fires {CustomEvent<RangeChangeDetail>} argus-range-change - The visible rows changed. `detail: { start, end }` (row indices, inclusive).
@@ -368,6 +377,38 @@ export class ArgusTable<T = unknown> extends LitElement {
   }
 
   /**
+   * Pins by column id, over the columns' own `pin`: `'start'` or `'end'` pins a
+   * column, `false` unpins one whose definition pins it, e.g.
+   * `{ total: 'end', id: false }`. Columns it doesn't list keep their `pin`. A pinned
+   * column joins the edge of its group nearest its place in `columnOrder`, and stops
+   * flexing. Uncontrolled until set, like `sorting`: once set, pinning from a plugin
+   * only fires `argus-column-pin` with the proposed pins. `undefined` hands it back.
+   */
+  @property({ attribute: false })
+  get columnPinning(): ColumnPinningState {
+    return this.#pinning.value;
+  }
+  set columnPinning(value: ColumnPinningState | undefined) {
+    this.#pinning.set(value);
+  }
+
+  /**
+   * Visibility by column id, over the columns' own `hidden`: `false` hides a column,
+   * `true` shows one defined as `hidden`, e.g. `{ email: false }`. Columns it
+   * doesn't list keep their `hidden`. A hidden column isn't rendered, but sorting by
+   * it still works and it keeps its place in `columnOrder`. Uncontrolled until set,
+   * like `sorting`: once set, hiding or showing from a plugin only fires
+   * `argus-column-hide` with the proposed visibility. `undefined` hands it back.
+   */
+  @property({ attribute: false })
+  get columnVisibility(): ColumnVisibilityState {
+    return this.#visibility.value;
+  }
+  set columnVisibility(value: ColumnVisibilityState | undefined) {
+    this.#visibility.set(value);
+  }
+
+  /**
    * How rows can be selected: `none` (the default), `single` or `multi`. A click
    * on a body row selects it; in `multi` mode Ctrl/Cmd+click toggles a row,
    * Shift+click selects the range from the last clicked row, and Ctrl/Cmd+A
@@ -429,6 +470,12 @@ export class ArgusTable<T = unknown> extends LitElement {
   readonly #sorting = controllable<SortState>([]);
   readonly #sizing = controllable<ColumnSizingState>({});
   readonly #order = controllable<ColumnOrderState>([]);
+  readonly #pinning = controllable<ColumnPinningState>({});
+  readonly #visibility = controllable<ColumnVisibilityState>({});
+  /** Pins the table applied itself, by column; their events fire once the update is done. */
+  readonly #appliedPins = new Map<string, ColumnPinDetail>();
+  /** Hidden or shown columns the table applied itself; their events fire once the update is done. */
+  readonly #appliedHides = new Map<string, ColumnHideDetail>();
   readonly #selection = controllable<SelectionState>([]);
   /** `selection` as a set, for the rows rendered; rebuilt when `selection` changes. */
   #selectedIds: { of: SelectionState; ids: ReadonlySet<string> } | undefined;
@@ -467,6 +514,17 @@ export class ArgusTable<T = unknown> extends LitElement {
   readonly #pluginHost: PluginHost<T> = {
     element: this,
     column: (id) => this.#columnInfo(id),
+    columns: () =>
+      this.#table.model.allColumns.flatMap((c) => {
+        const info = this.#columnInfo(c.id);
+        return info ? [info] : [];
+      }),
+    setPin: (columnId, pin) => {
+      this.#requestPin(columnId, pin);
+    },
+    setHidden: (columnId, hidden) => {
+      this.#requestHide(columnId, hidden);
+    },
     cellOf: (event) => this.#cellTarget(event),
     setSort: (columnId, direction) => {
       this.#setSort(columnId, direction);
@@ -638,6 +696,8 @@ export class ArgusTable<T = unknown> extends LitElement {
       changed.has('sorting') ||
       changed.has('columnSizing') ||
       changed.has('columnOrder') ||
+      changed.has('columnPinning') ||
+      changed.has('columnVisibility') ||
       changed.has('pinnedRows')
     ) {
       if (this.#columnsChanged) {
@@ -650,6 +710,8 @@ export class ArgusTable<T = unknown> extends LitElement {
         sorting: this.#sorting.value,
         columnSizing: this.#sizing.value,
         columnOrder: this.#order.value,
+        columnPinning: this.#pinning.value,
+        columnVisibility: this.#visibility.value,
         pinnedRows: this.pinnedRows,
       });
     }
@@ -772,6 +834,8 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.#columnsChanged ||
       changed.has('columnSizing') ||
       changed.has('columnOrder') ||
+      changed.has('columnPinning') ||
+      changed.has('columnVisibility') ||
       this.#autoWidthsChanged ||
       this.#selectionColumnChanged
     ) {
@@ -795,6 +859,16 @@ export class ArgusTable<T = unknown> extends LitElement {
       const details = [...this.#appliedReorders.values()];
       this.#appliedReorders.clear();
       for (const detail of details) fire(this, COLUMN_REORDER, detail);
+    }
+    if (this.#appliedPins.size > 0) {
+      const details = [...this.#appliedPins.values()];
+      this.#appliedPins.clear();
+      for (const detail of details) fire(this, COLUMN_PIN, detail);
+    }
+    if (this.#appliedHides.size > 0) {
+      const details = [...this.#appliedHides.values()];
+      this.#appliedHides.clear();
+      for (const detail of details) fire(this, COLUMN_HIDE, detail);
     }
     if (this.#appliedSort) {
       const sorting = this.#appliedSort;
@@ -1488,9 +1562,12 @@ export class ArgusTable<T = unknown> extends LitElement {
       return;
     }
     const prev = this.#active ?? { ...HEADER, rowId: undefined, col: first.id };
-    const col = columns.some((c) => c.id === prev.col) ? prev.col : first.id;
+    const col = columns.some((c) => c.id === prev.col)
+      ? prev.col
+      : this.#columnInPlaceOf(model, prev.col, first.id);
     let { section, index, rowId } = prev;
-    let moved = false;
+    // The cell went away with its column while focused: focus its replacement.
+    let moved = col !== prev.col && this.#active !== undefined;
     if (section === 'body' && rowId !== undefined) {
       const found = model.indexOf(rowId);
       const unloaded = index < model.rowCount && model.rowAt(index) === undefined;
@@ -1523,6 +1600,19 @@ export class ArgusTable<T = unknown> extends LitElement {
     ) {
       this.#active = { section, index, rowId, col };
     }
+  }
+
+  /**
+   * The shown column that takes a hidden column's place: the next one in the
+   * column order, else the one before it. `fallback` for a column that is gone
+   * altogether.
+   */
+  #columnInPlaceOf(model: TableModel<T, CellContent>, id: string, fallback: string): string {
+    const all = model.allColumns;
+    const at = all.findIndex((c) => c.id === id);
+    if (at < 0) return fallback;
+    const shown = (c: ColumnView<T, CellContent>) => !c.hidden;
+    return (all.slice(at + 1).find(shown) ?? all.slice(0, at).findLast(shown))?.id ?? fallback;
   }
 
   /**
@@ -1573,7 +1663,40 @@ export class ArgusTable<T = unknown> extends LitElement {
   }
 
   /**
-   * Moves a column to position `to` in the whole order (within its pin group),
+   * Pins or unpins a column through the controlled/uncontrolled rules. Starts
+   * from the latest requested pins, so requests can come faster than renders.
+   */
+  #requestPin(columnId: string, pin: ColumnPin | false): void {
+    const old = this.#pinning.value;
+    const next = this.#table.model.nextPinning(columnId, pin, old);
+    if (!next) return;
+    const { value, applied } = this.#pinning.request(next);
+    if (applied) {
+      for (const detail of this.#appliedPins.values()) detail.pinning = value;
+      this.#appliedPins.set(columnId, { columnId, pin, pinning: value });
+      this.requestUpdate('columnPinning', old);
+    } else {
+      fire(this, COLUMN_PIN, { columnId, pin, pinning: value });
+    }
+  }
+
+  /** Hides or shows a column through the controlled/uncontrolled rules. */
+  #requestHide(columnId: string, hidden: boolean): void {
+    const old = this.#visibility.value;
+    const next = this.#table.model.nextVisibility(columnId, hidden, old);
+    if (!next) return;
+    const { value, applied } = this.#visibility.request(next);
+    if (applied) {
+      for (const detail of this.#appliedHides.values()) detail.visibility = value;
+      this.#appliedHides.set(columnId, { columnId, hidden, visibility: value });
+      this.requestUpdate('columnVisibility', old);
+    } else {
+      fire(this, COLUMN_HIDE, { columnId, hidden, visibility: value });
+    }
+  }
+
+  /**
+   * Moves a column to position `to` among the shown data columns (within its pin group),
    * through the controlled/uncontrolled rules. Starts from the latest requested
    * order, so moves can come faster than renders. `false` if it can't move there.
    */
@@ -1595,7 +1718,13 @@ export class ArgusTable<T = unknown> extends LitElement {
   /** Alt+Shift+Arrow on a header: one step toward the start (-1) or the end (1). */
   #moveByKey(columnId: string, step: 1 | -1): void {
     const model = this.#table.model;
-    const from = model.orderOf(this.#order.value).indexOf(columnId);
+    // From the latest requested order, so presses can come faster than renders.
+    // Positions count the shown columns: hidden ones keep their place.
+    const shown = new Set(model.columns.map((c) => c.id));
+    const from = model
+      .orderOf(this.#order.value)
+      .filter((id) => shown.has(id))
+      .indexOf(columnId);
     const view = model.columns.find((c) => c.id === columnId);
     if (from < 0 || !view) return;
     if (!this.#requestReorder(columnId, from + step)) return;
@@ -1732,7 +1861,7 @@ export class ArgusTable<T = unknown> extends LitElement {
    * render, so the views are indexed by id once per new column list.
    */
   #columnInfo(id: string): ColumnInfo | undefined {
-    const columns = this.#table.model.columns;
+    const columns = this.#table.model.allColumns;
     if (this.#columnsById?.of !== columns) {
       this.#columnsById = { of: columns, byId: new Map(columns.map((c) => [c.id, c])) };
     }
@@ -1742,7 +1871,10 @@ export class ArgusTable<T = unknown> extends LitElement {
       id,
       sortable: view.sortable,
       resizable: view.resizable,
+      pinnable: view.pinnable,
+      hideable: view.hideable,
       pin: view.pin,
+      hidden: view.hidden,
       width: view.width,
       sorted: view.sorted === false ? undefined : view.sorted,
     };

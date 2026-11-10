@@ -84,6 +84,8 @@ export const MODELS: Readonly<Record<Tag, readonly ElementModel[]>> = {
     { property: 'sorting', event: 'argus-sort-change', detailKey: 'sorting' },
     { property: 'columnSizing', event: 'argus-column-resize', detailKey: 'sizing' },
     { property: 'columnOrder', event: 'argus-column-reorder', detailKey: 'order' },
+    { property: 'columnPinning', event: 'argus-column-pin', detailKey: 'pinning' },
+    { property: 'columnVisibility', event: 'argus-column-hide', detailKey: 'visibility' },
     { property: 'selection', event: 'argus-row-select', detailKey: 'selection' },
   ],
   'argus-column': [],

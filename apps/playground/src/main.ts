@@ -22,6 +22,8 @@ import { installBenchHooks } from './bench-hooks.js';
 // selection=single|multi sets selectionMode; checkboxes adds the checkbox column.
 // cols above 20 adds more fN columns (from F12 on they repeat F1–F11's values),
 // and vcols sets virtualizeColumns.
+// hide=email,status hides those columns (columnVisibility), and
+// pins=email:start,name:false sets columnPinning (start, end, or false to unpin).
 const params = new URLSearchParams(location.search);
 // A switch, not a lookup table: the query value never picks a function to call.
 switch (params.get('theme')) {
@@ -143,6 +145,17 @@ const selection = params.get('selection');
 if (selection === 'single' || selection === 'multi') table.selectionMode = selection;
 table.selectionCheckboxes = params.has('checkboxes');
 table.virtualizeColumns = params.has('vcols');
+const hidden = params.get('hide')?.split(',') ?? [];
+if (hidden.length > 0) table.columnVisibility = Object.fromEntries(hidden.map((id) => [id, false]));
+const pins = params.get('pins')?.split(',') ?? [];
+if (pins.length > 0) {
+  table.columnPinning = Object.fromEntries(
+    pins.map((entry) => {
+      const [id = '', side] = entry.split(':');
+      return [id, side === 'start' || side === 'end' ? side : false];
+    }),
+  );
+}
 table.columns = columns;
 table.getRowId = (p) => p.id;
 const dataStart = performance.now();

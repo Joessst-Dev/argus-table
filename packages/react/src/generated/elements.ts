@@ -5,6 +5,8 @@ import { createComponent } from '@lit/react';
 import { ArgusTable as ArgusTableElement, ArgusColumn as ArgusColumnElement } from 'argus-table';
 import type {
   CellClickDetail,
+  ColumnHideDetail,
+  ColumnPinDetail,
   ColumnReorderDetail,
   ColumnResizeDetail,
   LoadErrorDetail,
@@ -31,6 +33,8 @@ export type ArgusTableElementProps<T = unknown> = Partial<
     | 'sorting'
     | 'columnSizing'
     | 'columnOrder'
+    | 'columnPinning'
+    | 'columnVisibility'
     | 'selectionMode'
     | 'selectionCheckboxes'
     | 'selection'
@@ -46,6 +50,10 @@ export interface ArgusTableEventProps<T = unknown> {
   onColumnResize?: (event: CustomEvent<ColumnResizeDetail>) => void;
   /** `argus-column-reorder`: A column was moved: by dragging its header, or with Alt+Shift+Arrow on its focused header. Columns move within their own group (start-pinned, scrolling, end-pinned). `detail: { columnId, order }`: the new order, or the proposed one when `columnOrder` is controlled. Fires once per move, on drop. */
   onColumnReorder?: (event: CustomEvent<ColumnReorderDetail>) => void;
+  /** `argus-column-pin`: A column was pinned to a side or unpinned, through a plugin such as the column menu. `detail: { columnId, pin, pinning }`: `pin` is `'start'`, `'end'` or `false`; `pinning` is the new state, or the proposed one when `columnPinning` is controlled. */
+  onColumnPin?: (event: CustomEvent<ColumnPinDetail>) => void;
+  /** `argus-column-hide`: A column was hidden or shown, through a plugin such as the column menu. `detail: { columnId, hidden, visibility }`: `hidden` is `true` when it was hidden; `visibility` is the new state, or the proposed one when `columnVisibility` is controlled. */
+  onColumnHide?: (event: CustomEvent<ColumnHideDetail>) => void;
   /** `argus-cell-click`: A body or pinned-row cell was clicked, or Enter was pressed on it. `detail: { row, columnId, value, pinned? }`; `pinned` is `'top'` or `'bottom'` for a pinned row. Fires before `argus-row-click`. */
   onCellClick?: (event: CustomEvent<CellClickDetail<T>>) => void;
   /** `argus-row-click`: A body or pinned row was clicked, or Enter was pressed on one of its cells. `detail: { row, rowId, index, pinned? }`; for a pinned row, `index` is its index in its list. */
@@ -79,6 +87,8 @@ export const ArgusTable = ownEvents(
       onSortChange: 'argus-sort-change',
       onColumnResize: 'argus-column-resize',
       onColumnReorder: 'argus-column-reorder',
+      onColumnPin: 'argus-column-pin',
+      onColumnHide: 'argus-column-hide',
       onCellClick: 'argus-cell-click',
       onRowClick: 'argus-row-click',
       onRangeChange: 'argus-range-change',
@@ -91,6 +101,8 @@ export const ArgusTable = ownEvents(
     'onSortChange',
     'onColumnResize',
     'onColumnReorder',
+    'onColumnPin',
+    'onColumnHide',
     'onCellClick',
     'onRowClick',
     'onRangeChange',
@@ -113,6 +125,8 @@ export type ArgusColumnElementProps<T = unknown> = Partial<
     | 'minWidth'
     | 'maxWidth'
     | 'pin'
+    | 'pinnable'
+    | 'hideable'
     | 'align'
     | 'sortable'
     | 'resizable'
