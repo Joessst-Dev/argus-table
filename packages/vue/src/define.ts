@@ -80,9 +80,7 @@ export function defineWrapper(spec: WrapperSpec) {
       // user's, so plugins such as headerMenu() wrap the slotted headers.
       const instance = spec.content ? getCurrentInstance() : null;
       let host: PluginHost | undefined;
-      const slotsPlugin = instance
-        ? slotPlugin(slots, (next) => (host = next))
-        : undefined;
+      const slotsPlugin = instance ? slotPlugin(slots, (next) => (host = next)) : undefined;
       let slotNames = instance ? slotKey(slots) : '';
       const pluginsOf = (value: unknown): readonly ArgusPlugin[] => [
         ...(slotsPlugin ? [slotsPlugin] : []),
