@@ -18,7 +18,7 @@ async function headerStyle(page: Page): Promise<{ background: string; border: st
   });
 }
 
-for (const theme of ['default', 'material', 'fluent', 'bootstrap']) {
+for (const theme of ['default', 'material', 'fluent', 'bootstrap', 'minimal']) {
   test.describe(`${theme} theme in the automatic colour scheme`, () => {
     for (const colorScheme of ['light', 'dark'] as const) {
       test(`header is opaque and bordered (${colorScheme})`, async ({ page }) => {
@@ -93,4 +93,30 @@ test('bootstrap theme stripes the rows, under a 2px header divider', async ({ pa
   expect(style.divider).toBe('2px');
   expect(style.odd).not.toBe(style.even);
   expect(style.rowHeight).toBe(40);
+});
+
+test('minimal theme: one surface, uppercase labels and 56px rows', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await open(page, { theme: 'minimal', rows: 200, cols: 8 });
+  const style = await page.evaluate(() => {
+    const root = document.querySelector('argus-table')?.shadowRoot;
+    const header = root?.querySelector('[part~="header-cell"]');
+    const row = root?.querySelector('[part~="row-even"]');
+    const odd = root?.querySelector('[part~="row-odd"]');
+    if (!header || !row || !odd) throw new Error('no table');
+    return {
+      header: getComputedStyle(header).backgroundColor,
+      transform: getComputedStyle(header).textTransform,
+      row: getComputedStyle(row).backgroundColor,
+      odd: getComputedStyle(odd).backgroundColor,
+      rowHeight: row.getBoundingClientRect().height,
+    };
+  });
+  expect(style).toEqual({
+    header: 'rgb(15, 16, 18)',
+    transform: 'uppercase',
+    row: 'rgb(15, 16, 18)',
+    odd: 'rgb(15, 16, 18)',
+    rowHeight: 56,
+  });
 });

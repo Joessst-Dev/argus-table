@@ -9,9 +9,9 @@ import { installBenchHooks } from './bench-hooks.js';
 // the table unmounted until __argusBench.mount(), so the runner can time the first
 // render and measure the heap with the data alone),
 // pin=none to drop the pins (the floor when measuring what pinning costs),
-// theme=default, material, fluent or bootstrap to load that stylesheet from
-// @argus-table/themes (material also loads Roboto and sets the table on an inset
-// page), and
+// theme=default, material, fluent, bootstrap or minimal to load that stylesheet
+// from @argus-table/themes (material also loads Roboto and sets the table on an
+// inset page; minimal loads Instrument Sans), and
 // scheme=dark|light to force a colour scheme through data-argus-theme.
 // source=remote loads the rows through a pretend server (dataSource) instead of
 // data, with latency=<ms> (default 100), total=unknown to leave the total out,
@@ -46,6 +46,20 @@ switch (params.get('theme')) {
     break;
   case 'bootstrap':
     await import('@argus-table/themes/bootstrap.css');
+    break;
+  case 'minimal':
+    await Promise.all([
+      import('@fontsource/instrument-sans/400.css'),
+      import('@fontsource/instrument-sans/500.css'),
+      import('@fontsource/instrument-sans/600.css'),
+      import('@argus-table/themes/minimal.css'),
+    ]);
+    // Loaded before the table renders, so screenshots never catch the fallback font.
+    await Promise.all([
+      document.fonts.load("400 15px 'Instrument Sans'"),
+      document.fonts.load("500 15px 'Instrument Sans'"),
+      document.fonts.load("600 11px 'Instrument Sans'"),
+    ]);
     break;
 }
 const scheme = params.get('scheme');

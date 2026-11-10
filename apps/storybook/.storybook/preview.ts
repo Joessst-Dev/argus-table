@@ -9,16 +9,21 @@ import defaultTheme from '@argus-table/themes/default.css?inline';
 import materialTheme from '@argus-table/themes/material.css?inline';
 import fluentTheme from '@argus-table/themes/fluent.css?inline';
 import bootstrapTheme from '@argus-table/themes/bootstrap.css?inline';
-// The Material-inspired theme uses Roboto but loads no fonts itself.
+import minimalTheme from '@argus-table/themes/minimal.css?inline';
+// The Material-inspired theme uses Roboto and the minimal one Instrument Sans,
+// but neither loads fonts itself.
 import '@fontsource/roboto/400.css';
 import '@fontsource/roboto/500.css';
+import '@fontsource/instrument-sans/400.css';
+import '@fontsource/instrument-sans/500.css';
+import '@fontsource/instrument-sans/600.css';
 
 // Controls and API tables come from the manifest that `argus-table:build`
 // writes, so the docs always match the element's JSDoc.
 setCustomElementsManifest(manifest);
 
 interface Globals {
-  theme?: 'none' | 'default' | 'material' | 'fluent' | 'bootstrap';
+  theme?: 'none' | 'default' | 'material' | 'fluent' | 'bootstrap' | 'minimal';
   scheme?: 'auto' | 'light' | 'dark';
   density?: 'story' | Density;
   dir?: 'ltr' | 'rtl';
@@ -43,6 +48,7 @@ const withToolbar: Decorator = (story, { globals }) => {
     material: materialTheme,
     fluent: fluentTheme,
     bootstrap: bootstrapTheme,
+    minimal: minimalTheme,
   }[theme];
   return html`${
       themeCss
@@ -79,6 +85,7 @@ const preview: Preview = {
           { value: 'material', title: 'Material-inspired' },
           { value: 'fluent', title: 'Fluent-inspired' },
           { value: 'bootstrap', title: 'Bootstrap-inspired' },
+          { value: 'minimal', title: 'Minimal' },
         ],
         dynamicTitle: true,
       },
