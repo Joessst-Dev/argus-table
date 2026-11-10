@@ -62,7 +62,7 @@ import { ArgusTable } from '@argus-table/react';
 | `@argus-table/vue`         | Vue components with typed props, events, v-model   | v0.2         |
 | `@argus-table/angular`     | Angular components with typed inputs and outputs   | v0.2         |
 | `@argus-table/header-menu` | Optional column menu: sort and fit from the header | Next release |
-| `@argus-table/formulas`    | Optional formula columns                           | After launch |
+| `@argus-table/formulas`    | Optional formula columns, spreadsheet style        | Next release |
 
 ## Project plan
 

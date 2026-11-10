@@ -84,6 +84,13 @@ export class ArgusColumn<T = unknown> extends ReactiveElement {
   @property()
   accessor?: string | ((row: T, index: number) => unknown);
 
+  /**
+   * A spreadsheet formula computed per row from other columns, such as
+   * `[price] * [quantity]`. Needs the `formulas()` plugin from `@argus-table/formulas`.
+   */
+  @property()
+  formula?: string;
+
   /** Cell content from the row: `(row, context) => content`. Property only; wins over a `<template>` child. */
   @property({ attribute: false })
   cell?: (row: T, context: CellContext<T>) => CellContent;
@@ -159,6 +166,7 @@ export class ArgusColumn<T = unknown> extends ReactiveElement {
       id: this.columnId,
       header: this.header,
       accessor: this.accessor,
+      formula: this.formula,
       cell: this.cell ?? (template && (() => html`${templateContent(template)}`)),
       width: this.width,
       minWidth: this.minWidth,

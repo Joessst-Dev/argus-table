@@ -10,7 +10,8 @@
       "@argus-table/react",
       "@argus-table/vue",
       "@argus-table/angular",
-      "@argus-table/header-menu"
+      "@argus-table/header-menu",
+      "@argus-table/formulas"
     ]
   ],
   "linked": [],

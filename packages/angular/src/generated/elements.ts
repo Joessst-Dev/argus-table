@@ -277,6 +277,11 @@ export class ArgusColumnComponent<T = unknown> {
     setProperty(this.element, 'accessor', 'accessor', value);
   }
 
+  /** A spreadsheet formula computed per row from other columns, such as `[price] * [quantity]`. Needs the `formulas()` plugin from `@argus-table/formulas`. */
+  @Input() set formula(value: ArgusColumnElement<T>['formula'] | null | undefined) {
+    setProperty(this.element, 'formula', 'formula', value);
+  }
+
   /** Cell content from the row: `(row, context) => content`. Property only; wins over a `<template>` child. */
   @Input() set cell(value: ArgusColumnElement<T>['cell'] | null | undefined) {
     setProperty(this.element, 'cell', undefined, value);

@@ -41,6 +41,7 @@ Columns can also be written as `<argus-column>` children. They are data-only ele
 | `column-id` | `columnId` | The column's `id`. Not the global `id` attribute: two tables with the same column would otherwise put duplicate ids in the page |
 | `header` | `header` | Text as an attribute; a template, a node or a function as a property |
 | `accessor` | `accessor` | A path as an attribute; a path or a function as a property |
+| `formula` | `formula` | A spreadsheet formula, read by the `formulas()` plugin (see [Formula columns](#formula-columns-argus-tableformulas)) |
 | — | `cell` | Property only. Wins over a `<template>` child |
 | `width` | `width` | `90` or `90px`, `auto`, or `2fr` for `{ flex: 2 }`. Anything else means the default |
 | `min-width`, `max-width`, `pin`, `align` | same, camelCased | |
@@ -59,6 +60,7 @@ Columns can also be written as `<argus-column>` children. They are data-only ele
 | `id` | string | Stable key (state, parts, persistence). Must be unique and non-empty |
 | `header` | `CellContent` \| `() => CellContent` | Header content |
 | `accessor` | string path (`'customer.name'`) \| `(row, index) => value` | Cell value |
+| `formula` | string | A spreadsheet formula computed per row from other columns (`'[price] * [qty]'`). Read by the `formulas()` plugin from `@argus-table/formulas`, which replaces `accessor`; the table alone ignores it |
 | `cell` | `(row, context) => CellContent` | Custom cell content (rendered into light DOM). `context` is `{ row, rowId, index, columnId, value, pinned? }`; `pinned` is `'top'` or `'bottom'` for a row from `pinnedRows` |
 | `width` | number \| `'auto'` \| `{ flex }` | Width mode. Default 150 px. `{ flex }` is a share of free space, at least `minWidth`; pinned columns ignore it. `'auto'` fits the content (see [Column widths](#column-widths)) |
 | `minWidth` / `maxWidth` | number | Resize bounds. Default 40 px / no limit |
@@ -211,6 +213,21 @@ interface ArgusPlugin<T> {
 ### Column menu (`@argus-table/header-menu`)
 
 Each sortable or resizable column gets a button (`tabindex="-1"`, "Column menu") at the end of its header content. Its menu sorts the column ascending or descending, clears its sort, and fits its width (a resize, as with a double-click on the handle); items that don't apply to the column are left out. Alt+ArrowDown, the context menu key, Shift+F10 or a right-click on a header opens it; see [Accessibility](08-accessibility.md). The menu is a native `popover` rendered inside the header's light-DOM content: it inherits the table's tokens and sits in the top layer, unclipped by the table. Styling: the classes `argus-header-menu-button`, `argus-header-menu` and `argus-header-menu-item`, and the tokens `--argus-menu-bg`, `--argus-menu-fg`, `--argus-menu-shadow` and `--argus-menu-item-active-bg`. Pin, hide and formula entries come with the state they need.
+
+### Formula columns (`@argus-table/formulas`)
+
+A column with a `formula` computes its value per row from other columns, as in a spreadsheet: `{ id: 'total', header: 'Total', formula: '[price] * [qty]' }` in `columns`, or `<argus-column formula="…">`. The `formulas()` plugin compiles each formula and turns the column into an ordinary one (an `accessor`, a `cell`, and an `ƒx` mark before its header), so it sorts, resizes, pins, moves and virtualizes like any other. The language, functions and error values are in [Formula columns](09-formula-columns.md).
+
+```ts
+import { formulas } from '@argus-table/formulas';
+table.plugins = [formulas({ functions: { VAT: { fn: (n) => Number(n) * 0.19, args: [1, 1] } } })];
+```
+
+- Options: `functions` adds functions or replaces built-in ones (per plugin instance, not a global registry), `marker: false` leaves headers alone.
+- List it before `headerMenu()`: formulas name columns by their text header, which the header menu wraps in a function.
+- Errors are values: the cell shows the code (`#DIV/0!` and so on) in an element with the class `argus-formula-error` and a tooltip that explains it, coloured by `--argus-formula-error-color`. They sort last. A column's own `cell` gets values only.
+- With a `dataSource`, formula columns can't be sorted: the server sorts and doesn't know them.
+- Adding, editing and removing formula columns from the UI (an editor and header-menu entries, with `argus-formula-column-*` events carrying the proposed `ColumnDef`) is the next step.
 
 ## Events
 

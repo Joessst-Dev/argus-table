@@ -23,9 +23,11 @@ packages/table/src/
 └─ events.ts             event names + typed detail objects
 
 packages/formulas/src/   (added in Phase 3)
-├─ tokenizer.ts · parser.ts · validate.ts · graph.ts · compile.ts
-├─ functions/            math.ts · logic.ts · text.ts · date.ts
-└─ editor/               the formula editor element
+├─ plugin.ts             formulas(): resolves names, compiles in dependency order, caches results per row
+├─ styles.ts             @layer argus-formulas (ƒx mark, error values)
+├─ engine/               DOM-free, tested in Node: tokenize.ts · parse.ts · coerce.ts · compile.ts · infer.ts · graph.ts · errors.ts
+│  └─ functions/         math.ts · logic.ts · text.ts · date.ts
+└─ editor/               the formula editor element (planned)
 ```
 
 Each controller gets its own test file next to it; `core` tests run in plain Vitest, `table` tests in Vitest browser mode.

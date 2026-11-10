@@ -514,6 +514,51 @@ describe('createTableModel: caching', () => {
   });
 });
 
+describe('createTableModel: a changed accessor', () => {
+  // Same id, new accessor: the values TanStack caches per row and the sorted
+  // order must follow, without new data.
+  const withAge = (accessor: ColumnDef<Person, string>['accessor']) =>
+    columns.map((c) => (c.id === 'age' ? { ...c, accessor } : c));
+  const ages = (m: ReturnType<typeof model>) =>
+    Array.from({ length: m.rowCount }, (_, i) => m.valueAt(i, 'age'));
+
+  it('reads the new values', () => {
+    const m = model();
+    expect(ages(m)).toEqual([30, undefined, 9, 41]);
+    m.update({ columns: withAge((p) => (p.age ?? 0) * 2) });
+    expect(ages(m)).toEqual([60, 0, 18, 82]);
+    expect(m.cellContext(0, 'age')?.value).toBe(60);
+  });
+
+  it('sorts by the new values', () => {
+    const m = model({ sorting: [{ id: 'age', desc: false }] });
+    expect(names(m)).toEqual(['Bea', 'Cleo', 'Dan', 'ada']);
+    m.update({ columns: withAge((p) => -(p.age ?? 0)) });
+    expect(names(m)).toEqual(['Dan', 'Cleo', 'Bea', 'ada']);
+  });
+
+  it('picks the sort function from the new values', () => {
+    // Numbers sort numerically (basic); text with digits naturally (alphanumeric).
+    const m = model({ sorting: [{ id: 'age', desc: false }] });
+    expect(ages(m)).toEqual([9, 30, 41, undefined]);
+    const codes: Record<string, string> = { Cleo: 'n5', ada: 'n100', Bea: 'n20', Dan: 'n3' };
+    m.update({ columns: withAge((p) => codes[p.name]) });
+    // Not 'n100', 'n20', 'n3', 'n5', as comparing the strings would give.
+    expect(ages(m)).toEqual(['n3', 'n5', 'n20', 'n100']);
+  });
+
+  it('reads nothing again when the accessor is the same', () => {
+    let calls = 0;
+    const read = (p: Person) => (calls++, p.age);
+    const m = model({ columns: withAge(read), sorting: [{ id: 'age', desc: false }] });
+    expect(ages(m)).toEqual([9, 30, 41, undefined]);
+    const after = calls;
+    m.update({ columns: withAge(read) });
+    expect(ages(m)).toEqual([9, 30, 41, undefined]);
+    expect(calls).toBe(after);
+  });
+});
+
 describe('createTableModel: remote rows', () => {
   const [cleo, , bea] = people as [Person, Person, Person, Person];
   const remote = (loaded: Record<number, Person>, rowCount = 10) => ({
