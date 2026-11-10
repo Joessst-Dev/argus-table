@@ -4,6 +4,7 @@ import { createRef } from 'react';
 import {
   ArgusColumn,
   ArgusTable,
+  type ArgusPlugin,
   type ArgusTableElement,
   type ColumnDef,
   type RowClickDetail,
@@ -45,6 +46,21 @@ export const withRef = <ArgusTable<Order> ref={ref} data={orders} />;
 export const wrongRows = (
   // @ts-expect-error: `data` must hold the row type given explicitly.
   <ArgusTable<Order> data={[{ id: 1 }]} />
+);
+
+// A plugin for the row type, kept outside the component so its identity is stable.
+const logKeys: ArgusPlugin<Order> = {
+  name: 'log-keys',
+  keydown: (event, target, host) => {
+    host.element.data.map((o) => o.total);
+    return event.key === target.columnId;
+  },
+};
+export const withPlugins = <ArgusTable data={orders} plugins={[logKeys]} />;
+
+export const wrongPlugin = (
+  // @ts-expect-error: a plugin needs a name.
+  <ArgusTable data={orders} plugins={[{ keydown: () => true }]} />
 );
 
 // @ts-expect-error: not an event of the table.

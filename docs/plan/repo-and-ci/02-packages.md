@@ -2,7 +2,7 @@
 
 [← Back to contents](../README.md)
 
-Five packages are published to npm; `@argus-table/core` stays private and is bundled into `argus-table`, so its API can change freely. The main package is unscoped so the install line stays short: `npm i argus-table`.
+Six packages are published to npm; `@argus-table/core` stays private and is bundled into `argus-table`, so its API can change freely. The main package is unscoped so the install line stays short: `npm i argus-table`.
 
 | Package | Build | Published | Depends on |
 | --- | --- | --- | --- |
@@ -12,6 +12,7 @@ Five packages are published to npm; `@argus-table/core` stays private and is bun
 | `@argus-table/react` | Vite library mode, `.d.ts` via `tsc`; bindings generated from the manifest | Yes | `argus-table`, `@lit/react`; `react` as peer |
 | `@argus-table/vue` | Vite library mode, `.d.ts` via `tsc`; bindings generated from the manifest | Yes | `argus-table`; `vue` as peer |
 | `@argus-table/angular` | ng-packagr (Angular Package Format, partial compilation); bindings generated from the manifest | Yes | `argus-table`; `@angular/core` 20–22 as peer |
+| `@argus-table/header-menu` (Phase 3) | Vite library mode, `.d.ts` via `tsc` | Yes | `argus-table` and `lit` as peers (a plugin: it imports only types from `argus-table`) |
 | `@argus-table/formulas` (Phase 3) | Vite library mode | Yes | `argus-table` as peer |
 
 ## Generated wrappers
@@ -27,5 +28,5 @@ Five packages are published to npm; `@argus-table/core` stays private and is bun
 
 - `"type": "module"`, explicit `exports` map per entry point, `"sideEffects"` listing only the files that call `customElements.define`.
 - `argus-table` also ships a pre-bundled CDN build (`dist/cdn/argus-table.js`) for `<script type="module">` users via jsDelivr/unpkg.
-- Wrapper packages and `argus-table` are versioned together (Changesets `fixed` group) so `@argus-table/vue@0.3.0` always means `argus-table@0.3.0`. Themes version independently. A new wrapper is hand-published once as `0.0.1` and linked to npm trusted publishing before its first release, like the other packages.
+- Wrapper packages, add-ons (`@argus-table/header-menu`) and `argus-table` are versioned together (Changesets `fixed` group) so `@argus-table/vue@0.3.0` always means `argus-table@0.3.0`, and an add-on's `argus-table` peer range follows each release. Themes version independently. A new wrapper is hand-published once as `0.0.1` and linked to npm trusted publishing before its first release, like the other packages.
 - `scripts/check-exports.ts` runs [publint](https://publint.dev/) and [Are the Types Wrong](https://arethetypeswrong.github.io/) on every build.

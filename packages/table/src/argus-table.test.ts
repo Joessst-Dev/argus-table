@@ -597,6 +597,19 @@ describe('sorting', () => {
     expect(el.sorting).toEqual([{ id: 'age', desc: false }]);
   });
 
+  test('ignores clicks on interactive content in a header', async () => {
+    const withButton = sortColumns.map((c) =>
+      c.id === 'age' ? { ...c, header: html`Age <button>Filter</button>` } : c,
+    );
+    const el = await fixture({ columns: withButton, data });
+    const events: unknown[] = [];
+    el.addEventListener('argus-sort-change', (e) => events.push(e.detail));
+    el.querySelector('button')?.click();
+    await settle(el);
+    expect(events).toEqual([]);
+    expect(el.sorting).toEqual([]);
+  });
+
   test('sorts with Enter and Space on a focused header', async () => {
     const el = await fixture({ columns: sortColumns, data });
     const age = headerCell(el, 1);

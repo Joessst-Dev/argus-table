@@ -127,6 +127,11 @@ export class ArgusTableComponent<T = unknown> {
     setProperty(this.element, 'selection', undefined, value);
   }
 
+  /** Add-ons, such as `headerMenu()` from `@argus-table/header-menu`. Each one can change the column definitions, handle keys on a focused header or cell, and use the table through a small API. They run in array order. Replace the array to change them; an array with the same plugins in the same order changes nothing. `null` or `undefined` means `[]`. */
+  @Input() set plugins(value: ArgusTableElement<T>['plugins'] | null | undefined) {
+    setProperty(this.element, 'plugins', undefined, value);
+  }
+
   /** `argus-sort-change`: A sortable header was clicked, or activated with Enter or Space. `detail: { sorting }`: the new order, or the proposed one when `sorting` is controlled. */
   @Output() readonly sortChange = new EventEmitter<CustomEvent<SortChangeDetail>>();
 

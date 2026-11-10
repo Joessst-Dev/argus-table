@@ -19,11 +19,14 @@ export type {
 } from 'argus-table';
 
 export type {
+  ArgusPlugin,
   CellClickDetail,
   CellContent,
   CellContext,
+  CellTarget,
   ColumnAlign,
   ColumnDef,
+  ColumnInfo,
   ColumnOrderState,
   ColumnPin,
   ColumnReorderDetail,
@@ -34,6 +37,7 @@ export type {
   Density,
   LoadErrorDetail,
   PinnedRows,
+  PluginHost,
   RangeChangeDetail,
   RowClickDetail,
   RowPin,

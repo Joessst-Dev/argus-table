@@ -31,6 +31,7 @@ import { ColumnChildrenController } from './controllers/column-children.js';
 import { ColumnWindowController, type RenderedColumn } from './controllers/column-window.js';
 import { DataController } from './controllers/data-controller.js';
 import { PinScrollController } from './controllers/pin-scroll-controller.js';
+import { PluginController, sameItems } from './controllers/plugins.js';
 import {
   canStartReorder,
   dropTarget,
@@ -51,13 +52,14 @@ import {
   ROW_SELECT,
   SORT_CHANGE,
 } from './events.js';
-import { fromInteractive } from './interactive.js';
+import { fromInteractive, INTERACTIVE } from './interactive.js';
 import { bodyCap, watchMaxElementHeight } from './max-height.js';
 import { renderBody, type ActiveCell, type Loading, type SelectedAt } from './render/body.js';
 import { renderLightDom } from './render/cells.js';
 import { renderHeader, type CheckAll, type HeaderDrag } from './render/header.js';
 import type { CheckboxHandlers } from './render/content.js';
 import { renderPinnedRows } from './render/pinned-rows.js';
+import type { ArgusPlugin, CellTarget, ColumnInfo, PluginHost } from './plugins.js';
 import { baseStyles } from './styles/base.js';
 import type {
   CellContent,
@@ -86,12 +88,14 @@ function attachGridInternals(host: HTMLElement): ElementInternals {
 
 /**
  * The sortable column a header click came from, if any. Works for slotted content
- * too. Clicks on a resize handle never sort, so a click that ends a drag doesn't.
+ * too. Clicks on a resize handle never sort, so a click that ends a drag doesn't,
+ * and neither do clicks on interactive content in the header (a button, an input).
  */
 function sortColumnOf(event: Event): string | undefined {
   for (const target of event.composedPath()) {
     if (!(target instanceof HTMLElement)) continue;
     if (target.dataset.resizeCol !== undefined) return undefined;
+    if (target.matches(INTERACTIVE)) return undefined;
     if (target.dataset.sortCol !== undefined) return target.dataset.sortCol;
     if (target.getAttribute('part') === 'header-row') return undefined;
   }
@@ -401,7 +405,25 @@ export class ArgusTable<T = unknown> extends LitElement {
     this.#selection.set(value);
   }
 
+  /**
+   * Add-ons, such as `headerMenu()` from `@argus-table/header-menu`. Each one can
+   * change the column definitions, handle keys on a focused header or cell, and
+   * use the table through a small API. They run in array order. Replace the
+   * array to change them; an array with the same plugins in the same order
+   * changes nothing. `null` or `undefined` means `[]`.
+   */
+  @property({ attribute: false })
+  get plugins(): readonly ArgusPlugin<T>[] {
+    return this.#pluginsProp;
+  }
+  set plugins(value: readonly ArgusPlugin<T>[] | null | undefined) {
+    const next = value ?? [];
+    // The same plugins in a new array (a framework re-render) keep their connection.
+    if (!sameItems(next, this.#pluginsProp)) this.#pluginsProp = next;
+  }
+
   #columnsProp: readonly ColumnDef<T>[] = [];
+  #pluginsProp: readonly ArgusPlugin<T>[] = [];
   #dataProp: readonly T[] = [];
   #overscan = 6;
   readonly #sorting = controllable<SortState>([]);
@@ -441,6 +463,35 @@ export class ArgusTable<T = unknown> extends LitElement {
   readonly #internals = attachGridInternals(this);
   readonly #table = new TableController<T>();
   readonly #children = new ColumnChildrenController<T>(this);
+  /** What plugins get: closures over the table's private state. */
+  readonly #pluginHost: PluginHost<T> = {
+    element: this,
+    column: (id) => this.#columnInfo(id),
+    cellOf: (event) => this.#cellTarget(event),
+    setSort: (columnId, direction) => {
+      this.#setSort(columnId, direction);
+    },
+    focusHeader: (columnId) => {
+      this.#moveTo(HEADER, columnId, this.#table.model);
+    },
+    announce: (message) => {
+      announce(this.ownerDocument, message);
+    },
+    invalidateColumns: () => {
+      this.#plugins.invalidate();
+      this.requestUpdate();
+    },
+    requestUpdate: () => {
+      this.requestUpdate();
+    },
+  };
+  readonly #plugins = new PluginController<T>(this, this.#pluginHost);
+  #columnsById:
+    | {
+        of: readonly ColumnView<T, CellContent>[];
+        byId: ReadonlyMap<string, ColumnView<T, CellContent>>;
+      }
+    | undefined;
   /** The columns last passed to the model: `columns`, or the `<argus-column>` children. */
   #columns: readonly ColumnDef<T>[] = [];
   #columnsChanged = false;
@@ -564,7 +615,8 @@ export class ArgusTable<T = unknown> extends LitElement {
   }
 
   protected override willUpdate(changed: PropertyValues<this>): void {
-    const columns = this.#effectiveColumns();
+    if (changed.has('plugins')) this.#plugins.set(this.plugins);
+    const columns = this.#plugins.transform(this.#effectiveColumns());
     this.#columnsChanged = columns !== this.#columns;
     this.#columns = columns;
     if (changed.has('dataSource') || changed.has('sorting') || changed.has('getRowId')) {
@@ -906,6 +958,8 @@ export class ArgusTable<T = unknown> extends LitElement {
       );
       return;
     }
+    const pluginTarget = id === SELECTION_COLUMN_ID ? undefined : this.#cellTarget(event);
+    if (pluginTarget && this.#plugins.keydown(event, pluginTarget)) return;
     const inHeader = cell.getAttribute('role') === 'columnheader';
     const { key } = event;
     const arrow = key === 'ArrowLeft' || key === 'ArrowRight';
@@ -1644,7 +1698,24 @@ export class ArgusTable<T = unknown> extends LitElement {
   /** asc → desc → unsorted, through the controlled/uncontrolled rules. */
   #requestSort(columnId: string): void {
     const next = this.#table.model.nextSorting(columnId);
-    if (!next) return;
+    if (next) this.#applySorting(next);
+  }
+
+  /**
+   * A plugin's sort: by a column in a direction, or (`null`) cleared if it is by
+   * that column. Only sortable columns, and only a change.
+   */
+  #setSort(columnId: string, direction: 'asc' | 'desc' | null): void {
+    const view = this.#table.model.columns.find((c) => c.id === columnId);
+    if (view?.kind !== 'data' || !view.sortable) return;
+    const sorted = view.sorted === false ? null : view.sorted;
+    if (direction === sorted) return;
+    if (direction === null) this.#applySorting([]);
+    else this.#applySorting([{ id: columnId, desc: direction === 'desc' }]);
+  }
+
+  /** A new sort order, through the controlled/uncontrolled rules. */
+  #applySorting(next: SortState): void {
     const old = this.#sorting.value;
     const { value, applied } = this.#sorting.request(next);
     if (applied) {
@@ -1653,6 +1724,49 @@ export class ArgusTable<T = unknown> extends LitElement {
     } else {
       fire(this, SORT_CHANGE, { sorting: value });
     }
+  }
+
+  /**
+   * A data column as plugins see it. Header functions call this on every
+   * render, so the views are indexed by id once per new column list.
+   */
+  #columnInfo(id: string): ColumnInfo | undefined {
+    const columns = this.#table.model.columns;
+    if (this.#columnsById?.of !== columns) {
+      this.#columnsById = { of: columns, byId: new Map(columns.map((c) => [c.id, c])) };
+    }
+    const view = this.#columnsById.byId.get(id);
+    if (view?.kind !== 'data') return undefined;
+    return {
+      id,
+      sortable: view.sortable,
+      resizable: view.resizable,
+      pin: view.pin,
+      width: view.width,
+      sorted: view.sorted === false ? undefined : view.sorted,
+    };
+  }
+
+  /** The header or cell an event happened in, for plugins. */
+  #cellTarget(event: Event): CellTarget | undefined {
+    for (const target of event.composedPath()) {
+      const cell = gridCell(target);
+      const columnId = cell?.dataset.col;
+      if (!cell || columnId === undefined) continue;
+      const model = this.#table.model;
+      const row =
+        cell.getAttribute('role') === 'columnheader'
+          ? HEADER
+          : gridRowOf(cell.parentElement, layoutOf(model));
+      if (!row) return undefined;
+      return {
+        section: row.section,
+        columnId,
+        rowIndex: row.index,
+        rowId: this.#gridRowId(model, row),
+      };
+    }
+    return undefined;
   }
 
   #observeProbe(): void {
