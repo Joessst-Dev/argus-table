@@ -51,7 +51,7 @@ jobs:
       (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'perf')) ||
       (github.event_name == 'release' && startsWith(github.event.release.tag_name, 'argus-table@'))
     name: bench (${{ matrix.browser }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 75
     continue-on-error: true
     strategy:
@@ -64,14 +64,18 @@ jobs:
 
       - name: Read Playwright version
         id: playwright
-        run: echo "version=$(pnpm --filter @argus-table/benchmarks exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "version=$(pnpm --filter @argus-table/benchmarks exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+          # The browsers are built per OS release (ubuntu24, ubuntu26): a cache made
+          # on one must not be restored on another.
+          echo "image=${ImageOS:-$RUNNER_OS}" >> "$GITHUB_OUTPUT"
 
       - name: Cache Playwright browsers
         id: browser-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ matrix.browser }}-${{ steps.playwright.outputs.version }}
+          key: playwright-${{ steps.playwright.outputs.image }}-${{ matrix.browser }}-${{ steps.playwright.outputs.version }}
 
       - name: Install ${{ matrix.browser }}
         if: steps.browser-cache.outputs.cache-hit != 'true'
@@ -104,7 +108,7 @@ jobs:
         (github.event_name == 'release' && startsWith(github.event.release.tag_name, 'argus-table@')) ||
         (github.event_name == 'workflow_dispatch' && inputs.publish && inputs.variants == '')
       )
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write # push the results branch
       pull-requests: write # open the pull request
