@@ -1,27 +1,21 @@
-import { html, nothing } from 'lit';
+import { html, nothing, render } from 'lit';
 import type { ArgusPlugin, CellContent, CellContext, ColumnDef, PluginHost } from 'argus-table';
-import { checkNumber, formatNumber } from './engine/coerce.js';
-import { compile, type Evaluate } from './engine/compile.js';
+import {
+  compileColumns,
+  display,
+  functionTable,
+  nameOf,
+  parseOrError,
+  type Compiled,
+  type FormulaFunction,
+} from './columns.js';
 import { FormulaError, FormulaSyntaxError, isFormulaError } from './engine/errors.js';
-import { BUILTINS, type FunctionTable, type ValueType } from './engine/functions/index.js';
-import { analyze } from './engine/graph.js';
-import { inferType } from './engine/infer.js';
-import { parse, refsOf, type FormulaNode } from './engine/parse.js';
+import type { FormulaNode } from './engine/parse.js';
+import type { Mode, Outcome } from './editor/session.js';
+import { fire } from './events.js';
 import { adoptStyles } from './styles.js';
 
-/** A function of your own for formulas, set through the `functions` option. */
-export interface FormulaFunction {
-  /**
-   * Gets the argument values (numbers, text, booleans, dates, or blanks as
-   * `null`/`undefined`). If an argument is an error, the cell shows it and `fn`
-   * doesn't run. A throw shows `#VALUE!`; a non-finite number `#NUM!`.
-   */
-  fn: (...args: unknown[]) => unknown;
-  /** Fewest and most arguments; without a most, any number from the fewest up. Default: any number. */
-  args?: readonly [min: number, max?: number];
-  /** What it returns, for the column's alignment: numbers and dates align to the end. */
-  returns?: 'number' | 'text' | 'boolean' | 'date';
-}
+export type { FormulaFunction } from './columns.js';
 
 export interface FormulasOptions {
   /**
@@ -31,108 +25,47 @@ export interface FormulasOptions {
   functions?: Readonly<Record<string, FormulaFunction>>;
   /** Shows `ƒx` before the header of each formula column. Default: `true`. */
   marker?: boolean;
+  /**
+   * What users can do with formulas from the column menu of `headerMenu()`:
+   * - `'view'` (default): "View formula…" on formula columns opens the editor read-only.
+   * - `'edit'`: "Edit formula…", "Rename…" and "Delete column" on formula
+   *   columns, and "Add formula column…" on every column. Changes are proposed
+   *   through `argus-formula-column-add`, `-change` and `-remove`; apply them
+   *   by setting `columns` to `event.detail.columns`.
+   * - `'none'`: nothing in the menu.
+   */
+  editing?: 'edit' | 'view' | 'none';
 }
 
-interface Scope<T> {
-  row: T;
-  index: number;
+/** An item for `headerMenu()`'s column menu (its `HeaderMenuItem`, by shape: no import needed). */
+interface MenuItem {
+  label: string;
+  detail?: string;
+  danger?: boolean;
+  run(): void;
 }
 
-/** A formula column, compiled: kept while its formula and the columns it reads stay the same. */
-interface Compiled<T> {
-  formula: string;
-  /** What it was built from, compared by identity: per name, the column and how that column reads. */
-  inputs: readonly unknown[];
-  type: ValueType;
-  /** The value for a row, errors included, cached per row object. */
-  result: (row: T, index: number) => unknown;
-  /** The column's accessor: the value, or `undefined` for an error (it sorts last). */
-  accessor: (row: T, index: number) => unknown;
+interface MenuGroup {
+  label?: string;
+  items: MenuItem[];
 }
+
+/** The plugin, with the method `headerMenu()` asks for column menu items. */
+export type FormulasPlugin<T = unknown> = ArgusPlugin<T> & {
+  headerMenuItems(columnId: string, host: PluginHost<T>): MenuGroup[];
+};
 
 interface TableState<T> {
+  host: PluginHost<T>;
+  /** The columns as the plugin got them (before its own changes). */
+  defs: readonly ColumnDef<T>[];
   compiled: Map<string, Compiled<T>>;
   /** Columns whose formula was reported as broken, by id and formula. */
   warned: Set<string>;
-}
-
-const NAME = /^[A-Za-z_][A-Za-z0-9_.]*$/;
-
-/** The built-in functions with the caller's own on top. */
-function functionTable(own: FormulasOptions['functions'] = {}): FunctionTable {
-  const table: Record<string, FunctionTable[string]> = { ...BUILTINS };
-  for (const [name, def] of Object.entries(own)) {
-    if (!NAME.test(name)) {
-      throw new Error(`@argus-table/formulas: "${name}" isn't a valid function name.`);
-    }
-    const message = `${name.toUpperCase()} failed.`;
-    table[name.toUpperCase()] = {
-      min: def.args?.[0] ?? 0,
-      max: def.args?.[1] ?? Infinity,
-      returns: def.returns ?? 'unknown',
-      fn: (...args) => {
-        try {
-          const result = def.fn(...args);
-          return typeof result === 'number' ? checkNumber(result) : result;
-        } catch {
-          return new FormulaError('#VALUE!', message);
-        }
-      },
-    };
-  }
-  return table;
-}
-
-/** Reads a dotted path such as `customer.name` (split at the dots), like the table does. */
-function readPath(source: unknown, keys: readonly string[]): unknown {
-  let value = source;
-  for (const key of keys) {
-    if (value === null || value === undefined) return undefined;
-    value = (value as Record<string, unknown>)[key];
-  }
-  return value;
-}
-
-function entry<T>(
-  formula: string,
-  inputs: readonly unknown[],
-  type: ValueType,
-  evaluate: Evaluate<Scope<T>>,
-): Compiled<T> {
-  const cache = new WeakMap<object, unknown>();
-  const result = (row: T, index: number): unknown => {
-    if (typeof row !== 'object' || row === null) return evaluate({ row, index });
-    if (cache.has(row)) return cache.get(row);
-    const value = evaluate({ row, index });
-    cache.set(row, value);
-    return value;
-  };
-  return {
-    formula,
-    inputs,
-    type,
-    result,
-    accessor: (row, index) => {
-      const value = result(row, index);
-      return isFormulaError(value) ? undefined : value;
-    },
-  };
-}
-
-const sameInputs = (a: readonly unknown[], b: readonly unknown[]) =>
-  a.length === b.length && a.every((value, i) => Object.is(value, b[i]));
-
-/** A result as cell text, the way a spreadsheet shows it. */
-function display(value: unknown): CellContent {
-  if (value === null || value === undefined) return '';
-  if (typeof value === 'number') return formatNumber(value);
-  if (typeof value === 'boolean') return value ? 'TRUE' : 'FALSE';
-  if (value instanceof Date) {
-    const midnight = !value.getHours() && !value.getMinutes() && !value.getSeconds();
-    return midnight ? value.toLocaleDateString() : value.toLocaleString();
-  }
-  // eslint-disable-next-line @typescript-eslint/no-base-to-string -- objects are handled here
-  return typeof value === 'object' ? JSON.stringify(value) : String(value);
+  /** While the editor is open: the column whose header holds it. */
+  editing: string | undefined;
+  /** The element the editor renders into, placed in that header's content. */
+  anchor: HTMLElement | undefined;
 }
 
 const errorContent = (error: FormulaError) =>
@@ -156,24 +89,21 @@ const errorContent = (error: FormulaError) =>
  * cell values (`#DIV/0!`, `#VALUE!`, `#REF!`, `#NAME?`, `#NUM!`, `#N/A`,
  * `#CYCLE!`, and `#ERROR!` for a formula that can't be read), and sort last.
  * Formulas are compiled once, never evaluated as code, and results are cached
- * per row. List it before `headerMenu()`, which turns text headers into
- * functions. One plugin can serve several tables.
+ * per row. With `headerMenu()` (list `formulas()` first), the column menu views
+ * or edits formulas (see `editing`); the editor loads when it first opens. One
+ * plugin can serve several tables.
  */
-export function formulas<T = unknown>(options: FormulasOptions = {}): ArgusPlugin<T> {
+export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPlugin<T> {
   const functions = functionTable(options.functions);
   const marker = options.marker ?? true;
+  const editing = options.editing ?? 'view';
   const parsed = new Map<string, FormulaNode | FormulaSyntaxError>();
   const states = new WeakMap<HTMLElement, TableState<T>>();
 
   const parseOnce = (formula: string): FormulaNode | FormulaSyntaxError => {
     let tree = parsed.get(formula);
     if (!tree) {
-      try {
-        tree = parse(formula);
-      } catch (error) {
-        if (!(error instanceof FormulaSyntaxError)) throw error;
-        tree = error;
-      }
+      tree = parseOrError(formula);
       parsed.set(formula, tree);
     }
     return tree;
@@ -182,124 +112,17 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): ArgusPlugi
   const stateOf = (host: PluginHost<T>): TableState<T> => {
     let state = states.get(host.element);
     if (!state) {
-      state = { compiled: new Map(), warned: new Set() };
+      state = {
+        host,
+        defs: [],
+        compiled: new Map(),
+        warned: new Set(),
+        editing: undefined,
+        anchor: undefined,
+      };
       states.set(host.element, state);
     }
     return state;
-  };
-
-  const compileAll = (defs: readonly ColumnDef<T>[], state: TableState<T>) => {
-    const byId = new Map(defs.map((d) => [d.id, d]));
-    const byHeader = new Map<string, ColumnDef<T>>();
-    const byIdCase = new Map<string, ColumnDef<T>>();
-    for (const def of defs) {
-      if (typeof def.header === 'string' && !byHeader.has(def.header.trim().toLowerCase())) {
-        byHeader.set(def.header.trim().toLowerCase(), def);
-      }
-      if (!byIdCase.has(def.id.toLowerCase())) byIdCase.set(def.id.toLowerCase(), def);
-    }
-    // By id, then by text header, then by id in any case.
-    const lookup = (name: string) =>
-      byId.get(name) ?? byHeader.get(name.toLowerCase()) ?? byIdCase.get(name.toLowerCase());
-
-    const trees = new Map<string, FormulaNode | FormulaSyntaxError>();
-    const uses = new Map<string, string[]>();
-    for (const def of defs) {
-      if (def.formula === undefined) continue;
-      const tree = parseOnce(def.formula);
-      trees.set(def.id, tree);
-      const names = tree instanceof FormulaSyntaxError ? [] : refsOf(tree);
-      uses.set(
-        def.id,
-        names.flatMap((name) => {
-          const target = lookup(name);
-          return target?.formula !== undefined ? [target.id] : [];
-        }),
-      );
-    }
-
-    const { order, cyclic } = analyze(uses);
-    const previous = state.compiled;
-    const next = new Map<string, Compiled<T>>();
-    const reuse = (id: string, formula: string, inputs: readonly unknown[]) => {
-      const old = previous.get(id);
-      return old?.formula === formula && sameInputs(old.inputs, inputs) ? old : undefined;
-    };
-    const broken = (def: ColumnDef<T>, formula: string, error: FormulaSyntaxError) => {
-      const key = `${def.id}\u0000${formula}`;
-      if (!state.warned.has(key)) {
-        state.warned.add(key);
-        console.warn(`argus-table: formula column "${def.id}": ${error.message}`);
-      }
-      const value = new FormulaError('#ERROR!', error.message);
-      return entry<T>(formula, ['broken'], 'unknown', () => value);
-    };
-
-    for (const id of order) {
-      const def = byId.get(id);
-      const tree = trees.get(id);
-      if (def?.formula === undefined || !tree) continue;
-      const formula = def.formula;
-      if (tree instanceof FormulaSyntaxError) {
-        next.set(id, reuse(id, formula, ['broken']) ?? broken(def, formula, tree));
-        continue;
-      }
-      if (cyclic.has(id)) {
-        const value = new FormulaError('#CYCLE!', 'The formula depends on its own result.');
-        next.set(
-          id,
-          reuse(id, formula, ['cycle']) ?? entry<T>(formula, ['cycle'], 'unknown', () => value),
-        );
-        continue;
-      }
-
-      // What each name reads: a formula column's compiled entry (built earlier,
-      // `order` puts dependencies first) or a data column's accessor.
-      const inputs = refsOf(tree).flatMap((name) => {
-        const target = lookup(name);
-        const source = target
-          ? target.formula !== undefined
-            ? next.get(target.id)
-            : target.accessor
-          : undefined;
-        return [name, target?.id, source];
-      });
-      const kept = reuse(id, formula, inputs);
-      if (kept) {
-        next.set(id, kept);
-        continue;
-      }
-      try {
-        const evaluate = compile<Scope<T>>(tree, {
-          functions,
-          ref(name) {
-            const target = lookup(name);
-            if (!target) return new FormulaError('#REF!', `There is no column [${name}].`);
-            if (target.formula !== undefined) {
-              const other = next.get(target.id);
-              return other ? (s) => other.result(s.row, s.index) : () => undefined;
-            }
-            const { accessor } = target;
-            if (typeof accessor === 'function') return (s) => accessor(s.row, s.index);
-            if (typeof accessor === 'string') {
-              const keys = accessor.split('.');
-              return (s) => readPath(s.row, keys);
-            }
-            return () => undefined;
-          },
-        });
-        const type = inferType(tree, functions, (name) => {
-          const target = lookup(name);
-          return (target && next.get(target.id)?.type) ?? 'unknown';
-        });
-        next.set(id, entry(formula, inputs, type, evaluate));
-      } catch (error) {
-        if (!(error instanceof FormulaSyntaxError)) throw error;
-        next.set(id, broken(def, formula, error));
-      }
-    }
-    state.compiled = next;
-    return next;
   };
 
   const cellFor =
@@ -311,44 +134,194 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): ArgusPlugi
       return def.cell ? def.cell(row, context) : display(value);
     };
 
-  const headerFor = (def: ColumnDef<T>) => () => {
+  const headerFor = (def: ColumnDef<T>, mark: boolean, anchor: HTMLElement | undefined) => () => {
     const own = typeof def.header === 'function' ? def.header() : def.header;
+    if (!mark) return html`${own ?? nothing}${anchor ?? nothing}`;
     return html`<span class="argus-formula-header"
-      ><span class="argus-formula-mark" aria-hidden="true">ƒx</span
-      ><span class="argus-formula-label">${own ?? nothing}</span></span
-    >`;
+        ><span class="argus-formula-mark" aria-hidden="true">ƒx</span
+        ><span class="argus-formula-label">${own ?? nothing}</span></span
+      >${anchor ?? nothing}`;
+  };
+
+  /**
+   * Opens the editor in the header of `columnId` (a modal dialog in the
+   * header's content, so it takes the table's tokens), then proposes what the
+   * user saved. Focus goes back to that header.
+   */
+  const openEditor = async (
+    state: TableState<T>,
+    mode: Mode,
+    columnId: string,
+    focus: 'name' | 'formula',
+  ) => {
+    const { host } = state;
+    if (state.editing !== undefined) return;
+    state.anchor ??= Object.assign(document.createElement('span'), {
+      className: 'argus-formula-editor-host',
+    });
+    const container = state.anchor;
+    state.editing = columnId;
+    host.invalidateColumns();
+    let outcome: Outcome<T> | undefined;
+    try {
+      const [{ edit }] = await Promise.all([
+        import('./editor/session.js'),
+        host.element.updateComplete,
+      ]);
+      if (container.isConnected) {
+        outcome = await edit({
+          host,
+          defs: state.defs,
+          mode,
+          columnId,
+          focus,
+          container,
+          functions,
+          own: options.functions ?? {},
+          parse: parseOnce,
+        });
+      }
+    } finally {
+      state.editing = undefined;
+      host.invalidateColumns();
+    }
+    if (outcome?.kind === 'add') {
+      fire(host.element, 'argus-formula-column-add', {
+        column: outcome.column,
+        columns: outcome.columns,
+      });
+      host.announce(`Formula column ${nameOf(outcome.column)} added`);
+    } else if (outcome?.kind === 'change') {
+      fire(host.element, 'argus-formula-column-change', {
+        column: outcome.column,
+        previous: outcome.previous,
+        columns: outcome.columns,
+      });
+      host.announce(`${nameOf(outcome.column)} changed`);
+    }
+    host.focusHeader(columnId);
+  };
+
+  const remove = (state: TableState<T>, columnId: string) => {
+    const { host, defs } = state;
+    const at = defs.findIndex((d) => d.id === columnId);
+    const column = defs[at];
+    if (!column) return;
+    fire(host.element, 'argus-formula-column-remove', {
+      column,
+      columns: defs.filter((d) => d.id !== columnId),
+    });
+    host.announce(`${nameOf(column)} deleted`);
+    const neighbour = defs[at + 1] ?? defs[at - 1];
+    if (neighbour) host.focusHeader(neighbour.id);
   };
 
   return {
     name: 'formulas',
 
     connect(host) {
+      const state = stateOf(host);
       adoptStyles(host.element);
-      return undefined;
+      // A table removed with the editor open takes the dialog with it: it never
+      // reports closing, and keeps its `open` attribute. Drop it, so it doesn't
+      // show inline after a reconnect and the editor can open again.
+      return () => {
+        if (state.anchor) render(nothing, state.anchor);
+        state.editing = undefined;
+      };
     },
 
     columns(defs, host) {
       const state = stateOf(host);
-      if (!defs.some((def) => def.formula !== undefined)) {
+      state.host = host;
+      state.defs = defs;
+      const editingId = state.editing;
+      const hasFormulas = defs.some((def) => def.formula !== undefined);
+      if (!hasFormulas && editingId === undefined) {
         state.compiled = new Map();
         return defs;
       }
-      const compiled = compileAll(defs, state);
+      const compiled = hasFormulas
+        ? compileColumns(defs, {
+            functions,
+            parse: parseOnce,
+            previous: state.compiled,
+            onBroken(def, error) {
+              const key = `${def.id}\u0000${def.formula ?? ''}`;
+              if (state.warned.has(key)) return;
+              state.warned.add(key);
+              console.warn(`argus-table: formula column "${def.id}": ${error.message}`);
+            },
+          })
+        : new Map<string, Compiled<T>>();
+      state.compiled = compiled;
       // The server sorts with `dataSource`, and it doesn't know the formulas.
       const remote = host.element.dataSource !== undefined;
       return defs.map((def) => {
         const c = compiled.get(def.id);
-        if (!c) return def;
+        const anchor = def.id === editingId ? state.anchor : undefined;
+        if (!c) return anchor ? { ...def, header: headerFor(def, false, anchor) } : def;
         const numeric = c.type === 'number' || c.type === 'date';
         return {
           ...def,
           accessor: c.accessor,
           cell: cellFor(def, c),
           align: def.align ?? (numeric ? 'end' : undefined),
-          header: marker ? headerFor(def) : def.header,
+          header: marker || anchor ? headerFor(def, marker, anchor) : def.header,
           sortable: remote ? false : def.sortable,
         };
       });
+    },
+
+    headerMenuItems(columnId, host) {
+      if (editing === 'none') return [];
+      const state = stateOf(host);
+      const def = state.defs.find((d) => d.id === columnId);
+      if (!def) return [];
+      const groups: MenuGroup[] = [];
+      if (def.formula !== undefined) {
+        groups.push({
+          label: 'Formula',
+          items:
+            editing === 'edit'
+              ? [
+                  {
+                    label: 'Edit formula…',
+                    detail: def.formula,
+                    run: () => void openEditor(state, 'edit', columnId, 'formula'),
+                  },
+                  {
+                    label: 'Rename…',
+                    run: () => void openEditor(state, 'edit', columnId, 'name'),
+                  },
+                  {
+                    label: 'Delete column',
+                    danger: true,
+                    run: () => {
+                      remove(state, columnId);
+                    },
+                  },
+                ]
+              : [
+                  {
+                    label: 'View formula…',
+                    detail: def.formula,
+                    run: () => void openEditor(state, 'view', columnId, 'formula'),
+                  },
+                ],
+        });
+      }
+      if (editing === 'edit') {
+        groups.push({
+          items: [
+            {
+              label: 'Add formula column…',
+              run: () => void openEditor(state, 'add', columnId, 'name'),
+            },
+          ],
+        });
+      }
+      return groups;
     },
   };
 }

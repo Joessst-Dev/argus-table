@@ -240,3 +240,107 @@ export const WithHeaderMenu: Story = {
     await waitFor(() => expect(table.sorting).toEqual([{ id: 'total', desc: true }]));
   },
 };
+
+const editPlugins = [formulas<Item>({ editing: 'edit' }), headerMenu<Item>()];
+
+/** Applies what the formula editor proposes: the app owns `columns`. */
+function applyProposal(event: CustomEvent<{ columns: ColumnDef[] }>) {
+  (event.currentTarget as ArgusTable<Item>).columns = event.detail.columns;
+}
+
+async function menuItem(table: ArgusTable<Item>, columnId: string, label: string) {
+  const button = headerOf(table, columnId)
+    .querySelector('slot')
+    ?.assignedElements()[0]
+    ?.querySelector<HTMLElement>('.argus-header-menu-button');
+  if (!button) throw new Error(`no menu button on ${columnId}`);
+  await userEvent.click(button);
+  return waitFor(() => {
+    const found = [
+      ...table.querySelectorAll<HTMLElement>('.argus-header-menu:popover-open [role="menuitem"]'),
+    ].find((i) => i.textContent.trim().startsWith(label));
+    if (!found) throw new Error(`no item ${label}`);
+    return found;
+  });
+}
+
+async function editorOf(table: ArgusTable<Item>): Promise<HTMLDialogElement> {
+  // The editor loads on first use: give the import time.
+  return waitFor(
+    () => {
+      const dialog = table.querySelector<HTMLDialogElement>('dialog.argus-formula-editor');
+      if (!dialog?.open) throw new Error('editor not open');
+      return dialog;
+    },
+    { timeout: 5000 },
+  );
+}
+
+/**
+ * With `formulas({ editing: 'edit' })` and the column menu, users add, edit,
+ * rename and delete formula columns. The editor colours the formula, suggests
+ * columns after `[` and functions by name, shows the arguments of the function
+ * the cursor is in, and previews the first five rows. The table doesn't change
+ * its columns itself: the plugin fires `argus-formula-column-add`, `-change`
+ * and `-remove`, and the app sets `columns` to `event.detail.columns`.
+ */
+export const Editing: Story = {
+  render: () =>
+    html`<argus-table
+      style="block-size: 420px"
+      .columns=${columns}
+      .data=${data}
+      .plugins=${editPlugins}
+      @argus-formula-column-add=${applyProposal}
+      @argus-formula-column-change=${applyProposal}
+      @argus-formula-column-remove=${applyProposal}
+    ></argus-table>`,
+  play: async ({ canvasElement }) => {
+    const table = await tableIn(canvasElement);
+    await userEvent.click(await menuItem(table, 'gross', 'Add formula column…'));
+    const dialog = await editorOf(table);
+    await userEvent.keyboard('Net');
+    await userEvent.tab();
+    // `[[` types a [ (a single one starts a key name).
+    await userEvent.keyboard('ROUND([[Gr');
+    await waitFor(() =>
+      expect(dialog.querySelector('[role="option"][aria-selected="true"]')?.textContent).toContain(
+        'Gross',
+      ),
+    );
+    await userEvent.keyboard('{Enter} / 1.19, 2)');
+    await waitFor(() =>
+      expect(dialog.querySelector('.argus-formula-preview tbody tr')).not.toBeNull(),
+    );
+    await userEvent.click(
+      [...dialog.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Add column') ??
+        dialog,
+    );
+    await waitFor(() => expect(table.columns.map((c) => c.id)).toContain('net'));
+    await waitFor(() => expect(textOf(table, 1, 'net')).toBe('21.28'));
+  },
+};
+
+/**
+ * The editor open on a formula column, as the menu's "Edit formula…" opens it.
+ * Theme tokens set on the table style it: `--argus-dialog-accent` here.
+ */
+export const EditorOpen: Story = {
+  render: () =>
+    html`<argus-table
+      style="block-size: 420px; --argus-dialog-accent: #2f5bd3; --argus-dialog-accent-fg: #fff"
+      .columns=${columns}
+      .data=${data}
+      .plugins=${editPlugins}
+    ></argus-table>`,
+  play: async ({ canvasElement }) => {
+    const table = await tableIn(canvasElement);
+    await userEvent.click(await menuItem(table, 'gross', 'Edit formula…'));
+    const dialog = await editorOf(table);
+    await waitFor(() =>
+      expect(dialog.querySelector('.argus-formula-mirror')?.textContent).toBe(
+        'ROUND([Total] * 1.19, 2)',
+      ),
+    );
+  },
+};

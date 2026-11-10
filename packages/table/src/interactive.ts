@@ -1,10 +1,11 @@
 /**
  * Interactive content a page may put in a header or cell. A press on it belongs
  * to that content: it doesn't sort, start a column drag or select a row. A
- * popover (a menu a plugin opens from a header) counts as a whole, padding
- * included.
+ * popover or a dialog (a menu or an editor a plugin opens from a header) counts
+ * as a whole, padding included.
  */
-export const INTERACTIVE = 'button,input,select,textarea,a[href],label,[contenteditable],[popover]';
+export const INTERACTIVE =
+  'button,input,select,textarea,a[href],label,[contenteditable],[popover],dialog';
 
 /**
  * Whether an event path reaches interactive content before `stop` (the cell or

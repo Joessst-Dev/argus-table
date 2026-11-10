@@ -40,15 +40,51 @@ One `headerMenu()` can serve several tables.
 - **Screen readers:** the button is labelled "Column menu" and the menu is labelled by the column's header. Fitting a column announces its new width. Labels are in English.
 - The menu is a native [popover](https://developer.mozilla.org/docs/Web/API/Popover_API) in the top layer, so a short table or a pinned column doesn't clip it.
 
+## Items from other plugins
+
+Other plugins can add items to the menu: any plugin in the table's `plugins` with a `headerMenuItems(columnId, host)` method, before or after `headerMenu()`. It returns groups of items; each group comes after a separator, with an optional heading. [`@argus-table/formulas`](https://www.npmjs.com/package/@argus-table/formulas) adds its formula items this way.
+
+```ts
+import type { ArgusPlugin } from 'argus-table';
+import type { HeaderMenuContributor } from '@argus-table/header-menu';
+
+const copyId: ArgusPlugin<Order> & HeaderMenuContributor<Order> = {
+  name: 'copy-id',
+  headerMenuItems: (columnId, host) => [
+    {
+      items: [
+        {
+          label: 'Copy column id',
+          detail: columnId,
+          run: () => {
+            void navigator.clipboard.writeText(columnId);
+            host.focusHeader(columnId);
+          },
+        },
+      ],
+    },
+  ],
+};
+table.plugins = [headerMenu(), copyId];
+```
+
+- An item has a `label`, an optional `detail` (shown dimmed after it, and part of its accessible name) and `danger` (for items that remove something), and `run()`.
+- `run()` runs after the menu closes. Focus is the item's to place: open a dialog, or call `host.focusHeader()`.
+- A column with items gets a menu button even if it can't sort or resize.
+- The method runs while headers render and when a menu opens, so keep it cheap. One that throws is reported in the console and skipped.
+
 ## Styling
 
 The button and the menu are light-DOM content of the table, so page CSS reaches them through these classes:
 
-| Class                      | Element                                    |
-| -------------------------- | ------------------------------------------ |
-| `argus-header-menu-button` | The button in each header                  |
-| `argus-header-menu`        | The menu                                   |
-| `argus-header-menu-item`   | Each item; `aria-checked` on the sort ones |
+| Class                           | Element                                           |
+| ------------------------------- | ------------------------------------------------- |
+| `argus-header-menu-button`      | The button in each header                         |
+| `argus-header-menu`             | The menu                                          |
+| `argus-header-menu-item`        | Each item; `aria-checked` on the sort ones        |
+| `argus-header-menu-item-detail` | The dimmed text after an item from another plugin |
+| `argus-header-menu-item-danger` | An item that removes something                    |
+| `argus-header-menu-group-label` | A group's heading                                 |
 
 The add-on's own CSS is in the `argus-header-menu` cascade layer, so your rules win. Tokens, set on `argus-table` or a theme:
 
@@ -58,6 +94,8 @@ The add-on's own CSS is in the `argus-header-menu` cascade layer, so your rules 
 | `--argus-menu-fg`             | `--argus-fg`, then `CanvasText`          |
 | `--argus-menu-shadow`         | `0 4px 16px rgb(0 0 0 / 0.16)`           |
 | `--argus-menu-item-active-bg` | The text colour at 10% (hover and focus) |
+| `--argus-menu-danger-fg`      | The text colour                          |
+| `--argus-menu-detail-font`    | `ui-monospace, monospace`                |
 
 The menu also uses the table's `--argus-border-color`, `--argus-border-width`, `--argus-focus-ring` and `--argus-font`.
 

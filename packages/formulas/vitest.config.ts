@@ -15,21 +15,23 @@ const browsers: readonly Browser[] =
         .map((name) => name.trim())
         .filter((name): name is Browser => (ALL as readonly string[]).includes(name));
 
-// The engine is DOM-free and runs in Node; the plugin needs a browser.
+// The engine and the editor's text helpers (`*.node.test.ts`) are DOM-free and
+// run in Node; the plugin and the editor need a browser.
 export default defineConfig({
   test: {
     projects: [
       {
         test: {
           name: 'engine',
-          include: ['src/engine/**/*.test.ts'],
+          include: ['src/engine/**/*.test.ts', 'src/**/*.node.test.ts'],
           environment: 'node',
         },
       },
       {
         test: {
           name: 'plugin',
-          include: ['src/*.test.ts'],
+          include: ['src/**/*.test.ts'],
+          exclude: ['src/engine/**', 'src/**/*.node.test.ts'],
           browser: {
             enabled: true,
             headless: true,

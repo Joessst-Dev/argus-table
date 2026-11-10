@@ -28,7 +28,7 @@ Generated from the element's JSDoc through the Custom Elements Manifest, so it m
 
 ## Plugins
 
-`plugins` takes add-ons, such as the column menu from `@argus-table/header-menu` (see Add-ons/Header menu) and formula columns from `@argus-table/formulas` (see Add-ons/Formulas: a column with `formula: '[price] * [qty]'` computes its value per row). A plugin is an object with a `name` and any of these hooks:
+`plugins` takes add-ons, such as the column menu from `@argus-table/header-menu` (see Add-ons/Header menu) and formula columns from `@argus-table/formulas` (see Add-ons/Formulas: a column with `formula: '[price] * [qty]'` computes its value per row, and with `editing: 'edit'` users add and edit them from the column menu). A plugin is an object with a `name` and any of these hooks:
 
 ```ts
 import type { ArgusPlugin } from 'argus-table';
@@ -50,4 +50,4 @@ const plugin: ArgusPlugin<Order> = {
 table.plugins = [plugin];
 ```
 
-The `host` reads resolved columns (`column(id)`), finds the header or cell of an event (`cellOf(event)`), sorts (`setSort(id, 'asc' | 'desc' | null)`, under the `sorting` rules), focuses a header (`focusHeader(id)`), announces to screen readers (`announce(message)`), runs the `columns` hooks again (`invalidateColumns()`) and re-renders (`requestUpdate()`). The table itself is `host.element`. Plugins run in array order; one that throws is reported in the console and skipped.
+The `host` reads resolved columns (`column(id)`), finds the header or cell of an event (`cellOf(event)`), sorts (`setSort(id, 'asc' | 'desc' | null)`, under the `sorting` rules), focuses a header (`focusHeader(id)`), announces to screen readers (`announce(message)`), runs the `columns` hooks again (`invalidateColumns()`), re-renders (`requestUpdate()`) and reads body rows in the current order (`row(index)`, optional). The table itself is `host.element`. Plugins run in array order; one that throws is reported in the console and skipped.

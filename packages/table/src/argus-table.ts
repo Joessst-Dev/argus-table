@@ -484,6 +484,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     requestUpdate: () => {
       this.requestUpdate();
     },
+    row: (index) => this.#table.model.rowAt(index)?.original,
   };
   readonly #plugins = new PluginController<T>(this, this.#pluginHost);
   #columnsById:

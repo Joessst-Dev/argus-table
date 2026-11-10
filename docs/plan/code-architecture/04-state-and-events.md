@@ -12,7 +12,7 @@ Every piece of table state works like a form input: uncontrolled by default, con
 | Column order | `columnOrder` | `argus-column-reorder` |
 | Selected rows | `selection` | `argus-row-select` |
 | Hidden columns | `columnVisibility` | `argus-column-visibility` |
-| Formula columns | `columns` (a column's `formula`; planned: the editor proposes changes) | `argus-formula-column-add` / `-change` / `-remove` (planned) |
+| Formula columns | `columns` (a column's `formula`; the app owns them, the formula editor only proposes) | `argus-formula-column-add` / `-change` / `-remove` (from `@argus-table/formulas`) |
 
 - **Uncontrolled** (property never set): the table keeps the state, updates it, then fires the event.
 - **Controlled** (property set by the host): the table fires the event with the proposed new state but changes nothing until the host sets the property again. One helper in `core/state` implements this for every row of the table above.

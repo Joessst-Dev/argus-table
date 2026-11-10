@@ -348,4 +348,14 @@ describe('plugin host', () => {
     await settle(el);
     expect(el.shadowRoot?.activeElement).toBe(headerOf(el, 'age'));
   });
+
+  test('row() reads body rows in the current order', async () => {
+    const { plugin, host } = hostGrabber();
+    const el = await fixture({ columns, data, plugins: [plugin] });
+    expect(host().row?.(0)).toBe(data[0]);
+    host().setSort('age', 'asc');
+    await settle(el);
+    expect([0, 1, 2].map((i) => host().row?.(i)?.name)).toEqual(['Bob', 'Cid', 'Ann']);
+    expect(host().row?.(3)).toBeUndefined();
+  });
 });
