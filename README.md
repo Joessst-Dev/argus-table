@@ -4,7 +4,7 @@
 
 # Argus Table
 
-A framework-agnostic data table web component built with Lit and TanStack: infinite scrolling, pinned columns and rows, resizable, reorderable and auto-sized columns, and styling that is plain CSS, with optional themes.
+A framework-agnostic data table web component built with Lit and TanStack: infinite scrolling, pinned columns and rows, resizable, reorderable, hideable and auto-sized columns, and styling that is plain CSS, with optional themes.
 
 Named after Argus Panoptes, the hundred-eyed giant of Greek myth who never slept: a table that keeps watch over every row.
 

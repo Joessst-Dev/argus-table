@@ -497,6 +497,154 @@ describe('createTableModel: column order', () => {
   });
 });
 
+describe('createTableModel: column pinning', () => {
+  const order = (m: ReturnType<typeof model>) => m.columns.map((c) => [c.id, c.pin]);
+
+  it('pins and unpins through columnPinning, over the columns own pin', () => {
+    const m = model({ columnPinning: { age: 'start', name: false, note: 'end' } });
+    expect(order(m)).toEqual([
+      ['id', 'start'],
+      ['age', 'start'],
+      ['name', undefined],
+      ['city', undefined],
+      ['note', 'end'],
+      ['actions', 'end'],
+    ]);
+    const byId = Object.fromEntries(m.columns.map((c) => [c.id, c]));
+    expect(byId.age).toMatchObject({ offset: 60, pinEdge: true });
+    expect(byId.id).toMatchObject({ pinEdge: false });
+    expect(byId.note).toMatchObject({ offset: 64, pinEdge: true });
+    expect(byId.actions).toMatchObject({ offset: 0, pinEdge: false });
+    expect(byId.name).toMatchObject({ offset: 0 });
+  });
+
+  it('keeps columnOrder, which orders each group', () => {
+    const m = model({ columnOrder: ['note', 'city', 'age', 'name', 'id'] });
+    m.update({ columnPinning: { city: 'start' } });
+    expect(m.columns.map((c) => c.id)).toEqual(['city', 'name', 'id', 'note', 'age', 'actions']);
+    expect(m.nextOrder('note', 4)).toEqual(['city', 'name', 'id', 'age', 'note', 'actions']);
+    expect(m.nextOrder('note', 2)).toBeUndefined();
+  });
+
+  it('gives a pinned flex column a fixed width, and its flex back once unpinned', () => {
+    const m = model({ columnPinning: { city: 'start' } });
+    expect(m.columns.find((c) => c.id === 'city')).toMatchObject({ flex: undefined, width: 150 });
+    m.update({ columnPinning: {} });
+    expect(m.columns.find((c) => c.id === 'city')).toMatchObject({ flex: 1, width: 100 });
+    // A resized width wins over the pinned width.
+    m.update({ columnPinning: { city: 'end' }, columnSizing: { city: 220 } });
+    expect(m.columns.find((c) => c.id === 'city')).toMatchObject({ width: 220 });
+  });
+
+  it('proposes a pin without applying it', () => {
+    const m = model();
+    expect(m.nextPinning('age', 'end')).toEqual({ age: 'end' });
+    expect(m.nextPinning('id', false)).toEqual({ id: false });
+    expect(m.columns.find((c) => c.id === 'age')?.pin).toBeUndefined();
+    m.update({ columnPinning: { age: 'end' } });
+    expect(m.nextPinning('age', 'start')).toEqual({ age: 'start' });
+  });
+
+  it('refuses unknown columns, unchanged pins and columns with pinnable: false', () => {
+    const m = model({ columns: [...columns, { id: 'fixed', pinnable: false }] });
+    expect(m.nextPinning('zz', 'start')).toBeUndefined();
+    expect(m.nextPinning('id', 'start')).toBeUndefined();
+    expect(m.nextPinning('age', false)).toBeUndefined();
+    expect(m.nextPinning('fixed', 'start')).toBeUndefined();
+    expect(m.columns.find((c) => c.id === 'fixed')?.pinnable).toBe(false);
+  });
+
+  it('keeps the row model when only the pinning changes', () => {
+    const m = model({ sorting: [{ id: 'name', desc: false }] });
+    const before = m.rowAt(0);
+    m.update({ columnPinning: { age: 'start' } });
+    expect(m.rowAt(0)).toBe(before);
+  });
+});
+
+describe('createTableModel: column visibility', () => {
+  const shown = (m: ReturnType<typeof model>) => m.columns.map((c) => c.id);
+
+  it('leaves hidden columns out of the views, with indices and offsets closing up', () => {
+    const m = model({ columnVisibility: { name: false, age: false } });
+    expect(m.columns.map((c) => [c.id, c.colIndex])).toEqual([
+      ['id', 1],
+      ['city', 2],
+      ['note', 3],
+      ['actions', 4],
+    ]);
+    const byId = Object.fromEntries(m.columns.map((c) => [c.id, c]));
+    expect(byId.id).toMatchObject({ offset: 0, pinEdge: true });
+    expect(byId.city).toMatchObject({ offset: 0 });
+    expect(byId.note).toMatchObject({ offset: 100 });
+    expect(m.totalWidth).toBe(60 + 100 + 90 + 64);
+  });
+
+  it('hides columns defined as hidden until columnVisibility shows them', () => {
+    const m = model({ columns: [{ id: 'a' }, { id: 'b', hidden: true }] });
+    expect(shown(m)).toEqual(['a']);
+    m.update({ columnVisibility: { b: true } });
+    expect(shown(m)).toEqual(['a', 'b']);
+  });
+
+  it('lists every column in allColumns, hidden ones marked', () => {
+    const m = model({ columnVisibility: { age: false } });
+    expect(m.allColumns.map((c) => [c.id, c.hidden, c.colIndex])).toEqual([
+      ['id', false, 1],
+      ['name', false, 2],
+      ['age', true, 0],
+      ['city', false, 3],
+      ['note', false, 4],
+      ['actions', false, 5],
+    ]);
+    expect(m.allColumns.find((c) => c.id === 'name')).toBe(m.columns[1]);
+  });
+
+  it('still sorts by a hidden column and reads its values', () => {
+    const m = model({ columnVisibility: { name: false }, sorting: [{ id: 'name', desc: false }] });
+    expect(names(m)).toEqual(['ada', 'Bea', 'Cleo', 'Dan']);
+    expect(m.cellContext(0, 'name')?.value).toBe('ada');
+  });
+
+  it('proposes hiding and showing without applying it', () => {
+    const m = model();
+    expect(m.nextVisibility('age', true)).toEqual({ age: false });
+    expect(shown(m)).toContain('age');
+    m.update({ columnVisibility: { age: false } });
+    expect(m.nextVisibility('age', false)).toEqual({ age: true });
+  });
+
+  it('refuses unknown columns, no change, hideable: false and the last shown column', () => {
+    const m = model({ columns: [{ id: 'a', hideable: false }, { id: 'b' }, { id: 'c' }] });
+    expect(m.nextVisibility('zz', true)).toBeUndefined();
+    expect(m.nextVisibility('b', false)).toBeUndefined();
+    expect(m.nextVisibility('a', true)).toBeUndefined();
+    m.update({ columnVisibility: { a: false, b: false } });
+    // Set by state, a column with hideable: false hides; the user can show it again.
+    expect(shown(m)).toEqual(['c']);
+    expect(m.nextVisibility('c', true)).toBeUndefined();
+    expect(m.nextVisibility('a', false)).toEqual({ a: true, b: false });
+  });
+
+  it('moves among the shown columns, keeping hidden ones in place', () => {
+    const m = model({ columnVisibility: { city: false } });
+    // Shown: id, name, age, note, actions. Moving age to 3 passes note (and city).
+    expect(m.nextOrder('age', 3)).toEqual(['id', 'name', 'city', 'note', 'age', 'actions']);
+    expect(m.nextOrder('city', 2)).toBeUndefined();
+  });
+
+  it('works with the selection column', () => {
+    const m = model({ selectionColumn: true, columnVisibility: { id: false, name: false } });
+    expect(m.columns.map((c) => [c.id, c.colIndex, c.pinEdge])).toEqual([
+      [SELECTION_COLUMN_ID, 1, true],
+      ['age', 2, false],
+      ['city', 3, false],
+      ['note', 4, false],
+      ['actions', 5, true],
+    ]);
+  });
+});
+
 describe('createTableModel: caching', () => {
   it('keeps the row model when only unrelated options change', () => {
     const m = model();

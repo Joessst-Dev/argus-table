@@ -61,6 +61,13 @@ defineExpose({ sorting, clicked, table, refresh });
     <ArgusTable :data="orders" @update:sorting="(s) => s.map((i) => i.id)" />
     <ArgusTable @update:column-sizing="(s) => s['total']" @update:column-order="(o) => o.join()" />
     <ArgusTable selection-mode="multi" selection-checkboxes @update:selection="(s) => s.join()" />
+    <ArgusTable
+      @update:column-pinning="(p) => p['total'] === 'start'"
+      @update:column-visibility="(v) => v['total'] === true"
+      @column-pin="(e) => e.detail.pin"
+      @column-hide="(e) => e.detail.hidden"
+    />
+    <ArgusColumn column-id="x" hidden :pinnable="false" :hideable="false" />
     <ArgusTable :data="orders" :plugins="plugins" />
     <!-- @vue-expect-error a plugin needs a name -->
     <ArgusTable :data="orders" :plugins="[{ keydown: () => true }]" />

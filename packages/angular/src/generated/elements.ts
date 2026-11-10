@@ -14,6 +14,8 @@ import type {
   ArgusTable as ArgusTableElement,
   ArgusColumn as ArgusColumnElement,
   CellClickDetail,
+  ColumnHideDetail,
+  ColumnPinDetail,
   ColumnReorderDetail,
   ColumnResizeDetail,
   LoadErrorDetail,
@@ -34,6 +36,8 @@ import { setProperty } from '../set-property.js';
     '(argus-sort-change)': 'handleSortChange($event)',
     '(argus-column-resize)': 'handleColumnResize($event)',
     '(argus-column-reorder)': 'handleColumnReorder($event)',
+    '(argus-column-pin)': 'handleColumnPin($event)',
+    '(argus-column-hide)': 'handleColumnHide($event)',
     '(argus-cell-click)': 'handleCellClick($event)',
     '(argus-row-click)': 'handleRowClick($event)',
     '(argus-range-change)': 'handleRangeChange($event)',
@@ -110,6 +114,18 @@ export class ArgusTableComponent<T = unknown> {
     setProperty(this.element, 'columnOrder', undefined, value);
   }
 
+  /** Pins by column id, over the columns' own `pin`: `'start'` or `'end'` pins a column, `false` unpins one whose definition pins it, e.g. `{ total: 'end', id: false }`. Columns it doesn't list keep their `pin`. A pinned column joins the edge of its group nearest its place in `columnOrder`, and stops flexing. Uncontrolled until set, like `sorting`: once set, pinning from a plugin only fires `argus-column-pin` with the proposed pins. `undefined` hands it back. */
+  @Input() set columnPinning(value: ArgusTableElement<T>['columnPinning'] | null | undefined) {
+    setProperty(this.element, 'columnPinning', undefined, value);
+  }
+
+  /** Visibility by column id, over the columns' own `hidden`: `false` hides a column, `true` shows one defined as `hidden`, e.g. `{ email: false }`. Columns it doesn't list keep their `hidden`. A hidden column isn't rendered, but sorting by it still works and it keeps its place in `columnOrder`. Uncontrolled until set, like `sorting`: once set, hiding or showing from a plugin only fires `argus-column-hide` with the proposed visibility. `undefined` hands it back. */
+  @Input() set columnVisibility(
+    value: ArgusTableElement<T>['columnVisibility'] | null | undefined,
+  ) {
+    setProperty(this.element, 'columnVisibility', undefined, value);
+  }
+
   /** How rows can be selected: `none` (the default), `single` or `multi`. A click on a body row selects it; in `multi` mode Ctrl/Cmd+click toggles a row, Shift+click selects the range from the last clicked row, and Ctrl/Cmd+A selects every row. Space toggles the focused row. Clicks on buttons, links and inputs inside cells don't select. Pinned rows, and `dataSource` rows not loaded yet, can't be selected. */
   @Input() set selectionMode(value: ArgusTableElement<T>['selectionMode'] | null | undefined) {
     setProperty(this.element, 'selectionMode', 'selection-mode', value);
@@ -149,6 +165,22 @@ export class ArgusTableComponent<T = unknown> {
 
   /** The new `columnOrder` from `argus-column-reorder`, for `[(columnOrder)]`. */
   @Output() readonly columnOrderChange = new EventEmitter<ArgusTableElement<T>['columnOrder']>();
+
+  /** `argus-column-pin`: A column was pinned to a side or unpinned, through a plugin such as the column menu. `detail: { columnId, pin, pinning }`: `pin` is `'start'`, `'end'` or `false`; `pinning` is the new state, or the proposed one when `columnPinning` is controlled. */
+  @Output() readonly columnPin = new EventEmitter<CustomEvent<ColumnPinDetail>>();
+
+  /** The new `columnPinning` from `argus-column-pin`, for `[(columnPinning)]`. */
+  @Output() readonly columnPinningChange = new EventEmitter<
+    ArgusTableElement<T>['columnPinning']
+  >();
+
+  /** `argus-column-hide`: A column was hidden or shown, through a plugin such as the column menu. `detail: { columnId, hidden, visibility }`: `hidden` is `true` when it was hidden; `visibility` is the new state, or the proposed one when `columnVisibility` is controlled. */
+  @Output() readonly columnHide = new EventEmitter<CustomEvent<ColumnHideDetail>>();
+
+  /** The new `columnVisibility` from `argus-column-hide`, for `[(columnVisibility)]`. */
+  @Output() readonly columnVisibilityChange = new EventEmitter<
+    ArgusTableElement<T>['columnVisibility']
+  >();
 
   /** `argus-cell-click`: A body or pinned-row cell was clicked, or Enter was pressed on it. `detail: { row, columnId, value, pinned? }`; `pinned` is `'top'` or `'bottom'` for a pinned row. Fires before `argus-row-click`. */
   @Output() readonly cellClick = new EventEmitter<CustomEvent<CellClickDetail<T>>>();
@@ -211,6 +243,22 @@ export class ArgusTableComponent<T = unknown> {
     const e = event as CustomEvent<ColumnReorderDetail>;
     this.columnReorder.emit(e);
     this.columnOrderChange.emit(e.detail.order);
+  }
+
+  protected handleColumnPin(event: Event): void {
+    // Events bubble: skip those of a table nested in a cell.
+    if (event.target !== this.element) return;
+    const e = event as CustomEvent<ColumnPinDetail>;
+    this.columnPin.emit(e);
+    this.columnPinningChange.emit(e.detail.pinning);
+  }
+
+  protected handleColumnHide(event: Event): void {
+    // Events bubble: skip those of a table nested in a cell.
+    if (event.target !== this.element) return;
+    const e = event as CustomEvent<ColumnHideDetail>;
+    this.columnHide.emit(e);
+    this.columnVisibilityChange.emit(e.detail.visibility);
   }
 
   protected handleCellClick(event: Event): void {
@@ -310,9 +358,23 @@ export class ArgusColumnComponent<T = unknown> {
     setProperty(this.element, 'maxWidth', 'max-width', value);
   }
 
-  /** Pins the column to the `start` or `end` side. */
+  /** Pins the column to the `start` or `end` side. The table's `columnPinning` overrides it. */
   @Input() set pin(value: ArgusColumnElement<T>['pin'] | null | undefined) {
     setProperty(this.element, 'pin', 'pin', value);
+  }
+
+  /** Whether the user can pin or unpin the column. Default: `true`; `pinnable="false"` turns it off. */
+  @Input() set pinnable(
+    value: ArgusColumnElement<T>['pinnable'] | '' | 'true' | 'false' | null | undefined,
+  ) {
+    setProperty(this.element, 'pinnable', 'pinnable', value);
+  }
+
+  /** Whether the user can hide the column. Default: `true`; `hideable="false"` turns it off. */
+  @Input() set hideable(
+    value: ArgusColumnElement<T>['hideable'] | '' | 'true' | 'false' | null | undefined,
+  ) {
+    setProperty(this.element, 'hideable', 'hideable', value);
   }
 
   /** Text alignment: `start`, `center` or `end`. Default: `start`. */

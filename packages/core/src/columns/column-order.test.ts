@@ -88,4 +88,25 @@ describe('moveColumn', () => {
     // Others still move past it.
     expect(moveColumn([], fixed, 'c', 0)).toEqual(['c', 'a', 'b']);
   });
+
+  describe('with hidden columns', () => {
+    const plain = [col('a'), col('h'), col('b'), col('c'), col('e', 'end')];
+    const shown = (id: string) => id !== 'h';
+
+    it('counts shown columns only and steps over hidden ones', () => {
+      // a is at 0 among the shown columns [a, b, c, e]: moving it to 1 passes b and h.
+      expect(moveColumn([], plain, 'a', 1, shown)).toEqual(['h', 'b', 'a', 'c', 'e']);
+      expect(moveColumn([], plain, 'b', 0, shown)).toEqual(['b', 'a', 'h', 'c', 'e']);
+      expect(moveColumn([], plain, 'a', 2, shown)).toEqual(['h', 'b', 'c', 'a', 'e']);
+    });
+
+    it('keeps the group bounds of the shown columns', () => {
+      expect(moveColumn([], plain, 'a', 3, shown)).toBeUndefined();
+      expect(moveColumn([], plain, 'c', 2, shown)).toBeUndefined();
+    });
+
+    it('refuses to move a hidden column', () => {
+      expect(moveColumn([], plain, 'h', 0, shown)).toBeUndefined();
+    });
+  });
 });

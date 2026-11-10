@@ -17,16 +17,30 @@ export interface ResolvedColumn<TData, TContent> {
   hasAccessor: boolean;
   /** Base width in px. For a flex column this is its minimum track size. */
   width: number;
-  /** Share of free space for `{ flex }` columns, otherwise `undefined`. Pinned columns never flex. */
+  /**
+   * Share of free space for `{ flex }` columns, otherwise `undefined`. Kept for pinned
+   * columns too: the model drops it while the column is pinned (see `pinnedWidth`).
+   */
   flex: number | undefined;
+  /**
+   * Width in px while the column is pinned. Pinned columns need a known width for their
+   * sticky offsets, so a flex column pinned (by its definition or by state) gets the
+   * default width, within its bounds. Equal to `width` for every other column.
+   */
+  pinnedWidth: number;
   /** `true` for `width: 'auto'`: the table measures the content and passes the width in. */
   auto: boolean;
   minWidth: number;
   maxWidth: number;
+  /** The pin of the definition; `columnPinning` state can override it. */
   pin: ColumnPin | undefined;
+  /** Hidden by the definition; `columnVisibility` state can override it. */
+  hidden: boolean;
   sortable: boolean;
   resizable: boolean;
   reorderable: boolean;
+  pinnable: boolean;
+  hideable: boolean;
   align: ColumnAlign;
 }
 
@@ -78,18 +92,15 @@ export function resolveColumns<TData, TContent>(
 
     const pin = def.pin === 'start' || def.pin === 'end' ? def.pin : undefined;
     const { width } = def;
-    // Pinned columns need a known width for their sticky offsets, so they never flex.
     const flex =
-      pin === undefined &&
-      typeof width === 'object' &&
-      Number.isFinite(width.flex) &&
-      width.flex > 0
+      typeof width === 'object' && Number.isFinite(width.flex) && width.flex > 0
         ? width.flex
         : undefined;
     const auto = width === 'auto';
     // An auto column shows the default width until it is measured.
     const fixed = typeof width === 'number' ? finite(width) : undefined;
-    const base = flex !== undefined ? minWidth : clamp(fixed ?? DEFAULT_WIDTH);
+    const pinnedWidth = clamp(fixed ?? DEFAULT_WIDTH);
+    const base = flex !== undefined ? minWidth : pinnedWidth;
 
     const { accessor } = def;
     const getValue: ResolvedColumn<TData, TContent>['getValue'] =
@@ -108,13 +119,17 @@ export function resolveColumns<TData, TContent>(
       hasAccessor: accessor !== undefined,
       width: base,
       flex,
+      pinnedWidth,
       auto,
       minWidth,
       maxWidth,
       pin,
+      hidden: def.hidden === true,
       sortable: def.sortable === true,
       resizable: def.resizable !== false,
       reorderable: def.reorderable !== false,
+      pinnable: def.pinnable !== false,
+      hideable: def.hideable !== false,
       align: def.align ?? 'start',
     };
   });
