@@ -48,8 +48,28 @@ const columns: ColumnDef<Order>[] = [
 
 - **Props** set the element's properties: `columns`, `data`, `dataSource`, `pinnedRows`, `getRowId`, `rowHeight`, `density`, `overscan`, `virtualizeColumns`, `sorting`, `columnSizing`, `columnOrder`, `selectionMode`, `selectionCheckboxes`, `selection` and `plugins`. Other attributes (`aria-label`, `class`, `style`, …) go to the element.
 - **Events** get the element's `CustomEvent`: `sort-change`, `column-resize`, `column-reorder`, `cell-click`, `row-click`, `range-change`, `load-error` and `row-select`. In `@row-click`, `e.detail.row` has your row type. The details are in the [`argus-table` README](https://www.npmjs.com/package/argus-table).
-- **Cells:** a column's `cell` function returns a string, a number, a DOM node or a Lit template. Vue content in cells is planned.
+- **Cells and headers** can be Vue content: `#cell-<column id>` and `#header-<column id>` slots, or `cell`/`header` functions that return VNodes. See [Vue content in cells](#vue-content-in-cells).
 - **Height:** the table virtualizes its rows, so it needs a bounded height. Its default is 400 px.
+
+## Vue content in cells
+
+Give a column its cells or header with a slot named after its id:
+
+```vue
+<ArgusTable :columns="columns" :data="orders">
+  <template #cell-status="{ row, value }">
+    <StatusBadge :status="value" :order="row.id" />
+  </template>
+  <template #header-total="{ columnId }">Total <InfoTip :topic="columnId" /></template>
+</ArgusTable>
+```
+
+- `#cell-<id>` gets the row and its context: `{ row, value, rowId, index, columnId, pinned? }`, typed with your row type. `#header-<id>` gets `{ columnId }`.
+- Slots work for `:columns` arrays and `<ArgusColumn>` children alike. A column without a slot keeps its own `cell` and `header`. A slot that goes away (`v-if`) hands the column back.
+- In `columns`, `cell` and `header` can also return VNodes: `cell: (o) => h(StatusBadge, { status: o.status })` (`VueColumnDef<T>` types it).
+- Cells see your app (global components, directives, `app.provide`: router, Pinia, i18n) and what `<ArgusTable>`'s ancestors `provide()`. A slot follows the state it reads, and updates by itself when that changes.
+- Cells are pooled: as the table scrolls, a cell shows another row and its components **update with new props instead of remounting**. Keep per-row state in your data (or keyed by `rowId`), not in a cell component's own state.
+- Slotted content renders before the browser paints and before `width: 'auto'` measures. The slots run as the table's first plugin, so `headerMenu()` and `formulas()` wrap slotted headers as usual.
 
 ## v-model
 

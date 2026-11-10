@@ -2,7 +2,17 @@
 // (its properties, events, two-way properties and methods); this turns such a
 // description into a component that renders the element.
 import 'argus-table';
-import { defineComponent, h, shallowRef, watchEffect, type PropType } from 'vue';
+import type { ArgusPlugin, PluginHost } from 'argus-table';
+import {
+  defineComponent,
+  getCurrentInstance,
+  h,
+  onUpdated,
+  shallowRef,
+  watchEffect,
+  type PropType,
+} from 'vue';
+import { slotKey, slotPlugin, vueRenderer } from './content.js';
 
 export interface WrapperEvent {
   /** The DOM event, e.g. `argus-sort-change`. */
@@ -24,6 +34,11 @@ export interface WrapperSpec {
   events: readonly WrapperEvent[];
   /** Element methods the component exposes. */
   methods: readonly string[];
+  /**
+   * The element renders header and cell content (`contentRenderer`): the component
+   * renders VNodes from `header`, `cell` and its `#cell-<id>` / `#header-<id>` slots.
+   */
+  content?: boolean;
 }
 
 type ElementRecord = HTMLElement & Record<string, unknown>;
@@ -61,12 +76,35 @@ export function defineWrapper(spec: WrapperSpec) {
       // As with @lit/react: unbound props are never set, and a prop that goes
       // away sets `undefined`, which hands state back to the element.
       const applied = new Map<string, unknown>();
+      // Content: a renderer for VNodes, and the slots as the first plugin, before the
+      // user's, so plugins such as headerMenu() wrap the slotted headers.
+      const instance = spec.content ? getCurrentInstance() : null;
+      let host: PluginHost | undefined;
+      const slotsPlugin = instance
+        ? slotPlugin(slots, (next) => (host = next))
+        : undefined;
+      let slotNames = instance ? slotKey(slots) : '';
+      const pluginsOf = (value: unknown): readonly ArgusPlugin[] => [
+        ...(slotsPlugin ? [slotsPlugin] : []),
+        ...((value as readonly ArgusPlugin[] | null | undefined) ?? []),
+      ];
       watchEffect(
         () => {
           const el = element.value;
           if (!el) return;
+          if (instance && !applied.has('contentRenderer')) {
+            el.contentRenderer = vueRenderer(instance);
+            applied.set('contentRenderer', true);
+          }
           for (const name of spec.props) {
             const value = values[name];
+            if (slotsPlugin && name === 'plugins') {
+              // Always set, bound or not: the slots plugin comes first.
+              if (applied.has(name) && applied.get(name) === value) continue;
+              el[name] = pluginsOf(value);
+              applied.set(name, value);
+              continue;
+            }
             const changed = applied.has(name) ? applied.get(name) !== value : value !== undefined;
             if (!changed) continue;
             el[name] = value;
@@ -98,6 +136,19 @@ export function defineWrapper(spec: WrapperSpec) {
         };
       }
       expose(exposed);
+
+      if (instance) {
+        // The parent re-rendered: slots may use new state, or be added or removed.
+        onUpdated(() => {
+          const names = slotKey(slots);
+          if (names !== slotNames) {
+            slotNames = names;
+            host?.invalidateColumns();
+          } else {
+            host?.requestUpdate();
+          }
+        });
+      }
 
       return () => h(spec.tag, { ref: element, ...listeners }, slots.default?.());
     },

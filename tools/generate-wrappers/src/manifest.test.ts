@@ -230,37 +230,42 @@ describe('emitReact', () => {
   });
 });
 
+/** The fixture with the properties that carry content: `columns`, `contentRenderer`, `header`, `cell`. */
+function contentManifest(): Manifest {
+  const defaults = manifest();
+  const [, columnModule] = defaults.modules;
+  const tableMembers = defaults.modules[0]?.declarations?.[0]?.members ?? [];
+  const column = columnModule?.declarations?.[0];
+  if (!column) throw new Error('fixture');
+  const withTable = manifest({
+    tableMembers: [
+      ...tableMembers,
+      { kind: 'field', name: 'columns', type: { text: 'readonly ColumnDef<T>[]' } },
+      { kind: 'field', name: 'contentRenderer', type: { text: 'ContentRenderer | undefined' } },
+    ],
+  });
+  return {
+    modules: [
+      ...withTable.modules.slice(0, 1),
+      {
+        declarations: [
+          {
+            ...column,
+            members: [
+              ...(column.members ?? []),
+              { kind: 'field', name: 'header', type: { text: 'CellContent' } },
+              { kind: 'field', name: 'cell', type: { text: '(row: T) => CellContent' } },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+}
+
 describe('emitReact with content', () => {
   test('types header, cell and columns for React content and wraps a table that renders it', () => {
-    const defaults = manifest();
-    const [, columnModule] = defaults.modules;
-    const tableMembers = defaults.modules[0]?.declarations?.[0]?.members ?? [];
-    const column = columnModule?.declarations?.[0];
-    if (!column) throw new Error('fixture');
-    const withTable = manifest({
-      tableMembers: [
-        ...tableMembers,
-        { kind: 'field', name: 'columns', type: { text: 'readonly ColumnDef<T>[]' } },
-        { kind: 'field', name: 'contentRenderer', type: { text: 'ContentRenderer | undefined' } },
-      ],
-    });
-    const base: Manifest = {
-      modules: [
-        ...withTable.modules.slice(0, 1),
-        {
-          declarations: [
-            {
-              ...column,
-              members: [
-                ...(column.members ?? []),
-                { kind: 'field', name: 'header', type: { text: 'CellContent' } },
-                { kind: 'field', name: 'cell', type: { text: '(row: T) => CellContent' } },
-              ],
-            },
-          ],
-        },
-      ],
-    };
+    const base = contentManifest();
     const source = emitReact([readElement(base, 'argus-table'), readElement(base, 'argus-column')]);
     expect(source).toContain(
       "import { withContent, type ReactCellContent, type ReactColumnDef } from '../content.js';",
@@ -271,6 +276,24 @@ describe('emitReact with content', () => {
     expect(source).toContain('cell?: (row: T, context: CellContext<T>) => ReactCellContent;');
     expect(source).toContain('export const ArgusTable = withContent(ownEvents(');
     expect(source).not.toContain('export const ArgusColumn = withContent(');
+  });
+});
+
+describe('emitVue with content', () => {
+  test('types content, adds cell and header slots, and marks the spec', () => {
+    const base = contentManifest();
+    const source = emitVue([readElement(base, 'argus-table'), readElement(base, 'argus-column')]);
+    expect(source).toContain(
+      "import type { HeaderSlotProps, VueCellContent, VueColumnDef } from '../content.js';",
+    );
+    expect(source).toContain('columns?: readonly VueColumnDef<T>[] | null;');
+    expect(source).not.toMatch(/'contentRenderer'|contentRenderer\?:/);
+    expect(source).toContain('export interface ArgusTableSlots<T = unknown> {');
+    expect(source).toContain(
+      '[slot: `cell-${string}`]: ((props: CellContext<T>) => VNodeChild) | undefined;',
+    );
+    expect(source).toContain('"content":true');
+    expect(source).toContain('export interface ArgusColumnSlots {');
   });
 });
 
