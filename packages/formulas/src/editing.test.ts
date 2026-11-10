@@ -42,7 +42,8 @@ async function fixture(editing: 'edit' | 'view' | 'none' = 'edit'): Promise<Argu
     columns,
     data,
     getRowId: (r: Row) => r.id,
-    plugins: [formulas<Row>({ editing }), headerMenu<Row>()],
+    // Without the pin and hide items: these tests are about the formula items.
+    plugins: [formulas<Row>({ editing }), headerMenu<Row>({ pin: false, hide: false })],
   });
   el.style.inlineSize = '900px';
   el.style.blockSize = '300px';
