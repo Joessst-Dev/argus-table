@@ -351,6 +351,16 @@ export const baseStyles = css`
       justify-content: flex-end;
       text-align: end;
     }
+    /*
+     * Wrapped text (ColumnDef.wrap). In a fixed-height row, text taller than the row
+     * starts at the top (safe) and is clipped below.
+     */
+    [part~='cell'][data-wrap] {
+      white-space: normal;
+      overflow-wrap: anywhere;
+      align-items: center;
+      align-items: safe center;
+    }
     ::slotted(*) {
       min-inline-size: 0;
       overflow: hidden;

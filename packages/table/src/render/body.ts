@@ -137,6 +137,7 @@ export function renderCell<T>(
     tabindex=${tabStop ? 0 : -1}
     data-col=${c.id}
     data-align=${c.align}
+    data-wrap=${c.wrap ? '' : nothing}
     data-pin=${c.pin ?? nothing}
     style=${cellStyle(c) ?? nothing}
   >

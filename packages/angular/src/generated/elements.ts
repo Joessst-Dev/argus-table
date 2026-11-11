@@ -424,6 +424,13 @@ export class ArgusColumnComponent<T = unknown> {
     setProperty(this.element, 'align', 'align', value);
   }
 
+  /** Wraps the cell text onto more lines instead of cutting it off. Default: `false`. With a fixed row height, text that doesn't fit is clipped. */
+  @Input() set wrap(
+    value: ArgusColumnElement<T>['wrap'] | '' | 'true' | 'false' | null | undefined,
+  ) {
+    setProperty(this.element, 'wrap', 'wrap', value);
+  }
+
   /** Whether the header can be clicked to sort. Default: `false`. */
   @Input() set sortable(
     value: ArgusColumnElement<T>['sortable'] | '' | 'true' | 'false' | null | undefined,

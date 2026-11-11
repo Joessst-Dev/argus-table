@@ -233,6 +233,7 @@ export type ArgusColumnElementProps<T = unknown> = Partial<
     | 'pinnable'
     | 'hideable'
     | 'align'
+    | 'wrap'
     | 'sortable'
     | 'resizable'
     | 'reorderable'
@@ -285,6 +286,7 @@ export const ArgusColumn = defineWrapper({
     'pinnable',
     'hideable',
     'align',
+    'wrap',
     'sortable',
     'resizable',
     'reorderable',
@@ -292,7 +294,7 @@ export const ArgusColumn = defineWrapper({
     'filterFn',
     'filterOptions',
   ],
-  booleans: ['pinnable', 'hideable', 'sortable', 'resizable', 'reorderable'],
+  booleans: ['pinnable', 'hideable', 'wrap', 'sortable', 'resizable', 'reorderable'],
   events: [],
   methods: [],
 }) as unknown as <T = unknown>(

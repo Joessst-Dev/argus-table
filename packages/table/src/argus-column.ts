@@ -128,6 +128,13 @@ export class ArgusColumn<T = unknown> extends ReactiveElement {
   @property()
   align?: ColumnAlign;
 
+  /**
+   * Wraps the cell text onto more lines instead of cutting it off. Default:
+   * `false`. With a fixed row height, text that doesn't fit is clipped.
+   */
+  @property({ converter: flagConverter })
+  wrap?: boolean;
+
   /** Whether the header can be clicked to sort. Default: `false`. */
   @property({ converter: flagConverter })
   sortable?: boolean;
@@ -214,6 +221,7 @@ export class ArgusColumn<T = unknown> extends ReactiveElement {
       pinnable: this.pinnable,
       hideable: this.hideable,
       align: this.align,
+      wrap: this.wrap,
       sortable: this.sortable,
       resizable: this.resizable,
       reorderable: this.reorderable,
