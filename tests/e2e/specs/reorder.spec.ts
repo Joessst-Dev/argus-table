@@ -1,18 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
-import { focused, open, settle } from './helpers.js';
+import { focused, headerOrder, open, settle } from './helpers.js';
 
 const header = (page: Page, id: string) =>
   page.locator(`argus-table [role="columnheader"][data-col="${id}"]`);
-
-/** Column ids in the order the headers show, by aria-colindex. */
-async function order(page: Page): Promise<string[]> {
-  return page.evaluate(() => {
-    const root = document.querySelector('argus-table')?.shadowRoot;
-    return [...(root?.querySelectorAll<HTMLElement>('[role="columnheader"]') ?? [])]
-      .sort((a, b) => Number(a.ariaColIndex) - Number(b.ariaColIndex))
-      .map((h) => h.dataset.col ?? '');
-  });
-}
 
 async function center(page: Page, id: string): Promise<{ x: number; y: number }> {
   const box = await header(page, id).boundingBox();
@@ -37,7 +27,7 @@ async function drag(page: Page, id: string, x: number, release = true): Promise<
 test.describe('column reordering', () => {
   test('dragging a header moves the column and its cells, without sorting', async ({ page }) => {
     await open(page, { rows: 200, cols: 8 });
-    expect(await order(page)).toEqual([
+    expect(await headerOrder(page)).toEqual([
       'index',
       'name',
       'email',
@@ -49,7 +39,7 @@ test.describe('column reordering', () => {
     ]);
     // Past the middle of Status: City lands between Status and Amount.
     await drag(page, 'city', (await center(page, 'status')).x + 10);
-    expect(await order(page)).toEqual([
+    expect(await headerOrder(page)).toEqual([
       'index',
       'name',
       'email',
@@ -84,7 +74,7 @@ test.describe('column reordering', () => {
     await page.mouse.up();
     await settle(page);
     await expect(page.locator('argus-table [part="drop-indicator"]')).toHaveCount(0);
-    expect((await order(page)).slice(2, 7)).toEqual([
+    expect((await headerOrder(page)).slice(2, 7)).toEqual([
       'email',
       'city',
       'country',
@@ -98,10 +88,10 @@ test.describe('column reordering', () => {
     await open(page, { rows: 200, cols: 8 });
     // A scrolling column dropped over the pinned ones becomes the first scrolling column.
     await drag(page, 'country', (await center(page, 'index')).x);
-    expect((await order(page)).slice(0, 4)).toEqual(['index', 'name', 'country', 'email']);
+    expect((await headerOrder(page)).slice(0, 4)).toEqual(['index', 'name', 'country', 'email']);
     // Pinned columns reorder among themselves.
     await drag(page, 'name', (await center(page, 'index')).x - 20);
-    expect((await order(page)).slice(0, 3)).toEqual(['name', 'index', 'country']);
+    expect((await headerOrder(page)).slice(0, 3)).toEqual(['name', 'index', 'country']);
     // The sticky offsets follow: Index now sits right after Name.
     const name = await header(page, 'name').boundingBox();
     const index = await header(page, 'index').boundingBox();
@@ -125,7 +115,7 @@ test.describe('column reordering', () => {
     await expect.poll(scrolled).toBeGreaterThan(300);
     await page.mouse.up();
     await settle(page);
-    const after = await order(page);
+    const after = await headerOrder(page);
     expect(after.indexOf('email')).toBeGreaterThan(6);
     expect(after.at(-1)).toBe('actions');
   });
@@ -136,7 +126,7 @@ test.describe('column reordering', () => {
     await page.keyboard.press('Alt+Shift+ArrowRight');
     await page.keyboard.press('Alt+Shift+ArrowRight');
     await settle(page);
-    expect((await order(page)).slice(2, 5)).toEqual(['city', 'country', 'email']);
+    expect((await headerOrder(page)).slice(2, 5)).toEqual(['city', 'country', 'email']);
     expect(await focused(page)).toEqual({ role: 'columnheader', col: 'email', rowIndex: 1 });
     // The live region tells screen readers where it went.
     await expect(page.locator('[data-argus-announcer]')).toHaveText('Email moved to column 5 of 8');
@@ -149,7 +139,7 @@ test.describe('column reordering', () => {
     await open(page, { rows: 200, cols: 8, dir: 'rtl' });
     // In RTL, Status is left of Country; dropping past its middle puts Email after it.
     await drag(page, 'email', (await center(page, 'status')).x - 10);
-    expect((await order(page)).slice(2, 7)).toEqual([
+    expect((await headerOrder(page)).slice(2, 7)).toEqual([
       'city',
       'country',
       'status',
@@ -159,7 +149,7 @@ test.describe('column reordering', () => {
     await header(page, 'email').focus();
     await page.keyboard.press('Alt+Shift+ArrowRight');
     await settle(page);
-    expect((await order(page)).slice(2, 7)).toEqual([
+    expect((await headerOrder(page)).slice(2, 7)).toEqual([
       'city',
       'country',
       'email',

@@ -3,7 +3,7 @@ import { DIV0, isFormulaError, NUM, type FormulaError } from '../errors.js';
 import type { FunctionDef, FunctionTable } from './types.js';
 
 /** A function of numbers: each argument goes through `toNumber` first. */
-export function numeric(
+function numeric(
   min: number,
   max: number,
   fn: (...n: number[]) => number | FormulaError,

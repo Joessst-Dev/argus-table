@@ -485,7 +485,6 @@ export function createTableModel<TData, TContent>(
     colIndex: number,
     offset: number,
     pinEdge: boolean,
-    width: number,
   ): ColumnView<TData, TContent> => {
     const sort = options.sorting.find((s) => s.id === def.id);
     const pin = pinOf(def);
@@ -498,7 +497,7 @@ export function createTableModel<TData, TContent>(
       offset,
       pinEdge,
       hidden: colIndex === 0,
-      width,
+      width: widthOf(def.id),
       flex: pin === undefined && !resized ? def.flex : undefined,
       auto: def.auto && !resized,
       minWidth: def.minWidth,
@@ -540,23 +539,22 @@ export function createTableModel<TData, TContent>(
     // scrolling ones within the scrolling area, end columns from the end edge.
     let x = lead * SELECTION_COLUMN_WIDTH;
     const list = start.map((def, i) => {
-      const width = widthOf(def.id);
-      const v = view(def, lead + i + 1, x, i === start.length - 1, width);
-      x += width;
+      const v = view(def, lead + i + 1, x, i === start.length - 1);
+      x += v.width;
       return v;
     });
     x = 0;
     for (const [i, def] of center.entries()) {
-      const width = widthOf(def.id);
-      list.push(view(def, lead + start.length + i + 1, x, false, width));
-      x += width;
+      const v = view(def, lead + start.length + i + 1, x, false);
+      list.push(v);
+      x += v.width;
     }
     const ends: ColumnView<TData, TContent>[] = [];
     x = 0;
     for (const [i, def] of [...end.entries()].reverse()) {
-      const width = widthOf(def.id);
-      ends.unshift(view(def, lead + start.length + center.length + i + 1, x, i === 0, width));
-      x += width;
+      const v = view(def, lead + start.length + center.length + i + 1, x, i === 0);
+      ends.unshift(v);
+      x += v.width;
     }
     list.push(...ends);
     if (lead) list.unshift(selectionView(start.length === 0));
@@ -570,7 +568,7 @@ export function createTableModel<TData, TContent>(
       const shownView = byShownId.get(id);
       if (shownView) return [shownView];
       const def = byId.get(id);
-      return def ? [view(def, 0, 0, false, widthOf(id))] : [];
+      return def ? [view(def, 0, 0, false)] : [];
     });
   };
 
@@ -588,24 +586,21 @@ export function createTableModel<TData, TContent>(
         byId = new Map(resolved.map((c) => [c.id, c]));
         tanStackById = new Map(resolved.map((c) => [c.id, toTanStack(c)]));
       }
+      const columnsChanged = merged.columns !== options.columns;
       const pinningChanged = merged.columnPinning !== options.columnPinning;
       if (
-        merged.columns !== options.columns ||
+        columnsChanged ||
         merged.columnSizing !== options.columnSizing ||
         merged.autoWidths !== options.autoWidths ||
         pinningChanged
       ) {
         sizing = undefined;
       }
-      if (
-        merged.columns !== options.columns ||
-        merged.columnOrder !== options.columnOrder ||
-        pinningChanged
-      ) {
+      if (columnsChanged || merged.columnOrder !== options.columnOrder || pinningChanged) {
         order = undefined;
       }
       const refilter =
-        merged.columns !== options.columns ||
+        columnsChanged ||
         merged.columnFilters !== options.columnFilters ||
         merged.quickFilter !== options.quickFilter ||
         merged.columnVisibility !== options.columnVisibility ||

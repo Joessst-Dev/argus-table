@@ -2,7 +2,15 @@
 // element, on the element's own tag, with `@Input()` setters that write to the
 // element, an `@Output()` per event and a `…Change` output per two-way property.
 import type { ElementInfo, ElementProperty } from './manifest.ts';
-import { doc, eventTypes, header } from './source.ts';
+import {
+  argusTypes,
+  contentType,
+  doc,
+  header,
+  rendersContent,
+  usesContentTypes,
+  type ContentTypes,
+} from './source.ts';
 
 /**
  * The strings an input also takes because the element reads them from its
@@ -28,21 +36,12 @@ const pascal = (camel: string) => camel.charAt(0).toUpperCase() + camel.slice(1)
  * `contentRenderer`, which the component sets itself and leaves out of the inputs.
  * Types from `content.ts`.
  */
-const CONTENT_INPUTS: Readonly<Record<string, string | null>> = {
+const CONTENT_INPUTS: ContentTypes = {
   columns: 'readonly AngularColumnDef<T>[]',
   header: 'AngularCellContent | (() => AngularCellContent)',
   cell: '(row: T, context: CellContext<T>) => AngularCellContent',
   contentRenderer: null,
 };
-
-/** A content input's type; the row type is `unknown` for an element that isn't generic. */
-function typeFor(property: string, generic: boolean): string {
-  const type = CONTENT_INPUTS[property] ?? 'unknown';
-  return generic ? type : type.replace(/\bT\b/g, 'unknown');
-}
-
-/** Whether an element renders content: its component then extends `ArgusTableBase`. */
-const rendersContent = (el: ElementInfo) => el.properties.some((p) => p.name === 'contentRenderer');
 
 function component(el: ElementInfo): string {
   const name = `${el.className}Component`;
@@ -58,7 +57,7 @@ function component(el: ElementInfo): string {
       const attribute = p.attribute === undefined ? 'undefined' : `'${p.attribute}'`;
       const type =
         typeof CONTENT_INPUTS[p.name] === 'string'
-          ? `(${typeFor(p.name, el.generic)})`
+          ? `(${contentType(CONTENT_INPUTS, p.name, el.generic)})`
           : `${element}${ta}['${p.name}']${attributeStrings(p)}`;
       // The base puts its template plugin before the user's plugins.
       const body =
@@ -142,13 +141,8 @@ ${handlers.join('\n')}
 /** The whole generated module, unformatted. */
 export function emitAngular(elements: readonly ElementInfo[]): string {
   const classes = elements.map((el) => `${el.className} as ${el.className}Element`);
-  const usesContent = elements.some((el) =>
-    el.properties.some((p) => typeof CONTENT_INPUTS[p.name] === 'string'),
-  );
-  const named = eventTypes(elements);
-  if (usesContent && !named.includes('CellContext')) named.push('CellContext');
-  named.sort();
-  const types = [...classes, ...named].join(', ');
+  const usesContent = usesContentTypes(elements, CONTENT_INPUTS);
+  const types = [...classes, ...argusTypes(elements, usesContent)].join(', ');
   const contentNames = [
     ...(elements.some(rendersContent) ? ['ArgusTableBase'] : []),
     ...(usesContent ? ['type AngularCellContent', 'type AngularColumnDef'] : []),

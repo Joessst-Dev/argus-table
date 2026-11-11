@@ -24,11 +24,6 @@ export class RowSizes {
     return this.#count;
   }
 
-  /** The height of a row not measured, in px. */
-  get estimate(): number {
-    return this.#estimate;
-  }
-
   /** The height of all rows. */
   get total(): number {
     return this.#count * this.#estimate + this.#sum;

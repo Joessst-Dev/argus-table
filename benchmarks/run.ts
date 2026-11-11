@@ -137,9 +137,18 @@ function stats(raw: Raw, scenario: Scenario, longTasksSupported: boolean): Scrol
   };
 }
 
+/** The median of a numeric field over the runs, leaving out runs without it. */
+function medianAt<T>(runs: readonly T[], k: keyof T): number | null {
+  return medianOf(
+    runs.map((r) => {
+      const v = r[k];
+      return typeof v === 'number' ? v : null;
+    }),
+  );
+}
+
 function medianStats(runs: ScrollStats[]): ScrollStats {
-  const pick = (k: keyof ScrollStats): number | null =>
-    medianOf(runs.map((r) => (typeof r[k] === 'number' ? r[k] : null)));
+  const pick = (k: keyof ScrollStats) => medianAt(runs, k);
   return {
     frames: pick('frames') ?? 0,
     p50: pick('p50') ?? 0,
@@ -162,8 +171,7 @@ function medianStats(runs: ScrollStats[]): ScrollStats {
 }
 
 function medianPageStats(runs: PageStats[]): PageStats {
-  const pick = (k: keyof PageStats): number | null =>
-    medianOf(runs.map((r) => (typeof r[k] === 'number' ? r[k] : null)));
+  const pick = (k: keyof PageStats) => medianAt(runs, k);
   return {
     dataMs: pick('dataMs') ?? 0,
     loadMs: pick('loadMs') ?? 0,
@@ -196,7 +204,12 @@ interface Bench {
   stop(): Raw;
   reset(): Promise<void>;
 }
-type BenchWindow = Window & { __argusBench: Bench };
+declare global {
+  interface Window {
+    /** The playground's hooks with `?bench` (apps/playground/src/bench-hooks.ts). */
+    __argusBench: Bench;
+  }
+}
 
 /** Opens the playground with the data generated and the table not mounted yet. */
 async function open(
@@ -207,14 +220,11 @@ async function open(
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   await page.goto(`${url}/?dir=${dir}&bench&rows=${String(rows)}${variant ? `&${variant}` : ''}`);
   await page.waitForFunction(() => '__argusBench' in window, null, { timeout: 120_000 });
-  const { dataMs } = await page.evaluate(
-    () => (window as unknown as BenchWindow).__argusBench.ready,
-  );
+  const { dataMs } = await page.evaluate(() => window.__argusBench.ready);
   return { page, dataMs };
 }
 
-const mount = (page: Page) =>
-  page.evaluate(() => (window as unknown as BenchWindow).__argusBench.mount());
+const mount = (page: Page) => page.evaluate(() => window.__argusBench.mount());
 
 interface Memory {
   heapMB: number;
@@ -238,30 +248,22 @@ async function memoryProbe(page: Page, name: BrowserName): Promise<() => Promise
 }
 
 async function runScenarios(page: Page, name: BrowserName): Promise<Record<Scenario, Raw | null>> {
-  const steady = await page.evaluate(() =>
-    (window as unknown as BenchWindow).__argusBench.steady(10_000, 60),
-  );
-  const fast = await page.evaluate(() =>
-    (window as unknown as BenchWindow).__argusBench.steady(10_000, 240),
-  );
-  const jumps = await page.evaluate(() =>
-    (window as unknown as BenchWindow).__argusBench.jumps(20, 500),
-  );
-  const horizontal = await page.evaluate(() =>
-    (window as unknown as BenchWindow).__argusBench.horizontal(5_000, 60),
-  );
+  const steady = await page.evaluate(() => window.__argusBench.steady(10_000, 60));
+  const fast = await page.evaluate(() => window.__argusBench.steady(10_000, 240));
+  const jumps = await page.evaluate(() => window.__argusBench.jumps(20, 500));
+  const horizontal = await page.evaluate(() => window.__argusBench.horizontal(5_000, 60));
   let wheel: Raw | null = null;
   if (name === 'chromium') {
-    await page.evaluate(() => (window as unknown as BenchWindow).__argusBench.reset());
+    await page.evaluate(() => window.__argusBench.reset());
     await page.mouse.move(640, 400);
     await page.evaluate(() => {
-      (window as unknown as BenchWindow).__argusBench.start();
+      window.__argusBench.start();
     });
     for (let i = 0; i < 150; i++) {
       await page.mouse.wheel(0, 240);
       await page.waitForTimeout(16);
     }
-    wheel = await page.evaluate(() => (window as unknown as BenchWindow).__argusBench.stop());
+    wheel = await page.evaluate(() => window.__argusBench.stop());
   }
   return { steady, fast, jumps, horizontal, wheel };
 }
@@ -280,13 +282,11 @@ async function measure(
     PerformanceObserver.supportedEntryTypes.includes('longtask'),
   );
   const scroll = await runScenarios(page, name);
-  const end = await page.evaluate(() => (window as unknown as BenchWindow).__argusBench.reachEnd());
+  const end = await page.evaluate(() => window.__argusBench.reachEnd());
   // Before sorting: a sorted row model is a legitimate new allocation, not growth.
   const scrolled = await sample();
   const sortMs = await withTimeout(
-    page
-      .evaluate(() => (window as unknown as BenchWindow).__argusBench.sort())
-      .then((r) => r.sortMs),
+    page.evaluate(() => window.__argusBench.sort()).then((r) => r.sortMs),
     SORT_TIMEOUT,
   );
   return {

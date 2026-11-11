@@ -122,14 +122,10 @@ export function parse(source: string): FormulaNode {
     next(); // (
     const args: FormulaNode[] = [];
     if (peek().kind !== 'close') {
-      for (;;) {
+      args.push(expression(0));
+      while (peek().kind === 'comma') {
+        next();
         args.push(expression(0));
-        const token = peek();
-        if (token.kind === 'comma') {
-          next();
-          continue;
-        }
-        break;
       }
     }
     const close = next();

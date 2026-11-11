@@ -13,12 +13,11 @@ export function scrollVerdict(s: ScrollStats, gate: Meta['gate']): 'pass' | 'FAI
 export const pageVerdict = (s: PageStats): 'pass' | 'FAIL' => (s.reachable ? 'pass' : 'FAIL');
 
 const n = (value: number | null): string => (value === null ? 'n/a' : String(value));
-const rows = (count: number): string =>
-  count >= 1_000_000 && count % 1_000_000 === 0
-    ? `${String(count / 1_000_000)}M`
-    : count >= 1000 && count % 1000 === 0
-      ? `${String(count / 1000)}k`
-      : String(count);
+function rows(count: number): string {
+  if (count >= 1_000_000 && count % 1_000_000 === 0) return `${String(count / 1_000_000)}M`;
+  if (count >= 1000 && count % 1000 === 0) return `${String(count / 1000)}k`;
+  return String(count);
+}
 
 export function toMarkdown({ meta, results, pages }: Results): string {
   const withVariant = meta.variants.length > 0;

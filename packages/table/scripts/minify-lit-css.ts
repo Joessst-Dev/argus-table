@@ -1,7 +1,8 @@
 // Vite plugin: minifies the CSS inside Lit `css` template literals in
 // src/styles/ with Lightning CSS. Lit ships those strings as written, comments
 // and indentation included, and the JS minifier leaves template literals alone.
-// Styles must not interpolate (`${…}`): the build fails if one does.
+// Styles must not interpolate (`${…}`) or use backslash escapes: the build
+// fails if one does.
 import { transform } from 'lightningcss';
 import type { Plugin } from 'vite';
 

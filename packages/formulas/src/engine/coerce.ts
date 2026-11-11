@@ -35,7 +35,7 @@ export function toNumber(value: unknown): number | FormulaError {
 const pad = (n: number, width = 2) => String(n).padStart(width, '0');
 
 /** `2024-03-09`, with ` 14:05:00` after it unless the time is midnight. */
-export function formatDate(date: Date): string {
+function formatDate(date: Date): string {
   const day = `${String(date.getFullYear())}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
   const h = date.getHours();
   const m = date.getMinutes();

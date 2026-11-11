@@ -8,8 +8,6 @@ export const DEFAULT_MIN_WIDTH = 40;
 /** A column after defaults, bounds and the accessor have been resolved. */
 export interface ResolvedColumn<TData, TContent> {
   id: string;
-  /** Position in the `columns` array. */
-  index: number;
   header: ColumnDef<TData, TContent>['header'];
   cell: ColumnDef<TData, TContent>['cell'];
   /** Reads the cell value; returns `undefined` when the column has no accessor. */
@@ -119,7 +117,6 @@ export function resolveColumns<TData, TContent>(
 
     return {
       id: def.id,
-      index,
       header: def.header,
       cell: def.cell,
       getValue,

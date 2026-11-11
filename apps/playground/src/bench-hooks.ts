@@ -85,14 +85,14 @@ export function installBenchHooks(table: ArgusTable<Person>, info: { dataMs: num
     const viewBottom = box.top + el.clientHeight - side('bottom');
     let top = Infinity;
     let bottom = -Infinity;
-    let last = false;
+    let showsLastRow = false;
     for (const row of rendered) {
       const rect = row.getBoundingClientRect();
       top = Math.min(top, rect.top);
       bottom = Math.max(bottom, rect.bottom);
-      if (bodyIndex(table, row) === table.data.length - 1) last = true;
+      if (bodyIndex(table, row) === table.data.length - 1) showsLastRow = true;
     }
-    return top > viewTop + 1 || (bottom < viewBottom - 1 && !last);
+    return top > viewTop + 1 || (bottom < viewBottom - 1 && !showsLastRow);
   };
 
   const tick = (now: number) => {

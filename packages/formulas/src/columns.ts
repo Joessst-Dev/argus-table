@@ -135,6 +135,17 @@ export function lookupOf<T>(
     byId.get(name) ?? byHeader.get(name.toLowerCase()) ?? byIdCase.get(name.toLowerCase());
 }
 
+/** The formula columns a formula names, by id: its edges in the dependency graph. */
+export function formulaRefs<T>(
+  tree: FormulaNode,
+  lookup: (name: string) => ColumnDef<T> | undefined,
+): string[] {
+  return refsOf(tree).flatMap((name) => {
+    const target = lookup(name);
+    return target?.formula !== undefined ? [target.id] : [];
+  });
+}
+
 /** Parses a formula, keeping the error instead of throwing it. */
 export function parseOrError(formula: string): FormulaNode | FormulaSyntaxError {
   try {
@@ -170,14 +181,7 @@ export function compileColumns<T>(
     if (def.formula === undefined) continue;
     const tree = options.parse(def.formula);
     trees.set(def.id, tree);
-    const names = tree instanceof FormulaSyntaxError ? [] : refsOf(tree);
-    uses.set(
-      def.id,
-      names.flatMap((name) => {
-        const target = lookup(name);
-        return target?.formula !== undefined ? [target.id] : [];
-      }),
-    );
+    uses.set(def.id, tree instanceof FormulaSyntaxError ? [] : formulaRefs(tree, lookup));
   }
 
   const { order, cyclic } = analyze(uses);
@@ -214,11 +218,7 @@ export function compileColumns<T>(
     // `order` puts dependencies first) or a data column's accessor.
     const inputs = refsOf(tree).flatMap((name) => {
       const target = lookup(name);
-      const source = target
-        ? target.formula !== undefined
-          ? next.get(target.id)
-          : target.accessor
-        : undefined;
+      const source = target?.formula !== undefined ? next.get(target.id) : target?.accessor;
       return [name, target?.id, source];
     });
     const kept = reuse(id, formula, inputs);

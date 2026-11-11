@@ -11,7 +11,8 @@ import { column_getCanSort, column_getSortFn } from '@tanstack/table-core/static
 type Sorting = readonly { id: string; desc: boolean }[];
 
 // Bumped per table when a column reads its values differently (same id, new
-// accessor): the rows and the sorting are the same, the sorted order is not.
+// accessor): the rows, the filters and the sorting are the same, but which rows
+// pass and their order may not be.
 const valueVersions = new WeakMap<object, number>();
 
 /** Makes the filtered and sorted row models of `table` filter and sort again on their next read. */

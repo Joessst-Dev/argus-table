@@ -3,7 +3,15 @@
 // generic `<script setup>` component, so templates check props, events,
 // `v-model` and exposed methods against the row type.
 import type { ElementInfo } from './manifest.ts';
-import { doc, eventTypes, header } from './source.ts';
+import {
+  argusTypes,
+  contentType,
+  doc,
+  header,
+  rendersContent,
+  usesContentTypes,
+  type ContentTypes,
+} from './source.ts';
 
 const isBoolean = (type: string) => /^boolean(\s*\|\s*undefined)?$/.test(type);
 
@@ -14,21 +22,12 @@ const handlerProp = (emit: string) => `'on${emit.charAt(0).toUpperCase()}${emit.
  * Properties typed for Vue content (VNodes in `header` and `cell`), and `contentRenderer`,
  * which the wrapper sets itself and leaves out of the props. Types from `content.ts`.
  */
-const CONTENT_PROPS: Readonly<Record<string, string | null>> = {
+const CONTENT_PROPS: ContentTypes = {
   columns: 'readonly VueColumnDef<T>[] | null',
   header: 'VueCellContent | (() => VueCellContent)',
   cell: '(row: T, context: CellContext<T>) => VueCellContent',
   contentRenderer: null,
 };
-
-/** A content property's type; the row type is `unknown` for an element that isn't generic. */
-function typeFor(property: string, generic: boolean): string {
-  const type = CONTENT_PROPS[property] ?? 'unknown';
-  return generic ? type : type.replace(/\bT\b/g, 'unknown');
-}
-
-/** Whether an element renders content: the wrapper then renders VNodes and slots into it. */
-const rendersContent = (el: ElementInfo) => el.properties.some((p) => p.name === 'contentRenderer');
 
 function component(el: ElementInfo): string {
   const name = el.className;
@@ -41,7 +40,7 @@ function component(el: ElementInfo): string {
   const typed = el.properties.filter((p) => typeof CONTENT_PROPS[p.name] === 'string');
   const keys = plain.map((p) => `'${p.name}'`).join(' | ');
   const contentProps = typed.length
-    ? ` & {\n${typed.map((p) => `  ${p.name}?: ${typeFor(p.name, el.generic)};`).join('\n')}\n}`
+    ? ` & {\n${typed.map((p) => `  ${p.name}?: ${contentType(CONTENT_PROPS, p.name, el.generic)};`).join('\n')}\n}`
     : '';
   const slotTp = content ? tp : '';
   const slotTa = content ? ta : '';
@@ -158,13 +157,8 @@ export const ${name} = defineWrapper(${JSON.stringify(spec)}) as unknown as ${tp
 /** The whole generated module, unformatted. */
 export function emitVue(elements: readonly ElementInfo[]): string {
   const classes = elements.map((el) => `${el.className} as ${el.className}Element`);
-  const usesContent = elements.some((el) =>
-    el.properties.some((p) => typeof CONTENT_PROPS[p.name] === 'string'),
-  );
-  const named = eventTypes(elements);
-  if (usesContent && !named.includes('CellContext')) named.push('CellContext');
-  named.sort();
-  const types = [...classes, ...named].join(', ');
+  const usesContent = usesContentTypes(elements, CONTENT_PROPS);
+  const types = [...classes, ...argusTypes(elements, usesContent)].join(', ');
   const vue = usesContent ? 'PublicProps, VNode, VNodeChild' : 'PublicProps, VNode';
   const contentTypes = [
     ...(elements.some(rendersContent) ? ['HeaderSlotProps'] : []),

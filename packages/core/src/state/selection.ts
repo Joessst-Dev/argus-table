@@ -63,8 +63,8 @@ export function selectRange(
 ): SelectionState {
   const ids: string[] = add ? [...current] : [];
   const have = new Set(ids);
-  const step = to >= from ? 1 : -1;
-  const [first, last] = step === 1 ? [from, to] : [to, from];
+  const first = Math.min(from, to);
+  const last = Math.max(from, to);
   for (let index = first; index <= last; index++) {
     const id = idAt(index);
     if (id === undefined || have.has(id)) continue;
@@ -95,7 +95,7 @@ export function clickSelection(
   current: readonly string[],
   mode: SelectionMode,
   target: SelectionTarget,
-  anchor: { id: string; index: number } | undefined,
+  anchor: SelectionTarget | undefined,
   modifiers: SelectionModifiers,
   idAt: (index: number) => string | undefined,
 ): SelectionStep | undefined {

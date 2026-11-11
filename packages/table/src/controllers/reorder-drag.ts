@@ -36,16 +36,14 @@ export function dropTarget(
   if (!dragged || !last) return undefined;
   // The gap before the first header whose middle is past the pointer, in reading order.
   const at = slots.find((s) => (x - (s.rect.left + s.rect.right) / 2) * direction < 0);
+  if (!at) {
+    // Past the last header: after it.
+    const to = last.index >= dragged.index ? last.index : last.index + 1;
+    return to === dragged.index ? undefined : { to, columnId: last.id, edge: 'end' };
+  }
   // Taking the column out shifts the ones after it one place back.
-  const to = at
-    ? at.index > dragged.index
-      ? at.index - 1
-      : at.index
-    : last.index >= dragged.index
-      ? last.index
-      : last.index + 1;
-  if (to === dragged.index) return undefined;
-  return at ? { to, columnId: at.id, edge: 'start' } : { to, columnId: last.id, edge: 'end' };
+  const to = at.index > dragged.index ? at.index - 1 : at.index;
+  return to === dragged.index ? undefined : { to, columnId: at.id, edge: 'start' };
 }
 
 export interface ReorderDragOptions {

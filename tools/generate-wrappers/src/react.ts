@@ -1,27 +1,26 @@
 // Emits @argus-table/react's element bindings: one @lit/react component per
 // element, with props typed from the element class and one `on*` prop per event.
 import type { ElementInfo } from './manifest.ts';
-import { doc, eventTypes, header } from './source.ts';
+import {
+  argusTypes,
+  contentType,
+  doc,
+  header,
+  rendersContent,
+  usesContentTypes,
+  type ContentTypes,
+} from './source.ts';
 
 /**
  * Properties typed for React content (JSX in `header` and `cell`), and `contentRenderer`,
  * which the wrapper sets itself and leaves out of the props. Types from `content.tsx`.
  */
-const CONTENT_PROPS: Readonly<Record<string, string | null>> = {
+const CONTENT_PROPS: ContentTypes = {
   columns: 'readonly ReactColumnDef<T>[] | null',
   header: 'ReactCellContent | (() => ReactCellContent)',
   cell: '(row: T, context: CellContext<T>) => ReactCellContent',
   contentRenderer: null,
 };
-
-/** A content property's type; the row type is `unknown` for an element that isn't generic. */
-function typeFor(property: string, generic: boolean): string {
-  const type = CONTENT_PROPS[property] ?? 'unknown';
-  return generic ? type : type.replace(/\bT\b/g, 'unknown');
-}
-
-/** Whether an element renders content: the wrapper then gives it a React content renderer. */
-const rendersContent = (el: ElementInfo) => el.properties.some((p) => p.name === 'contentRenderer');
 
 function component(el: ElementInfo): string {
   const name = el.className;
@@ -32,7 +31,7 @@ function component(el: ElementInfo): string {
   const typed = el.properties.filter((p) => typeof CONTENT_PROPS[p.name] === 'string');
   const keys = plain.map((p) => `'${p.name}'`).join(' | ');
   const contentProps = typed.length
-    ? ` & {\n${typed.map((p) => `  ${p.name}?: ${typeFor(p.name, el.generic)};`).join('\n')}\n}`
+    ? ` & {\n${typed.map((p) => `  ${p.name}?: ${contentType(CONTENT_PROPS, p.name, el.generic)};`).join('\n')}\n}`
     : '';
   const handlers = el.events
     .map(
@@ -93,12 +92,8 @@ export const ${name} = ${base} as unknown as ${el.generic ? '<T = unknown>' : ''
 /** The whole generated module, unformatted. */
 export function emitReact(elements: readonly ElementInfo[]): string {
   const classes = elements.map((el) => `${el.className} as ${el.className}Element`).join(', ');
-  const types = eventTypes(elements);
-  const content = elements.some((el) =>
-    el.properties.some((p) => typeof CONTENT_PROPS[p.name] === 'string'),
-  );
-  if (content && !types.includes('CellContext')) types.push('CellContext');
-  types.sort();
+  const content = usesContentTypes(elements, CONTENT_PROPS);
+  const types = argusTypes(elements, content);
   const typeImport = types.length
     ? `import type { ${types.join(', ')} } from 'argus-table';\n`
     : '';

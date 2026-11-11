@@ -103,9 +103,9 @@ const ICON = html`<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
 
 /**
  * A column menu for `<argus-table>`: a button in each header opens a menu to
- * sort the column ascending or descending, clear its sort, pin it to a side or
- * unpin it, fit its width to its content, hide it, and show hidden columns
- * again. Items that don't apply to a column are left out.
+ * sort the column ascending or descending, clear its sort, filter it or clear
+ * its filter, pin it to a side or unpin it, fit its width to its content, hide
+ * it, and show hidden columns again. Items that don't apply to a column are left out.
  *
  * ```ts
  * import { headerMenu } from '@argus-table/header-menu';
@@ -293,6 +293,36 @@ function header<T>(state: TableState<T>, def: ColumnDef<T>, labelId: string): Ce
   >`;
 }
 
+interface MenuItemOptions {
+  /** A radio item (`menuitemradio`): whether it is checked. */
+  checked?: boolean;
+  /** The group it belongs to (`data-group`): the menu opens on the checked item of `sort`. */
+  group?: string;
+  /** It opens a dialog (`aria-haspopup`). */
+  dialog?: boolean;
+  danger?: boolean;
+}
+
+/** One item of the menu: a button that runs `run` on a click (or Enter). */
+function menuItem(
+  label: string | TemplateResult,
+  run: () => void,
+  { checked, group, dialog = false, danger = false }: MenuItemOptions = {},
+): TemplateResult {
+  return html`<button
+    class=${danger ? 'argus-header-menu-item argus-header-menu-item-danger' : 'argus-header-menu-item'}
+    type="button"
+    role=${checked === undefined ? 'menuitem' : 'menuitemradio'}
+    tabindex="-1"
+    data-group=${group ?? nothing}
+    aria-checked=${checked === undefined ? nothing : String(checked)}
+    aria-haspopup=${dialog ? 'dialog' : nothing}
+    @click=${run}
+  >
+    ${label}
+  </button>`;
+}
+
 function menu<T>(
   state: TableState<T>,
   column: ColumnInfo,
@@ -301,106 +331,65 @@ function menu<T>(
 ): TemplateResult {
   const { id } = column;
   const sortItems = column.sortable
-    ? SORT_ITEMS.map(
-        (item) =>
-          html`<button
-            class="argus-header-menu-item"
-            type="button"
-            role="menuitemradio"
-            tabindex="-1"
-            data-group="sort"
-            aria-checked=${(column.sorted ?? null) === item.direction ? 'true' : 'false'}
-            @click=${() => {
-              close(state, id);
-              state.host.setSort(id, item.direction);
-            }}
-          >
-            ${item.label}
-          </button>`,
+    ? SORT_ITEMS.map((item) =>
+        menuItem(
+          item.label,
+          () => {
+            close(state, id);
+            state.host.setSort(id, item.direction);
+          },
+          { checked: (column.sorted ?? null) === item.direction, group: 'sort' },
+        ),
       )
-    : [];
+    : undefined;
   const pinItems = canPin(state, column)
-    ? PIN_ITEMS.map(
-        (item) =>
-          html`<button
-            class="argus-header-menu-item"
-            type="button"
-            role="menuitemradio"
-            tabindex="-1"
-            aria-checked=${(column.pin ?? false) === item.pin ? 'true' : 'false'}
-            @click=${() => {
-              close(state, id);
-              if ((column.pin ?? false) === item.pin) return;
-              state.host.setPin?.(id, item.pin);
-              state.host.announce(`${labelOf(state, id)} ${item.done}`);
-            }}
-          >
-            ${item.label}
-          </button>`,
+    ? PIN_ITEMS.map((item) =>
+        menuItem(
+          item.label,
+          () => {
+            close(state, id);
+            if ((column.pin ?? false) === item.pin) return;
+            state.host.setPin?.(id, item.pin);
+            state.host.announce(`${labelOf(state, id)} ${item.done}`);
+          },
+          { checked: (column.pin ?? false) === item.pin },
+        ),
       )
     : undefined;
   const filterItems = canFilter(state, column)
-    ? html`<button
-          class="argus-header-menu-item"
-          type="button"
-          role="menuitem"
-          tabindex="-1"
-          aria-haspopup="dialog"
-          @click=${() => {
+    ? [
+        menuItem(
+          'Filter…',
+          () => {
             close(state, undefined);
             void openFilter(state, id);
-          }}
-        >
-          Filter…</button
-        >${
-          column.filterValue
-            ? html`<button
-                class="argus-header-menu-item"
-                type="button"
-                role="menuitem"
-                tabindex="-1"
-                @click=${() => {
-                  close(state, id);
-                  clearFilter(state, id);
-                }}
-              >
-                Clear filter
-              </button>`
-            : nothing
-        }`
+          },
+          { dialog: true },
+        ),
+        column.filterValue
+          ? menuItem('Clear filter', () => {
+              close(state, id);
+              clearFilter(state, id);
+            })
+          : nothing,
+      ]
     : undefined;
   const { shown, hidden } = visibility(state);
   const hide = canHide(column, shown)
-    ? html`<button
-        class="argus-header-menu-item"
-        type="button"
-        role="menuitem"
-        tabindex="-1"
-        @click=${() => {
-          hideColumn(state, id, shown);
-        }}
-      >
-        Hide column
-      </button>`
+    ? menuItem('Hide column', () => {
+        hideColumn(state, id, shown);
+      })
     : undefined;
   const show = (columns: readonly ColumnInfo[], label: string) =>
-    html`<button
-      class="argus-header-menu-item"
-      type="button"
-      role="menuitem"
-      tabindex="-1"
-      @click=${() => {
-        close(state, id);
-        for (const c of columns) state.host.setHidden?.(c.id, false);
-        state.host.announce(
-          columns.length === 1
-            ? `${labelOf(state, columns[0]?.id ?? '')} shown`
-            : `${String(columns.length)} columns shown`,
-        );
-      }}
-    >
-      ${label}
-    </button>`;
+    menuItem(label, () => {
+      close(state, id);
+      for (const c of columns) state.host.setHidden?.(c.id, false);
+      state.host.announce(
+        columns.length === 1
+          ? `${labelOf(state, columns[0]?.id ?? '')} shown`
+          : `${String(columns.length)} columns shown`,
+      );
+    });
   const showLabelId = `${menuId}-hidden`;
   const showGroup = hidden.length
     ? html`<div role="group" aria-labelledby=${showLabelId}>
@@ -410,28 +399,19 @@ function menu<T>(
       </div>`
     : undefined;
   const groups = contributions(state.host, id).map((group, g) => {
-    const items = group.items.map(
-      (item) =>
-        html`<button
-          class=${
-            item.danger
-              ? 'argus-header-menu-item argus-header-menu-item-danger'
-              : 'argus-header-menu-item'
-          }
-          type="button"
-          role="menuitem"
-          tabindex="-1"
-          @click=${() => {
-            close(state, undefined);
-            item.run();
-          }}
-        >
-          <span class="argus-header-menu-item-label">${item.label}</span>${
+    const items = group.items.map((item) =>
+      menuItem(
+        html`<span class="argus-header-menu-item-label">${item.label}</span>${
             item.detail
               ? html` <span class="argus-header-menu-item-detail">${item.detail}</span>`
               : nothing
-          }
-        </button>`,
+          }`,
+        () => {
+          close(state, undefined);
+          item.run();
+        },
+        { danger: item.danger },
+      ),
     );
     if (group.label === undefined) return items;
     const labelId = `${menuId}-g${String(g)}`;
@@ -441,18 +421,10 @@ function menu<T>(
     </div>`;
   });
   const fit = column.resizable
-    ? html`<button
-        class="argus-header-menu-item"
-        type="button"
-        role="menuitem"
-        tabindex="-1"
-        @click=${() => {
-          void fitWidth(state, id, labelId);
-        }}
-      >
-        Fit width
-      </button>`
-    : nothing;
+    ? menuItem('Fit width', () => {
+        void fitWidth(state, id, labelId);
+      })
+    : undefined;
   return html`<div
     class="argus-header-menu"
     id=${menuId}
@@ -469,15 +441,7 @@ function menu<T>(
         close(state, undefined);
     }}
   >
-    ${[
-      column.sortable ? sortItems : undefined,
-      filterItems,
-      pinItems,
-      column.resizable ? fit : undefined,
-      hide,
-      showGroup,
-      ...groups,
-    ]
+    ${[sortItems, filterItems, pinItems, fit, hide, showGroup, ...groups]
       .filter((section) => section !== undefined)
       .map((section, i) => (i ? [html`<div role="separator"></div>`, section] : section))}
   </div>`;
@@ -533,32 +497,47 @@ async function openFilter<T>(state: TableState<T>, columnId: string): Promise<vo
   const form = column && startForm(state.host, column);
   if (!form) return;
   state.form = form;
-  state.host.requestUpdate();
-  await state.host.element.updateComplete;
-  const popover = state.host.element.querySelector<HTMLElement>(
+  const popover = await openPopover(
+    state,
     `.argus-header-filter[data-column="${CSS.escape(columnId)}"]`,
+    () => state.form === form,
   );
-  if (!popover || state.form !== form) return;
-  if (!popover.matches(':popover-open')) popover.showPopover();
-  follow(() => state.form === form, popover);
-  popover.querySelector<HTMLElement>('input, select')?.focus();
+  popover?.querySelector<HTMLElement>('input, select')?.focus();
 }
 
 /** Opens a column's menu, places it under its button and focuses its checked (or first) item. */
 async function open<T>(state: TableState<T>, columnId: string): Promise<void> {
   state.open = columnId;
-  state.host.requestUpdate();
-  await state.host.element.updateComplete;
-  const popover = menuOf(state, columnId);
-  if (!popover || state.open !== columnId) return;
-  if (!popover.matches(':popover-open')) popover.showPopover();
-  follow(() => state.open === columnId, popover);
+  const popover = await openPopover(
+    state,
+    `.argus-header-menu[data-column="${CSS.escape(columnId)}"]`,
+    () => state.open === columnId,
+  );
+  if (!popover) return;
   const items = itemsOf(popover);
   // The sort the column has, else the first item.
   const checked = items.find(
     (item) => item.dataset.group === 'sort' && item.getAttribute('aria-checked') === 'true',
   );
   (checked ?? items[0])?.focus();
+}
+
+/**
+ * Renders, then shows a menu or filter form popover (`selector`) and keeps it
+ * under its button while `isOpen()`. `undefined` if it closed in the meantime.
+ */
+async function openPopover<T>(
+  state: TableState<T>,
+  selector: string,
+  isOpen: () => boolean,
+): Promise<HTMLElement | undefined> {
+  state.host.requestUpdate();
+  await state.host.element.updateComplete;
+  const popover = state.host.element.querySelector<HTMLElement>(selector);
+  if (!popover || !isOpen()) return undefined;
+  if (!popover.matches(':popover-open')) popover.showPopover();
+  follow(isOpen, popover);
+  return popover;
 }
 
 /** Closes the open menu; with a column, focus goes back to its header. */
@@ -625,12 +604,6 @@ function onMenuKey<T>(state: TableState<T>, columnId: string, event: KeyboardEve
   items[next]?.focus();
 }
 
-function menuOf<T>(state: TableState<T>, columnId: string): HTMLElement | null {
-  return state.host.element.querySelector<HTMLElement>(
-    `.argus-header-menu[data-column="${CSS.escape(columnId)}"]`,
-  );
-}
-
 const itemsOf = (popover: HTMLElement) => [
   ...popover.querySelectorAll<HTMLElement>('.argus-header-menu-item'),
 ];
@@ -654,7 +627,7 @@ function follow(isOpen: () => boolean, popover: HTMLElement): void {
  * Below the button, its inline-end edge on the button's (the left edge in RTL),
  * within the viewport; above the button when there is no room below.
  */
-export function place(popover: HTMLElement, button: HTMLElement): void {
+function place(popover: HTMLElement, button: HTMLElement): void {
   const gap = 2;
   const margin = 4;
   const anchor = button.getBoundingClientRect();

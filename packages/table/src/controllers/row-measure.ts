@@ -21,7 +21,8 @@ export interface RowMeasureOptions {
  * rendered, and watches them for changes the table doesn't render (an image
  * loading, a web font, a framework component updating), which request an
  * update that reads them again. Pooled rows show other rows as the body
- * scrolls, so every update reads every rendered row: one that now shows a row
+ * scrolls, so each update reads every rendered row that shows another row than
+ * at its last read (all of them after `invalidate()`): one that now shows a row
  * of the same height doesn't resize, and the observer wouldn't report it.
  */
 export class RowMeasure {
