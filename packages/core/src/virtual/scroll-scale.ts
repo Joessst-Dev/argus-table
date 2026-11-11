@@ -17,6 +17,8 @@ export class ScrollScale {
   #cap = Infinity;
   /** The logical offset last written and the physical offset it landed on. */
   #landed: { physical: number; logical: number } | undefined;
+  /** A point the mapping passes through instead of the straight line (see `pivot`). */
+  #pivot: { physical: number; logical: number; range: number } | undefined;
 
   /**
    * `logical`: the height of all body rows in px. `cap`: the tallest body the
@@ -27,7 +29,25 @@ export class ScrollScale {
     this.#logical = logical;
     this.#cap = cap;
     this.#landed = undefined;
+    this.#pivot = undefined;
     return true;
+  }
+
+  /**
+   * Bends the mapping so that the physical offset `physical` maps to `logical`:
+   * linear from the top to that point and from there to the bottom. Measured row
+   * heights change the logical height of a scaled body while it scrolls; pivoting
+   * at the current offset keeps the rows in view where they are, without writing
+   * the scroll position (which would cut a scroll short). Call after
+   * `configure()`, which drops the pivot. Ignored at the ends of the range,
+   * where the straight line keeps the first and the last row reachable.
+   */
+  pivot(physical: number, logical: number, range: number): void {
+    this.#landed = undefined;
+    const total = range + this.excess;
+    const inside =
+      this.scaled && physical > 1 && physical < range - 1 && logical > 0 && logical < total;
+    this.#pivot = inside ? { physical, logical, range } : undefined;
   }
 
   /** Whether the body is taller than the cap, so offsets are scaled. */
@@ -50,14 +70,34 @@ export class ScrollScale {
     if (!this.scaled || range <= 0) return physical;
     const landed = this.#landed;
     if (landed?.physical === physical) return landed.logical;
-    return (clamp(physical, range) * (range + this.excess)) / range;
+    const total = range + this.excess;
+    const p = clamp(physical, range);
+    const pivot = this.#pivotFor(range);
+    if (!pivot) return (p * total) / range;
+    if (p <= pivot.physical) return (p * pivot.logical) / pivot.physical;
+    return (
+      pivot.logical + ((p - pivot.physical) * (total - pivot.logical)) / (range - pivot.physical)
+    );
   }
 
   /** The physical offset for a logical one, given the physical scroll range. */
   toPhysical(logical: number, range: number): number {
     if (!this.scaled || range <= 0) return logical;
     const total = range + this.excess;
-    return (clamp(logical, total) * range) / total;
+    const l = clamp(logical, total);
+    const pivot = this.#pivotFor(range);
+    if (!pivot) return (l * range) / total;
+    if (l <= pivot.logical) return (l * pivot.physical) / pivot.logical;
+    return (
+      pivot.physical + ((l - pivot.logical) * (range - pivot.physical)) / (total - pivot.logical)
+    );
+  }
+
+  /** The pivot, if it was set for this range and is still inside it. */
+  #pivotFor(range: number) {
+    const pivot = this.#pivot;
+    if (pivot?.range !== range || pivot.logical >= range + this.excess) return undefined;
+    return pivot;
   }
 
   /**

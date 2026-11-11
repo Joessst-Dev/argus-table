@@ -51,6 +51,29 @@ describe('createTableModel: rows and values', () => {
     expect(ids(model())).toEqual(['0', '1', '2', '3']);
   });
 
+  it('changes rowOrder only when the rows may have moved', () => {
+    const m = model();
+    const first = m.rowOrder;
+    m.update({ columnSizing: { age: 120 } });
+    expect(m.rowOrder).toBe(first);
+    m.update({ sorting: [{ id: 'name', desc: false }] });
+    const sorted = m.rowOrder;
+    expect(sorted).not.toBe(first);
+    m.update({ columnFilters: { name: { kind: 'text', op: 'contains', value: 'a' } } });
+    const filtered = m.rowOrder;
+    expect(filtered).not.toBe(sorted);
+    m.update({ data: [...people] });
+    expect(m.rowOrder).not.toBe(filtered);
+    const remote = {
+      rowCount: 0,
+      entryAt: () => undefined,
+      indexOf: () => undefined,
+      loadedIds: () => [],
+    };
+    m.update({ remote });
+    expect(m.rowOrder).toBe(remote);
+  });
+
   it('uses getRowId when given', () => {
     expect(ids(model({ getRowId: (p) => p.id }))).toEqual(['p1', 'p2', 'p3', 'p4']);
   });

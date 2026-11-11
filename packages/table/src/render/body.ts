@@ -36,6 +36,9 @@ export type SelectedAt = (index: number) => boolean | undefined;
  * reuses the DOM of one that left (ADR 0001), and they stay in pool order: screen
  * readers get the position from `aria-rowindex`. `firstRowIndex` is the
  * `aria-rowindex` of row 0: after the header and the rows pinned to the top.
+ * `inset`: rows of different heights (`rowHeight: 'auto'`) are placed with
+ * `inset-block-start` and render at least their measured `size`, which is on
+ * the controller's px grid, so they stay flush however far down they are.
  */
 export function renderBody<T>(
   rows: readonly WindowRow[],
@@ -46,6 +49,7 @@ export function renderBody<T>(
   loading?: Loading,
   selectedAt?: SelectedAt,
   checkboxes?: CheckboxHandlers,
+  inset = false,
 ) {
   return html`<div
     part="body"
@@ -64,6 +68,7 @@ export function renderBody<T>(
           loading,
           selectedAt?.(r.index),
           checkboxes,
+          inset,
         ),
     )}
   </div>`;
@@ -84,6 +89,7 @@ function renderRow<T>(
   loading: Loading | undefined,
   selected: boolean | undefined,
   checkboxes: CheckboxHandlers | undefined,
+  inset: boolean,
 ) {
   const state = loading?.stateAt(row.index) ?? 'loaded';
   let parts = row.index % 2 === 0 ? 'row row-even' : 'row row-odd';
@@ -99,7 +105,14 @@ function renderRow<T>(
     aria-rowindex=${row.index + firstRowIndex}
     aria-busy=${state === 'loading' ? 'true' : nothing}
     aria-selected=${selected === undefined ? nothing : String(selected)}
-    style=${styleMap({ transform: `translateY(${String(row.start)}px)` })}
+    style=${styleMap(
+      inset
+        ? {
+            insetBlockStart: `${String(row.start)}px`,
+            minBlockSize: row.size === undefined ? undefined : `${String(row.size)}px`,
+          }
+        : { transform: `translateY(${String(row.start)}px)` },
+    )}
   >
     ${repeat(
       columns,

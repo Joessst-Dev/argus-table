@@ -79,4 +79,67 @@ describe('ScrollScale', () => {
     scale.land(123, 45);
     expect(scale.toLogical(45, 399_480)).toBe(45);
   });
+  describe('pivot', () => {
+    /** The body grew by 5000 px of measured rows; the view stays at physical 4M, logical 10M. */
+    const pivoted = () => {
+      const scale = new ScrollScale();
+      scale.configure(40_005_000, 16_000_000);
+      scale.pivot(4_000_000, 10_000_000, range);
+      return scale;
+    };
+    const total = range + 24_005_000;
+
+    it('keeps the offset in view where it was', () => {
+      const scale = pivoted();
+      expect(scale.toLogical(4_000_000, range)).toBe(10_000_000);
+      expect(scale.toPhysical(10_000_000, range)).toBe(4_000_000);
+    });
+
+    it('still maps the ends onto each other', () => {
+      const scale = pivoted();
+      expect(scale.toLogical(0, range)).toBe(0);
+      expect(scale.toLogical(range, range)).toBe(total);
+      expect(scale.toPhysical(0, range)).toBe(0);
+      expect(scale.toPhysical(total, range)).toBe(range);
+    });
+
+    it('is monotonic and round-trips on both sides', () => {
+      const scale = pivoted();
+      let previous = -1;
+      for (let p = 0; p <= range; p += range / 97) {
+        const l = scale.toLogical(p, range);
+        expect(l).toBeGreaterThan(previous);
+        previous = l;
+        expect(scale.toPhysical(l, range)).toBeCloseTo(p, 4);
+      }
+    });
+
+    it('is dropped by configure(), a new range, and at the ends', () => {
+      const scale = pivoted();
+      scale.configure(40_010_000, 16_000_000);
+      expect(scale.toLogical(4_000_000, range)).toBeCloseTo(
+        (4_000_000 * (range + 24_010_000)) / range,
+        4,
+      );
+      scale.pivot(4_000_000, 10_000_000, range);
+      expect(scale.toLogical(4_000_000, range - 100)).not.toBe(10_000_000);
+      scale.pivot(0, 0, range);
+      expect(scale.toLogical(range / 2, range)).toBeCloseTo((range + 24_010_000) / 2, 4);
+      scale.pivot(range, 30_000_000, range);
+      expect(scale.toLogical(range, range)).toBe(range + 24_010_000);
+    });
+
+    it('is ignored under the cap', () => {
+      const scale = new ScrollScale();
+      scale.configure(400_000, 16_000_000);
+      scale.pivot(1000, 2000, 399_480);
+      expect(scale.toLogical(1000, 399_480)).toBe(1000);
+    });
+
+    it('gives way to an offset written and landed', () => {
+      const scale = pivoted();
+      scale.land(12_345_678, 5_000_000);
+      expect(scale.toLogical(5_000_000, range)).toBe(12_345_678);
+    });
+  });
 });

@@ -7,6 +7,7 @@ import {
   type RootPart,
   type TemplateResult,
 } from 'lit';
+import type { ComplexAttributeConverter } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { styleMap } from 'lit/directives/style-map.js';
 import {
@@ -37,6 +38,7 @@ import { ColumnWindowController, type RenderedColumn } from './controllers/colum
 import { DataController } from './controllers/data-controller.js';
 import { PinScrollController } from './controllers/pin-scroll-controller.js';
 import { PluginController, sameItems } from './controllers/plugins.js';
+import { RowMeasure } from './controllers/row-measure.js';
 import {
   canStartReorder,
   dropTarget,
@@ -119,6 +121,17 @@ function sortColumnOf(event: Event): string | undefined {
 
 const RESIZE_STEP = 10;
 
+/** `row-height`: px (`48` or `48px`) or `auto`; anything else is unset. */
+const rowHeightConverter: ComplexAttributeConverter<number | 'auto' | undefined> = {
+  fromAttribute(value) {
+    if (value === null) return undefined;
+    const text = value.trim().toLowerCase();
+    if (text === 'auto') return 'auto';
+    const px = Number(text.replace(/px$/, ''));
+    return text !== '' && px > 0 ? px : undefined;
+  },
+};
+
 /**
  * The cell holding the grid's single tab stop: a row (its section, and its index
  * there: in the row model for the body, in its list for a pinned row) and a
@@ -155,7 +168,7 @@ function gridRowOf(row: Element | null, layout: RowLayout): GridRow | undefined 
  * covers the pinned columns and casts `--argus-pinned-shadow` onto the rest;
  * PinScrollController sizes it to the visible area.
  */
-function pinShadow(side: 'start' | 'end', width: number, rows: number, rowPx: number) {
+function pinShadow(side: 'start' | 'end', width: number, contentPx: number) {
   if (width === 0) return nothing;
   return html`<div
     class="pin-shadow"
@@ -163,7 +176,7 @@ function pinShadow(side: 'start' | 'end', width: number, rows: number, rowPx: nu
     aria-hidden="true"
     style=${styleMap({
       inlineSize: `${String(width)}px`,
-      '--_content-h': `${String((rows + 1) * rowPx)}px`,
+      '--_content-h': `${String(contentPx)}px`,
     })}
   ></div>`;
 }
@@ -246,8 +259,9 @@ function track<T>(column: ColumnView<T, CellContent>): string {
  * @cssprop [--argus-border-width=1px] - Width of the row borders.
  * @cssprop [--argus-outline=none] - Border around the whole table, as a `border` shorthand (`1px solid …`). Inside the element's size.
  * @cssprop [--argus-radius=0] - Corner radius of the table. Header, rows and pinned columns are clipped to it.
- * @cssprop [--argus-row-height] - Height of a row. Default per density: 32px, 40px, 52px.
+ * @cssprop [--argus-row-height] - Height of a row. Default per density: 32px, 40px, 52px. With `rowHeight: 'auto'`: the header's height and the least a body or pinned row is.
  * @cssprop [--argus-cell-padding-inline] - Inline padding of cells. Default per density: 8px, 12px, 16px.
+ * @cssprop [--argus-cell-padding-block] - Block padding of body and pinned-row cells with `rowHeight: 'auto'`, where content sits at the top of the cell. Default: what centres one line of text in `--argus-row-height`.
  * @cssprop [--argus-row-stripe-bg] - Background of odd rows. Default: no stripes.
  * @cssprop [--argus-pinned-shadow] - Shadow on the pinned edge, as a `box-shadow` falling toward the end side (`4px 0 6px -4px …`). Mirrored for the end edge and in RTL; `none` removes it.
  * @cssprop [--argus-resize-handle-color] - Colour of the resize handle's line, shown on hover, focus and drag.
@@ -314,9 +328,17 @@ export class ArgusTable<T = unknown> extends LitElement {
   @property({ attribute: false })
   getRowId?: (row: T, index: number) => string;
 
-  /** Row height in px. Unset: the density (or the `--argus-row-height` token) decides. */
-  @property({ attribute: 'row-height', type: Number })
-  rowHeight?: number;
+  /**
+   * Row height in px, or `'auto'` to fit each row to its content (`row-height="auto"`).
+   * Unset: the density (or the `--argus-row-height` token) decides. With
+   * `'auto'`, that height is the header's and the least a body or pinned row is;
+   * rows grow to fit wrapped text (`wrap` columns) and taller content, and cell
+   * content sits at the top. Rows are measured as they render: a row's height
+   * counts the columns rendered (see `virtualizeColumns`), and rows not seen yet
+   * count as one line. Give images a size, so rows don't move when they load.
+   */
+  @property({ attribute: 'row-height', converter: rowHeightConverter })
+  rowHeight?: number | 'auto';
 
   /** Row density: `compact`, `comfortable` or `spacious`. */
   @property({ reflect: true })
@@ -643,6 +665,19 @@ export class ArgusTable<T = unknown> extends LitElement {
   #rendered: RenderedColumn<T>[] = [];
   #rowPx = 40;
   #probeObserver?: ResizeObserver;
+  /** The column template and row height the rows were last read for. */
+  #rowsKey = '';
+  /** Rows of different heights: reads the rendered rows (`rowHeight: 'auto'` only). */
+  readonly #rowMeasure = new RowMeasure(this, {
+    bodyIndex: (row) => {
+      const at = gridRowOf(row, layoutOf(this.#table.model));
+      return at?.section === 'body' && this.#data.stateAt(at.index) === 'loaded'
+        ? at.index
+        : undefined;
+    },
+    sizeOf: (index) => this.#virtual.sizeOf(index),
+    minimum: () => this.#rowPx,
+  });
   #window: VirtualWindow = { rows: [], totalSize: 0, range: null };
   #active: Active | undefined;
   /** Move focus to the active cell after the next update (keyboard navigation). */
@@ -686,6 +721,7 @@ export class ArgusTable<T = unknown> extends LitElement {
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.#probeObserver?.disconnect();
+    this.#rowMeasure.stop();
     // Framework content in the cells is unmounted until the table comes back.
     if (this.#lightPart && this.#lightConnected) {
       this.#lightConnected = false;
@@ -768,7 +804,18 @@ export class ArgusTable<T = unknown> extends LitElement {
   async scrollToRow(index: number): Promise<void> {
     await this.updateComplete;
     this.#virtual.scrollToIndex(index);
-    await this.updateComplete;
+    await this.#settled();
+  }
+
+  /**
+   * Waits for the update, and with `rowHeight: 'auto'` for the ones measured
+   * rows request (a few at most: heights don't depend on positions).
+   */
+  async #settled(): Promise<void> {
+    let done = await this.updateComplete;
+    for (let i = 0; i < 8 && !done && this.rowHeight === 'auto'; i++) {
+      done = await this.updateComplete;
+    }
   }
 
   /**
@@ -830,7 +877,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     if (scroller) scroller.scrollLeft = scroll.left * this.#direction();
     // The scroll event comes before the next frame, and the rows move with its update.
     await new Promise(requestAnimationFrame);
-    await this.updateComplete;
+    await this.#settled();
   }
 
   /** Scrolls on toward the row `setState()` restored once more rows are counted. */
@@ -930,12 +977,17 @@ export class ArgusTable<T = unknown> extends LitElement {
     this.#internals.ariaRowCount = unknownTotal ? '-1' : String(layout.total);
     this.#internals.ariaColCount = String(model.columns.length);
     this.#internals.ariaMultiSelectable = this.#mode() === 'multi' ? 'true' : null;
-    // The header and pinned rows scroll with the body, one row each.
-    const extra = (1 + layout.top + layout.bottom) * this.#rowPx;
+    // The header and pinned rows scroll with the body.
+    const extra = this.#rowPx + this.#pinnedPx('top', layout) + this.#pinnedPx('bottom', layout);
+    const auto = this.rowHeight === 'auto';
+    if (!auto) this.#rowMeasure.stop();
+    // Anything but a scroll may change what rows hold (data, columns, widths).
+    else if (changed.size > 0 || this.#columnsChanged) this.#rowMeasure.invalidate();
     this.#virtual.configure({
       count: model.rowCount,
       rowHeight: this.#rowPx,
-      cap: bodyCap(model.rowCount * this.#rowPx, extra),
+      cap: (logical) => bodyCap(logical, extra),
+      auto: auto ? { order: model.rowOrder, indexOf: (id) => model.indexOf(id) } : undefined,
       overscan: Math.max(0, this.overscan),
       rowIdAt: (index) => this.#rowId(model, index),
       // The active body row stays rendered, so the tab stop and focus survive scrolling.
@@ -968,18 +1020,36 @@ export class ArgusTable<T = unknown> extends LitElement {
       '--_pin-top-rows': String(layout.top),
       '--_pin-bottom-rows': String(layout.bottom),
     };
+    const auto = this.rowHeight === 'auto';
+    if (auto) {
+      // New column widths or a new row height rewrap rows: read them all again.
+      const key = `${style['--_cols'] ?? ''}|${String(this.#rowPx)}`;
+      if (key !== this.#rowsKey) {
+        this.#rowsKey = key;
+        this.#rowMeasure.invalidate();
+      }
+      style['--_pin-top-h'] = `${String(this.#pinnedPx('top', layout))}px`;
+      style['--_pin-bottom-h'] = `${String(this.#pinnedPx('bottom', layout))}px`;
+    }
     const active = this.#active;
     const activeIn = (section: GridRow['section']): ActiveCell | undefined =>
       active?.section === section ? { index: active.index, col: active.col } : undefined;
     const firstIndex = (section: GridRow['section']) => layout.ariaRowIndex({ section, index: 0 });
-    if (this.rowHeight !== undefined && this.rowHeight > 0) {
+    if (typeof this.rowHeight === 'number' && this.rowHeight > 0) {
       style['--_row-height'] = `${String(this.rowHeight)}px`;
     }
+    // The header, the pinned rows and the body: what the pinned-column shadows cover.
+    const contentPx =
+      this.#rowPx +
+      this.#pinnedPx('top', layout) +
+      this.#pinnedPx('bottom', layout) +
+      (model.rowCount === 0 ? 0 : this.#window.totalSize);
     return html`<div
         part="table"
         role="presentation"
         style=${styleMap(style)}
         ?data-dragging=${this.#drag !== undefined}
+        ?data-auto-rows=${auto}
         @keydown=${this.#onKeydown}
         @focusin=${this.#onFocusin}
         @mousedown=${this.#onMousedown}
@@ -1005,13 +1075,14 @@ export class ArgusTable<T = unknown> extends LitElement {
                 this.#loading(),
                 this.#selectedAt(model),
                 this.#selectionColumn ? this.#checkboxHandlers : undefined,
+                auto,
               )
         }
         ${renderPinnedRows('bottom', layout.bottom, rendered, firstIndex('bottom'), activeIn('bottom'))}
         <div class="probe" aria-hidden="true"></div>
       </div>
-      ${pinShadow('start', pinnedWidth('start'), layout.total - 1, this.#rowPx)}
-      ${pinShadow('end', pinnedWidth('end'), layout.total - 1, this.#rowPx)}`;
+      ${pinShadow('start', pinnedWidth('start'), contentPx)}
+      ${pinShadow('end', pinnedWidth('end'), contentPx)}`;
   }
 
   protected override firstUpdated(): void {
@@ -1034,6 +1105,8 @@ export class ArgusTable<T = unknown> extends LitElement {
     // Foreign content is committed before anything measures it.
     flushContent(this);
     this.#measureAutoWidths(model);
+    // Rows of different heights: placed by the update this requests.
+    const resized = this.rowHeight === 'auto' && this.#measureRows();
     if (this.#scrollToTop) {
       this.#scrollToTop = false;
       const scroller = this.renderRoot.querySelector<HTMLElement>('[part~="table"]');
@@ -1051,7 +1124,8 @@ export class ArgusTable<T = unknown> extends LitElement {
     ) {
       this.#pinScroll.measure();
     }
-    if (this.#focusPending) {
+    // Rows that just changed height move with the next update: focus them there.
+    if (this.#focusPending && !resized) {
       this.#focusPending = false;
       this.#focusActive();
     }
@@ -1335,7 +1409,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     // keeps its place on screen. The ends clamp; focusing scrolls the rest of
     // the way. Through the virtualizer: a scaled body's px aren't rows.
     if (key.startsWith('Page') && from.section === 'body' && row.section === 'body') {
-      this.#virtual.scrollBy((row.index - from.index) * this.#rowPx);
+      this.#virtual.scrollBy(this.#virtual.startOf(row.index) - this.#virtual.startOf(from.index));
     }
     // Ctrl+End onto a bottom pinned row: show the end of the body too, as
     // Ctrl+Home shows its start.
@@ -1359,9 +1433,7 @@ export class ArgusTable<T = unknown> extends LitElement {
   ): number {
     const bodyFirst = layout.position({ section: 'body', index: 0 });
     const bodyLast = bodyFirst + layout.body - 1;
-    // Whole rows between the sticky header and pinned rows (each one row tall).
-    const fit = Math.floor(scroller.clientHeight / this.#rowPx + 0.01);
-    const page = Math.max(1, fit - 1 - layout.top - layout.bottom);
+    const page = this.#pageRows(key, pos, layout, scroller);
     switch (key) {
       case 'PageDown':
         return layout.body > 0 && pos <= bodyLast
@@ -1376,6 +1448,25 @@ export class ArgusTable<T = unknown> extends LitElement {
       case 'ArrowUp':
         return Math.max(pos - 1, 0);
     }
+  }
+
+  /** How many rows PageUp/PageDown move from grid position `pos`. */
+  #pageRows(key: string, pos: number, layout: RowLayout, scroller: HTMLElement): number {
+    if (this.rowHeight !== 'auto') {
+      // Whole rows between the sticky header and pinned rows (each one row tall).
+      const fit = Math.floor(scroller.clientHeight / this.#rowPx + 0.01);
+      return Math.max(1, fit - 1 - layout.top - layout.bottom);
+    }
+    // The body rows that fit between the header and the pinned rows, from the
+    // focused body row (or the body's first or last row).
+    const view =
+      scroller.clientHeight -
+      this.#rowPx -
+      this.#pinnedPx('top', layout) -
+      this.#pinnedPx('bottom', layout);
+    const bodyFirst = layout.position({ section: 'body', index: 0 });
+    const from = Math.min(Math.max(pos - bodyFirst, 0), Math.max(layout.body - 1, 0));
+    return this.#virtual.pageRows(from, key === 'PageDown', view);
   }
 
   /**
@@ -1434,7 +1525,9 @@ export class ArgusTable<T = unknown> extends LitElement {
     const pos = this.#verticalStep(key, layout.position(from), layout, scroller);
     const to = layout.at(Math.min(Math.max(pos, bodyFirst), bodyFirst + layout.body - 1));
     if (to?.section !== 'body' || to.index === from.index) return true;
-    if (key.startsWith('Page')) this.#virtual.scrollBy((to.index - from.index) * this.#rowPx);
+    if (key.startsWith('Page')) {
+      this.#virtual.scrollBy(this.#virtual.startOf(to.index) - this.#virtual.startOf(from.index));
+    }
     const fromId = model.rowAt(from.index)?.id;
     const anchor =
       this.#anchorAt(model) ??
@@ -1762,11 +1855,13 @@ export class ArgusTable<T = unknown> extends LitElement {
     cell.focus({ preventScroll: true });
     // A scaled body moves `ratio` px of rows per px scrolled, so the browser can't
     // scroll a body row into view: the virtualizer does, and the next update
-    // (from its scroll) shows the row and scrolls sideways.
-    if (active.section === 'body' && this.#virtual.scaled) {
+    // (from its scroll) shows the row and scrolls sideways. Rows of different
+    // heights too: rows measured on the way can move the row again, so it
+    // scrolls until they're done.
+    if (active.section === 'body' && (this.#virtual.scaled || this.rowHeight === 'auto')) {
       const layout = layoutOf(this.#table.model);
-      const before = (1 + layout.top) * this.#rowPx;
-      if (this.#virtual.reveal(active.index, before, layout.bottom * this.#rowPx)) {
+      const before = this.#rowPx + this.#pinnedPx('top', layout);
+      if (this.#virtual.reveal(active.index, before, this.#pinnedPx('bottom', layout))) {
         this.#focusPending = true;
         return;
       }
@@ -2164,6 +2259,24 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.#measureRowHeight();
     });
     this.#probeObserver.observe(probe);
+  }
+
+  /** The height of the rows pinned to one side: one row each, or measured with `rowHeight: 'auto'`. */
+  #pinnedPx(side: 'top' | 'bottom', layout: RowLayout): number {
+    const count = side === 'top' ? layout.top : layout.bottom;
+    if (this.rowHeight !== 'auto' || count === 0) return count * this.#rowPx;
+    return Math.max(this.#rowMeasure.pinned[side], count * this.#rowPx);
+  }
+
+  /**
+   * `rowHeight: 'auto'`: reads the heights of the rendered rows, after their
+   * content has rendered. Returns whether any changed (an update is requested).
+   */
+  #measureRows(): boolean {
+    const { rows, pinnedChanged } = this.#rowMeasure.read(this.renderRoot);
+    const resized = this.#virtual.measureRows(rows);
+    if (pinnedChanged) this.requestUpdate();
+    return resized || pinnedChanged;
   }
 
   /** Reads the resolved row height, so themes and density change the virtualizer too. */

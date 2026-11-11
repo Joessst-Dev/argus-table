@@ -12,6 +12,10 @@ import { doc, eventTypes, header } from './source.ts';
 function attributeStrings(p: ElementProperty): string {
   if (p.attribute === undefined) return '';
   if (/^number(\s*\|\s*undefined)?$/.test(p.type)) return ' | `${number}`';
+  // `rowHeight`: px or 'auto' (already in the type).
+  if (/^number\s*\|\s*['"]auto['"](\s*\|\s*undefined)?$/.test(p.type)) {
+    return ' | `${number}` | `${number}px`';
+  }
   if (/^boolean(\s*\|\s*undefined)?$/.test(p.type)) return " | '' | 'true' | 'false'";
   if (/\bColumnWidth\b/.test(p.type)) return ' | `${number}` | `${number}px` | `${number}fr`';
   return '';

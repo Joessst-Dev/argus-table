@@ -167,6 +167,23 @@ const allColumns: ColumnDef<Person>[] = [
   },
 ];
 
+// `notes`: a column of 1 to 5 lines of text, the same for a row in every browser,
+// for measured row heights (`rowheight=auto`).
+const NOTE = 'Call back about the order and confirm the delivery address.';
+if (params.has('notes')) {
+  allColumns.splice(2, 0, {
+    id: 'note',
+    header: 'Note',
+    width: 200,
+    wrap: true,
+    cell: (p) =>
+      Number.isNaN(p.index) ? '' : `${String(p.index)}: ${`${NOTE} `.repeat(p.index % 5)}`,
+  });
+}
+// `wrap=a,b`: those columns wrap their text.
+const wrapped = new Set(params.get('wrap')?.split(','));
+for (const c of allColumns) if (wrapped.has(c.id)) c.wrap = true;
+
 // Keep the pinned columns and trim scrolling ones to reach `cols`.
 const scrolling = allColumns.filter((c) => !c.pin).slice(0, Math.max(0, colCount - 3));
 const unpinned = params.get('pin') === 'none';
@@ -177,6 +194,8 @@ const columns = allColumns
 const table = document.createElement('argus-table') as ArgusTable<Person>;
 table.setAttribute('aria-label', 'People');
 table.density = density;
+const rowHeight = params.get('rowheight');
+if (rowHeight) table.rowHeight = rowHeight === 'auto' ? 'auto' : Number(rowHeight);
 if (params.has('overscan')) table.overscan = Number(params.get('overscan'));
 const selection = params.get('selection');
 if (selection === 'single' || selection === 'multi') table.selectionMode = selection;

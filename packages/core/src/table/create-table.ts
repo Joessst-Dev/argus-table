@@ -208,6 +208,11 @@ export interface TableModel<TData, TContent> {
   readonly allColumns: readonly ColumnView<TData, TContent>[];
   /** Number of rows in the current row model. */
   readonly rowCount: number;
+  /**
+   * Changes identity whenever the row at an index may have changed: new data, a
+   * sort, a filter, a new remote source. Compare it by identity only.
+   */
+  readonly rowOrder: object;
   /** Sum of the shown columns' widths in px (flex columns count their minimum). */
   readonly totalWidth: number;
   /** The row at an index of the current row model; `undefined` for a remote row not loaded yet. */
@@ -631,6 +636,9 @@ export function createTableModel<TData, TContent>(
 
     get rowCount() {
       return options.remote?.rowCount ?? rows().length;
+    },
+    get rowOrder() {
+      return options.remote ?? rows();
     },
 
     get totalWidth() {
