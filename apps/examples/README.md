@@ -1,6 +1,6 @@
 # Starters
 
-Small apps with one `<argus-table>` each: 10,000 orders, a pinned column, sorting, a styled status cell and a row-click handler. Fork one to try the table, or to reproduce a bug for an issue.
+Small apps with one `<argus-table>` each: 10,000 orders, a search box, the column menu (sort, filter, pin, hide), row selection with checkboxes, a pinned column and a status cell rendered by the framework. Fork one to try the table, or to reproduce a bug for an issue.
 
 | Starter              | Stack                              | Open                                                                                                |
 | -------------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------- |
@@ -21,8 +21,8 @@ The starters sit outside the pnpm workspace (`apps/*` matches only this folder),
 pnpm nx run examples:smoke   # builds the packages, then the steps below
 ```
 
-1. `scripts/prepare.mjs` packs `argus-table`, `@argus-table/themes` and the three wrappers with `pnpm pack`, copies each starter to `.smoke/<name>`, points its dependencies at the tarballs, then runs `npm install` and `npm run build` (which typechecks).
-2. `smoke.spec.ts` serves each build and checks it in Chromium: the rows render, a header click sorts, a row click reaches the app, and the console stays clean.
+1. `scripts/prepare.mjs` packs `argus-table`, `@argus-table/themes`, `@argus-table/header-menu` and the three wrappers with `pnpm pack`, copies each starter to `.smoke/<name>`, points its dependencies at the tarballs, then runs `npm install` and `npm run build` (which typechecks).
+2. `smoke.spec.ts` serves each build and checks it in Chromium: the rows render, a header click sorts, the search box filters, the column menu hides a column, row clicks and checkboxes select rows, and the console stays clean.
 
 The Angular CLI needs Node 22.22.3 or newer.
 

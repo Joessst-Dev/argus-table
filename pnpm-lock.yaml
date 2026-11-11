@@ -50,6 +50,9 @@ importers:
       '@argus-table/angular':
         specifier: workspace:*
         version: link:../../packages/angular
+      '@argus-table/header-menu':
+        specifier: workspace:*
+        version: link:../../packages/header-menu
       '@argus-table/react':
         specifier: workspace:*
         version: link:../../packages/react
