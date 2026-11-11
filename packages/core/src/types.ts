@@ -239,6 +239,31 @@ export type SelectionMode = 'none' | 'single' | 'multi';
 /** The selected rows, as row ids (from `getRowId`, or the row's index as a string). */
 export type SelectionState = string[];
 
+/**
+ * Where the body is scrolled: the row at the top, as an index in the current row
+ * order, and the inline offset in px from the start edge (positive in RTL too).
+ */
+export interface ScrollState {
+  row: number;
+  left: number;
+}
+
+/**
+ * The state users change, as one object of plain JSON, for saving a user's layout:
+ * `getState()` returns every key, and `setState()` applies the keys it is given.
+ */
+export interface TableState {
+  sorting?: SortState;
+  columnSizing?: ColumnSizingState;
+  columnOrder?: ColumnOrderState;
+  columnPinning?: ColumnPinningState;
+  columnVisibility?: ColumnVisibilityState;
+  columnFilters?: ColumnFilterState;
+  selection?: SelectionState;
+  quickFilter?: string;
+  scroll?: ScrollState;
+}
+
 /** `detail` of `argus-row-select`. */
 export interface RowSelectDetail {
   /** The selected row ids: the new ones, or the proposed ones when `selection` is controlled. */

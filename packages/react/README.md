@@ -88,7 +88,7 @@ Selected rows work the same way, with `selectionMode="multi"`, `selection` and `
 
 ## Methods
 
-A `ref` gives you the element, with `refresh()`, `scrollToRow(index)` and `autosizeColumns(ids?)`:
+A `ref` gives you the element, with `refresh()`, `scrollToRow(index)`, `autosizeColumns(ids?)`, and `getState()` / `setState(state)` to save and restore a user's layout (sorting, widths, order, pinning, hidden columns, filters, selection and scroll position):
 
 ```tsx
 const table = useRef<ArgusTableElement<Order>>(null);

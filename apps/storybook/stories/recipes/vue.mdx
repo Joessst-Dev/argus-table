@@ -67,8 +67,13 @@ Cells and headers take Vue content: a `#cell-<column id>` slot gets the row (`{ 
 
 ```vue
 <script setup lang="ts">
+import type { TableState } from '@argus-table/vue';
+
 const table = useTemplateRef('table');
 const top = () => table.value?.scrollToRow(0);
+// Save and restore a user's layout (sorting, widths, order, filters, scroll...).
+const save = () => table.value?.getState();
+const restore = (state: TableState) => table.value?.setState(state);
 </script>
 
 <template>

@@ -56,6 +56,7 @@ export type {
   RowClickDetail,
   RowPin,
   RowSelectDetail,
+  ScrollState,
   RowsRequest,
   RowsResponse,
   SelectionMode,
@@ -64,6 +65,7 @@ export type {
   SortChangeDetail,
   SortItem,
   SortState,
+  TableState,
   TextFilter,
   TextFilterOp,
 } from 'argus-table';

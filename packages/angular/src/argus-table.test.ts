@@ -335,6 +335,8 @@ describe('<argus-table> component', () => {
     expect(host.table?.element).toBe(el);
     await expect(host.table?.refresh()).resolves.toBeUndefined();
     await expect(host.table?.scrollToRow(10)).resolves.toBeUndefined();
+    await host.table?.setState({ sorting: [{ id: 'total', desc: true }] });
+    expect(host.table?.getState().sorting).toEqual([{ id: 'total', desc: true }]);
   });
 });
 

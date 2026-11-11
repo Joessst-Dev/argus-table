@@ -279,7 +279,7 @@ interface ArgusPlugin<T> {
 
 - Clicks on interactive content in a header (a button, a link, an input, a popover, a dialog) don't sort, so a plugin can put controls and dialogs in headers.
 - `content(value)` (optional, like any later addition) wraps a column's own header or cell content for the plugin's template, so framework content still reaches the table's `contentRenderer` (see [Framework content](#framework-content)): `` html`<b>${host.content(own)}</b>` ``. The column menu and formula headers use it.
-- Later hooks are optional additions, so they won't break existing plugins: a `state` hook once `getState()`/`setState()` exist.
+- Later hooks are optional additions, so they won't break existing plugins. A `state` hook (plugin state saved with `getState()` and restored by `setState()`) waits for a plugin that has state of its own: the column menu has none, and formulas live in `columns`.
 
 ### Column menu (`@argus-table/header-menu`)
 
@@ -347,6 +347,14 @@ All `CustomEvent`, bubbling and composed. See [State and events](../code-archite
 
 - `autosizeColumns(ids?)` (v0.2): fits the given columns (default: every resizable one) to the header, the pinned rows and the rendered body rows, as a resize; see [Column widths](#column-widths). Columns with `resizable: false` keep their width. Resolves once the table has re-rendered.
 - `refresh()` (v0.2): with a `dataSource`, drops every loaded page and loads the rows in view again; with `data`, re-renders the cells. Resolves once the table has re-rendered.
+- `getState()` (Phase 3): the state users change as one object of plain JSON (`TableState`), for saving a user's layout: `sorting`, `columnSizing`, `columnOrder`, `columnPinning`, `columnVisibility`, `columnFilters`, `selection`, `quickFilter` and `scroll` (`ScrollState`: `row`, the index of the row at the top in the current order, and `left`, the inline offset in px from the start edge, positive in RTL too). Every key is there, controlled ones with the values the host set. A copy: changing it changes nothing.
+- `setState(state)` (Phase 3): restores the keys given; the others don't change. Keys the host controls are left alone (the host sets those itself), the others stay uncontrolled, and no change event fires: like a host setting a property. Ids of columns that no longer exist are ignored, as in the properties. `quickFilter` is set like the property, so an app's own search box shows it only if the app reads it back. `scroll` is applied after the rest has rendered: with a `dataSource`, after the jump to the top a restored sort or filter makes. A `dataSource` row past the rows counted so far (one page past the loaded ones until the total is known) is scrolled to as the pages arrive, unless the user scrolls, clicks or presses a key first. Resolves once the table has re-rendered at the restored position.
+
+```js
+const KEY = 'orders-table';
+table.setState(JSON.parse(localStorage.getItem(KEY) ?? '{}'));
+addEventListener('pagehide', () => localStorage.setItem(KEY, JSON.stringify(table.getState())));
+```
 
 ## Framework wrappers
 

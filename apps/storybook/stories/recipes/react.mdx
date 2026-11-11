@@ -81,6 +81,10 @@ const table = useRef<ArgusTableElement<Order>>(null);
 <ArgusTable ref={table} columns={columns} data={orders} />;
 
 await table.current?.scrollToRow(0);
+
+// Save and restore a user's layout (sorting, widths, order, filters, scroll...).
+const saved = table.current?.getState();
+if (saved) await table.current?.setState(saved);
 ```
 
 ## Columns from a loop

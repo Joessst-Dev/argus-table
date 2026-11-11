@@ -24,7 +24,19 @@ Generated from the element's JSDoc through the Custom Elements Manifest, so it m
 
 ## Controlled and uncontrolled state
 
-`sorting`, `columnSizing`, `columnOrder` and `selection` work either way. Leave them unset and the table keeps its own state, then fires the event. Set them and the table only proposes: it fires the event with the new state and waits for you to set the property. Set them back to `undefined` to hand control back to the table.
+`sorting`, `columnSizing`, `columnOrder`, `columnPinning`, `columnVisibility`, `columnFilters` and `selection` work either way. Leave them unset and the table keeps its own state, then fires the event. Set them and the table only proposes: it fires the event with the new state and waits for you to set the property. Set them back to `undefined` to hand control back to the table.
+
+## Saving a layout
+
+`getState()` returns that state, plus `quickFilter` and the scroll position, as one object of plain JSON; `setState(state)` restores it (see Features/Saved state). It applies only the keys it's given, leaves the ones you control alone, keeps the others uncontrolled and fires no events.
+
+```js
+const KEY = 'orders-table';
+await table.setState(JSON.parse(localStorage.getItem(KEY) ?? '{}'));
+addEventListener('pagehide', () => {
+  localStorage.setItem(KEY, JSON.stringify(table.getState()));
+});
+```
 
 ## Plugins
 

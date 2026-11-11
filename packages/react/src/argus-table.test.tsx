@@ -297,6 +297,8 @@ describe('<ArgusTable>', () => {
     );
     expect(ref.current).toBe(el);
     await expect(ref.current?.refresh()).resolves.toBeUndefined();
+    await ref.current?.setState({ sorting: [{ id: 'total', desc: true }] });
+    expect(ref.current?.getState().sorting).toEqual([{ id: 'total', desc: true }]);
   });
 });
 
