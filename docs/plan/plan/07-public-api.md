@@ -150,7 +150,7 @@ table.quickFilter = 'oslo paid'; // from the app's own search box
 | `data`                | —                      | `T[]`                                                                | `[]`                                                                                                                                                                |
 | `dataSource`          | —                      | `{ getRows(request), pageSize? }`                                    | — (wins over `data` while set; see [Data source](#data-source))                                                                                                     |
 | `pinnedRows`          | —                      | `{ top?: T[], bottom?: T[] }`                                        | — (see [Pinned rows](#pinned-rows))                                                                                                                                 |
-| `rowHeight`           | `row-height`           | number \| `'auto'`                                                   | unset: the density (or the `--argus-row-height` token) decides (40px at `comfortable`). A number set explicitly wins over density; `'auto'` (Phase 2) measures rows |
+| `rowHeight`           | `row-height`           | number \| `'auto'`                                                   | unset: the density (or the `--argus-row-height` token) decides (40px at `comfortable`). A number set explicitly wins over density; `'auto'` fits rows to their content (see [Row heights](#row-heights)) |
 | `density`             | `density`              | `'compact'` \| `'comfortable'` \| `'spacious'`                       | `'comfortable'`                                                                                                                                                     |
 | `sorting`             | —                      | `SortState` (controlled or uncontrolled)                             | —                                                                                                                                                                   |
 | `columnSizing`        | —                      | `Record<id, px>`                                                     | —                                                                                                                                                                   |
@@ -166,6 +166,19 @@ table.quickFilter = 'oslo paid'; // from the app's own search box
 | `selection`           | —                      | `string[]` of row ids (controlled or uncontrolled)                   | `[]`                                                                                                                                                                |
 | `selectionCheckboxes` | `selection-checkboxes` | boolean                                                              | `false`: adds the checkbox column while `selectionMode` isn't `'none'`                                                                                              |
 | `plugins`             | —                      | `ArgusPlugin[]`                                                      | `[]` (see [Plugins](#plugins))                                                                                                                                      |
+
+## Row heights
+
+`rowHeight: 'auto'` (`row-height="auto"`) fits each body and pinned row to its content: wrapped text (`wrap` columns) and content taller than a line.
+
+- The row height the density or `--argus-row-height` gives is the least a row is, and the header's height: the header doesn't grow.
+- Content sits at the top of its cell, with the block padding that centres one line of text in a one-row cell (`--argus-cell-padding-block`), so one-line rows look as they do with a fixed height. Content a little taller than a line (a button, a badge) makes its row a little taller; a smaller `--argus-cell-padding-block` keeps such rows compact.
+- Rows are measured as they render, once their content has rendered (framework content included). Rows not seen yet count as one row, so the scrollbar's length settles as rows are seen. Heights follow row ids through a sort or filter.
+- A row measured above the rows in view doesn't move them: the table keeps the row at the top where it is, without cutting a scroll in progress short.
+- A row counts the columns that render: with `virtualizeColumns`, a tall cell scrolling in from the side makes its row taller then.
+- Content that changes size later (an image loading, a web font) is noticed and the row moves the rows below it. Give images a size, so rows don't move when they load.
+- Rows are whole px tall, an even number of px in a body past 2^24 px (about 400k rows), where engines place elements only to 2 px; so rows stay flush at any position, scaled or not.
+- Measuring costs a layout read per update; heights are kept per row in a tree (O(log n) to update and to find a row at an offset), so it works the same for a million rows.
 
 ## Data source
 
@@ -432,13 +445,14 @@ interface ContentRenderer {
 
 ## Tokens (first set)
 
-`--argus-bg`, `--argus-fg`, `--argus-header-bg`, `--argus-header-fg`, `--argus-border-color`, `--argus-border-width`, `--argus-row-hover-bg`, `--argus-row-stripe-bg`, `--argus-row-selected-bg`, `--argus-cell-padding-inline`, `--argus-row-height`, `--argus-font`, `--argus-pinned-shadow`, `--argus-resize-handle-color`, `--argus-focus-ring`, `--argus-skeleton-bg`, `--argus-pinned-row-bg`, `--argus-drop-indicator-color`, `--argus-filter-indicator-color`, `--argus-outline`, `--argus-radius`.
+`--argus-bg`, `--argus-fg`, `--argus-header-bg`, `--argus-header-fg`, `--argus-border-color`, `--argus-border-width`, `--argus-row-hover-bg`, `--argus-row-stripe-bg`, `--argus-row-selected-bg`, `--argus-cell-padding-inline`, `--argus-cell-padding-block`, `--argus-row-height`, `--argus-font`, `--argus-pinned-shadow`, `--argus-resize-handle-color`, `--argus-focus-ring`, `--argus-skeleton-bg`, `--argus-pinned-row-bg`, `--argus-drop-indicator-color`, `--argus-filter-indicator-color`, `--argus-outline`, `--argus-radius`.
 
 - `--argus-skeleton-bg` colours the skeleton bars of rows still loading. Default: the text colour at 12% opacity.
 - `--argus-outline` is a `border` shorthand drawn around the whole table, inside its size. `--argus-radius` rounds the table's corners; the element's paint containment clips the header, rows and pinned columns to them. Defaults: `none` and `0`. Added in v0.2 for the Material-inspired theme's outlined, rounded surface: a theme can't set `border` or `border-radius` on the host itself.
 - `--argus-pinned-row-bg` is the background of the rows from `pinnedRows`, pinned columns included (a background set through `::part(row-pinned)` wouldn't reach the cells in pinned columns, which paint their own). Default: `--argus-bg`.
 
 - `--argus-row-height` and `--argus-cell-padding-inline` each have a default per density: 32 / 40 / 52 px rows and 8 / 12 / 16 px padding for compact / comfortable / spacious; see [Styling and theming](06-styling-and-theming.md).
+- `--argus-cell-padding-block` applies with `rowHeight: 'auto'` only: the block padding of body and pinned-row cells, whose content then sits at the top. Default: what centres one line of text (`1lh`) in `--argus-row-height`.
 - The element is 400 px tall by default, because a virtualized table needs a bounded height; set `height` (or `block-size`) on it.
 - `--argus-row-selected-bg` is the background of selected rows, pinned columns included; it wins over `--argus-row-hover-bg`. Default: the system `Highlight` colour at 22% over `--argus-bg`.
 - `--argus-focus-ring` is an `outline` value for the focused cell or header (`:focus-visible`). Default: `2px solid Highlight`.

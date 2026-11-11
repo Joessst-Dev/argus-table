@@ -31,6 +31,7 @@ export {
   type SelectionTarget,
 } from './state/selection.js';
 export { RowPool, type PoolEntry } from './virtual/row-pool.js';
+export { RowSizes } from './virtual/row-sizes.js';
 export { ScrollScale } from './virtual/scroll-scale.js';
 export { maxVisibleRows, steadyWindow, type VisibleRange } from './virtual/steady-window.js';
 export {

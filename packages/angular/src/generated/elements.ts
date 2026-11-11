@@ -75,9 +75,9 @@ export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
     setProperty(this.element, 'getRowId', undefined, value);
   }
 
-  /** Row height in px. Unset: the density (or the `--argus-row-height` token) decides. */
+  /** Row height in px, or `'auto'` to fit each row to its content (`row-height="auto"`). Unset: the density (or the `--argus-row-height` token) decides. With `'auto'`, that height is the header's and the least a body or pinned row is; rows grow to fit wrapped text (`wrap` columns) and taller content, and cell content sits at the top. Rows are measured as they render: a row's height counts the columns rendered (see `virtualizeColumns`), and rows not seen yet count as one line. Give images a size, so rows don't move when they load. */
   @Input() set rowHeight(
-    value: ArgusTableElement<T>['rowHeight'] | `${number}` | null | undefined,
+    value: ArgusTableElement<T>['rowHeight'] | `${number}` | `${number}px` | null | undefined,
   ) {
     setProperty(this.element, 'rowHeight', 'row-height', value);
   }

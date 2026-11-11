@@ -178,6 +178,31 @@ describe('React content in cells and headers', () => {
     expect(header?.getBoundingClientRect().width).toBeGreaterThan(400);
   });
 
+  test("rowHeight='auto' measures JSX content", async () => {
+    const tall: ReactColumnDef<Order>[] = [
+      { id: 'customer', header: 'C', accessor: 'customer', width: 200 },
+      {
+        id: 'pic',
+        header: 'P',
+        width: 100,
+        cell: (o) => <div style={{ blockSize: o.total % 2 === 0 ? 90 : 10 }}>{o.id}</div>,
+      },
+    ];
+    const el = await mount(
+      <ArgusTable<Order> style={size} rowHeight="auto" columns={tall} data={orders(20)} />,
+    );
+    const rows = [...(el.shadowRoot?.querySelectorAll('[part~="body"] > [role="row"]') ?? [])].sort(
+      (a, b) => Number(a.getAttribute('aria-rowindex')) - Number(b.getAttribute('aria-rowindex')),
+    );
+    // Order 0's total is 0 (a 90 px box), order 1's 37.
+    expect(rows[0]?.getBoundingClientRect().height).toBeGreaterThanOrEqual(90);
+    expect(Math.round(rows[1]?.getBoundingClientRect().height ?? 0)).toBe(40);
+    expect(rows[1]?.getBoundingClientRect().top).toBeCloseTo(
+      rows[0]?.getBoundingClientRect().bottom ?? 0,
+      0,
+    );
+  });
+
   test('mixes JSX, nodes and text in one column', async () => {
     const mixed: ReactColumnDef<Order>[] = [
       {

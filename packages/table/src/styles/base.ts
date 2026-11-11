@@ -361,6 +361,48 @@ export const baseStyles = css`
       align-items: center;
       align-items: safe center;
     }
+
+    /*
+     * rowHeight: 'auto'. Body and pinned rows fit their content, at least one row
+     * tall; the header keeps its height. Content sits at the top of the cell, with
+     * the block padding that centres one line in a one-row cell, so one-line rows
+     * look as they do with a fixed height. The rows' heights are measured and
+     * placed by the table: the browser's scroll anchoring would fight it.
+     */
+    [data-auto-rows] {
+      overflow-anchor: none;
+    }
+    [data-auto-rows] > [part~='body'] > .row,
+    [data-auto-rows] > .pinned > .row {
+      block-size: auto;
+      min-block-size: var(--_row-height);
+      grid-template-rows: minmax(var(--_row-height), auto);
+    }
+    /* Reading the rows' own heights: without the height each row renders at. */
+    [data-auto-rows] > [part~='body'] > .row[data-measure-row] {
+      min-block-size: var(--_row-height) !important;
+    }
+    [data-auto-rows] [part~='cell'] {
+      align-items: start;
+      padding-block: var(
+        --argus-cell-padding-block,
+        max(0px, (var(--_row-height) - 1lh - var(--argus-border-width, 1px)) / 2)
+      );
+    }
+    /* Skeleton bars and the Retry button, centred in a one-row row as before. */
+    [data-auto-rows] [part~='row-loading'] > [part~='cell'] {
+      align-items: center;
+      padding-block: 0;
+    }
+    [data-auto-rows] > [part~='body'] > .row > [role='gridcell'] {
+      scroll-margin-block: calc(var(--_row-height) + var(--_pin-top-h, 0px))
+        var(--_pin-bottom-h, 0px);
+    }
+    [data-auto-rows] > [part~='empty'] {
+      min-block-size: calc(
+        100% - var(--_row-height) - var(--_pin-top-h, 0px) - var(--_pin-bottom-h, 0px)
+      );
+    }
     ::slotted(*) {
       min-inline-size: 0;
       overflow: hidden;

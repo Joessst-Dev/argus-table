@@ -24,7 +24,7 @@ function manifest(
               {
                 kind: 'field',
                 name: 'rowHeight',
-                type: { text: 'number | undefined' },
+                type: { text: "number | 'auto' | undefined" },
                 attribute: 'row-height',
               },
               { kind: 'field', name: 'sorting', type: { text: 'SortState' } },
@@ -375,7 +375,7 @@ describe('emitAngular', () => {
     );
     expect(source).toContain("setProperty(this.element, 'data', undefined, value);");
     expect(source).toContain(
-      "@Input() set rowHeight(value: ArgusTableElement<T>['rowHeight'] | `${number}` | null | undefined) {",
+      "@Input() set rowHeight(value: ArgusTableElement<T>['rowHeight'] | `${number}` | `${number}px` | null | undefined) {",
     );
     expect(source).toContain("setProperty(this.element, 'rowHeight', 'row-height', value);");
     expect(source).toContain(

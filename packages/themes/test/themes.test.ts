@@ -121,7 +121,13 @@ describe.each(themes)('%s', (file) => {
     const set = new Set(rules.flatMap((r) => r.properties));
     for (const token of tokens) {
       // Sizes stay per density in the element; a theme may leave them alone.
-      if (token === '--argus-row-height' || token === '--argus-cell-padding-inline') continue;
+      if (
+        token === '--argus-row-height' ||
+        token === '--argus-cell-padding-inline' ||
+        token === '--argus-cell-padding-block'
+      ) {
+        continue;
+      }
       expect(set, token).toContain(token);
     }
   });
