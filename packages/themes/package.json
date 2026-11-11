@@ -1,6 +1,6 @@
 {
   "name": "@argus-table/themes",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Themes for argus-table: CSS files that set its tokens and ::part() rules.",
   "license": "MIT",
   "repository": {

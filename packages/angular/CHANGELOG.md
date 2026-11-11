@@ -1,5 +1,51 @@
 # @argus-table/angular
 
+## 0.3.0
+
+### Minor Changes
+
+- 1d1a6f0: `rowHeight` accepts `'auto'`, to fit each row to its content. In Angular templates, `rowHeight="48px"` typechecks too.
+- d052e1d: `columnFilters` binds two-way like `columnPinning`: `v-model:column-filters` in Vue, `[(columnFilters)]` in Angular, and `onColumnFilter` in React. `quickFilter` is a plain prop. `<ArgusColumn>` takes `filter`, `filterFn` and `filterOptions`, and the filter types (`ColumnFilter`, `ColumnFilterState`, …) are exported.
+- 090fcba: `ArgusColumn` takes a `formula` prop (an input in Angular) for the `@argus-table/formulas` plugin.
+- 9a28979: The `columnPinning` and `columnVisibility` props bind two-way like `columnOrder`: `v-model:column-pinning` and `v-model:column-visibility` in Vue, `[(columnPinning)]` and `[(columnVisibility)]` in Angular, and `onColumnPin` / `onColumnHide` in React. `<ArgusColumn>` takes `pinnable` and `hideable`.
+- e611a9e: The `virtualizeColumns` prop (`virtualize-columns` in Vue and Angular templates) turns on the table's column virtualization for wide tables.
+- b48284b: `ArgusColumn` takes `wrap`, to wrap a column's cell text onto more lines.
+- 1c9a675: Angular templates in cells and headers. Give a column its cells or header with a template inside the table:
+
+  ```html
+  <argus-table [columns]="columns" [data]="orders()">
+    <ng-template argusCell="status" [argusCellOf]="orders()" let-row let-value="value">
+      <app-status-badge [status]="value" />
+    </ng-template>
+    <ng-template argusHeader="total">Total <app-info-tip /></ng-template>
+  </argus-table>
+  ```
+
+  `[argusCellOf]` types `let-row` in strict templates, templates work with `<argus-column>` children too, and a `cell` function can return `argusTemplate(templateRef, context)`. The views keep your component's bindings and DI. Cells are pooled: as the table scrolls, a cell's view gets the next row's context instead of being re-created, so keep per-row state in your data. Import `ARGUS_TABLE` for the components and both directives.
+
+- fc539da: The `plugins` prop passes add-ons to the table, such as `headerMenu()` from `@argus-table/header-menu`. Keep the array stable between renders (a constant, `useMemo` in React, a non-reactive value in Vue, a field in Angular): a new plugin instance reconnects and closes an open menu. The `ArgusPlugin`, `PluginHost`, `CellTarget` and `ColumnInfo` types are re-exported.
+- 5c08bb1: Row selection in the wrappers: the `selectionMode` and `selection` props, and the `argus-row-select` event as `onRowSelect` (React), `row-select` (Vue) and `rowSelect` (Angular). `selection` binds two-way like `sorting`: `selection` with `onRowSelect` in React, `v-model:selection` in Vue, `[(selection)]` in Angular. The `SelectionMode`, `SelectionState` and `RowSelectDetail` types are re-exported.
+- cfbc794: `getState()` and `setState(state)` are available on the React ref, the Vue template ref and the Angular component, to save and restore a user's layout. The `TableState` and `ScrollState` types are exported.
+- a691e9d: The `selectionCheckboxes` prop (`selection-checkboxes` in Vue and Angular templates) adds the table's checkbox column.
+
+### Patch Changes
+
+- Updated dependencies [1d1a6f0]
+- Updated dependencies [d052e1d]
+- Updated dependencies [090fcba]
+- Updated dependencies [9a28979]
+- Updated dependencies [282b5eb]
+- Updated dependencies [e611a9e]
+- Updated dependencies [b48284b]
+- Updated dependencies [ad09697]
+- Updated dependencies [55b84a3]
+- Updated dependencies [d1716be]
+- Updated dependencies [fc539da]
+- Updated dependencies [5c08bb1]
+- Updated dependencies [cfbc794]
+- Updated dependencies [a691e9d]
+  - argus-table@0.3.0
+
 ## 0.2.2
 
 ### Patch Changes
