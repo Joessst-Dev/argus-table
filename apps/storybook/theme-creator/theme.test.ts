@@ -210,6 +210,25 @@ describe('parseTheme', () => {
     expect(warnings).toHaveLength(6);
   });
 
+  it('reads light-dark() as a build lowered it (Lightning CSS)', () => {
+    // What Vite's production minifier makes of default.css.
+    const { theme, warnings } = parseTheme(
+      'argus-table{--lightningcss-light:initial;--lightningcss-dark: ;color-scheme:light dark;' +
+        '--argus-header-bg:var(--lightningcss-light,#f6f7f9)var(--lightningcss-dark,#181c23);' +
+        '--argus-focus-ring:2px solid var(--lightningcss-light,#2f5bd3)var(--lightningcss-dark,#8aa6f2);' +
+        '--argus-pinned-shadow:4px 0 6px -4px var(--lightningcss-light,#00000029)var(--lightningcss-dark,#0000008c)}' +
+        '[data-argus-theme=dark] argus-table{--lightningcss-light: ;--lightningcss-dark:initial;color-scheme:dark}' +
+        'argus-table::part(header-cell-sorted){color:var(--lightningcss-light,#2f5bd3)var(--lightningcss-dark,#8aa6f2)}',
+    );
+    expect(warnings).toEqual([]);
+    expect(theme.tokens).toEqual({
+      '--argus-header-bg': { light: '#f6f7f9', dark: '#181c23' },
+      '--argus-focus-ring': '2px solid light-dark(#2f5bd3, #8aa6f2)',
+      '--argus-pinned-shadow': '4px 0 6px -4px light-dark(#00000029, #0000008c)',
+    });
+    expect(theme.parts[0]?.declarations).toEqual([['color', 'light-dark(#2f5bd3, #8aa6f2)']]);
+  });
+
   it('reads light-dark() pairs and nested rules', () => {
     const { theme } = parseTheme(`argus-table {
       --argus-bg: light-dark(#fff, #111);
