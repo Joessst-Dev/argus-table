@@ -79,6 +79,10 @@ A quiet, airy table that reads like a timeline: header and body on one surface, 
 - **Rows:** 44, 56 and 68px for `compact`, `comfortable` (the default) and `spacious`, with 12, 16 and 24px of inline padding. A `row-height` set on the table still wins.
 - **Scheme and overrides:** work the same as in the default theme.
 
+## Make your own
+
+The [theme creator](https://joessst-dev.github.io/argus-table/?path=/story/themes-theme-creator--creator) starts from any of these themes. Change a few seeds (accent, surface, header, lines, rows, type, depth) or any single token and part option, check WCAG contrast in light and dark, then copy or download the CSS, or share a link to your theme. It writes a file in the same shape as these: tokens and `::part()` rules on `argus-table`, `light-dark()` colours and the `data-argus-theme` switches.
+
 The full list of tokens and parts is in the argus-table docs.
 
 MIT licensed.

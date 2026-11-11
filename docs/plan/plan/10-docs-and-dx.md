@@ -9,7 +9,7 @@ Storybook is the main docs site; a manifest generated from the source keeps docs
 - [Storybook 10 with Web Components + Vite](https://storybook.js.org/docs/get-started/frameworks/web-components-vite); manifest loaded with `setCustomElementsManifest()` so controls and API tables are generated.
 - Toolbar switches for theme, density, dark mode and RTL, applied through a global decorator.
 - Story groups: Getting started · Features (one story per feature) · Styling (tokens, parts, slotted content) · Themes · Recipes (React, Vue, Angular, Tailwind) · API reference.
-- Theme playground story: edit tokens live and copy the resulting CSS.
+- Theme creator (Themes / Theme creator): start from a shipped theme, change seeds, tokens and part options, check contrast, and copy, download or share the CSS.
 - Stories double as tests through the Storybook Vitest addon and the a11y addon.
 
 ## Beyond Storybook

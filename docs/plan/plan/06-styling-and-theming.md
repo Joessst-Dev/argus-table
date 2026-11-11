@@ -29,6 +29,6 @@ Styling works in three layers, from easiest to most powerful; a theme is just a 
 
 Each theme is `@argus-table/themes/<name>.css`, built with Lightning CSS (nesting lowered, minified). A theme contains only token declarations and `::part()` rules on `argus-table`, plus `color-scheme` for `[data-argus-theme]`; a test in the package checks that every token and part it uses is documented on the element. Every theme supports `data-argus-theme="dark"` and `"light"` on the table or an ancestor; the attribute on the table wins.
 
-Themes are named "-inspired" to avoid implying official endorsement. A theme playground in Storybook lets users tweak tokens live and copy the CSS.
+Themes are named "-inspired" to avoid implying official endorsement. The theme creator in Storybook (Themes / Theme creator, `apps/storybook/theme-creator/`) builds a theme from a shipped one: seeds that derive groups of tokens for light and dark, any token or curated `::part()` option on top, a live preview with the column menu and formula editor, WCAG AA contrast checks with fixes, and CSS to copy or download, a share link, import and a saved draft.
 
 See the theme [mockups](../mockups.md).
