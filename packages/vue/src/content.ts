@@ -16,6 +16,7 @@ import type {
   CellContent,
   CellContext,
   ColumnDef,
+  ColumnGroup,
   ContentRenderer,
   PluginHost,
 } from 'argus-table';
@@ -25,6 +26,9 @@ export type VueCellContent = CellContent | VNodeChild;
 
 /** A column whose `header` and `cell` may return VNodes (`h(...)`). */
 export type VueColumnDef<T = unknown> = ColumnDef<T, VueCellContent>;
+
+/** A column group (`columnGroups`) whose `header` may be Vue content. */
+export type VueColumnGroup = ColumnGroup<VueCellContent>;
 
 /** What a `#header-<id>` slot gets. */
 export interface HeaderSlotProps {

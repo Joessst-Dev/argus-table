@@ -48,6 +48,15 @@ Write down what is announced for each step, and whether it passes.
    - **Expect:** the same order and numbers. ArrowLeft now moves toward the end.
 9. **Page and corner keys.** Back in left to right, press PageDown twice, then Ctrl+End (Cmd+End with VoiceOver), then Ctrl+Home.
    - **Expect:** after each PageDown, a row number one page further on; after Ctrl+End, row 1,001 in the last column; after Ctrl+Home, the "#" header.
+10. **Column groups.** Reload with `&groups`: three header rows, with Contact over Email and Location, Location over City and Country, and Order and Extra.
+    - Focus the City header and press ArrowUp twice, then ArrowDown twice.
+    - **Expect:** "Location", then "Contact", each read as a column header spanning its columns (VoiceOver may say "spans 2 columns"); then Location and City again. The grid now has 1,003 rows, and the first body row is row 4.
+    - Move along the top header row with ArrowRight.
+    - **Expect:** Contact, Order, Extra. The empty cells over `#`, Name and the actions column are skipped by the arrow keys.
+    - With the screen reader's own table navigation (step 6), move through the header rows.
+    - **Expect:** the empty cells read as blank cells, not as headers, and each body cell is read under its column header (and, depending on the reader, its group).
+    - Press Alt+Shift+ArrowRight on Order.
+    - **Expect:** "Order moved to columns 8 to 10 of 21" (the numbers depend on `cols`).
 
 ## Recording the result
 

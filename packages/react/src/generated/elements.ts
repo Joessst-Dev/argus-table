@@ -2,7 +2,11 @@
 // Don't edit by hand: run `pnpm --filter @argus-table/react generate`.
 import * as React from 'react';
 import { createComponent } from '@lit/react';
-import { ArgusTable as ArgusTableElement, ArgusColumn as ArgusColumnElement } from 'argus-table';
+import {
+  ArgusTable as ArgusTableElement,
+  ArgusColumn as ArgusColumnElement,
+  ArgusColumnGroup as ArgusColumnGroupElement,
+} from 'argus-table';
 import type {
   CellClickDetail,
   CellContext,
@@ -17,7 +21,12 @@ import type {
   RowSelectDetail,
   SortChangeDetail,
 } from 'argus-table';
-import { withContent, type ReactCellContent, type ReactColumnDef } from '../content.js';
+import {
+  withContent,
+  type ReactCellContent,
+  type ReactColumnDef,
+  type ReactColumnGroup,
+} from '../content.js';
 import { ownEvents } from '../own-events.js';
 
 /** The properties of `<argus-table>` that `<ArgusTable>` sets on the element. */
@@ -46,6 +55,7 @@ export type ArgusTableElementProps<T = unknown> = Partial<
   >
 > & {
   columns?: readonly ReactColumnDef<T>[] | null;
+  columnGroups?: readonly ReactColumnGroup[] | null;
 };
 
 /** The event props of `<ArgusTable>`: each gets the element's `CustomEvent`. */
@@ -54,7 +64,7 @@ export interface ArgusTableEventProps<T = unknown> {
   onSortChange?: (event: CustomEvent<SortChangeDetail>) => void;
   /** `argus-column-resize`: A column was resized: by dragging its handle, with Alt+Arrow on its header, by a double-click on its handle (fit to content) or by `autosizeColumns()`. `detail: { columnId, width, sizing }`: the new widths, or the proposed ones when `columnSizing` is controlled. Fires on every frame of a drag, and once per column that `autosizeColumns()` changes. */
   onColumnResize?: (event: CustomEvent<ColumnResizeDetail>) => void;
-  /** `argus-column-reorder`: A column was moved: by dragging its header, or with Alt+Shift+Arrow on its focused header. Columns move within their own group (start-pinned, scrolling, end-pinned). `detail: { columnId, order }`: the new order, or the proposed one when `columnOrder` is controlled. Fires once per move, on drop. */
+  /** `argus-column-reorder`: A column or column group was moved: by dragging its header, or with Alt+Shift+Arrow on its focused header. Columns move within their pin side (start-pinned, scrolling, end-pinned) and their column group; groups move as a whole. `detail: { columnId, groupId?, order }`: `groupId` is set when a group moved, and `columnId` is then its first column; `order` is the new order, or the proposed one when `columnOrder` is controlled. Fires once per move, on drop. */
   onColumnReorder?: (event: CustomEvent<ColumnReorderDetail>) => void;
   /** `argus-column-pin`: A column was pinned to a side or unpinned, through a plugin such as the column menu. `detail: { columnId, pin, pinning }`: `pin` is `'start'`, `'end'` or `false`; `pinning` is the new state, or the proposed one when `columnPinning` is controlled. */
   onColumnPin?: (event: CustomEvent<ColumnPinDetail>) => void;
@@ -170,3 +180,27 @@ export const ArgusColumn = createComponent({
   events: {},
   displayName: 'ArgusColumn',
 }) as unknown as <T = unknown>(props: ArgusColumnProps<T>) => React.ReactElement | null;
+
+/** The properties of `<argus-column-group>` that `<ArgusColumnGroup>` sets on the element. */
+export type ArgusColumnGroupElementProps = Partial<Pick<ArgusColumnGroupElement, 'groupId'>> & {
+  header?: ReactCellContent | (() => ReactCellContent);
+};
+
+/** Props of `<ArgusColumnGroup>`: element properties and the usual HTML attributes. */
+export type ArgusColumnGroupProps = Omit<
+  React.HTMLAttributes<ArgusColumnGroupElement>,
+  keyof ArgusColumnGroupElementProps
+> &
+  ArgusColumnGroupElementProps & {
+    /** The `<argus-column-group>` element. */
+    ref?: React.Ref<ArgusColumnGroupElement>;
+  };
+
+/** `<argus-column-group>` as a React component. */
+export const ArgusColumnGroup = createComponent({
+  tagName: 'argus-column-group',
+  elementClass: ArgusColumnGroupElement,
+  react: React,
+  events: {},
+  displayName: 'ArgusColumnGroup',
+}) as unknown as (props: ArgusColumnGroupProps) => React.ReactElement | null;

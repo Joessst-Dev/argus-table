@@ -28,6 +28,10 @@ export function contentType(types: ContentTypes, property: string, generic: bool
   return generic ? type : type.replace(/\bT\b/g, 'unknown');
 }
 
+/** Whether an element takes `columnGroups`: the wrapper then imports its group type. */
+export const usesGroups = (elements: readonly ElementInfo[]): boolean =>
+  elements.some((el) => el.properties.some((p) => p.name === 'columnGroups'));
+
 /** Whether any element has a property typed for the framework's content. */
 export const usesContentTypes = (elements: readonly ElementInfo[], types: ContentTypes): boolean =>
   elements.some((el) => el.properties.some((p) => typeof types[p.name] === 'string'));

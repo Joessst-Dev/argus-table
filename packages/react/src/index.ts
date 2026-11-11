@@ -1,7 +1,9 @@
-export { ArgusColumn, ArgusTable } from './generated/elements.js';
-export type { ReactCellContent, ReactColumnDef } from './content.js';
+export { ArgusColumn, ArgusColumnGroup, ArgusTable } from './generated/elements.js';
+export type { ReactCellContent, ReactColumnDef, ReactColumnGroup } from './content.js';
 export type {
   ArgusColumnElementProps,
+  ArgusColumnGroupElementProps,
+  ArgusColumnGroupProps,
   ArgusColumnProps,
   ArgusTableElementProps,
   ArgusTableEventProps,
@@ -11,6 +13,7 @@ export type {
 // The element classes, for typing a ref: `useRef<ArgusTableElement<Order>>(null)`.
 export type {
   ArgusColumn as ArgusColumnElement,
+  ArgusColumnGroup as ArgusColumnGroupElement,
   ArgusTable as ArgusTableElement,
 } from 'argus-table';
 
@@ -25,6 +28,7 @@ export type {
   ColumnFilter,
   ColumnFilterDetail,
   ColumnFilterState,
+  ColumnGroup,
   ColumnHideDetail,
   ColumnInfo,
   ColumnOrderState,

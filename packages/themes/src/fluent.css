@@ -62,7 +62,8 @@ argus-table {
   &::part(cell) {
     font-variant-numeric: tabular-nums;
   }
-  &::part(header-cell) {
+  &::part(header-cell),
+  &::part(header-group-cell) {
     font-weight: 600;
   }
   /* Pinned rows (totals and the like) read like the header, set off from the body. */

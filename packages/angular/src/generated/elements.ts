@@ -13,6 +13,7 @@ import {
 import type {
   ArgusTable as ArgusTableElement,
   ArgusColumn as ArgusColumnElement,
+  ArgusColumnGroup as ArgusColumnGroupElement,
   CellClickDetail,
   CellContext,
   ColumnFilterDetail,
@@ -26,7 +27,12 @@ import type {
   RowSelectDetail,
   SortChangeDetail,
 } from 'argus-table';
-import { ArgusTableBase, type AngularCellContent, type AngularColumnDef } from '../content.js';
+import {
+  ArgusTableBase,
+  type AngularCellContent,
+  type AngularColumnDef,
+  type AngularColumnGroup,
+} from '../content.js';
 import { setProperty } from '../set-property.js';
 
 /** `<argus-table>` as an Angular component, on the element's own tag. */
@@ -53,6 +59,11 @@ export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
   /** Column definitions. Property only: functions can't be attributes. While empty, the table reads its `<argus-column>` children instead. `null` or `undefined` means `[]`. */
   @Input() set columns(value: readonly AngularColumnDef<T>[] | null | undefined) {
     setProperty(this.element, 'columns', undefined, value);
+  }
+
+  /** Headers over several columns: `{ id, header, columns }`, where `columns` lists column ids and nested groups. Each level of nesting adds a header row. A group's columns stay next to each other: they move within the group, and the group moves as a whole (drag its header, or Alt+Shift+Arrow). A group whose columns are pinned to different sides shows on each side. Property only. While empty and `columns` is too, the table reads its `<argus-column-group>` children. `null` or `undefined` means `[]`. */
+  @Input() set columnGroups(value: readonly AngularColumnGroup[] | null | undefined) {
+    setProperty(this.element, 'columnGroups', undefined, value);
   }
 
   /** The rows to show. Replace the array to update; changes inside it aren't detected. `null` or `undefined` means `[]`. */
@@ -170,7 +181,7 @@ export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
   /** The new `columnSizing` from `argus-column-resize`, for `[(columnSizing)]`. */
   @Output() readonly columnSizingChange = new EventEmitter<ArgusTableElement<T>['columnSizing']>();
 
-  /** `argus-column-reorder`: A column was moved: by dragging its header, or with Alt+Shift+Arrow on its focused header. Columns move within their own group (start-pinned, scrolling, end-pinned). `detail: { columnId, order }`: the new order, or the proposed one when `columnOrder` is controlled. Fires once per move, on drop. */
+  /** `argus-column-reorder`: A column or column group was moved: by dragging its header, or with Alt+Shift+Arrow on its focused header. Columns move within their pin side (start-pinned, scrolling, end-pinned) and their column group; groups move as a whole. `detail: { columnId, groupId?, order }`: `groupId` is set when a group moved, and `columnId` is then its first column; `order` is the new order, or the proposed one when `columnOrder` is controlled. Fires once per move, on drop. */
   @Output() readonly columnReorder = new EventEmitter<CustomEvent<ColumnReorderDetail>>();
 
   /** The new `columnOrder` from `argus-column-reorder`, for `[(columnOrder)]`. */
@@ -465,5 +476,28 @@ export class ArgusColumnComponent<T = unknown> {
   /** The values a `set` filter offers; needed with a `dataSource`. Property only. */
   @Input() set filterOptions(value: ArgusColumnElement<T>['filterOptions'] | null | undefined) {
     setProperty(this.element, 'filterOptions', undefined, value);
+  }
+}
+
+/** `<argus-column-group>` as an Angular component, on the element's own tag. */
+@Component({
+  selector: 'argus-column-group',
+  template: '<ng-content />',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  encapsulation: ViewEncapsulation.None,
+})
+export class ArgusColumnGroupComponent {
+  /** The `<argus-column-group>` element. */
+  readonly element: ArgusColumnGroupElement =
+    inject<ElementRef<ArgusColumnGroupElement>>(ElementRef).nativeElement;
+
+  /** Stable key. Must be unique among the table's groups; it may equal a column id. */
+  @Input() set groupId(value: ArgusColumnGroupElement['groupId'] | null | undefined) {
+    setProperty(this.element, 'groupId', 'group-id', value);
+  }
+
+  /** Header content: text as an attribute; a Lit template, a node or a function as a property. Default: the id. */
+  @Input() set header(value: (AngularCellContent | (() => AngularCellContent)) | null | undefined) {
+    setProperty(this.element, 'header', 'header', value);
   }
 }

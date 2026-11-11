@@ -4,6 +4,7 @@ import type { PublicProps, VNode, VNodeChild } from 'vue';
 import type {
   ArgusTable as ArgusTableElement,
   ArgusColumn as ArgusColumnElement,
+  ArgusColumnGroup as ArgusColumnGroupElement,
   CellClickDetail,
   CellContext,
   ColumnFilterDetail,
@@ -17,7 +18,7 @@ import type {
   RowSelectDetail,
   SortChangeDetail,
 } from 'argus-table';
-import type { HeaderSlotProps, VueCellContent, VueColumnDef } from '../content.js';
+import type { HeaderSlotProps, VueCellContent, VueColumnDef, VueColumnGroup } from '../content.js';
 import { defineWrapper } from '../define.js';
 
 /** The properties of `<argus-table>` that `<ArgusTable>` sets on the element. */
@@ -46,6 +47,7 @@ export type ArgusTableElementProps<T = unknown> = Partial<
   >
 > & {
   columns?: readonly VueColumnDef<T>[] | null;
+  columnGroups?: readonly VueColumnGroup[] | null;
 };
 
 /** The event props of `<ArgusTable>`, which `@event` and `v-model` bind. */
@@ -58,7 +60,7 @@ export interface ArgusTableEventProps<T = unknown> {
   'onColumn-resize'?: (event: CustomEvent<ColumnResizeDetail>) => void;
   /** `v-model:columnSizing`: the new `columnSizing` from `argus-column-resize`. */
   'onUpdate:columnSizing'?: (value: ArgusTableElement<T>['columnSizing']) => void;
-  /** `argus-column-reorder`: A column was moved: by dragging its header, or with Alt+Shift+Arrow on its focused header. Columns move within their own group (start-pinned, scrolling, end-pinned). `detail: { columnId, order }`: the new order, or the proposed one when `columnOrder` is controlled. Fires once per move, on drop. */
+  /** `argus-column-reorder`: A column or column group was moved: by dragging its header, or with Alt+Shift+Arrow on its focused header. Columns move within their pin side (start-pinned, scrolling, end-pinned) and their column group; groups move as a whole. `detail: { columnId, groupId?, order }`: `groupId` is set when a group moved, and `columnId` is then its first column; `order` is the new order, or the proposed one when `columnOrder` is controlled. Fires once per move, on drop. */
   'onColumn-reorder'?: (event: CustomEvent<ColumnReorderDetail>) => void;
   /** `v-model:columnOrder`: the new `columnOrder` from `argus-column-reorder`. */
   'onUpdate:columnOrder'?: (value: ArgusTableElement<T>['columnOrder']) => void;
@@ -148,6 +150,7 @@ export const ArgusTable = defineWrapper({
   tag: 'argus-table',
   props: [
     'columns',
+    'columnGroups',
     'data',
     'dataSource',
     'pinnedRows',
@@ -303,3 +306,46 @@ export const ArgusColumn = defineWrapper({
   expose?: ArgusColumnContext<T>['expose'],
   setup?: Promise<ArgusColumnContext<T>>,
 ) => VNode & { __ctx?: ArgusColumnContext<T> };
+
+/** The properties of `<argus-column-group>` that `<ArgusColumnGroup>` sets on the element. */
+export type ArgusColumnGroupElementProps = Partial<Pick<ArgusColumnGroupElement, 'groupId'>> & {
+  header?: VueCellContent | (() => VueCellContent);
+};
+
+/** Props of `<ArgusColumnGroup>`: element properties. Other attributes go to the element. */
+export type ArgusColumnGroupProps = ArgusColumnGroupElementProps;
+
+/** What a template ref to `<ArgusColumnGroup>` gives. */
+export interface ArgusColumnGroupExposed {
+  /** The `<argus-column-group>` element; `undefined` until mounted. */
+  readonly element: ArgusColumnGroupElement | undefined;
+}
+
+/** The slots of `<ArgusColumnGroup>`. */
+export interface ArgusColumnGroupSlots {
+  /** Rendered as children of the element. */
+  default?(): unknown;
+}
+
+interface ArgusColumnGroupContext {
+  props: ArgusColumnGroupProps & PublicProps;
+  expose: (exposed: ArgusColumnGroupExposed) => void;
+  attrs: Record<string, unknown>;
+  slots: ArgusColumnGroupSlots;
+  emit: (event: never) => void;
+}
+
+/** `<argus-column-group>` as a Vue component. */
+export const ArgusColumnGroup = defineWrapper({
+  name: 'ArgusColumnGroup',
+  tag: 'argus-column-group',
+  props: ['groupId', 'header'],
+  booleans: [],
+  events: [],
+  methods: [],
+}) as unknown as (
+  props: ArgusColumnGroupContext['props'],
+  ctx?: Pick<ArgusColumnGroupContext, 'attrs' | 'emit' | 'slots'>,
+  expose?: ArgusColumnGroupContext['expose'],
+  setup?: Promise<ArgusColumnGroupContext>,
+) => VNode & { __ctx?: ArgusColumnGroupContext };

@@ -8,6 +8,7 @@ import {
   header,
   rendersContent,
   usesContentTypes,
+  usesGroups,
   type ContentTypes,
 } from './source.ts';
 
@@ -17,6 +18,7 @@ import {
  */
 const CONTENT_PROPS: ContentTypes = {
   columns: 'readonly ReactColumnDef<T>[] | null',
+  columnGroups: 'readonly ReactColumnGroup[] | null',
   header: 'ReactCellContent | (() => ReactCellContent)',
   cell: '(row: T, context: CellContext<T>) => ReactCellContent',
   contentRenderer: null,
@@ -100,6 +102,7 @@ export function emitReact(elements: readonly ElementInfo[]): string {
   const contentImports = [
     ...(elements.some(rendersContent) ? ['withContent'] : []),
     ...(content ? ['type ReactCellContent', 'type ReactColumnDef'] : []),
+    ...(content && usesGroups(elements) ? ['type ReactColumnGroup'] : []),
   ];
   const contentImport = contentImports.length
     ? `import { ${contentImports.join(', ')} } from '../content.js';\n`

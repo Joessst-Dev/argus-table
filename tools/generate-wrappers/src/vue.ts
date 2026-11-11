@@ -10,6 +10,7 @@ import {
   header,
   rendersContent,
   usesContentTypes,
+  usesGroups,
   type ContentTypes,
 } from './source.ts';
 
@@ -24,6 +25,7 @@ const handlerProp = (emit: string) => `'on${emit.charAt(0).toUpperCase()}${emit.
  */
 const CONTENT_PROPS: ContentTypes = {
   columns: 'readonly VueColumnDef<T>[] | null',
+  columnGroups: 'readonly VueColumnGroup[] | null',
   header: 'VueCellContent | (() => VueCellContent)',
   cell: '(row: T, context: CellContext<T>) => VueCellContent',
   contentRenderer: null,
@@ -163,6 +165,7 @@ export function emitVue(elements: readonly ElementInfo[]): string {
   const contentTypes = [
     ...(elements.some(rendersContent) ? ['HeaderSlotProps'] : []),
     ...(usesContent ? ['VueCellContent', 'VueColumnDef'] : []),
+    ...(usesContent && usesGroups(elements) ? ['VueColumnGroup'] : []),
   ];
   const contentImport = contentTypes.length
     ? `import type { ${contentTypes.join(', ')} } from '../content.js';\n`

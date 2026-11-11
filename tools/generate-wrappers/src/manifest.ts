@@ -75,7 +75,7 @@ export interface ElementInfo {
 }
 
 /** The elements every wrapper covers. */
-const TAGS = ['argus-table', 'argus-column'] as const;
+const TAGS = ['argus-table', 'argus-column', 'argus-column-group'] as const;
 export type Tag = (typeof TAGS)[number];
 
 /** Properties with two-way binding, by element: the property, its event and the detail field. */
@@ -90,12 +90,14 @@ const MODELS: Readonly<Record<Tag, readonly ElementModel[]>> = {
     { property: 'selection', event: 'argus-row-select', detailKey: 'selection' },
   ],
   'argus-column': [],
+  'argus-column-group': [],
 };
 
 /** Public methods that aren't API for wrapper users (they serve the table itself). */
 const INTERNAL_METHODS: Readonly<Record<Tag, readonly string[]>> = {
   'argus-table': [],
   'argus-column': ['toColumnDef'],
+  'argus-column-group': ['toColumnGroup'],
 };
 
 const EVENT_PREFIX = 'argus-';

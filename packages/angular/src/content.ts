@@ -18,6 +18,7 @@ import type {
   CellContent,
   CellContext,
   ColumnDef,
+  ColumnGroup,
   ContentRenderer,
   PluginHost,
   RowPin,
@@ -111,6 +112,9 @@ export type AngularCellContent = CellContent | ArgusTemplate;
 
 /** A column whose `header` and `cell` may return templates (`argusTemplate()`). */
 export type AngularColumnDef<T = unknown> = ColumnDef<T, AngularCellContent>;
+
+/** A column group (`columnGroups`) whose `header` may be an Angular template (`argusTemplate()`). */
+export type AngularColumnGroup = ColumnGroup<AngularCellContent>;
 
 /**
  * Renders templates into the table's pooled targets, like the CDK's DOM portal

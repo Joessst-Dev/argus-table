@@ -59,7 +59,8 @@ argus-table {
   &::part(cell) {
     font-variant-numeric: tabular-nums;
   }
-  &::part(header-cell) {
+  &::part(header-cell),
+  &::part(header-group-cell) {
     font-weight: 500;
     letter-spacing: 0.1px;
   }

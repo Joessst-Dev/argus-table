@@ -58,7 +58,8 @@ argus-table {
     font-variant-numeric: tabular-nums;
   }
   /* Small uppercase labels, spaced out. */
-  &::part(header-cell) {
+  &::part(header-cell),
+  &::part(header-group-cell) {
     font-size: 0.6875rem;
     letter-spacing: 0.08em;
     text-transform: uppercase;
