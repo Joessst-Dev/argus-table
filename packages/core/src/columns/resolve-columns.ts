@@ -46,6 +46,7 @@ export interface ResolvedColumn<TData, TContent> {
   filterFn: ColumnDef<TData, TContent>['filterFn'];
   filterOptions: ColumnDef<TData, TContent>['filterOptions'];
   align: ColumnAlign;
+  wrap: boolean;
 }
 
 const FILTER_KINDS: readonly unknown[] = ['text', 'number', 'date', 'set'] satisfies FilterKind[];
@@ -140,6 +141,7 @@ export function resolveColumns<TData, TContent>(
       filterFn: def.filterFn,
       filterOptions: def.filterOptions,
       align: def.align ?? 'start',
+      wrap: def.wrap === true,
     };
   });
 }

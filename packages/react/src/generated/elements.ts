@@ -139,6 +139,7 @@ export type ArgusColumnElementProps<T = unknown> = Partial<
     | 'pinnable'
     | 'hideable'
     | 'align'
+    | 'wrap'
     | 'sortable'
     | 'resizable'
     | 'reorderable'

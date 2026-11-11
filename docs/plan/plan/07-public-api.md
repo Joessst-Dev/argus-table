@@ -58,6 +58,7 @@ Columns can also be written as `<argus-column>` children. They are data-only ele
 | `min-width`, `max-width`, `pin`, `align` | same, camelCased |                                                                                                                                 |
 | `sortable`, `resizable`, `reorderable`   | same             | Absent: the default. `"false"`: off. Any other value: on. So `resizable="false"` turns resizing off                             |
 | `filter`                                 | `filter`         | `text`, `number`, `date` or `set` (see [Filtering](#filtering))                                                                 |
+| `wrap`                                   | `wrap`           | A flag like `sortable`. Wraps the cell text                                                                                     |
 | —                                        | `filterFn`, `filterOptions` | Properties only                                                                                                      |
 
 - Adding, removing or moving an `argus-column`, or changing one of its attributes or properties, rebuilds the column list, so `v-for`, `@for` or `.map()` in a framework just work. Sizes, order and sorting are kept by id, as with a new `columns` array. The columns tell the table themselves; the table has no `MutationObserver` on its children, which would fire on every cell render while scrolling.
@@ -86,6 +87,7 @@ Columns can also be written as `<argus-column>` children. They are data-only ele
 | `filterFn`               | `(value, filter, row) => boolean`                          | Replaces the built-in matching for this column                                                                                                                                                                                     |
 | `filterOptions`          | `FilterValue[]`                                            | The values a `'set'` filter offers. Needed with a `dataSource`; with `data` the table lists the column's distinct values                                                                                                            |
 | `align`                  | `'start'` \| `'center'` \| `'end'`                         | Text alignment. Default `'start'`                                                                                                                                                                                                  |
+| `wrap`                   | `boolean`                                                  | Wraps the cell text onto more lines instead of cutting it off. Default `false`. With a fixed row height the row doesn't grow: text that fits stays centred, longer text starts at the top and is clipped. The header doesn't wrap |
 
 - `CellContent` is a Lit `TemplateResult`, a DOM `Node`, a string or a number.
 - Without `cell`, a cell shows its accessor value as text. Empty values (`null`, `undefined`) sort last in both directions.

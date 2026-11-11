@@ -124,6 +124,18 @@ describe('createTableModel: columns', () => {
   it('carries the column options the renderer needs', () => {
     const age = model().columns.find((c) => c.id === 'age');
     expect(age).toMatchObject({ align: 'end', sortable: true, resizable: true, sorted: false });
+    expect(age?.wrap).toBe(false);
+  });
+
+  it('carries wrap into the column views, not into the checkbox column', () => {
+    const m = model({
+      columns: [{ id: 'name', accessor: 'name', wrap: true }],
+      selectionColumn: true,
+    });
+    expect(m.columns.map((c) => [c.id, c.wrap])).toEqual([
+      [SELECTION_COLUMN_ID, false],
+      ['name', true],
+    ]);
   });
 
   it('follows new columns', () => {

@@ -137,6 +137,14 @@ export interface ColumnDef<TData, TContent = unknown> {
   filterOptions?: readonly FilterValue[];
   /** Text alignment. Default: `'start'`. */
   align?: ColumnAlign;
+  /**
+   * Wraps the cell text onto more lines instead of cutting it off. Default:
+   * `false`. With a fixed row height the row doesn't grow: one or two lines stay
+   * centred, longer text starts at the top and what doesn't fit is clipped. The
+   * header doesn't wrap. With `width: 'auto'` the column fits its unwrapped
+   * text, up to `maxWidth`.
+   */
+  wrap?: boolean;
 }
 
 /** One sorted column. */

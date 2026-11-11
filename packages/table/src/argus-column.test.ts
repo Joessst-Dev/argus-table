@@ -61,6 +61,24 @@ describe('<argus-column>', () => {
     expect(headers(el)[1]?.dataset.align).toBe('end');
   });
 
+  test('wrap: the attribute wraps the cells of its column', async () => {
+    const el = await mount(`
+      <argus-column column-id="name" header="Name" accessor="name" wrap></argus-column>
+      <argus-column column-id="age" header="Age" accessor="age" wrap="false"></argus-column>
+      <argus-column column-id="city" header="City" accessor="address.city"></argus-column>
+    `);
+    expect(column(el, 'name').toColumnDef().wrap).toBe(true);
+    expect(column(el, 'age').toColumnDef().wrap).toBe(false);
+    expect(column(el, 'city').toColumnDef().wrap).toBeUndefined();
+    const cells = [...(rowsInOrder(el)[0]?.querySelectorAll('[part~="cell"]') ?? [])];
+    expect(cells.map((c) => c.hasAttribute('data-wrap'))).toEqual([true, false, false]);
+    column(el, 'name').wrap = false;
+    await settle(el);
+    expect(rowsInOrder(el)[0]?.querySelector('[part~="cell"]')?.hasAttribute('data-wrap')).toBe(
+      false,
+    );
+  });
+
   test('reads width as px, auto or a flex share', () => {
     const c = document.createElement('argus-column');
     const width = (value: string) => {

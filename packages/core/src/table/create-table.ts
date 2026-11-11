@@ -118,6 +118,8 @@ export interface ColumnView<TData, TContent> {
   /** `true` when `columnFilters` has a filter for the column. */
   filtered: boolean;
   align: ColumnAlign;
+  /** Whether the cell text wraps (`ColumnDef.wrap`). */
+  wrap: boolean;
   sorted: SortDirection;
   header: ColumnDef<TData, TContent>['header'];
   cell: ColumnDef<TData, TContent>['cell'];
@@ -333,6 +335,7 @@ function selectionView<TData, TContent>(pinEdge: boolean): ColumnView<TData, TCo
     filter: undefined,
     filtered: false,
     align: 'center',
+    wrap: false,
     sorted: false,
     header: undefined,
     cell: undefined,
@@ -503,6 +506,7 @@ export function createTableModel<TData, TContent>(
       filter: def.filter,
       filtered: options.columnFilters?.[def.id] !== undefined,
       align: def.align,
+      wrap: def.wrap,
       sorted: sort ? (sort.desc ? 'desc' : 'asc') : false,
       header: def.header,
       cell: def.cell,

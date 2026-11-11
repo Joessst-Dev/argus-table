@@ -135,6 +135,46 @@ describe('rendering', () => {
     expect(age?.getAttribute('data-align')).toBe('end');
   });
 
+  test('wraps the text of wrap columns inside a fixed-height row', async () => {
+    const long = 'word '.repeat(40);
+    const el = await fixture({
+      columns: [
+        { id: 'a', header: 'A', cell: () => long, width: 120, wrap: true },
+        { id: 'b', header: 'B', cell: () => long, width: 120 },
+      ],
+      data: people(2),
+    });
+    const [wrapped, plain] = [...(rowsInOrder(el)[0]?.querySelectorAll('[part~="cell"]') ?? [])];
+    if (!wrapped || !plain) throw new Error('no cells');
+    expect(wrapped.hasAttribute('data-wrap')).toBe(true);
+    expect(plain.hasAttribute('data-wrap')).toBe(false);
+    expect(getComputedStyle(wrapped).whiteSpace).toBe('normal');
+    expect(getComputedStyle(plain).whiteSpace).toBe('nowrap');
+    // The row keeps its height; the wrapped text starts at the top and is clipped.
+    const row = rowsInOrder(el)[0]?.getBoundingClientRect();
+    expect(Math.round(row?.height ?? 0)).toBe(40);
+    const text = slotted(wrapped)?.getBoundingClientRect();
+    expect(Math.round(text?.top ?? 0)).toBe(Math.round(row?.top ?? 0));
+    expect(text?.height).toBeGreaterThan(40);
+    // A header never wraps.
+    const header = shadow(el).querySelector('[part~="header-cell"]');
+    expect(header?.hasAttribute('data-wrap')).toBe(false);
+  });
+
+  test('centres wrapped text that fits in the row', async () => {
+    const el = await fixture({
+      columns: [{ id: 'a', header: 'A', cell: () => 'short', width: 120, wrap: true }],
+      data: people(1),
+    });
+    const cell = rowsInOrder(el)[0]?.querySelector<HTMLElement>('[part~="cell"]');
+    const box = cell?.getBoundingClientRect();
+    const text = cell ? slotted(cell)?.getBoundingClientRect() : undefined;
+    const above = (text?.top ?? 0) - (box?.top ?? 0);
+    const below = (box?.bottom ?? 0) - (text?.bottom ?? 0);
+    // The cell's bottom border makes the halves differ by at most a px.
+    expect(Math.abs(above - below)).toBeLessThanOrEqual(1.5);
+  });
+
   test('shows the empty slot with a default text when there are no rows', async () => {
     const el = await fixture({ columns, data: [] });
     const empty = shadow(el).querySelector('[part~="empty"]');

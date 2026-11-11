@@ -45,6 +45,7 @@ describe('resolveColumns', () => {
       pinnable: true,
       hideable: true,
       align: 'start',
+      wrap: false,
       hasAccessor: true,
     });
   });
@@ -116,6 +117,15 @@ describe('resolveColumns', () => {
     // Pinned columns may be auto: the measured width is a known px.
     expect(pinned).toMatchObject({ auto: true, pin: 'end' });
     expect(resolveColumns<Order, string>([{ id: 'd', width: 90 }])[0]?.auto).toBe(false);
+  });
+
+  it('wraps only when wrap is true', () => {
+    const cols = resolveColumns<Order, string>([
+      { id: 'a', wrap: true },
+      { id: 'b', wrap: false },
+      { id: 'c' },
+    ]);
+    expect(cols.map((c) => c.wrap)).toEqual([true, false, false]);
   });
 
   it('keeps only valid pins and alignment', () => {
