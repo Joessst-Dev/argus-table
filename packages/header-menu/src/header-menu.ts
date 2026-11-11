@@ -154,7 +154,12 @@ export function headerMenu<T = unknown>(options: HeaderMenuOptions = {}): ArgusP
         const target = host.cellOf(event);
         if (target?.section !== 'header' || !hasMenu(state, host.column(target.columnId))) return;
         event.preventDefault();
-        void open(state, target.columnId);
+        const { columnId } = target;
+        // Linux and macOS fire contextmenu on the press. A menu shown before the
+        // release would be light-dismissed by the pointerup (the press began
+        // outside it), so it opens once the button is up.
+        if (event.buttons === 0) void open(state, columnId);
+        else afterRelease(() => void open(state, columnId));
       };
       host.element.addEventListener('contextmenu', onContextMenu);
       return () => {
@@ -484,6 +489,21 @@ function filterForm<T>(state: TableState<T>, form: FilterForm, labelId: string):
       host.focusHeader(form.columnId);
     },
   });
+}
+
+/**
+ * Runs `then` after the pressed pointer is released (or the press is cancelled),
+ * in a task of its own: after the popovers' light dismiss for that pointerup.
+ */
+function afterRelease(then: () => void): void {
+  const done = new AbortController();
+  const release = () => {
+    done.abort();
+    setTimeout(then);
+  };
+  for (const type of ['pointerup', 'pointercancel']) {
+    addEventListener(type, release, { capture: true, signal: done.signal });
+  }
 }
 
 /** Clears a column's filter. The table announces the rows it leaves. */
