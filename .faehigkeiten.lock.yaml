@@ -37,6 +37,19 @@ skills:
     hash: sha256:7b20eef0c5df7cc5a41d42f9b9bfffbcdec117b7af47c15fff2fa871a6f81778
     license: MIT
     installed_at: 2026-11-02T20:30:51Z
+  - name: code-simplifier
+    source: https://github.com/getsentry/skills
+    path: skills/code-simplifier
+    ref: main
+    commit: d18b7aa8ba878354e5c348310230e652f7690f9c
+    agents:
+      - claude-code
+      - github-copilot
+    tracking: hash
+    hash: sha256:5bea1f77cd2f6c178a6cd8fd128b5cd5bef905f61197d98eaf2915f5d8f8aa71
+    license: Apache-2.0
+    license_file: LICENSE
+    installed_at: 2026-11-11T13:38:38Z
   - name: design-system-patterns
     source: https://github.com/wshobson/agents
     path: plugins/ui-design/skills/design-system-patterns
