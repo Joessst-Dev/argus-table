@@ -98,7 +98,7 @@ Give a column its cells or header with a template inside the table, named by col
 
 ## Methods
 
-A view query gives the component, with `refresh()`, `scrollToRow(index)`, `autosizeColumns(ids?)` and the `element`:
+A view query gives the component, with `refresh()`, `scrollToRow(index)`, `autosizeColumns(ids?)`, `getState()` / `setState(state)` (save and restore a user's layout: sorting, widths, order, pinning, hidden columns, filters, selection and scroll position) and the `element`:
 
 ```ts
 readonly table = viewChild.required(ArgusTableComponent);

@@ -58,7 +58,7 @@ See the "Add formula column" and "Column header menu" [mockups](../mockups.md).
 - `formulas({ functions, marker })`: the plugin. `functions` adds functions per plugin instance (`{ VAT: { fn, args: [1, 1], returns: 'number' } }`), in place of a global `registerFunction`; `marker: false` drops the `ƒx` before formula headers.
 - `editing: 'view' | 'edit' | 'none'` (in place of a `formulaEditing` property) controls whether end users can see or change formulas.
 - Events `argus-formula-column-add`, `argus-formula-column-change` and `argus-formula-column-remove` (bubbling, composed, fired on the table) propose a change: `detail.column`, `detail.columns` (the plugin's input columns with the change applied) and, for a change, `detail.previous`. The app owns `columns` and applies them; the table never changes its columns by itself. A rename also renames the column in formulas that name it by its old header. A new column's id comes from its name (`gross`, `gross-2`).
-- Formulas will be part of `getState()` / `setState()` once those exist.
+- Formulas aren't part of `getState()` / `setState()`: they live in `columns`, which the app owns and saves with its own data.
 
 ## Open points
 

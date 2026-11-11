@@ -89,7 +89,7 @@ With `selection-mode="multi"`, `v-model:selection` holds the selected row ids. L
 
 ## Methods
 
-A template ref gives `refresh()`, `scrollToRow(index)`, `autosizeColumns(ids?)` and the `element` itself:
+A template ref gives `refresh()`, `scrollToRow(index)`, `autosizeColumns(ids?)`, `getState()` / `setState(state)` (save and restore a user's layout: sorting, widths, order, pinning, hidden columns, filters, selection and scroll position) and the `element` itself:
 
 ```vue
 <script setup lang="ts">

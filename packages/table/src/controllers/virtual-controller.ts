@@ -240,6 +240,16 @@ export class VirtualController implements ReactiveController {
     return this.#scale.scaled;
   }
 
+  /** The index of the row at the top of the body (0 before the first layout). */
+  get topRow(): number {
+    const element = this.#element;
+    const { count, rowHeight } = this.#config;
+    if (!element || count === 0 || rowHeight <= 0) return 0;
+    // Half a px of slack: engines round scroll offsets to device pixels.
+    const row = Math.floor((this.#top(element) + 0.5) / rowHeight);
+    return Math.min(Math.max(row, 0), count - 1);
+  }
+
   /** `'start'` puts the row at the top; `'auto'` scrolls only as far as needed to show it. */
   scrollToIndex(index: number, align: 'start' | 'auto' = 'start'): void {
     this.#virtual.getVirtualizer().scrollToIndex(index, { align });

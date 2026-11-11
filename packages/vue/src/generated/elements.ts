@@ -120,6 +120,8 @@ export interface ArgusTableExposed<T = unknown> {
   refresh: ArgusTableElement<T>['refresh'];
   autosizeColumns: ArgusTableElement<T>['autosizeColumns'];
   scrollToRow: ArgusTableElement<T>['scrollToRow'];
+  getState: ArgusTableElement<T>['getState'];
+  setState: ArgusTableElement<T>['setState'];
 }
 
 /** The slots of `<ArgusTable>`. */
@@ -208,7 +210,7 @@ export const ArgusTable = defineWrapper({
     },
     { name: 'argus-load-error', emit: 'load-error' },
   ],
-  methods: ['refresh', 'autosizeColumns', 'scrollToRow'],
+  methods: ['refresh', 'autosizeColumns', 'scrollToRow', 'getState', 'setState'],
   content: true,
 }) as unknown as <T = unknown>(
   props: ArgusTableContext<T>['props'],

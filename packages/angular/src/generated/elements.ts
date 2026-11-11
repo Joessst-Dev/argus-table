@@ -239,6 +239,20 @@ export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
     return this.element.scrollToRow(...args);
   }
 
+  /** Calls the element's `getState()`. */
+  getState(
+    ...args: Parameters<ArgusTableElement<T>['getState']>
+  ): ReturnType<ArgusTableElement<T>['getState']> {
+    return this.element.getState(...args);
+  }
+
+  /** Calls the element's `setState()`. */
+  setState(
+    ...args: Parameters<ArgusTableElement<T>['setState']>
+  ): ReturnType<ArgusTableElement<T>['setState']> {
+    return this.element.setState(...args);
+  }
+
   protected handleSortChange(event: Event): void {
     // Events bubble: skip those of a table nested in a cell.
     if (event.target !== this.element) return;

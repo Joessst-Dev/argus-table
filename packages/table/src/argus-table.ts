@@ -24,6 +24,7 @@ import {
   type ColumnReorderDetail,
   type ColumnResizeDetail,
   type ColumnView,
+  type Controllable,
   type GridRow,
   type SelectionStep,
   type SelectionTarget,
@@ -85,6 +86,7 @@ import type {
   SelectionMode,
   SelectionState,
   SortState,
+  TableState,
 } from './types.js';
 
 /**
@@ -648,6 +650,24 @@ export class ArgusTable<T = unknown> extends LitElement {
   #lastRange = '';
   #unwatchMaxHeight: (() => void) | undefined;
 
+  /**
+   * The row `setState()` still has to scroll to: a data source's rows that far
+   * aren't counted yet. Scrolled to again whenever the row count changes.
+   */
+  #scrollTarget: { row: number; count: number } | undefined;
+
+  constructor() {
+    super();
+    // The user's own scrolling (or a click, or a key) wins over a restored position.
+    for (const type of ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const) {
+      this.addEventListener(type, this.#dropScrollTarget, { passive: true });
+    }
+  }
+
+  readonly #dropScrollTarget = () => {
+    this.#scrollTarget = undefined;
+  };
+
   override connectedCallback(): void {
     super.connectedCallback();
     if (!this.hasAttribute('role')) this.setAttribute('role', 'grid');
@@ -751,6 +771,91 @@ export class ArgusTable<T = unknown> extends LitElement {
     await this.updateComplete;
   }
 
+  /**
+   * The state users change, as one object of plain JSON for saving a user's
+   * layout: `sorting`, `columnSizing`, `columnOrder`, `columnPinning`,
+   * `columnVisibility`, `columnFilters`, `selection`, `quickFilter`, and `scroll`
+   * (the row at the top and the horizontal offset). Controlled properties are
+   * included with the values you set. The object is a copy: changing it changes
+   * nothing in the table.
+   */
+  getState(): Required<TableState> {
+    const scroller = this.renderRoot.querySelector<HTMLElement>('[part~="table"]');
+    return structuredClone({
+      sorting: this.#sorting.value,
+      columnSizing: this.#sizing.value,
+      columnOrder: this.#order.value,
+      columnPinning: this.#pinning.value,
+      columnVisibility: this.#visibility.value,
+      columnFilters: this.#filters.value,
+      selection: this.#selection.value,
+      quickFilter: this.#quickFilter,
+      // Negative in RTL.
+      scroll: { row: this.#virtual.topRow, left: Math.abs(scroller?.scrollLeft ?? 0) },
+    });
+  }
+
+  /**
+   * Restores state from `getState()`, for example a layout saved in
+   * `localStorage`. Only the keys given change; ids of columns that no longer
+   * exist are ignored. Properties you control are left alone (set them
+   * yourself), and the others stay uncontrolled. No change events fire.
+   * `quickFilter` is set like the property: a search box of yours shows it only
+   * if you read it back. `scroll` is applied after the rest, so with a
+   * `dataSource` the restored rows load where it points. Resolves once the table
+   * has re-rendered there.
+   */
+  async setState(state: TableState): Promise<void> {
+    this.#restore('sorting', this.#sorting, state.sorting);
+    this.#restore('columnSizing', this.#sizing, state.columnSizing);
+    this.#restore('columnOrder', this.#order, state.columnOrder);
+    this.#restore('columnPinning', this.#pinning, state.columnPinning);
+    this.#restore('columnVisibility', this.#visibility, state.columnVisibility);
+    this.#restore('columnFilters', this.#filters, state.columnFilters);
+    // A Shift range starts over from the restored selection.
+    if (this.#restore('selection', this.#selection, state.selection)) this.#anchor = undefined;
+    if (state.quickFilter !== undefined) this.quickFilter = state.quickFilter;
+    this.#scrollTarget = undefined;
+    await this.updateComplete;
+    const { scroll } = state;
+    if (!scroll) return;
+    this.#virtual.scrollToIndex(scroll.row);
+    // A data source counts one page past its loaded rows until it knows the
+    // total: scroll on as the count grows.
+    const count = this.#table.model.rowCount;
+    if (this.#data.rows?.totalKnown === false && scroll.row >= count) {
+      this.#scrollTarget = { row: scroll.row, count };
+    }
+    const scroller = this.renderRoot.querySelector<HTMLElement>('[part~="table"]');
+    if (scroller) scroller.scrollLeft = scroll.left * this.#direction();
+    // The scroll event comes before the next frame, and the rows move with its update.
+    await new Promise(requestAnimationFrame);
+    await this.updateComplete;
+  }
+
+  /** Scrolls on toward the row `setState()` restored once more rows are counted. */
+  #chaseScrollTarget(count: number): void {
+    const target = this.#scrollTarget;
+    if (!target || target.count === count) return;
+    target.count = count;
+    this.#virtual.scrollToIndex(target.row);
+    if (target.row < count || this.#data.rows?.totalKnown !== false) this.#scrollTarget = undefined;
+  }
+
+  /**
+   * Applies a restored value to uncontrolled state without an event, as a user
+   * change would without the event. Returns whether it changed.
+   */
+  #restore<V>(name: keyof TableState, state: Controllable<V>, value: V | undefined): boolean {
+    if (value === undefined || state.controlled) return false;
+    // The same value restored again doesn't reload a data source.
+    if (JSON.stringify(value) === JSON.stringify(state.value)) return false;
+    const old = state.value;
+    state.request(structuredClone(value));
+    this.requestUpdate(name, old);
+    return true;
+  }
+
   protected override willUpdate(changed: PropertyValues<this>): void {
     if (changed.has('plugins')) this.#plugins.set(this.plugins);
     const columns = this.#plugins.transform(this.#effectiveColumns());
@@ -774,6 +879,8 @@ export class ArgusTable<T = unknown> extends LitElement {
       if (this.dataSource && this.hasUpdated && (changed.has('sorting') || filtersChanged)) {
         this.#scrollToTop = !changed.has('dataSource');
       }
+      // Other rows: a position restored for the old ones no longer applies.
+      this.#scrollTarget = undefined;
     }
     if (filtersChanged && this.hasUpdated) this.#announceRows = true;
     if (
@@ -932,6 +1039,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       const scroller = this.renderRoot.querySelector<HTMLElement>('[part~="table"]');
       if (scroller) scroller.scrollTop = 0;
     }
+    this.#chaseScrollTarget(model.rowCount);
     if (
       this.#columnsChanged ||
       changed.has('columnSizing') ||

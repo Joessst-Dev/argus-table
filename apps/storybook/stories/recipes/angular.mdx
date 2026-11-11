@@ -74,6 +74,14 @@ readonly table = viewChild.required(ArgusTableComponent);
 top() {
   void this.table().scrollToRow(0);
 }
+
+// Save and restore a user's layout (sorting, widths, order, filters, scroll...).
+save(): TableState {
+  return this.table().getState();
+}
+restore(state: TableState) {
+  void this.table().setState(state);
+}
 ```
 
 ## Columns from a loop
