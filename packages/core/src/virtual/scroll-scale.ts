@@ -2,7 +2,8 @@
  * Maps the scroll position of a body that is too tall to render onto the rows.
  *
  * Engines limit an element's height (about 33.5M px in Chromium and WebKit, less
- * when zoomed; about 17.9M px in Firefox, which drops a taller element to 0). A
+ * when zoomed; about 17.9M px in Firefox, which drops a taller element to 0, and
+ * lets go of sticky elements past 8.95M px of scrolling, so 8M px there). A
  * body taller than `cap` renders `cap` px tall, and the scroll position is scaled
  * linearly: the top of the physical scroll range is the first row, its bottom the
  * last. Offsets the virtualizer works with are logical (unscaled) px; the
