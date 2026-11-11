@@ -26,23 +26,16 @@ async function expectConsistent(page: Page) {
     expect(cells.note?.startsWith(`${String(rowIndex - 2)}:`)).toBe(true);
     if (i > 0) expect(rowIndex).toBe((rows[i - 1]?.rowIndex ?? 0) + 1);
   });
-  // Firefox lays out in 1/60 px held as 32-bit floats: past about 8.9M px a
-  // position snaps to 64 units, 16/15 px (fixed 40 px rows round the same way).
-  const slack = test.info().project.name.includes('firefox') ? 1.1 : 1;
   const rendered = await boxes(page);
   for (let i = 1; i < rendered.length; i++) {
     const prev = rendered[i - 1];
     const row = rendered[i];
     if (!prev || row?.index !== prev.index + 1) continue;
-    expect(Math.abs(row.top - prev.bottom)).toBeLessThan(slack);
+    expect(Math.abs(row.top - prev.bottom)).toBeLessThan(1);
   }
 }
 
-/**
- * The index of the first row whose bottom is below the header. The header's
- * edge from the scroller and its height: Firefox reports a sticky header's box
- * millions of px off once the scroll offset is that large.
- */
+/** The index of the first row whose bottom is below the header (the scroller's top plus its height). */
 async function topIndex(page: Page): Promise<number> {
   return page.evaluate(() => {
     const root = document.querySelector('argus-table')?.shadowRoot;

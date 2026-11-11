@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { focused, open, scrollTo, settle, visibleRows } from './helpers.js';
 
 test.describe('scrolling 100,000 rows', () => {
@@ -38,6 +38,8 @@ test.describe('scrolling 100,000 rows', () => {
 // 1M rows of 40 px are 40M px: taller than any engine renders an element
 // (Chromium and WebKit stop at about 33.5M px, Firefox drops it to 0 past about
 // 17.9M px), so the body renders shorter and the scroll position is scaled.
+// Firefox's body stops at 8M px: past about 8.95M px of scrolling it lets go of
+// the sticky header and top pinned rows (#90).
 test.describe('scrolling 1,000,000 rows', () => {
   test.beforeEach(async ({ page }) => {
     await open(page, { rows: 1_000_000, cols: 8 });
@@ -118,4 +120,52 @@ test.describe('scrolling 1,000,000 rows', () => {
     await expect.poll(async () => (await visibleRows(page))[0]?.rowIndex ?? 0).toBeGreaterThan(50);
     expectConsistent(await visibleRows(page));
   });
+});
+
+/**
+ * The header and the top pinned rows: whether each is at its place below the
+ * scroller's top edge, and the header cell at the point where it should be.
+ */
+async function stuck(page: Page) {
+  return page.evaluate(() => {
+    const root = document.querySelector('argus-table')?.shadowRoot;
+    const scroller = root?.querySelector('[part~="table"]');
+    const header = root?.querySelector<HTMLElement>('[part~="header"]');
+    const pinned = root?.querySelector('.pinned[data-side="top"]');
+    if (!root || !scroller || !header) throw new Error('no table');
+    const box = scroller.getBoundingClientRect();
+    const top = box.top;
+    const hit = root.elementFromPoint(box.left + 40, top + header.offsetHeight / 2);
+    return {
+      header: Math.round(header.getBoundingClientRect().top - top),
+      pinned: pinned ? Math.round(pinned.getBoundingClientRect().top - top) : undefined,
+      hit: hit?.closest('[role="columnheader"]') !== null,
+    };
+  });
+}
+
+test.describe('the header at the end of 1,000,000 rows', () => {
+  for (const pinned of [false, true]) {
+    const title = pinned
+      ? 'stays at the top, with the top pinned rows below it'
+      : 'stays at the top';
+    test(title, async ({ page }) => {
+      await open(page, { rows: 1_000_000, cols: 8, ...(pinned ? { pinned: 'top' } : {}) });
+      for (const at of ['middle', 'end'] as const) {
+        await page.evaluate((where) => {
+          const scroller = document
+            .querySelector('argus-table')
+            ?.shadowRoot?.querySelector<HTMLElement>('[part~="table"]');
+          if (!scroller) return;
+          const range = scroller.scrollHeight - scroller.clientHeight;
+          scroller.scrollTop = where === 'end' ? range : range / 2;
+        }, at);
+        await settle(page);
+        const seen = await stuck(page);
+        expect(seen.header, at).toBe(0);
+        expect(seen.hit, at).toBe(true);
+        if (pinned) expect(seen.pinned, at).toBe(40);
+      }
+    });
+  }
 });
