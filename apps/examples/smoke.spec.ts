@@ -10,6 +10,7 @@ const orders = createOrders();
 const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'EUR' });
 const first = orders[0];
 const cheapest = Math.min(...orders.map((o) => o.total));
+const cheapestInOslo = Math.min(...orders.filter((o) => o.city === 'Oslo').map((o) => o.total));
 
 /** The text of a cell in the first body row (aria-rowindex 2), read from its slotted light DOM. */
 async function firstRowCell(page: Page, col: string): Promise<string> {
@@ -47,10 +48,28 @@ for (const { name, port } of starters) {
     await expect(total).toHaveAttribute('aria-sort', 'ascending');
     await expect.poll(() => firstRowCell(page, 'total')).toBe(currency.format(cheapest));
 
-    // The row-click event reaches the app, through the wrapper where there is one.
-    const id = await firstRowCell(page, 'id');
+    // The search box sets quickFilter.
+    const search = page.getByRole('searchbox', { name: 'Search orders' });
+    await search.fill('Oslo');
+    await expect.poll(() => firstRowCell(page, 'total')).toBe(currency.format(cheapestInOslo));
+    expect(await firstRowCell(page, 'city')).toBe('Oslo');
+    await search.fill('');
+    await expect.poll(() => firstRowCell(page, 'total')).toBe(currency.format(cheapest));
+
+    // The column menu (@argus-table/header-menu) runs as a plugin: hide a column with it.
+    // The button is in the header's light-DOM content, a child of the table.
+    const cityHeader = table.locator('div[slot^="h-"]', { hasText: 'City' });
+    await cityHeader.getByRole('button', { name: 'Column menu' }).click();
+    await page.getByRole('menuitem', { name: 'Hide column' }).click();
+    await expect(table.locator('[role="columnheader"][data-col="city"]')).toHaveCount(0);
+
+    // Selection reaches the app, through the wrapper where there is one: a row
+    // click selects that row, a checkbox adds its row.
+    const status = page.locator('p[role="status"]');
     await table.locator('[part~="row"][aria-rowindex="2"] [data-col="customer"]').click();
-    await expect(page.locator('p[role="status"]')).toHaveText(new RegExp(`Selected order ${id} `));
+    await expect(status).toHaveText('1 order selected');
+    await table.locator('[part~="row"][aria-rowindex="3"] [part~="selection-checkbox"]').click();
+    await expect(status).toHaveText('2 orders selected');
 
     expect(errors).toEqual([]);
   });

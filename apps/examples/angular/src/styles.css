@@ -10,6 +10,14 @@ body {
   color-scheme: light dark;
 }
 
+input[type='search'] {
+  box-sizing: border-box;
+  inline-size: min(320px, 100%);
+  margin-block-end: 12px;
+  padding: 6px 10px;
+  font: inherit;
+}
+
 argus-table {
   block-size: 480px;
 }

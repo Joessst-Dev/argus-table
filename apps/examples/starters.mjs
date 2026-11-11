@@ -12,6 +12,7 @@ export const starters = [
 export const packages = {
   'argus-table': 'packages/table',
   '@argus-table/themes': 'packages/themes',
+  '@argus-table/header-menu': 'packages/header-menu',
   '@argus-table/react': 'packages/react',
   '@argus-table/vue': 'packages/vue',
   '@argus-table/angular': 'packages/angular',

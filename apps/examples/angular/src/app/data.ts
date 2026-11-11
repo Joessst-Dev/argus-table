@@ -60,11 +60,3 @@ export function createOrders(count = 10_000): Order[] {
 }
 
 export const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'EUR' });
-
-// A cell can return a string, a number, a DOM node or a Lit template.
-export function statusBadge(order: Order): HTMLElement {
-  const badge = document.createElement('span');
-  badge.className = `status status-${order.status.toLowerCase()}`;
-  badge.textContent = order.status;
-  return badge;
-}

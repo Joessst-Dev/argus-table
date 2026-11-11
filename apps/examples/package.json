@@ -13,6 +13,7 @@
   },
   "devDependencies": {
     "@argus-table/angular": "workspace:*",
+    "@argus-table/header-menu": "workspace:*",
     "@argus-table/react": "workspace:*",
     "@argus-table/themes": "workspace:*",
     "@argus-table/vue": "workspace:*",

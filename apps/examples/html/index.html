@@ -7,8 +7,14 @@
   </head>
   <body>
     <h1>Orders</h1>
-    <argus-table id="orders" aria-label="Orders"></argus-table>
-    <p id="selected" role="status">Click a row.</p>
+    <input id="search" type="search" placeholder="Search orders" aria-label="Search orders" />
+    <argus-table
+      id="orders"
+      aria-label="Orders"
+      selection-mode="multi"
+      selection-checkboxes
+    ></argus-table>
+    <p id="selected" role="status">Click a row or its checkbox to select it.</p>
     <script type="module" src="/main.js"></script>
   </body>
 </html>
