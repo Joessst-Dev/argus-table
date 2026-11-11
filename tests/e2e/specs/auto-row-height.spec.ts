@@ -57,6 +57,27 @@ async function topIndex(page: Page): Promise<number> {
   });
 }
 
+/**
+ * Puts the mouse over the middle of the table for wheel input. Not `hover()` on
+ * the body: it is millions of px tall and grows as rows are measured, so
+ * Playwright can find it "not stable" and scroll it into view, which jumped
+ * WebKit to the end of the table on CI.
+ */
+async function pointAtTable(page: Page) {
+  const box = await page.locator('argus-table').boundingBox();
+  if (!box) throw new Error('no table');
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+}
+
+/** The scroller's offset in px. */
+async function scrollTop(page: Page): Promise<number> {
+  return page.evaluate(
+    () =>
+      document.querySelector('argus-table')?.shadowRoot?.querySelector('[part~="table"]')
+        ?.scrollTop ?? 0,
+  );
+}
+
 test.describe('rowHeight auto, 100,000 rows', () => {
   test.beforeEach(async ({ page }) => {
     await open(page, { rows: 100_000, cols: 8, rowheight: 'auto', notes: '' });
@@ -82,10 +103,11 @@ test.describe('rowHeight auto, 100,000 rows', () => {
   });
 
   test('the mouse wheel scrolls down without stalling', async ({ page }) => {
-    await page.locator('argus-table [part~="body"]').hover();
+    await pointAtTable(page);
     for (let i = 0; i < 10; i++) await page.mouse.wheel(0, 400);
-    // Rows are 40 to 120 px tall: 4000 px is more than 33 rows.
-    await expect.poll(() => topIndex(page)).toBeGreaterThan(30);
+    // In px: how many rows that is depends on the fonts.
+    await expect.poll(() => scrollTop(page)).toBeGreaterThan(3200);
+    expect(await topIndex(page)).toBeGreaterThan(10);
     await settle(page);
     await expectConsistent(page);
   });
@@ -94,7 +116,7 @@ test.describe('rowHeight auto, 100,000 rows', () => {
     await page.evaluate(() => document.querySelector('argus-table')?.scrollToRow(50_000));
     await settle(page);
     expect(await topIndex(page)).toBe(50_000);
-    await page.locator('argus-table [part~="body"]').hover();
+    await pointAtTable(page);
     for (let i = 0; i < 10; i++) await page.mouse.wheel(0, -400);
     // About 40 rows of 40 to 200 px; a wheel scroll cut short by a write to the
     // scroll position (WebKit) moved about 8. Leave room for a loaded machine.
@@ -153,7 +175,7 @@ test.describe('rowHeight auto, 1,000,000 rows', () => {
     await settle(page);
     expect(await topIndex(page)).toBe(765_432);
     await expectConsistent(page);
-    await page.locator('argus-table [part~="body"]').hover();
+    await pointAtTable(page);
     for (let i = 0; i < 10; i++) await page.mouse.wheel(0, 400);
     await expect.poll(() => topIndex(page)).toBeGreaterThan(765_432 + 10);
     await settle(page);
