@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
+import { userEvent } from 'vitest/browser';
 import 'argus-table';
 import type { ArgusPlugin, ArgusTable, ColumnDef } from 'argus-table';
 import {
@@ -264,6 +265,17 @@ describe('header menu keyboard', () => {
     expect(event.defaultPrevented).toBe(true);
     const menu = await opened(el);
     expect(menu.dataset.column).toBe('age');
+  });
+
+  test('a real right-click opens it and leaves it open after the button is released', async () => {
+    const el = await fixture();
+    // Linux and macOS fire contextmenu on the press: a menu shown before the
+    // release was light-dismissed by the pointerup.
+    await userEvent.click(headerOf(el, 'age'), { button: 'right' });
+    const menu = await opened(el);
+    expect(menu.dataset.column).toBe('age');
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(openMenu(el)).toBe(menu);
   });
 });
 
