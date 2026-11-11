@@ -701,7 +701,7 @@ export function createTableModel<TData, TContent>(
         ? current
             .map(
               (c) =>
-                `${c.id}\u0000${String(c.pin)}\u0000${String(c.offset)}\u0000${String(c.pinEdge)}\u0000${String(c.reorderable)}`,
+                `${c.id}\u0000${String(c.pin)}\u0000${String(c.offset)}\u0000${String(c.pinEdge)}\u0000${String(c.reorderable)}\u0000${String(c.resizable)}`,
             )
             .join('\u0001')
         : '';

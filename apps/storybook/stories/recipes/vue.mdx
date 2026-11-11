@@ -55,7 +55,7 @@ Props set the element's properties. Each `argus-*` event is emitted without its 
 
 `v-model:sorting`, `v-model:column-sizing`, `v-model:column-order` and `v-model:selection` bind the four properties the table can change. Unbound, the table keeps that state itself.
 
-Cells and headers take Vue content: a `#cell-<column id>` slot gets the row (`{ row, value, rowId, index }`, typed from `data`), and `#header-<column id>` gives a header. `cell` and `header` in `columns` can also return VNodes from `h()`. Pooled cells update their components with the next row's props as the table scrolls, rather than remounting them:
+Cells and headers take Vue content: a `#cell-<column id>` slot gets the row (`{ row, value, rowId, index }`, typed from `data`), `#header-<column id>` gives a header, and `#group-<group id>` a column group's header (`{ groupId }`). `cell` and `header` in `columns` can also return VNodes from `h()`. Pooled cells update their components with the next row's props as the table scrolls, rather than remounting them:
 
 ```vue
 <ArgusTable :columns="columns" :data="orders">

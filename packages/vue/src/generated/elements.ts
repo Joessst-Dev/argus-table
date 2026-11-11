@@ -18,7 +18,13 @@ import type {
   RowSelectDetail,
   SortChangeDetail,
 } from 'argus-table';
-import type { HeaderSlotProps, VueCellContent, VueColumnDef, VueColumnGroup } from '../content.js';
+import type {
+  GroupSlotProps,
+  HeaderSlotProps,
+  VueCellContent,
+  VueColumnDef,
+  VueColumnGroup,
+} from '../content.js';
 import { defineWrapper } from '../define.js';
 
 /** The properties of `<argus-table>` that `<ArgusTable>` sets on the element. */
@@ -134,6 +140,8 @@ export interface ArgusTableSlots<T = unknown> {
   [slot: `cell-${string}`]: ((props: CellContext<T>) => VNodeChild) | undefined;
   /** `#header-<column id>`: a column's header. */
   [slot: `header-${string}`]: ((props: HeaderSlotProps) => VNodeChild) | undefined;
+  /** `#group-<group id>`: a column group's header. */
+  [slot: `group-${string}`]: ((props: GroupSlotProps) => VNodeChild) | undefined;
 }
 
 interface ArgusTableContext<T = unknown> {
@@ -308,7 +316,9 @@ export const ArgusColumn = defineWrapper({
 ) => VNode & { __ctx?: ArgusColumnContext<T> };
 
 /** The properties of `<argus-column-group>` that `<ArgusColumnGroup>` sets on the element. */
-export type ArgusColumnGroupElementProps = Partial<Pick<ArgusColumnGroupElement, 'groupId'>> & {
+export type ArgusColumnGroupElementProps = Partial<
+  Pick<ArgusColumnGroupElement, 'groupId' | 'reorderable'>
+> & {
   header?: VueCellContent | (() => VueCellContent);
 };
 
@@ -339,8 +349,8 @@ interface ArgusColumnGroupContext {
 export const ArgusColumnGroup = defineWrapper({
   name: 'ArgusColumnGroup',
   tag: 'argus-column-group',
-  props: ['groupId', 'header'],
-  booleans: [],
+  props: ['groupId', 'header', 'reorderable'],
+  booleans: ['reorderable'],
   events: [],
   methods: [],
 }) as unknown as (

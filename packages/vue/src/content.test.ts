@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { createApp, defineComponent, h, nextTick, provide, reactive, type App } from 'vue';
 import { ArgusTable, type ArgusTableElement, type VueColumnDef } from './index.js';
+import Groups from './test/Groups.vue';
 import Slots from './test/Slots.vue';
 import { counts } from './test/counts.js';
 import { size, type Order } from './test/data.js';
@@ -128,6 +129,28 @@ describe('Vue content in cells and headers', () => {
     });
     const el = await mount(() => createApp(Provider).provide('unit', ' kg'));
     expect(cells(el, 'customer')).toEqual(['Customer 0 kg/dark']);
+  });
+
+  test('renders #group-<id> slots, from column-groups and <ArgusColumnGroup>', async () => {
+    const group = (el: ArgusTableElement) =>
+      el.shadowRoot
+        ?.querySelector<HTMLSlotElement>('[part~="header-group-cell"] slot')
+        ?.assignedElements()[0]
+        ?.textContent.trim();
+    for (const declarative of [false, true]) {
+      const state = reactive({ currency: 'EUR' });
+      const el = await mount(() =>
+        createApp(() => h(Groups, { rows: orders(2), declarative, ...state })),
+      );
+      expect(group(el)).toBe('money in EUR');
+      state.currency = 'CHF';
+      await settle(el);
+      expect(group(el)).toBe('money in CHF');
+      app?.unmount();
+      container?.remove();
+    }
+    app = undefined;
+    container = undefined;
   });
 
   test('slots work with <ArgusColumn> children too', async () => {

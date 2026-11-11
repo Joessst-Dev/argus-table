@@ -500,4 +500,11 @@ export class ArgusColumnGroupComponent {
   @Input() set header(value: (AngularCellContent | (() => AngularCellContent)) | null | undefined) {
     setProperty(this.element, 'header', 'header', value);
   }
+
+  /** Whether the group can be moved as a whole. Default: `true`; `reorderable="false"` turns it off. */
+  @Input() set reorderable(
+    value: ArgusColumnGroupElement['reorderable'] | '' | 'true' | 'false' | null | undefined,
+  ) {
+    setProperty(this.element, 'reorderable', 'reorderable', value);
+  }
 }

@@ -51,7 +51,9 @@ function component(el: ElementInfo): string {
   /** \`#cell-<column id>\`: a column's cells. Gets the row and its context. */
   [slot: \`cell-\${string}\`]: ((props: CellContext<${el.generic ? 'T' : 'unknown'}>) => VNodeChild) | undefined;
   /** \`#header-<column id>\`: a column's header. */
-  [slot: \`header-\${string}\`]: ((props: HeaderSlotProps) => VNodeChild) | undefined;`
+  [slot: \`header-\${string}\`]: ((props: HeaderSlotProps) => VNodeChild) | undefined;
+  /** \`#group-<group id>\`: a column group's header. */
+  [slot: \`group-\${string}\`]: ((props: GroupSlotProps) => VNodeChild) | undefined;`
     : '';
   const modelOf = (event: string) => el.models.find((m) => m.event === event);
 
@@ -163,7 +165,7 @@ export function emitVue(elements: readonly ElementInfo[]): string {
   const types = [...classes, ...argusTypes(elements, usesContent)].join(', ');
   const vue = usesContent ? 'PublicProps, VNode, VNodeChild' : 'PublicProps, VNode';
   const contentTypes = [
-    ...(elements.some(rendersContent) ? ['HeaderSlotProps'] : []),
+    ...(elements.some(rendersContent) ? ['GroupSlotProps', 'HeaderSlotProps'] : []),
     ...(usesContent ? ['VueCellContent', 'VueColumnDef'] : []),
     ...(usesContent && usesGroups(elements) ? ['VueColumnGroup'] : []),
   ];

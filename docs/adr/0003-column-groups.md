@@ -28,4 +28,5 @@ Users want headers over several columns ("Customer" over Name and City), nested 
 - The header is `--_header-rows` rows tall: the sticky top of pinned rows, scroll margins, page sizes and the virtualizer's cap use it.
 - The active cell can be a group: header row `level`, and a column it covers, so focus returns to that column on ArrowDown.
 - A screen-reader pass with groups is part of the [check](../a11y/screen-reader-check.md) (step 10). Readers may announce fillers as blank cells.
-- Follow-ups: Vue `#group-<id>` slots and an Angular group template directive, resizing a group, and per-group `reorderable`.
+- Plugins get a `columnGroups` hook beside `columns`, so the Vue (`#group-<id>`) and Angular (`argusGroupHeader`) template plugins can give groups their headers, from the property and from children alike.
+- A group resize is a resize of its columns: the change is spread over its resizable columns in proportion to their widths (core `spreadWidth`), and `argus-column-resize` fires per column, as for `autosizeColumns()`. No group width is stored.

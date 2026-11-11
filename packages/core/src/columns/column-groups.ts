@@ -10,6 +10,8 @@ export interface GroupNode<TContent> {
   depth: number;
   /** Position in a depth-first walk of `columnGroups`: a stable number for the group. */
   ordinal: number;
+  /** Whether the group can move as a whole (`ColumnGroup.reorderable`). */
+  reorderable: boolean;
 }
 
 /** `columnGroups` resolved against the columns. */
@@ -57,6 +59,7 @@ export function resolveColumnGroups<TContent>(
       parent: path.at(-1),
       depth: path.length,
       ordinal: ordinal++,
+      reorderable: group.reorderable !== false,
     };
     const inner = [...path, group.id];
     let kept = false;
@@ -88,6 +91,7 @@ export interface GroupedColumn {
   offset: number;
   pinEdge: boolean;
   reorderable: boolean;
+  resizable: boolean;
 }
 
 /** A cell of a group header row: a group over its columns, or a filler over ungrouped ones. */
@@ -113,8 +117,10 @@ export interface HeaderGroupCell<TContent> {
   pinEdge: boolean;
   /** A number unique to the group and its pin side, stable while `columnGroups` is, for slot names. `-1` for a filler. */
   slot: number;
-  /** `true` for a group whose shown columns can all be moved. */
+  /** `true` for a group that can move (`reorderable`) and whose shown columns can all be moved. */
   movable: boolean;
+  /** `true` for a group with a column that can be resized: resizing the group resizes those. */
+  resizable: boolean;
 }
 
 const SIDES = { start: 0, center: 1, end: 2 } as const;
@@ -156,7 +162,11 @@ export function headerGroupRows<TContent>(
       cell.offset = cell.pin === 'end' ? last.offset : first.offset;
       cell.pinEdge = cell.pin === 'end' ? first.pinEdge : last.pinEdge;
       cell.movable =
-        cell.kind === 'group' && members.every((c) => c.kind === 'data' && c.reorderable);
+        cell.kind === 'group' &&
+        cell.groupId !== undefined &&
+        tree.groups.get(cell.groupId)?.reorderable === true &&
+        members.every((c) => c.kind === 'data' && c.reorderable);
+      cell.resizable = cell.kind === 'group' && members.some((c) => c.resizable);
       row.push(cell);
     };
     for (const column of columns) {
@@ -184,6 +194,7 @@ export function headerGroupRows<TContent>(
           pinEdge: false,
           slot: node ? node.ordinal * 3 + SIDES[side] : -1,
           movable: false,
+          resizable: false,
         },
       };
     }

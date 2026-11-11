@@ -56,7 +56,7 @@ Inputs set the element's properties; `null` (as from the `async` pipe) means uns
 
 `[(sorting)]`, `[(columnSizing)]`, `[(columnOrder)]` and `[(selection)]` bind the four properties the table can change. Unbound, the table keeps that state itself; a one-way `[sorting]` is controlled.
 
-Cells and headers take Angular templates: `<ng-template argusCell="status" let-row>` inside the table renders a column's cells (`[argusCellOf]="rows"` types `row`), and `argusHeader="total"` its header. A `cell` function can return `argusTemplate(templateRef, context)`. Pooled cells keep their views and get the next row's context as the table scrolls:
+Cells and headers take Angular templates: `<ng-template argusCell="status" let-row>` inside the table renders a column's cells (`[argusCellOf]="rows"` types `row`), `argusHeader="total"` its header, and `argusGroupHeader="<group id>"` a column group's header. A `cell` function can return `argusTemplate(templateRef, context)`. Pooled cells keep their views and get the next row's context as the table scrolls:
 
 ```html
 <argus-table [columns]="columns" [data]="orders()">

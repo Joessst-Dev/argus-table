@@ -84,6 +84,33 @@ export class ArgusHeaderDirective {
   /* eslint-enable @typescript-eslint/no-unused-vars */
 }
 
+/** What an `argusGroupHeader` template gets: the group id. */
+export interface ArgusGroupHeaderContext {
+  $implicit: string;
+  groupId: string;
+}
+
+/**
+ * A column group's header, as a template inside `<argus-table>`:
+ * `<ng-template argusGroupHeader="customer">`. For groups from `columnGroups`
+ * and from `<argus-column-group>` children alike.
+ */
+@Directive({ selector: 'ng-template[argusGroupHeader]' })
+export class ArgusGroupHeaderDirective {
+  /** The id of the group whose header this renders. */
+  @Input({ required: true }) argusGroupHeader!: string;
+  readonly template = inject<TemplateRef<ArgusGroupHeaderContext>>(TemplateRef);
+
+  /* eslint-disable @typescript-eslint/no-unused-vars -- Angular reads the guard's signature only. */
+  static ngTemplateContextGuard(
+    _directive: ArgusGroupHeaderDirective,
+    context: unknown,
+  ): context is ArgusGroupHeaderContext {
+    return true;
+  }
+  /* eslint-enable @typescript-eslint/no-unused-vars */
+}
+
 const TEMPLATE = Symbol('argus-template');
 
 /** A template with its context, as a `cell` or `header` function returns it: see `argusTemplate()`. */
@@ -184,6 +211,8 @@ export abstract class ArgusTableBase<T = unknown> implements AfterContentInit, O
   @ContentChildren(ArgusCellDirective) protected cellTemplates?: QueryList<ArgusCellDirective>;
   @ContentChildren(ArgusHeaderDirective)
   protected headerTemplates?: QueryList<ArgusHeaderDirective>;
+  @ContentChildren(ArgusGroupHeaderDirective)
+  protected groupTemplates?: QueryList<ArgusGroupHeaderDirective>;
 
   readonly #renderer = new TemplateRenderer(inject(ViewContainerRef), inject(Injector));
   #host: PluginHost<T> | undefined;
@@ -199,6 +228,7 @@ export abstract class ArgusTableBase<T = unknown> implements AfterContentInit, O
       };
     },
     columns: (defs) => defs.map((def) => this.#withTemplates(def)),
+    columnGroups: (groups) => groups.map((group) => this.#withGroupTemplate(group)),
   };
 
   constructor() {
@@ -212,7 +242,7 @@ export abstract class ArgusTableBase<T = unknown> implements AfterContentInit, O
   }
 
   ngAfterContentInit(): void {
-    for (const list of [this.cellTemplates, this.headerTemplates]) {
+    for (const list of [this.cellTemplates, this.headerTemplates, this.groupTemplates]) {
       const subscription = list?.changes.subscribe(() => {
         this.#host?.invalidateColumns();
       });
@@ -224,6 +254,23 @@ export abstract class ArgusTableBase<T = unknown> implements AfterContentInit, O
   ngOnDestroy(): void {
     for (const subscription of this.#subscriptions) subscription.unsubscribe();
     this.#renderer.destroy();
+  }
+
+  /** A group, and the groups inside it, with the header from its `argusGroupHeader` template. */
+  #withGroupTemplate(group: ColumnGroup): ColumnGroup {
+    const id = group.id;
+    const columns = group.columns.map((c) =>
+      typeof c === 'string' ? c : this.#withGroupTemplate(c),
+    );
+    const changed = columns.some((c, i) => c !== group.columns[i]);
+    const template = this.groupTemplates?.find((t) => t.argusGroupHeader === id);
+    if (!template) return changed ? { ...group, columns } : group;
+    return {
+      ...group,
+      columns,
+      header: () =>
+        argusTemplate(template.template, { $implicit: id, groupId: id }) as unknown as CellContent,
+    };
   }
 
   #withTemplates(def: ColumnDef<T>): ColumnDef<T> {

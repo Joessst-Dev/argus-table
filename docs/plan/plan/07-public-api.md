@@ -132,12 +132,13 @@ table.columnGroups = [
 </argus-table>
 ```
 
-- A group is `{ id, header?, columns }`: `columns` lists column ids and nested groups, in order. `header` takes the same content as a column's (text, a template, a node, a function, framework content in the wrappers); without one, the group shows its id. Group ids are unique among groups (an id may equal a column id). Unknown column ids are ignored, a column listed twice belongs to the first group that lists it, and a group left without columns isn't shown.
+- A group is `{ id, header?, reorderable?, columns }`: `columns` lists column ids and nested groups, in order. `header` takes the same content as a column's (text, a template, a node, a function, framework content in the wrappers); without one, the group shows its id. Group ids are unique among groups (an id may equal a column id). Unknown column ids are ignored, a column listed twice belongs to the first group that lists it, and a group left without columns isn't shown.
 - `columns` stays a flat list, and so do the state properties and events: groups only add headers and keep their columns together. Plugins see the flat columns as before.
 - Groups are top-aligned: a top-level group is in the first header row, a group inside it in the second, and so on. Header rows = the deepest nesting among the shown columns + 1. Columns without a group at a level sit under an empty filler there (part `header-group-filler`). A group whose shown columns are all hidden goes away, and its row with it if it was the deepest.
-- A group's columns stay next to each other in the column order: on its first column's place, even when `columnOrder` lists them apart. A column moves only within its innermost group; a group moves as a whole, among the columns and groups beside it, by a drag on its header or Alt+Shift+Arrow on it. A group moves when every one of its shown columns may (`reorderable`). `argus-column-reorder` then carries `groupId`, and `columnId` is its first column.
+- A group's columns stay next to each other in the column order: on its first column's place, even when `columnOrder` lists them apart. A column moves only within its innermost group; a group moves as a whole, among the columns and groups beside it, by a drag on its header or Alt+Shift+Arrow on it. A group moves when it may (`reorderable`, default `true`; `reorderable="false"` on `<argus-column-group>`) and every one of its shown columns may; with `reorderable: false` its columns still move within it. `argus-column-reorder` then carries `groupId`, and `columnId` is its first column.
 - Pinning splits a group: its columns pinned to a side show under a group cell of their own on that side, sticky with them. The label of a group in the scrolling area stays in view while its columns scroll past.
-- Group headers don't sort, resize or get a column menu. They take part in keyboard navigation (see [Accessibility](08-accessibility.md)).
+- A group with a resizable column has a `resize-handle` ("Resize group") on its header. Dragging it, or Alt+Arrow on the focused group header (10 px), resizes the group: the change is spread over its resizable columns in proportion to their widths, each within its `minWidth` and `maxWidth`; the other columns keep their width. A double-click on it fits each of its columns to its content, as `autosizeColumns()` does. These are column resizes: they write `columnSizing` (or propose it) and fire `argus-column-resize` once per column that changes.
+- Group headers don't sort or get a column menu. They take part in keyboard navigation (see [Accessibility](08-accessibility.md)).
 - A non-empty `columnGroups` wins over `<argus-column-group>` children, and a non-empty `columns` turns off the children, groups included. `<argus-column-group>` takes `group-id` and `header` (text as the attribute; content or a function as the property), and holds `<argus-column>`s and groups.
 - `columnGroups` isn't user state: it isn't in `getState()`, and no event changes it.
 
@@ -290,19 +291,21 @@ import { headerMenu } from '@argus-table/header-menu';
 table.plugins = [headerMenu()];
 ```
 
-A plugin is an object with a `name` and any of three hooks:
+A plugin is an object with a `name` and any of four hooks:
 
 ```ts
 interface ArgusPlugin<T> {
   name: string; // in error messages
   connect?(host: PluginHost<T>): (() => void) | undefined; // a cleanup
   columns?(defs: readonly ColumnDef<T>[], host: PluginHost<T>): readonly ColumnDef<T>[];
+  columnGroups?(groups: readonly ColumnGroup[], host: PluginHost<T>): readonly ColumnGroup[];
   keydown?(event: KeyboardEvent, target: CellTarget, host: PluginHost<T>): boolean | undefined;
 }
 ```
 
 - `connect` runs while the table is connected: when the plugin joins a connected table, and again after the table is moved in the DOM. Its cleanup runs when the plugin leaves `plugins` or the table disconnects. Plugins connect in array order and clean up in reverse.
 - `columns` changes the column definitions before the table reads them: add computed columns, wrap a `header`, change defaults. The hooks chain in array order, starting from `columns` (or the `<argus-column>` children). They run again only when those columns or `plugins` change, or after `host.invalidateColumns()`; a `header` or `cell` function a plugin returns still runs on every render, so a plugin's own state shows after `host.requestUpdate()`. Returned columns are ordinary columns: they sort, resize, move and virtualize like any other.
+- `columnGroups` does the same for the [column groups](#column-groups), starting from `columnGroups` (or the `<argus-column-group>` children), and runs again when those or `plugins` change, or after `host.invalidateColumns()`. The Vue and Angular wrappers' template plugins use it for group headers.
 - `keydown` sees a key on a focused header or cell (not the checkbox column) before the table does. Returning `true` claims the key and the table ignores it; the plugin calls `preventDefault()` itself. `target` is `{ section, columnId, rowIndex, rowId }`, with `section` `'header'`, `'top'`, `'body'` or `'bottom'`. Keys pressed in content inside a cell never reach the hook, as they never reach the table.
 - A new array with the same plugins in the same order changes nothing, so a framework re-render doesn't reconnect them. A new plugin instance does: keep instances stable (a constant, or `useMemo` in React).
 - A hook that throws is reported in the console (`argus-table: plugin "<name>" threw in <hook>`) and skipped; a plugin whose `connect` threw stays off until `plugins` changes. A plugin can't break an update.
@@ -322,7 +325,7 @@ interface ArgusPlugin<T> {
 | `filterValues(columnId, limit?)`              | The values a `set` filter offers: `filterOptions`, else the distinct values of the rows the other filters keep, sorted, at most `limit` (1000) with `truncated`. `undefined` with a `dataSource` and no `filterOptions`. Optional              |
 | `focusHeader(columnId)`                       | Moves the grid's focus to a header after the next update                                                                                                                                                                                          |
 | `announce(message)`                           | Says something through the table's polite live region                                                                                                                                                                                             |
-| `invalidateColumns()`                         | Runs the `columns` hooks again on the next update                                                                                                                                                                                                 |
+| `invalidateColumns()`                         | Runs the `columns` and `columnGroups` hooks again on the next update                                                                                                                                                                              |
 | `requestUpdate()`                             | Re-renders: header and cell functions run again                                                                                                                                                                                                   |
 | `row(index)`                                  | The body row at `index` in the current order; `undefined` past the end and for a `dataSource` row not loaded yet. Optional, like any later addition: check it exists                                                                              |
 
@@ -434,7 +437,7 @@ Each `argus-*` event drops its prefix and takes the framework's style:
 - Angular: standalone components (`ArgusTableComponent`, `ArgusColumnComponent`) on the elements' own tags, so templates need no `CUSTOM_ELEMENTS_SCHEMA`. Inputs are `@Input()` setters that write to the element, and two-way binding is an input with a `…Change` output, so a one-way `[sorting]` stays controlled. Angular passes a static attribute to an input of the same name as a string (`width="90"`); a string for a property that has an attribute goes to the attribute, so the element converts it as in HTML, and the input types accept those strings. `null` (the `async` pipe) means unset.
 - Events bubble, so a table nested in another table's cell fires its events on the outer table too. The Angular outputs only re-emit the outer table's own events (`event.target`).
 - `<argus-column>` is wrapped too (`ArgusColumn`), so loops over columns work. The wrapper component takes the element's name, so the element classes are re-exported as the types `ArgusTableElement` and `ArgusColumnElement`.
-- React: `cell` and `header` may return JSX (any React node). It renders through portals in the app's tree, so it sees the app's providers; see [Framework content](#framework-content). Vue: `#cell-<id>` and `#header-<id>` slots on `<ArgusTable>`, or `cell`/`header` returning VNodes; slotted cells follow the state they read and see the app's and the table's ancestors' injections. Angular: `<ng-template argusCell="<id>">` / `argusHeader` inside `<argus-table>` (`[argusCellOf]` types `let-row`), or `argusTemplate()` from a `cell` function; the views keep the declaring component's bindings and DI.
+- React: `cell` and `header` may return JSX (any React node). It renders through portals in the app's tree, so it sees the app's providers; see [Framework content](#framework-content). Vue: `#cell-<id>` and `#header-<id>` slots on `<ArgusTable>` (and `#group-<id>` for a column group's header), or `cell`/`header` returning VNodes; slotted cells follow the state they read and see the app's and the table's ancestors' injections. Angular: `<ng-template argusCell="<id>">` / `argusHeader` (and `argusGroupHeader` for a column group) inside `<argus-table>` (`[argusCellOf]` types `let-row`), or `argusTemplate()` from a `cell` function; the views keep the declaring component's bindings and DI.
 - Bindings set `undefined` when a prop is removed, so `columns`, `data` and `overscan` read `null` and `undefined` as their defaults.
 
 ## Framework content

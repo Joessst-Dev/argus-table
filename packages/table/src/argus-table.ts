@@ -16,6 +16,7 @@ import {
   groupKey,
   RowLayout,
   sameUnit,
+  spreadWidth,
   sameSelection,
   selectAll,
   selectRange,
@@ -978,7 +979,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     const columns = this.#plugins.transform(this.#effectiveColumns());
     this.#columnsChanged = columns !== this.#columns;
     this.#columns = columns;
-    const groups = this.#effectiveGroups();
+    const groups = this.#plugins.transformGroups(this.#effectiveGroups());
     this.#groupsChanged = groups !== this.#groups;
     this.#groups = groups;
     const filtersChanged = changed.has('columnFilters') || changed.has('quickFilter');
@@ -1339,6 +1340,15 @@ export class ArgusTable<T = unknown> extends LitElement {
       if (event.button !== 0) return;
       const handle = event.composedPath()[0];
       if (!(handle instanceof HTMLElement)) return;
+      const group = this.#groupCellOf(handle.dataset.resizeGroup);
+      if (group) {
+        const starts = this.#groupWidths(group.columns);
+        const total = [...starts.values()].reduce((sum, w) => sum + w, 0);
+        startResizeDrag(handle, event, total, this.#direction(), (w) => {
+          this.#requestGroupResize(group.columns, starts, w);
+        });
+        return;
+      }
       const id = handle.dataset.resizeCol;
       const cell = handle.parentElement;
       if (id !== undefined && cell) {
@@ -1358,7 +1368,14 @@ export class ArgusTable<T = unknown> extends LitElement {
     /** A double-click on a resize handle fits the column to its rendered content. */
     dblclick: (event: MouseEvent) => {
       const handle = event.composedPath()[0];
-      const id = handle instanceof HTMLElement ? handle.dataset.resizeCol : undefined;
+      if (!(handle instanceof HTMLElement)) return;
+      // A group's handle fits each of its columns (`autosizeColumns()` for them).
+      const group = this.#groupCellOf(handle.dataset.resizeGroup);
+      if (group) {
+        void this.autosizeColumns([...group.columns]);
+        return;
+      }
+      const id = handle.dataset.resizeCol;
       if (id === undefined) return;
       this.#requestResizes(measureColumns(this.renderRoot, [id]));
     },
@@ -1549,6 +1566,14 @@ export class ArgusTable<T = unknown> extends LitElement {
       event.preventDefault();
       if (event.shiftKey) {
         this.#moveByKey({ kind: 'group', id: here.groupId, pin: here.pin }, towardEnd ? 1 : -1);
+      } else if (here.resizable) {
+        const starts = this.#groupWidths(here.columns);
+        const total = [...starts.values()].reduce((sum, w) => sum + w, 0);
+        this.#requestGroupResize(
+          here.columns,
+          starts,
+          total + (towardEnd ? RESIZE_STEP : -RESIZE_STEP),
+        );
       }
       return;
     }
@@ -2183,6 +2208,56 @@ export class ArgusTable<T = unknown> extends LitElement {
     if (sized !== undefined) return sized;
     const view = this.#table.model.columns.find((c) => c.id === columnId);
     return view && view.flex === undefined ? view.width : cell.getBoundingClientRect().width;
+  }
+
+  /** The group header cell with a key, from the model. */
+  #groupCellOf(key: string | undefined) {
+    if (key === undefined) return undefined;
+    return this.#table.model.headerGroups.flat().find((c) => c.key === key);
+  }
+
+  /**
+   * The widths a group resize starts from, by column: the latest requested ones
+   * (key presses can come faster than renders), else the model's, else the
+   * rendered width of a flex column.
+   */
+  #groupWidths(columnIds: readonly string[]): Map<string, number> {
+    const widths = new Map<string, number>();
+    for (const id of columnIds) {
+      const header = this.renderRoot.querySelector<HTMLElement>(
+        `[part~='header-cell'][data-col="${CSS.escape(id)}"]`,
+      );
+      const view = this.#table.model.columns.find((c) => c.id === id);
+      const sized = this.#sizing.value[id];
+      widths.set(id, sized ?? (header ? this.#currentWidth(id, header) : (view?.width ?? 0)));
+    }
+    return widths;
+  }
+
+  /**
+   * Resizes a group to `total` px: the change is spread over its resizable columns
+   * in proportion to their widths, within their bounds (one `argus-column-resize`
+   * per column that changes). The other columns keep their width.
+   */
+  #requestGroupResize(
+    columnIds: readonly string[],
+    starts: ReadonlyMap<string, number>,
+    total: number,
+  ): void {
+    const views = new Map(this.#table.model.columns.map((c) => [c.id, c]));
+    let fixed = 0;
+    const spread = [];
+    for (const id of columnIds) {
+      const view = views.get(id);
+      const width = starts.get(id) ?? view?.width ?? 0;
+      if (view?.resizable) {
+        spread.push({ id, width, minWidth: view.minWidth, maxWidth: view.maxWidth });
+      } else {
+        fixed += width;
+      }
+    }
+    if (spread.length === 0) return;
+    this.#requestResizes(spreadWidth(spread, total - fixed));
   }
 
   #direction(): 1 | -1 {

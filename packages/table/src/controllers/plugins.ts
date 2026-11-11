@@ -1,8 +1,15 @@
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
 import type { ArgusPlugin, CellTarget, PluginHost } from '../plugins.js';
-import type { ColumnDef } from '../types.js';
+import type { ColumnDef, ColumnGroup } from '../types.js';
 
-type Hook = 'connect' | 'cleanup' | 'columns' | 'keydown';
+type Hook = 'connect' | 'cleanup' | 'columns' | 'columnGroups' | 'keydown';
+
+interface Memo<V> {
+  input: readonly V[];
+  plugins: readonly unknown[];
+  version: number;
+  output: readonly V[];
+}
 
 /**
  * Runs the table's plugins: connects them while the table is connected (in
@@ -19,14 +26,8 @@ export class PluginController<T> implements ReactiveController {
   /** Plugins whose `connect` threw: off until `plugins` changes. */
   readonly #failed = new Set<ArgusPlugin<T>>();
   #version = 0;
-  #memo:
-    | {
-        input: readonly ColumnDef<T>[];
-        plugins: readonly ArgusPlugin<T>[];
-        version: number;
-        output: readonly ColumnDef<T>[];
-      }
-    | undefined;
+  #memo: Memo<ColumnDef<T>> | undefined;
+  #groupsMemo: Memo<ColumnGroup> | undefined;
 
   constructor(host: ReactiveControllerHost & HTMLElement, api: PluginHost<T>) {
     this.#host = host;
@@ -52,21 +53,41 @@ export class PluginController<T> implements ReactiveController {
 
   /** The plugins' `columns` transforms applied in order; the same array while nothing changed. */
   transform(input: readonly ColumnDef<T>[]): readonly ColumnDef<T>[] {
-    const memo = this.#memo;
+    const memo = this.#run('columns', input, this.#memo, (plugin, defs) =>
+      plugin.columns?.(defs, this.#api),
+    );
+    this.#memo = memo;
+    return memo.output;
+  }
+
+  /** The plugins' `columnGroups` transforms applied in order; the same array while nothing changed. */
+  transformGroups(input: readonly ColumnGroup[]): readonly ColumnGroup[] {
+    const memo = this.#run('columnGroups', input, this.#groupsMemo, (plugin, groups) =>
+      plugin.columnGroups?.(groups, this.#api),
+    );
+    this.#groupsMemo = memo;
+    return memo.output;
+  }
+
+  #run<V>(
+    hook: 'columns' | 'columnGroups',
+    input: readonly V[],
+    memo: Memo<V> | undefined,
+    apply: (plugin: ArgusPlugin<T>, items: readonly V[]) => readonly V[] | undefined,
+  ): Memo<V> {
     if (memo?.input === input && memo.plugins === this.#plugins && memo.version === this.#version) {
-      return memo.output;
+      return memo;
     }
     let output = input;
     for (const plugin of this.#plugins) {
-      if (!plugin.columns || this.#failed.has(plugin)) continue;
+      if (!plugin[hook] || this.#failed.has(plugin)) continue;
       const before = output;
-      const result = this.#guard(plugin, 'columns', () => plugin.columns?.(before, this.#api));
+      const result = this.#guard(plugin, hook, () => apply(plugin, before));
       if (result.ok && result.value) output = result.value;
     }
     // Plugins may return a fresh array each time: keep the old one when its items are the same.
     if (memo && sameItems(memo.output, output)) output = memo.output;
-    this.#memo = { input, plugins: this.#plugins, version: this.#version, output };
-    return output;
+    return { input, plugins: this.#plugins, version: this.#version, output };
   }
 
   /** Runs the transforms again on the next `transform()`. */
