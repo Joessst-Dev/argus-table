@@ -1,6 +1,6 @@
 import { ReactiveElement } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import { ArgusColumn } from './argus-column.js';
+import { ArgusColumn, flagConverter } from './argus-column.js';
 import { notify, unwatchColumns, watchColumns } from './column-registry.js';
 import type { CellContent, ColumnGroup } from './types.js';
 
@@ -24,6 +24,10 @@ export class ArgusColumnGroup extends ReactiveElement {
   /** Header content: text as an attribute; a Lit template, a node or a function as a property. Default: the id. */
   @property()
   header?: CellContent | (() => CellContent);
+
+  /** Whether the group can be moved as a whole. Default: `true`; `reorderable="false"` turns it off. */
+  @property({ converter: flagConverter })
+  reorderable?: boolean;
 
   #parent: Element | null = null;
   #group: ColumnGroup | undefined;
@@ -57,6 +61,7 @@ export class ArgusColumnGroup extends ReactiveElement {
     return (this.#group ??= {
       id: this.groupId,
       header: this.header,
+      reorderable: this.reorderable,
       columns: [...this.children].flatMap((c): (string | ColumnGroup)[] => {
         if (c instanceof ArgusColumn) return [c.columnId];
         if (c instanceof ArgusColumnGroup) return [c.toColumnGroup()];

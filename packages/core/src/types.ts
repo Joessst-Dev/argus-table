@@ -170,6 +170,11 @@ export interface ColumnGroup<TContent = unknown> {
   /** Header content, or a function returning it. Default: the id. */
   header?: TContent | (() => TContent);
   /**
+   * Whether the group can be moved as a whole (a drag on its header, Alt+Shift+Arrow
+   * on it). Default: `true`. Its columns can still move within it.
+   */
+  reorderable?: boolean;
+  /**
    * The group's columns (by id) and groups, in order. Unknown ids are ignored, and
    * a column listed twice belongs to the first group that lists it.
    */

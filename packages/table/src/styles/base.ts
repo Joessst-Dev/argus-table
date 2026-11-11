@@ -227,6 +227,8 @@ export const baseStyles = css`
     }
     [part~='header-cell']:hover [part~='resize-handle']::after,
     [part~='header-cell']:focus-visible [part~='resize-handle']::after,
+    [part~='header-group-cell']:hover [part~='resize-handle']::after,
+    [part~='header-group-cell']:focus-visible [part~='resize-handle']::after,
     [part~='resize-handle'][data-active]::after {
       opacity: 1;
     }

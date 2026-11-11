@@ -144,7 +144,8 @@ function headerParts<T>(c: RenderedColumn<T>, drag: HeaderDrag | undefined): str
  * spanning its columns (`aria-colspan`), focusable through the roving tabindex,
  * with `data-group-key`; columns without a group at this level sit under an empty
  * filler `gridcell`, so every row covers every column. Neither carries `data-col`:
- * they are no column's header.
+ * they are no column's header. A group with a resizable column has a
+ * `resize-handle` too (`data-resize-group`).
  */
 function groupRow(
   cells: readonly HeaderGroupCell<CellContent>[],
@@ -183,6 +184,7 @@ function groupRow(
               style=${groupStyle(c)}
             >
               <span class="group-label"><slot name=${groupSlot(c.slot)}></slot></span>
+              ${c.resizable ? groupResizeHandle(c.key) : nothing}
               ${
                 drag?.target?.id === c.key
                   ? html`<span
@@ -210,6 +212,20 @@ function selectAllCheckbox(checkAll: CheckAll | undefined) {
     @click=${checkAll.handlers.all}
     @mousedown=${checkAll.handlers.press}
   />`;
+}
+
+/**
+ * A group's resize handle: dragging it resizes the group's resizable columns,
+ * each in proportion to its width; a double-click fits them to their content.
+ */
+function groupResizeHandle(key: string) {
+  return html`<div
+    part="resize-handle"
+    role="separator"
+    aria-orientation="vertical"
+    aria-label="Resize group"
+    data-resize-group=${key}
+  ></div>`;
 }
 
 /**

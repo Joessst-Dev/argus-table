@@ -191,6 +191,31 @@ export const Reorder: Story = {
 };
 
 /**
+ * Drag the handle on a group's edge, or press Alt+Arrow on a focused group, to
+ * resize the group: the change is spread over its resizable columns in proportion
+ * to their widths. A double-click fits them to their content. `reorderable: false`
+ * keeps a group in place ("Who" here); its columns still move within it.
+ */
+export const ResizeAndFixed: Story = {
+  render: () =>
+    html`<argus-table
+      style="block-size: 300px"
+      aria-label="Resize groups"
+      .columns=${columns}
+      .columnGroups=${[{ ...groups[0], reorderable: false }, groups[1]]}
+      .data=${orders(50)}
+    ></argus-table>`,
+  play: async ({ canvasElement }) => {
+    const el = table(canvasElement);
+    await el.updateComplete;
+    await expect(groupCell(el, 'g:center:who').dataset.moveGroup).toBeUndefined();
+    groupCell(el, 'g:center:state').focus();
+    await userEvent.keyboard('{Alt>}{ArrowRight}{/Alt}');
+    await waitFor(() => expect(Object.keys(el.columnSizing).sort()).toEqual(['status', 'total']));
+  },
+};
+
+/**
  * Group headers are part of the keyboard navigation: ArrowUp from a column
  * header goes to its group, ArrowDown back to the column, Left and Right move
  * between the groups of a row, and PageDown goes into the body. Groups don't

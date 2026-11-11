@@ -182,7 +182,9 @@ export const ArgusColumn = createComponent({
 }) as unknown as <T = unknown>(props: ArgusColumnProps<T>) => React.ReactElement | null;
 
 /** The properties of `<argus-column-group>` that `<ArgusColumnGroup>` sets on the element. */
-export type ArgusColumnGroupElementProps = Partial<Pick<ArgusColumnGroupElement, 'groupId'>> & {
+export type ArgusColumnGroupElementProps = Partial<
+  Pick<ArgusColumnGroupElement, 'groupId' | 'reorderable'>
+> & {
   header?: ReactCellContent | (() => ReactCellContent);
 };
 

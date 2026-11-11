@@ -1,5 +1,12 @@
 import type { ArgusTable } from './argus-table.js';
-import type { ColumnDef, ColumnFilter, ColumnPin, FilterKind, FilterValue } from './types.js';
+import type {
+  ColumnDef,
+  ColumnFilter,
+  ColumnGroup,
+  ColumnPin,
+  FilterKind,
+  FilterValue,
+} from './types.js';
 
 /**
  * An add-on for `<argus-table>`, set through its `plugins` property:
@@ -25,6 +32,14 @@ export interface ArgusPlugin<T = unknown> {
    * runs on every render.
    */
   columns?(defs: readonly ColumnDef<T>[], host: PluginHost<T>): readonly ColumnDef<T>[];
+  /**
+   * Changes the column groups before the table reads them, as `columns` does the
+   * columns: wrap a group's `header`, for example. Gets the output of the plugin
+   * before it (the first one gets `columnGroups` or the `<argus-column-group>`
+   * children). Runs again only when those groups or `plugins` change, or after
+   * `host.invalidateColumns()`.
+   */
+  columnGroups?(groups: readonly ColumnGroup[], host: PluginHost<T>): readonly ColumnGroup[];
   /**
    * A key pressed on a focused header or cell, before the table handles it.
    * Return `true` to claim the key: the table then ignores it (call
@@ -132,7 +147,7 @@ export interface PluginHost<T = unknown> {
   focusHeader(columnId: string): void;
   /** Says something to screen readers through a polite live region. */
   announce(message: string): void;
-  /** Runs the plugins' `columns` again on the next update. */
+  /** Runs the plugins' `columns` and `columnGroups` again on the next update. */
   invalidateColumns(): void;
   /** Renders again: header and cell functions run with the plugin's new state. */
   requestUpdate(): void;

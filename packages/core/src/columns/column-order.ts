@@ -142,7 +142,8 @@ export function sameUnit(a: OrderUnit, b: OrderUnit): boolean {
  * before the sibling now at `to`, or after the last one; hidden columns keep their
  * place among the others, and a group's hidden columns move with it. `undefined` if
  * the unit can't move (a column with `reorderable: false`, a group with one), isn't
- * shown, `to` is out of range, or nothing changes.
+ * shown, `to` is out of range, or nothing changes. A group with `reorderable: false`
+ * doesn't move either.
  */
 export function moveUnit(
   order: readonly string[],
@@ -159,6 +160,7 @@ export function moveUnit(
   if (!moving || to === from || to < 0 || to >= siblings.length) return undefined;
   const byId = new Map(columns.map((c) => [c.id, c]));
   if (!moving.columns.every((id) => byId.get(id)?.reorderable)) return undefined;
+  if (unit.kind === 'group' && tree.groups.get(unit.id)?.reorderable !== true) return undefined;
   const pinOf = new Map(columns.map((c) => [c.id, sideOf(c.pin)]));
   const current = normalizeOrder(order, columns, tree);
   const block = current.filter((id) => inUnit(unit, id, pinOf, tree));

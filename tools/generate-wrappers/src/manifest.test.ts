@@ -311,7 +311,7 @@ describe('emitVue with content', () => {
     const base = contentManifest();
     const source = emitVue([readElement(base, 'argus-table'), readElement(base, 'argus-column')]);
     expect(source).toContain(
-      "import type { HeaderSlotProps, VueCellContent, VueColumnDef } from '../content.js';",
+      "import type { GroupSlotProps, HeaderSlotProps, VueCellContent, VueColumnDef } from '../content.js';",
     );
     expect(source).toContain('columns?: readonly VueColumnDef<T>[] | null;');
     expect(source).not.toMatch(/'contentRenderer'|contentRenderer\?:/);

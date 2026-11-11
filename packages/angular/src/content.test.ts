@@ -150,6 +150,48 @@ describe('Angular templates in cells and headers', () => {
     expect(cells(el, 'total')).toEqual(['0', '37', '74']);
   });
 
+  test('renders argusGroupHeader templates, for columnGroups and <argus-column-group>', async () => {
+    @Component({
+      imports: [ARGUS_TABLE],
+      template: `
+        <argus-table style="${SIZE}" [columns]="columns" [columnGroups]="groups" [data]="rows">
+          <ng-template argusGroupHeader="money" let-id>
+            <i class="slot-group">{{ id }} in {{ currency() }}</i>
+          </ng-template>
+        </argus-table>
+        <argus-table style="${SIZE}" [data]="rows">
+          <argus-column columnId="id" accessor="id" />
+          <argus-column-group groupId="money">
+            <argus-column columnId="total" accessor="total" />
+          </argus-column-group>
+          <ng-template argusGroupHeader="money" let-id>
+            <i class="slot-group">{{ id }} in {{ currency() }}</i>
+          </ng-template>
+        </argus-table>
+      `,
+    })
+    class Groups {
+      readonly rows = orders(2);
+      readonly columns = columns;
+      readonly groups = [{ id: 'money', columns: ['total'] }];
+      readonly currency = signal('EUR');
+    }
+    const { el, fixture, host } = await mount(Groups);
+    const tables = [...(fixture.nativeElement as HTMLElement).querySelectorAll('argus-table')];
+    expect(tables).toHaveLength(2);
+    const group = (table: ArgusTableElement) =>
+      table.shadowRoot
+        ?.querySelector<HTMLSlotElement>('[part~="header-group-cell"] slot')
+        ?.assignedElements()[0]
+        ?.textContent.trim();
+    for (const table of tables) await settle(fixture, table);
+    expect(tables.map(group)).toEqual(['money in EUR', 'money in EUR']);
+    host.currency.set('CHF');
+    await settle(fixture, el);
+    for (const table of tables) await settle(fixture, table);
+    expect(tables.map(group)).toEqual(['money in CHF', 'money in CHF']);
+  });
+
   test('pooled cells keep their views while scrolling: no re-creation', async () => {
     @Component({
       imports: [ARGUS_TABLE, Badge],

@@ -25,6 +25,7 @@ export {
   type GroupTree,
   type HeaderGroupCell,
 } from './columns/column-groups.js';
+export { spreadWidth, type SpreadColumn } from './columns/spread-width.js';
 export {
   createTableModel,
   SELECTION_COLUMN_ID,

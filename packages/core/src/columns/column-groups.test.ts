@@ -65,6 +65,7 @@ describe('headerGroupRows', () => {
       offset,
       pinEdge: false,
       reorderable: true,
+      resizable: true,
     };
     offset += 100;
     return v;
@@ -117,6 +118,12 @@ describe('headerGroupRows', () => {
     const fixed = { ...view('b', 2), reorderable: false };
     const [top] = headerGroupRows(tree, [view('a', 1), fixed]);
     expect(top?.[0]?.movable).toBe(false);
+    const fixedGroup = resolveColumnGroups(
+      [{ id: 'G', reorderable: false, columns: ['a', 'b'] }],
+      ids,
+    );
+    expect(headerGroupRows(fixedGroup, [view('a', 1), view('b', 2)])[0]?.[0]?.movable).toBe(false);
+    expect(fixedGroup.groups.get('G')?.reorderable).toBe(false);
   });
 
   it('leaves out hidden columns, which can lower the depth', () => {

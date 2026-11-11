@@ -30,7 +30,7 @@ const widthConverter: ComplexAttributeConverter<ColumnWidth | undefined> = {
  * Boolean attribute with a default that may be `true`: absent → unset (the
  * default applies), `"false"` → `false`, anything else → `true`.
  */
-const flagConverter: ComplexAttributeConverter<boolean | undefined> = {
+export const flagConverter: ComplexAttributeConverter<boolean | undefined> = {
   fromAttribute(value) {
     return value === null ? undefined : value.trim().toLowerCase() !== 'false';
   },

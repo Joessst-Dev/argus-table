@@ -35,6 +35,11 @@ export interface HeaderSlotProps {
   columnId: string;
 }
 
+/** What a `#group-<id>` slot gets. */
+export interface GroupSlotProps {
+  groupId: string;
+}
+
 /**
  * The app context cells render with: the wrapper's app (global components,
  * directives, `app.provide`), with the injections `<ArgusTable>` itself sees, so
@@ -67,16 +72,17 @@ export function vueRenderer(instance: ComponentInternalInstance): ContentRendere
   };
 }
 
-/** Slots on `<ArgusTable>` that give a column its cells or header. */
+/** Slots on `<ArgusTable>` that give a column its cells or header, and a column group its header. */
 const CELL = 'cell-';
 const HEADER = 'header-';
+const GROUP = 'group-';
 
 type Slots = Readonly<Record<string, ((props: never) => VNodeChild) | undefined>>;
 
 /** The names of the cell and header slots, to notice when they change. */
 export function slotKey(slots: Slots): string {
   return Object.keys(slots)
-    .filter((name) => name.startsWith(CELL) || name.startsWith(HEADER))
+    .filter((name) => name.startsWith(CELL) || name.startsWith(HEADER) || name.startsWith(GROUP))
     .sort()
     .join('\n');
 }
@@ -104,7 +110,7 @@ const ArgusSlot = defineComponent({
 
 /**
  * The plugin that turns `#cell-<id>` and `#header-<id>` slots into a column's `cell`
- * and `header`. First among the table's plugins, so `formulas()` and `headerMenu()`
+ * and `header`, and `#group-<id>` slots into a column group's `header`. First among the table's plugins, so `formulas()` and `headerMenu()`
  * wrap what it gives. Each cell renders through `ArgusSlot`, which looks the slot up
  * when it renders, so the latest slot function always runs.
  */
@@ -136,6 +142,16 @@ export function slotPlugin(
           ...(header && { header: () => render(HEADER + id, { columnId: id }) }),
         };
       });
+    },
+    columnGroups(groups) {
+      const withSlots = (group: ColumnGroup): ColumnGroup => {
+        const id = group.id;
+        const columns = group.columns.map((c) => (typeof c === 'string' ? c : withSlots(c)));
+        const changed = columns.some((c, i) => c !== group.columns[i]);
+        if (slots[GROUP + id] === undefined) return changed ? { ...group, columns } : group;
+        return { ...group, columns, header: () => render(GROUP + id, { groupId: id }) };
+      };
+      return groups.map(withSlots);
     },
   };
 }

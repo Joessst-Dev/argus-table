@@ -525,3 +525,93 @@ describe('column groups: plugins and children', () => {
     expect(groupRows(el)).toHaveLength(0);
   });
 });
+
+describe('column groups: follow-ups', () => {
+  const opts = { bubbles: true, composed: true, pointerId: 1, button: 0 };
+
+  test('a plugin can change the groups with columnGroups()', async () => {
+    const seen: (readonly ColumnGroup[])[] = [];
+    const upper: ArgusPlugin<Person> = {
+      name: 'upper',
+      columnGroups: (gs) => {
+        seen.push(gs);
+        return gs.map((g) => ({
+          ...g,
+          header: `${typeof g.header === 'string' ? g.header : g.id}!`,
+        }));
+      },
+    };
+    const el = await fixture({ columns, columnGroups: groups, plugins: [upper], data: people(3) });
+    expect(text(groupCell(el, 'who'))).toBe('Who!');
+    expect(seen[0]).toBe(groups);
+    // Not run again for an update that changes neither the groups nor the plugins.
+    const runs = seen.length;
+    el.sorting = [{ id: 'name', desc: false }];
+    await settle(el);
+    expect(seen).toHaveLength(runs);
+  });
+
+  test('reorderable: false keeps a group in place, while its columns still move', async () => {
+    const el = await fixture({
+      columns,
+      columnGroups: [
+        { id: 'more', reorderable: false, columns: ['age', 'note'] },
+        ...groups.slice(0, 1),
+      ],
+      data: people(3),
+    });
+    const more = groupCell(el, 'more');
+    expect(more.dataset.moveGroup).toBeUndefined();
+    more.focus();
+    press(more, 'ArrowLeft', { altKey: true, shiftKey: true });
+    await settle(el);
+    expect(order(el)).toEqual(['id', 'name', 'city', 'age', 'note']);
+    press(header(el, 'note'), 'ArrowLeft', { altKey: true, shiftKey: true });
+    await settle(el);
+    expect(order(el)).toEqual(['id', 'name', 'city', 'note', 'age']);
+  });
+
+  test('dragging a group handle resizes its columns in proportion', async () => {
+    // more: age 80 + note 90 = 170 px.
+    const el = await fixture({ columns, columnGroups: groups, data: people(3) });
+    const handle = groupCell(el, 'more').querySelector<HTMLElement>('[part~="resize-handle"]');
+    if (!handle) throw new Error('no handle');
+    expect(handle.getAttribute('aria-label')).toBe('Resize group');
+    const resized: string[] = [];
+    el.addEventListener('argus-column-resize', (e) => resized.push(e.detail.columnId));
+    const x = handle.getBoundingClientRect().left + 2;
+    handle.dispatchEvent(new PointerEvent('pointerdown', { ...opts, clientX: x }));
+    handle.dispatchEvent(new PointerEvent('pointermove', { ...opts, clientX: x + 170 }));
+    handle.dispatchEvent(new PointerEvent('pointerup', { ...opts, clientX: x + 170 }));
+    await settle(el);
+    expect(el.columnSizing).toEqual({ age: 160, note: 180 });
+    expect(resized.sort()).toEqual(['age', 'note']);
+    expect(groupCell(el, 'more').getBoundingClientRect().width).toBeCloseTo(340, 0);
+  });
+
+  test('Alt+Arrow on a group resizes it; only its resizable columns change', async () => {
+    const el = await fixture({
+      columns: columns.map((c) => (c.id === 'age' ? { ...c, resizable: false } : c)),
+      columnGroups: groups,
+      data: people(3),
+    });
+    groupCell(el, 'more').focus();
+    press(groupCell(el, 'more'), 'ArrowRight', { altKey: true });
+    await settle(el);
+    expect(el.columnSizing).toEqual({ note: 100 });
+    // A group none of whose columns resize has no handle.
+    el.columns = columns.map((c) => ({ ...c, resizable: false }));
+    await settle(el);
+    expect(groupCell(el, 'more').querySelector('[part~="resize-handle"]')).toBeNull();
+  });
+
+  test('a double-click on a group handle fits its columns to their content', async () => {
+    const el = await fixture({ columns, columnGroups: groups, data: people(3) });
+    const handle = groupCell(el, 'more').querySelector<HTMLElement>('[part~="resize-handle"]');
+    handle?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, composed: true }));
+    await vi.waitFor(() => {
+      expect(Object.keys(el.columnSizing).sort()).toEqual(['age', 'note']);
+    });
+    expect(el.columnSizing.age).toBeLessThan(80);
+  });
+});

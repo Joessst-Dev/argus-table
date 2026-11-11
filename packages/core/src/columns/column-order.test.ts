@@ -213,6 +213,33 @@ describe('with column groups', () => {
   it("refuses a group with a column that can't move", () => {
     const fixed = cols.map((c) => (c.id === 'a' ? col('a', undefined, false) : c));
     expect(moveUnit([], fixed, tree, group('G'), 1)).toBeUndefined();
+    const pinnedDown = resolveColumnGroups(
+      [
+        { id: 'G', reorderable: false, columns: ['a', 'b'] },
+        { id: 'K', columns: ['e'] },
+      ],
+      ids,
+    );
+    expect(moveUnit([], cols, pinnedDown, group('G'), 1)).toBeUndefined();
+    // Its columns still move within it, and others move past it.
+    expect(moveUnit([], cols, pinnedDown, column('b'), 0)).toEqual([
+      's1',
+      'b',
+      'a',
+      'c',
+      'd',
+      'e',
+      'x1',
+    ]);
+    expect(moveUnit([], cols, pinnedDown, group('K'), 0)).toEqual([
+      's1',
+      'e',
+      'a',
+      'b',
+      'c',
+      'd',
+      'x1',
+    ]);
     expect(moveUnit([], fixed, tree, group('K'), 0)).toEqual(['s1', 'e', 'a', 'c', 'd', 'b', 'x1']);
   });
 });
