@@ -8,8 +8,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@argus-table/themes": "^0.2.0",
-    "argus-table": "^0.2.2"
+    "@argus-table/themes": "^0.3.0",
+    "argus-table": "^0.3.0"
   },
   "devDependencies": {
     "vite": "^8.3.5"

@@ -1,5 +1,21 @@
 # @argus-table/themes
 
+## 0.3.0
+
+### Minor Changes
+
+- 690eb29: A new theme, `@argus-table/themes/minimal.css`: a quiet, airy table that reads like a timeline. Header and body share one surface, there are no column lines, only faint hairlines between rows, column labels are small and uppercase, rows are 44 / 56 / 68px by density, and one amber accent marks focus, the sorted column, the resize handle and selected rows.
+
+  It uses Instrument Sans but loads no fonts: load it on the page, for example from `@fontsource/instrument-sans` (400, 500 and 600); without it the table uses the system font. Like the other themes, it follows the system's light or dark setting, and `data-argus-theme="dark"` or `"light"` on the table or an ancestor forces one.
+
+- d052e1d: Every theme colours the new filter mark in filtered headers (`--argus-filter-indicator-color`) with its accent colour.
+- f8c9887: Two new themes, each a CSS file like the others: load one theme per page.
+
+  - `@argus-table/themes/fluent.css`, Fluent-inspired: Fluent 2's neutral greys and brand blue, Segoe UI (the system font where it isn't installed; the theme loads no fonts), a flat header on the body colour, 34 / 44 / 52px rows by density, a brand-tinted selection and Fluent's black (white in dark mode) focus ring.
+  - `@argus-table/themes/bootstrap.css`, Bootstrap-inspired: looks like a Bootstrap 5 `.table.table-striped.table-hover` without loading Bootstrap, with its colours, system font stack, padding (`.table-sm`'s at `compact`), striped rows, hover colour and the 2px divider under the header. Turn the stripes off with `argus-table { --argus-row-stripe-bg: var(--argus-bg); }`.
+
+  Both follow the system's light or dark setting, and `data-argus-theme="dark"` or `"light"` on the table or an ancestor forces one. Both colour the selection checkboxes with their accent.
+
 ## 0.2.0
 
 ### Minor Changes
