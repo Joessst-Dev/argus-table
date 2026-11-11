@@ -21,8 +21,11 @@ concurrency:
 # when nothing is affected, so required checks always report.
 
 # The runners are pinned (not ubuntu-latest) so that an image change is a
-# deliberate update: Playwright's browsers and their system libraries are per
-# Ubuntu release.
+# deliberate update. Jobs that run browsers run inside the Playwright image, which
+# has the browsers and their system libraries: no apt, so an Ubuntu mirror outage
+# can't fail them. Its tag follows the Playwright version pinned in package.json;
+# bump them together. `--user 1001` is the runner's user: the checkout is its own,
+# and Firefox won't start as root with a $HOME that belongs to someone else.
 jobs:
   setup:
     runs-on: ubuntu-24.04
@@ -53,6 +56,9 @@ jobs:
   unit:
     needs: setup
     runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      options: --user 1001 --ipc=host
     strategy:
       fail-fast: false
       matrix:
@@ -64,29 +70,6 @@ jobs:
           fetch-depth: 0
       - uses: ./.github/actions/setup
 
-      - name: Read Playwright version
-        id: playwright
-        run: |
-          echo "version=$(pnpm --filter argus-table exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-          # The browsers are built per OS release (ubuntu24, ubuntu26): a cache made
-          # on one must not be restored on another.
-          echo "image=${ImageOS:-$RUNNER_OS}" >> "$GITHUB_OUTPUT"
-
-      - name: Cache Playwright browsers
-        id: browser-cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ steps.playwright.outputs.image }}-${{ matrix.browser }}-${{ steps.playwright.outputs.version }}
-
-      - name: Install ${{ matrix.browser }}
-        if: steps.browser-cache.outputs.cache-hit != 'true'
-        run: pnpm --filter argus-table exec playwright install --with-deps ${{ matrix.browser }}
-
-      - name: Install ${{ matrix.browser }} system dependencies
-        if: steps.browser-cache.outputs.cache-hit == 'true'
-        run: pnpm --filter argus-table exec playwright install-deps ${{ matrix.browser }}
-
       - name: Vitest browser tests
         env:
           BROWSERS: ${{ matrix.browser }}
@@ -97,34 +80,14 @@ jobs:
     # function runs, and axe checks it. A violation fails the story.
     needs: setup
     runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      options: --user 1001 --ipc=host
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
       - uses: ./.github/actions/setup
-
-      - name: Read Playwright version
-        id: playwright
-        run: |
-          echo "version=$(pnpm --filter @argus-table/storybook exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-          # The browsers are built per OS release (ubuntu24, ubuntu26): a cache made
-          # on one must not be restored on another.
-          echo "image=${ImageOS:-$RUNNER_OS}" >> "$GITHUB_OUTPUT"
-
-      - name: Cache Playwright browsers
-        id: browser-cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ steps.playwright.outputs.image }}-chromium-${{ steps.playwright.outputs.version }}
-
-      - name: Install Chromium
-        if: steps.browser-cache.outputs.cache-hit != 'true'
-        run: pnpm --filter @argus-table/storybook exec playwright install --with-deps chromium
-
-      - name: Install Chromium system dependencies
-        if: steps.browser-cache.outputs.cache-hit == 'true'
-        run: pnpm --filter @argus-table/storybook exec playwright install-deps chromium
 
       - name: Stories with axe
         env:
@@ -134,6 +97,9 @@ jobs:
   e2e:
     needs: setup
     runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      options: --user 1001 --ipc=host
     strategy:
       fail-fast: false
       matrix:
@@ -144,29 +110,6 @@ jobs:
         with:
           fetch-depth: 0
       - uses: ./.github/actions/setup
-
-      - name: Read Playwright version
-        id: playwright
-        run: |
-          echo "version=$(pnpm --filter @argus-table/e2e exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-          # The browsers are built per OS release (ubuntu24, ubuntu26): a cache made
-          # on one must not be restored on another.
-          echo "image=${ImageOS:-$RUNNER_OS}" >> "$GITHUB_OUTPUT"
-
-      - name: Cache Playwright browsers
-        id: browser-cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ steps.playwright.outputs.image }}-${{ matrix.browser }}-${{ steps.playwright.outputs.version }}
-
-      - name: Install ${{ matrix.browser }}
-        if: steps.browser-cache.outputs.cache-hit != 'true'
-        run: pnpm --filter @argus-table/e2e exec playwright install --with-deps ${{ matrix.browser }}
-
-      - name: Install ${{ matrix.browser }} system dependencies
-        if: steps.browser-cache.outputs.cache-hit == 'true'
-        run: pnpm --filter @argus-table/e2e exec playwright install-deps ${{ matrix.browser }}
 
       - name: Playwright e2e against the playground
         env:
@@ -188,34 +131,14 @@ jobs:
     # against the tarballs with npm, builds it and smoke-tests it in Chromium.
     needs: setup
     runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      options: --user 1001 --ipc=host
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
       - uses: ./.github/actions/setup
-
-      - name: Read Playwright version
-        id: playwright
-        run: |
-          echo "version=$(pnpm --filter @argus-table/examples exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-          # The browsers are built per OS release (ubuntu24, ubuntu26): a cache made
-          # on one must not be restored on another.
-          echo "image=${ImageOS:-$RUNNER_OS}" >> "$GITHUB_OUTPUT"
-
-      - name: Cache Playwright browsers
-        id: browser-cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ steps.playwright.outputs.image }}-chromium-${{ steps.playwright.outputs.version }}
-
-      - name: Install Chromium
-        if: steps.browser-cache.outputs.cache-hit != 'true'
-        run: pnpm --filter @argus-table/examples exec playwright install --with-deps chromium
-
-      - name: Install Chromium system dependencies
-        if: steps.browser-cache.outputs.cache-hit == 'true'
-        run: pnpm --filter @argus-table/examples exec playwright install-deps chromium
 
       - name: Cache npm downloads for the starters
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
