@@ -158,6 +158,24 @@ export interface SortItem {
 /** The sort order: an empty array when unsorted. v0.1 sorts by one column at a time. */
 export type SortState = SortItem[];
 
+/**
+ * A header over several columns (`columnGroups`). Groups nest: a group lists column
+ * ids and other groups, and each level of nesting adds a header row above the
+ * column headers. The columns of a group stay next to each other in the column
+ * order; a group whose columns are pinned to different sides shows once per side.
+ */
+export interface ColumnGroup<TContent = unknown> {
+  /** Stable key. Unique among groups; it may equal a column id. */
+  id: string;
+  /** Header content, or a function returning it. Default: the id. */
+  header?: TContent | (() => TContent);
+  /**
+   * The group's columns (by id) and groups, in order. Unknown ids are ignored, and
+   * a column listed twice belongs to the first group that lists it.
+   */
+  columns: readonly (string | ColumnGroup<TContent>)[];
+}
+
 /** Column widths in px set by resizing, keyed by column id. */
 export type ColumnSizingState = Record<string, number>;
 
@@ -292,8 +310,10 @@ export interface ColumnResizeDetail {
 
 /** `detail` of `argus-column-reorder`. */
 export interface ColumnReorderDetail {
-  /** The column that moved. */
+  /** The column that moved; for a group, its first column that moved. */
   columnId: string;
+  /** The group that moved, when a group header was moved rather than a column. */
+  groupId?: string;
   /** The whole new order. */
   order: ColumnOrderState;
 }

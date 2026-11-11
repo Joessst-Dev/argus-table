@@ -1,14 +1,42 @@
 import { html, nothing } from 'lit';
+import type { HeaderGroupCell } from '@argus-table/core';
 import { live } from 'lit/directives/live.js';
 import { repeat } from 'lit/directives/repeat.js';
 import type { RenderedColumn } from '../controllers/column-window.js';
 import type { DropTarget } from '../controllers/reorder-drag.js';
-import { ariaSort, cellStyle, headerSlot, type CheckboxHandlers } from './content.js';
+import type { CellContent } from '../types.js';
+import {
+  ariaSort,
+  cellStyle,
+  groupSlot,
+  groupStyle,
+  headerSlot,
+  type CheckboxHandlers,
+} from './content.js';
 
-/** A column header being dragged, and where it would land (`undefined`: where it is). */
+/**
+ * A column or group header being dragged, and where it would land (`undefined`:
+ * where it is). `key` is the drop slot key of what moves (see `unitKey`).
+ */
 export interface HeaderDrag {
-  columnId: string;
+  key: string;
+  /** The columns that move: the column, or the group's columns on its side. */
+  columns: ReadonlySet<string>;
   target: DropTarget | undefined;
+}
+
+/** The drop slot key of a column (`c:` and its id) or a group cell (its `key`). */
+export const columnKey = (columnId: string) => `c:${columnId}`;
+
+export interface HeaderOptions<T> {
+  columns: readonly RenderedColumn<T>[];
+  /** The group header rows above the column headers, top first. */
+  groups: readonly (readonly HeaderGroupCell<CellContent>[])[];
+  handlers: HeaderHandlers;
+  /** The active cell when it is in the header: its header row and column. */
+  active: { index: number; col: string } | undefined;
+  drag?: HeaderDrag | undefined;
+  checkAll?: CheckAll | undefined;
 }
 
 export interface HeaderHandlers {
@@ -28,7 +56,8 @@ export interface CheckAll {
 }
 
 /**
- * The sticky header row. Header content is slotted from the light DOM. Pinned
+ * The sticky header: a row per level of column groups, then the row of column
+ * headers. Header content is slotted from the light DOM. Pinned
  * header cells use the same private `data-pin` hooks as body cells, but no parts.
  * Every header carries `data-col` (its column id) and sortable ones also
  * `data-sort-col`; the element's delegated handlers read them. Headers take part
@@ -41,23 +70,25 @@ export interface CheckAll {
  * column. While one is dragged (`drag`), its header adds `header-cell-dragging`
  * and the target header shows a `drop-indicator` on the edge it would land at.
  */
-export function renderHeader<T>(
-  columns: readonly RenderedColumn<T>[],
-  handlers: HeaderHandlers,
-  activeCol: string | undefined,
-  drag?: HeaderDrag,
-  checkAll?: CheckAll,
-) {
-  return html`<div part="header" role="rowgroup">
-    <div
-      part="header-row"
-      class="row"
-      role="row"
-      aria-rowindex="1"
-      @click=${handlers.click}
-      @pointerdown=${handlers.pointerdown}
-      @dblclick=${handlers.dblclick}
-    >
+export function renderHeader<T>({
+  columns,
+  groups,
+  handlers,
+  active,
+  drag,
+  checkAll,
+}: HeaderOptions<T>) {
+  const leaf = groups.length;
+  const activeCol = active?.index === leaf ? active.col : undefined;
+  return html`<div
+    part="header"
+    role="rowgroup"
+    @click=${handlers.click}
+    @pointerdown=${handlers.pointerdown}
+    @dblclick=${handlers.dblclick}
+  >
+    ${groups.map((cells, level) => groupRow(cells, level, active, drag))}
+    <div part="header-row" class="row" role="row" aria-rowindex=${leaf + 1}>
       ${repeat(
         columns,
         (c) => c.key,
@@ -85,7 +116,7 @@ export function renderHeader<T>(
             ${c.filtered ? html`<span part="filter-indicator" aria-hidden="true"></span>` : nothing}
             ${c.resizable ? resizeHandle(c) : nothing}
             ${
-              drag?.target?.columnId === c.id
+              drag?.target?.id === columnKey(c.id)
                 ? html`<span
                     part="drop-indicator"
                     data-edge=${drag.target.edge}
@@ -103,8 +134,67 @@ function headerParts<T>(c: RenderedColumn<T>, drag: HeaderDrag | undefined): str
   let parts = c.sorted ? 'header-cell header-cell-sorted' : 'header-cell';
   if (c.filtered) parts += ' header-cell-filtered';
   if (c.kind === 'selection') parts += ' header-cell-selection';
-  if (drag?.columnId === c.id) parts += ' header-cell-dragging';
+  if (drag?.columns.has(c.id)) parts += ' header-cell-dragging';
   return parts;
+}
+
+/**
+ * A row of group headers. Every group cell renders, also with `virtualizeColumns`
+ * (there are few, and their slots stay put). A group's cell is a `columnheader`
+ * spanning its columns (`aria-colspan`), focusable through the roving tabindex,
+ * with `data-group-key`; columns without a group at this level sit under an empty
+ * filler `gridcell`, so every row covers every column. Neither carries `data-col`:
+ * they are no column's header.
+ */
+function groupRow(
+  cells: readonly HeaderGroupCell<CellContent>[],
+  level: number,
+  active: { index: number; col: string } | undefined,
+  drag: HeaderDrag | undefined,
+) {
+  const activeCol = active?.index === level ? active.col : undefined;
+  return html`<div part="header-group-row" class="row" role="row" aria-rowindex=${level + 1}>
+    ${repeat(
+      cells,
+      (c) => c.key,
+      (c) =>
+        c.kind === 'filler'
+          ? html`<div
+              part="header-group-filler"
+              role="gridcell"
+              aria-colindex=${c.colIndex}
+              aria-colspan=${c.span}
+              data-pin=${c.pin ?? nothing}
+              style=${groupStyle(c)}
+            ></div>`
+          : html`<div
+              part=${
+                drag?.key === c.key
+                  ? 'header-group-cell header-group-cell-dragging'
+                  : 'header-group-cell'
+              }
+              role="columnheader"
+              aria-colindex=${c.colIndex}
+              aria-colspan=${c.span}
+              data-group-key=${c.key}
+              data-move-group=${c.movable ? c.key : nothing}
+              tabindex=${activeCol !== undefined && c.columns.includes(activeCol) ? 0 : -1}
+              data-pin=${c.pin ?? nothing}
+              style=${groupStyle(c)}
+            >
+              <span class="group-label"><slot name=${groupSlot(c.slot)}></slot></span>
+              ${
+                drag?.target?.id === c.key
+                  ? html`<span
+                      part="drop-indicator"
+                      data-edge=${drag.target.edge}
+                      aria-hidden="true"
+                    ></span>`
+                  : nothing
+              }
+            </div>`,
+    )}
+  </div>`;
 }
 
 /** The header's select-all checkbox: not focusable, like the rows' (the header cell holds focus). */

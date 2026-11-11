@@ -6,7 +6,25 @@ export {
   resolveColumns,
   type ResolvedColumn,
 } from './columns/resolve-columns.js';
-export { moveColumn, normalizeOrder, type OrderableColumn } from './columns/column-order.js';
+export {
+  moveUnit,
+  normalizeOrder,
+  sameUnit,
+  siblingUnits,
+  type OrderableColumn,
+  type OrderUnit,
+  type SiblingUnit,
+} from './columns/column-order.js';
+export {
+  cellOver,
+  groupDepth,
+  groupKey,
+  headerGroupRows,
+  resolveColumnGroups,
+  type GroupNode,
+  type GroupTree,
+  type HeaderGroupCell,
+} from './columns/column-groups.js';
 export {
   createTableModel,
   SELECTION_COLUMN_ID,

@@ -13,7 +13,20 @@ import {
   type TableOptions,
 } from '@tanstack/table-core';
 import { storeReactivityBindings } from '@tanstack/table-core/store-reactivity-bindings';
-import { moveColumn, normalizeOrder } from '../columns/column-order.js';
+import {
+  cellOver,
+  headerGroupRows,
+  resolveColumnGroups,
+  type GroupTree,
+  type HeaderGroupCell,
+} from '../columns/column-groups.js';
+import {
+  moveUnit,
+  normalizeOrder,
+  siblingUnits,
+  type OrderUnit,
+  type SiblingUnit,
+} from '../columns/column-order.js';
 import { resolveColumns, type ResolvedColumn } from '../columns/resolve-columns.js';
 import { distinctValues, rowPredicate } from '../filters/filter.js';
 import { filteredRowModel, setRowPredicate } from './filtered-row-model.js';
@@ -22,6 +35,7 @@ import type {
   CellContext,
   ColumnAlign,
   ColumnDef,
+  ColumnGroup,
   ColumnFilter,
   ColumnFilterState,
   ColumnOrderState,
@@ -150,6 +164,11 @@ export interface RemoteRows<TData> {
 
 export interface TableModelOptions<TData, TContent> {
   columns: readonly ColumnDef<TData, TContent>[];
+  /**
+   * Headers over several columns, nested to any depth. Their columns stay next to
+   * each other in the order, and each level adds a header row.
+   */
+  columnGroups?: readonly ColumnGroup<TContent>[] | undefined;
   data: readonly TData[];
   /**
    * Remote rows. When set, rows come from here instead of `data`, and the model
@@ -215,6 +234,15 @@ export interface TableModel<TData, TContent> {
   readonly rowOrder: object;
   /** Sum of the shown columns' widths in px (flex columns count their minimum). */
   readonly totalWidth: number;
+  /**
+   * The group header rows over `columns`, top row first; empty without column groups.
+   * Keeps its identity while `columns` does.
+   */
+  readonly headerGroups: readonly (readonly HeaderGroupCell<TContent>[])[];
+  /** Number of header rows: the group rows and the row of column headers. */
+  readonly headerRows: number;
+  /** The cell of group header row `level` over a column, or `undefined`. */
+  headerCell(level: number, columnId: string): HeaderGroupCell<TContent> | undefined;
   /** The row at an index of the current row model; `undefined` for a remote row not loaded yet. */
   rowAt(index: number): RowView<TData> | undefined;
   /** The index of a row id in the current row model (after filtering and sorting), or `undefined`. */
@@ -244,12 +272,18 @@ export interface TableModel<TData, TContent> {
    */
   orderOf(base?: readonly string[]): ColumnOrderState;
   /**
-   * The order after moving a column to position `to` (0-based among the shown data
-   * columns, in visual order, counted after the move; hidden columns keep their place),
-   * starting from `base` (default: the current order). `undefined` if the column can't
-   * move or is hidden, `to` is outside its pin group, or nothing changes.
+   * The units a column or group moves among: the shown columns and groups with the
+   * same parent group on the same pin side, in visual order, starting from `base`
+   * (default: the current order). Empty if the unit isn't shown.
    */
-  nextOrder(columnId: string, to: number, base?: readonly string[]): ColumnOrderState | undefined;
+  siblingUnits(unit: OrderUnit, base?: readonly string[]): SiblingUnit[];
+  /**
+   * The order after moving a column or group to position `to` among its sibling
+   * units (0-based, counted after the move; hidden columns keep their place),
+   * starting from `base` (default: the current order). `undefined` if it can't
+   * move or is hidden, `to` is out of range, or nothing changes.
+   */
+  nextMove(unit: OrderUnit, to: number, base?: readonly string[]): ColumnOrderState | undefined;
   /**
    * The pinning state after pinning a column to a side, or unpinning it with `false`,
    * starting from `base` (default: the current `columnPinning`). `undefined` for an
@@ -379,6 +413,18 @@ export function createTableModel<TData, TContent>(
   // TanStack column defs by id, kept between updates that don't change `columns`.
   let tanStackById = new Map(resolved.map((c) => [c.id, toTanStack(c)]));
   let views: ColumnView<TData, TContent>[] | undefined;
+  const treeOf = () =>
+    resolveColumnGroups(options.columnGroups, new Set(resolved.map((c) => c.id)));
+  let tree: GroupTree<TContent> = treeOf();
+  // The group header rows, kept while the tree and what they read of the views stay.
+  let groupRows:
+    | {
+        views: readonly ColumnView<TData, TContent>[];
+        tree: GroupTree<TContent>;
+        key: string;
+        rows: HeaderGroupCell<TContent>[][];
+      }
+    | undefined;
   // The pin and visibility in effect: the state's, else the column's own.
   const pinOf = (
     column: ResolvedColumn<TData, TContent>,
@@ -427,7 +473,7 @@ export function createTableModel<TData, TContent>(
   // order nor pinning.
   let order: ColumnOrderState | undefined;
   const orderState = (): ColumnOrderState =>
-    (order ??= normalizeOrder(options.columnOrder ?? [], orderable()));
+    (order ??= normalizeOrder(options.columnOrder ?? [], orderable(), tree));
   const rowViews = new WeakMap<Row<Features, AnyRow>, RowView<TData>>();
   // Built lazily per row model (sorting or new data gives a new array).
   let indexById: { rows: readonly Row<Features, AnyRow>[]; map: Map<string, number> } | undefined;
@@ -588,6 +634,7 @@ export function createTableModel<TData, TContent>(
       }
       const columnsChanged = merged.columns !== options.columns;
       const pinningChanged = merged.columnPinning !== options.columnPinning;
+      const groupsChanged = merged.columnGroups !== options.columnGroups;
       if (
         columnsChanged ||
         merged.columnSizing !== options.columnSizing ||
@@ -596,7 +643,12 @@ export function createTableModel<TData, TContent>(
       ) {
         sizing = undefined;
       }
-      if (columnsChanged || merged.columnOrder !== options.columnOrder || pinningChanged) {
+      if (
+        columnsChanged ||
+        groupsChanged ||
+        merged.columnOrder !== options.columnOrder ||
+        pinningChanged
+      ) {
         order = undefined;
       }
       const refilter =
@@ -606,6 +658,7 @@ export function createTableModel<TData, TContent>(
         merged.columnVisibility !== options.columnVisibility ||
         merged.remote !== options.remote;
       options = merged;
+      if (columnsChanged || groupsChanged) tree = treeOf();
       views = undefined;
       allViews = undefined;
       if (refilter) setRowPredicate(table, predicateFor());
@@ -638,6 +691,34 @@ export function createTableModel<TData, TContent>(
 
     get totalWidth() {
       return this.columns.reduce((sum, column) => sum + column.width, 0);
+    },
+
+    get headerGroups() {
+      const current = this.columns;
+      if (groupRows?.views === current && groupRows.tree === tree) return groupRows.rows;
+      // Views are rebuilt on every update; the rows only change with what they read.
+      const key = tree.groups.size
+        ? current
+            .map(
+              (c) =>
+                `${c.id}\u0000${String(c.pin)}\u0000${String(c.offset)}\u0000${String(c.pinEdge)}\u0000${String(c.reorderable)}`,
+            )
+            .join('\u0001')
+        : '';
+      if (groupRows?.tree !== tree || groupRows.key !== key) {
+        groupRows = { views: current, tree, key, rows: headerGroupRows(tree, current) };
+      } else {
+        groupRows.views = current;
+      }
+      return groupRows.rows;
+    },
+
+    get headerRows() {
+      return this.headerGroups.length + 1;
+    },
+
+    headerCell(level, columnId) {
+      return cellOver(this.headerGroups, level, columnId);
     },
 
     rowAt(index) {
@@ -716,11 +797,15 @@ export function createTableModel<TData, TContent>(
     },
 
     orderOf(base) {
-      return base === undefined ? orderState() : normalizeOrder(base, orderable());
+      return base === undefined ? orderState() : normalizeOrder(base, orderable(), tree);
     },
 
-    nextOrder(columnId, to, base) {
-      return moveColumn(base ?? orderState(), orderable(), columnId, to, shown);
+    siblingUnits(unit, base) {
+      return siblingUnits(base ?? orderState(), orderable(), tree, unit, shown);
+    },
+
+    nextMove(unit, to, base) {
+      return moveUnit(base ?? orderState(), orderable(), tree, unit, to, shown);
     },
 
     nextPinning(columnId, pin, base = options.columnPinning) {

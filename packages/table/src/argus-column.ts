@@ -1,6 +1,7 @@
 import { html, ReactiveElement, type ComplexAttributeConverter } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { templateContent } from 'lit/directives/template-content.js';
+import { notify } from './column-registry.js';
 import type {
   CellContent,
   CellContext,
@@ -11,27 +12,6 @@ import type {
   FilterKind,
   FilterValue,
 } from './types.js';
-
-/**
- * Tables watching their `<argus-column>` children, by table element. Columns
- * call their parent's entry when they connect, disconnect or change, so the
- * table needs no MutationObserver on its own children (which would fire on
- * every light-DOM cell render while scrolling).
- */
-const watchers = new WeakMap<Element, () => void>();
-
-/** Calls `onChange` whenever an `<argus-column>` child of `host` is added, removed, moved or changed. */
-export function watchColumns(host: Element, onChange: () => void): void {
-  watchers.set(host, onChange);
-}
-
-export function unwatchColumns(host: Element): void {
-  watchers.delete(host);
-}
-
-function notify(parent: Element | null): void {
-  if (parent) watchers.get(parent)?.();
-}
 
 /** `width` attribute: `"90"` or `"90px"` → 90, `"auto"`, `"2fr"` → `{ flex: 2 }`. */
 const widthConverter: ComplexAttributeConverter<ColumnWidth | undefined> = {
@@ -60,8 +40,8 @@ const flagConverter: ComplexAttributeConverter<boolean | undefined> = {
  * One column of the parent `<argus-table>`, written as markup instead of an entry in
  * its `columns` property. It is data only and renders nothing.
  *
- * Only direct children of the table count, in document order. A non-empty `columns`
- * property wins over the children. Adding, removing, moving or changing a column
+ * Only direct children of the table or of an `<argus-column-group>` count, in
+ * document order. A non-empty `columns` property wins over the children. Adding, removing, moving or changing a column
  * updates the table; sizes, order and sorting are kept by `column-id`.
  *
  * A `<template>` child is the content of every cell in the column (static: the same

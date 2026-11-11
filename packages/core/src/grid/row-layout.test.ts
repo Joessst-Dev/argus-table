@@ -47,4 +47,15 @@ describe('RowLayout', () => {
     expect(noBody.at(1)).toEqual({ section: 'top', index: 0 });
     expect(noBody.at(2)).toEqual({ section: 'bottom', index: 0 });
   });
+
+  it('puts several header rows first, the column headers last', () => {
+    const grouped = new RowLayout(1, 4, 0, 3);
+    expect(grouped.total).toBe(8);
+    expect(grouped.leafHeader).toEqual({ section: 'header', index: 2 });
+    expect(grouped.position({ section: 'header', index: 1 })).toBe(1);
+    expect(grouped.at(2)).toEqual({ section: 'header', index: 2 });
+    expect(grouped.at(3)).toEqual({ section: 'top', index: 0 });
+    expect(grouped.ariaRowIndex({ section: 'body', index: 0 })).toBe(5);
+    expect(new RowLayout(0, 1, 0).leafHeader).toEqual({ section: 'header', index: 0 });
+  });
 });

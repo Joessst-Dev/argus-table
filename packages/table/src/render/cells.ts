@@ -1,10 +1,10 @@
 import { html, render, type RootPart } from 'lit';
 import { repeat } from 'lit/directives/repeat.js';
-import type { ColumnView, RowPin, TableModel } from '@argus-table/core';
+import type { ColumnView, HeaderGroupCell, RowPin, TableModel } from '@argus-table/core';
 import type { RenderedColumn } from '../controllers/column-window.js';
 import type { WindowRow } from '../controllers/virtual-controller.js';
 import type { CellContent } from '../types.js';
-import { cellSlot, formatValue, headerSlot, pinnedSlot } from './content.js';
+import { cellSlot, formatValue, groupSlot, headerSlot, pinnedSlot } from './content.js';
 import { content } from './content-directive.js';
 
 type Column<T> = ColumnView<T, CellContent>;
@@ -17,6 +17,8 @@ type Column<T> = ColumnView<T, CellContent>;
  * outside it, wherever they are added. `rendered` are the columns the shadow
  * root renders, with their slots and keys. What `header` and `cell` return goes
  * through `content()`, so foreign content reaches the table's `contentRenderer`.
+ * Group headers come first, one per group and pin side (`groups`, the header's
+ * group rows).
  * Returns the part, which the table disconnects when it is disconnected.
  */
 export function renderLightDom<T>(
@@ -24,12 +26,18 @@ export function renderLightDom<T>(
   model: TableModel<T, CellContent>,
   rows: readonly WindowRow[],
   rendered: readonly RenderedColumn<T>[],
+  groups: readonly (readonly HeaderGroupCell<CellContent>[])[],
   renderBefore: ChildNode,
 ): RootPart {
   // The selection column renders its checkboxes in the shadow root: no content here.
   const columns = rendered.filter((c) => c.kind === 'data');
+  const groupCells = groups.flat().filter((g) => g.kind === 'group');
   return render(
     html`${repeat(
+      groupCells,
+      (g) => g.key,
+      (g) => html`<div slot=${groupSlot(g.slot)}>${groupContent(g)}</div>`,
+    )}${repeat(
       columns,
       (c) => c.key,
       (c) => html`<div slot=${headerSlot(c.slot)}>${headerContent(c)}</div>`,
@@ -47,6 +55,12 @@ export function renderLightDom<T>(
     host,
     { host, renderBefore },
   );
+}
+
+/** A group's header: its own content, else its id. */
+function groupContent(group: HeaderGroupCell<CellContent>): unknown {
+  const { header } = group;
+  return content((typeof header === 'function' ? header() : header) ?? group.groupId);
 }
 
 function headerContent<T>(column: Column<T>): unknown {
