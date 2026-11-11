@@ -75,6 +75,8 @@ type Story = StoryObj<Args>;
 /**
  * Tokens are CSS custom properties, so they pass into the shadow DOM. Set them
  * on the table, on a parent or in a theme. Try the controls.
+ * To build a whole theme (light and dark, contrast checks, CSS to copy), use
+ * Themes / Theme creator.
  */
 export const Playground: Story = {};
 

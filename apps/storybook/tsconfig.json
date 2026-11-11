@@ -3,5 +3,5 @@
   "compilerOptions": {
     "types": ["node", "vite/client"]
   },
-  "include": [".storybook/*.ts", "stories", "vitest.config.ts"]
+  "include": [".storybook/*.ts", "stories", "theme-creator", "vitest.config.ts"]
 }
