@@ -1,7 +1,8 @@
 // Resolving token values to colours in one scheme: light-dark() picks a side,
 // var() follows the token chain (the element's own fallbacks for tokens a
 // theme leaves out), and the system colours Canvas and CanvasText become
-// Chromium's values. What can't be resolved stays undefined, never a guess.
+// what this browser draws them as. What can't be resolved stays undefined,
+// never a guess.
 import { formatColor, parseColor, type Rgb } from './color.js';
 import { splitTopLevel } from './parse.js';
 import { inScheme, type SchemeName, type Value } from './model.js';
@@ -38,11 +39,30 @@ export const FALLBACKS: Readonly<Record<string, string>> = {
   '--argus-dialog-accent-fg': 'HighlightText',
 };
 
-/** Chromium's system colours; other engines differ a little. */
-const SYSTEM: Readonly<Record<string, Record<SchemeName, string>>> = {
-  canvas: { light: '#ffffff', dark: '#121212' },
-  canvastext: { light: '#000000', dark: '#ffffff' },
-};
+const systemColors = new Map<string, string>();
+
+/**
+ * `Canvas` or `CanvasText` in `scheme`, as this browser draws them (dark
+ * Canvas is #121212 in Chromium, #1c1b22 in Firefox): read once from a probe
+ * element with that color-scheme. Other system colours follow the user's
+ * settings, so they stay unresolved.
+ */
+export function systemColor(name: 'canvas' | 'canvastext', scheme: SchemeName): string {
+  const key = `${name} ${scheme}`;
+  let color = systemColors.get(key);
+  if (color === undefined) {
+    const probe = document.createElement('span');
+    probe.style.colorScheme = scheme;
+    probe.style.color = name;
+    probe.style.display = 'none';
+    document.body.append(probe);
+    const computed = parseColor(getComputedStyle(probe).color);
+    probe.remove();
+    color = computed ? formatColor(computed) : name;
+    systemColors.set(key, color);
+  }
+  return color;
+}
 
 /** Calls `replace` with the arguments of each `name(…)` in `text`, innermost last. */
 function replaceCalls(
@@ -101,9 +121,8 @@ export function substitute(
     scheme === 'light' ? light : dark,
   );
   if (picked === undefined) return undefined;
-  return picked.replace(
-    /\b(canvastext|canvas)\b/gi,
-    (word) => SYSTEM[word.toLowerCase()]?.[scheme] ?? word,
+  return picked.replace(/\b(canvastext|canvas)\b/gi, (word) =>
+    systemColor(word.toLowerCase() as 'canvas' | 'canvastext', scheme),
   );
 }
 

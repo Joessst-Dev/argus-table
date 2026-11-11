@@ -1256,7 +1256,8 @@ export class ArgusThemeCreator extends LitElement {
               ? '1 check fails.'
               : `${String(failing)} checks fail.`
         }
-        Text needs 4.5:1, the focus ring 3:1.
+        Text needs 4.5:1, the focus ring 3:1. Canvas and CanvasText are checked as this browser
+        draws them.
       </p>
       <table class="contrast">
         <thead>

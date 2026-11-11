@@ -1,9 +1,25 @@
 import { describe, expect, it } from 'vitest';
+import { formatColor, luminance } from './color.js';
 import { checkContrast, fixAccent, fixFor } from './contrast.js';
+import { lookupIn, resolveColor, systemColor } from './values.js';
 import { emptyTheme } from './model.js';
 import { newDraft } from './presets.js';
 import { resolveTheme } from './resolve.js';
 import { decodeDraft, encodeDraft, fromStored, hashDraft, loadDraft, saveDraft } from './share.js';
+
+describe('system colours', () => {
+  it('are this browser’s Canvas and CanvasText', () => {
+    const lookup = lookupIn({});
+    const light = resolveColor('Canvas', 'light', lookup);
+    const dark = resolveColor('Canvas', 'dark', lookup);
+    expect(light && formatColor(light)).toBe('#ffffff');
+    // Dark Canvas differs per engine, but it is dark.
+    expect(dark && luminance(dark)).toBeLessThan(0.05);
+    expect(systemColor('canvastext', 'dark')).toMatch(/^#[0-9a-f]{6}$/);
+    const text = resolveColor('CanvasText', 'dark', lookup);
+    expect(text && luminance(text)).toBeGreaterThan(0.8);
+  });
+});
 
 describe('checkContrast', () => {
   it('passes the shipped default theme’s text', () => {

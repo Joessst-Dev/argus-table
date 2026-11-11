@@ -155,6 +155,7 @@ Pass `formulas({ marker: false })` to leave headers alone. The add-on's CSS is i
 | `--argus-dialog-accent`, `--argus-dialog-accent-fg`                                                                                                   | `Highlight`, `HighlightText`: the save button                   |
 | `--argus-dialog-shadow`, `--argus-dialog-backdrop`                                                                                                    | A soft shadow; black at 40% behind the dialog                   |
 | `--argus-formula-font`                                                                                                                                | `ui-monospace` and other monospace fonts                        |
+| `--argus-formula-input-bg`                                                                                                                            | `--argus-bg`: behind the formula as you type                    |
 | `--argus-formula-function-color`, `--argus-formula-ref-bg`, `--argus-formula-ref-color`, `--argus-formula-number-color`, `--argus-formula-text-color` | The text colour; column names on a faint tint                   |
 
 The editor also uses the table's `--argus-border-color`, `--argus-focus-ring`, `--argus-header-bg`, `--argus-font` and the menu tokens for its suggestion list. Its classes start with `argus-formula-` (the dialog is `argus-formula-editor`).

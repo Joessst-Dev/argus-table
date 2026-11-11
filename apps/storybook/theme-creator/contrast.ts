@@ -1,6 +1,7 @@
-// WCAG AA checks on a resolved theme, in both schemes. A pair the checker
-// can't resolve (system colours other than Canvas/CanvasText, currentColor)
-// is reported as not checked, never as a pass.
+// WCAG AA checks on a resolved theme, in both schemes, in this browser
+// (Canvas and CanvasText differ between engines). A pair the checker can't
+// resolve (other system colours, currentColor) is reported as not checked,
+// never as a pass.
 import { contrast, ensureContrast, formatColor, over, parseColor, type Rgb } from './color.js';
 import {
   SCHEMES,
