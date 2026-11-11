@@ -9,7 +9,7 @@ import type {
   RowsRequest,
 } from 'argus-table';
 import 'argus-table';
-import { EXTRA_COLUMNS, makePeople, type Person } from './data.js';
+import { EXTRA_COLUMNS, makePeople, STATUSES, type Person } from './data.js';
 import { installBenchHooks } from './bench-hooks.js';
 
 // Query parameters: rows (default 100000), cols (default 20), density, dir=rtl,
@@ -137,7 +137,7 @@ const allColumns: ColumnDef<Person>[] = [
     accessor: 'status',
     width: 110,
     filter: 'set',
-    filterOptions: ['active', 'invited', 'paused', 'blocked'],
+    filterOptions: STATUSES,
     cell: (p, ctx) => (ctx.pinned ? '' : html`<span class="status">${p.status}</span>`),
   },
   {

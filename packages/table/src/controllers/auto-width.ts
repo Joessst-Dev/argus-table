@@ -69,11 +69,16 @@ export class AutoWidths {
    * With `virtualizeColumns` they render out of view until they are.
    */
   pending(columns: readonly { id: string; auto: boolean }[]): string[] {
+    return this.#due(columns, true);
+  }
+
+  /** The auto columns never measured, or measured without loaded rows when there are some now. */
+  #due(columns: readonly { id: string; auto: boolean }[], hasLoadedRows: boolean): string[] {
     return columns
       .filter((c) => {
         if (!c.auto) return false;
         const state = this.#state.get(c.id);
-        return state === undefined || state === 'provisional';
+        return state === undefined || (state === 'provisional' && hasLoadedRows);
       })
       .map((c) => c.id);
   }
@@ -87,13 +92,7 @@ export class AutoWidths {
     columns: readonly { id: string; auto: boolean }[],
     hasLoadedRows: boolean,
   ): boolean {
-    const due = columns
-      .filter((c) => c.auto)
-      .map((c) => c.id)
-      .filter((id) => {
-        const state = this.#state.get(id);
-        return state === undefined || (state === 'provisional' && hasLoadedRows);
-      });
+    const due = this.#due(columns, hasLoadedRows);
     if (due.length === 0) return false;
     const measured = measureColumns(root, due);
     const fontsLoading = typeof document !== 'undefined' && document.fonts.status === 'loading';

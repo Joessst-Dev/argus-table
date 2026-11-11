@@ -237,18 +237,19 @@ export class VirtualController implements ReactiveController {
       this.#virtual.setOptions({ count: next.count, overscan: next.overscan });
       if (next.rowHeight !== prev.rowHeight) this.#virtual.getVirtualizer().measure();
     }
+    this.#rescale(next.count * next.rowHeight, this.#virtual.getVirtualizer().scrollOffset);
+  }
+
+  /**
+   * A new logical body height. A new mapping would move the rows under a scaled
+   * scroll position (a data source growing, a zoom change): keep the logical
+   * offset (read before the new mapping) once the body has its new height.
+   */
+  #rescale(logical: number, offset: number | null): void {
     // Not `scaled`: TypeScript would take it for unchanged after `configure()`.
     const wasScaled = this.#scale.excess > 0;
-    const offset = this.#virtual.getVirtualizer().scrollOffset;
-    const logical = next.count * next.rowHeight;
-    if (this.#scale.configure(logical, next.cap(logical))) {
-      // A new mapping would move the rows under a scaled scroll position (a data
-      // source growing, a zoom change): keep the logical offset once the body
-      // has its new height.
-      if ((wasScaled || this.#scale.scaled) && offset !== null && offset > 0) {
-        this.#anchor = offset;
-      }
-    }
+    if (!this.#scale.configure(logical, this.#config.cap(logical))) return;
+    if ((wasScaled || this.#scale.scaled) && offset !== null && offset > 0) this.#anchor = offset;
   }
 
   #configureAuto(auto: AutoRows, prev: VirtualConfig): void {
@@ -277,12 +278,7 @@ export class VirtualController implements ReactiveController {
       reset();
     }
     const element = this.#element;
-    const wasScaled = this.#scale.excess > 0;
-    const offset = element ? this.#top(element) : 0;
-    const logical = sizes.total;
-    if (this.#scale.configure(logical, next.cap(logical))) {
-      if ((wasScaled || this.#scale.scaled) && offset > 0) this.#anchor = offset;
-    }
+    this.#rescale(sizes.total, element ? this.#top(element) : 0);
   }
 
   /** The measured heights by index in the current order. Forgets rows long gone. */
@@ -419,17 +415,23 @@ export class VirtualController implements ReactiveController {
         start: scaled ? Math.min(Math.max(start, -rowHeight), size) : start,
       });
     }
-    const rows: WindowRow[] = [];
-    for (const { id, slot } of this.#pool.update(byId.keys())) {
-      const item = byId.get(id);
-      if (item) rows.push({ slot, ...item });
-    }
+    const rows = this.#pooled(byId);
     const range = v.range;
     return {
       rows,
       totalSize: scaled ? size : v.getTotalSize(),
       range: range ? { start: range.startIndex, end: range.endIndex } : null,
     };
+  }
+
+  /** The rows to render, in pool order: each holds its pool slot while in range. */
+  #pooled(byId: Map<string, Omit<WindowRow, 'slot'>>): WindowRow[] {
+    const rows: WindowRow[] = [];
+    for (const { id, slot } of this.#pool.update(byId.keys())) {
+      const item = byId.get(id);
+      if (item) rows.push({ slot, ...item });
+    }
+    return rows;
   }
 
   /** `computeWindow()` for rows of different heights. */
@@ -467,11 +469,7 @@ export class VirtualController implements ReactiveController {
         size,
       });
     }
-    const rows: WindowRow[] = [];
-    for (const { id, slot } of this.#pool.update(byId.keys())) {
-      const item = byId.get(id);
-      if (item) rows.push({ slot, ...item });
-    }
+    const rows = this.#pooled(byId);
     return {
       rows,
       totalSize: scale.scaled ? scale.size : sizes.total,
@@ -543,11 +541,6 @@ export class VirtualController implements ReactiveController {
     let to = sizes.indexAt(start - view);
     if (sizes.startOf(to) < start - view - 0.01) to += 1;
     return Math.max(1, from - to);
-  }
-
-  /** Number of pool slots created so far: bounded by the most rows rendered at once. */
-  get poolSize(): number {
-    return this.#pool.size;
   }
 
   /** Whether the body is taller than the cap and scrolls scaled. */

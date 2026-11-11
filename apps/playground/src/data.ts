@@ -66,7 +66,7 @@ const CITIES = [
   'Perth',
 ];
 const COUNTRIES = ['DE', 'PT', 'JP', 'CA', 'KE', 'PE', 'NO', 'VN', 'US', 'AU'];
-const STATUSES: readonly Status[] = ['active', 'invited', 'paused', 'blocked'];
+export const STATUSES: readonly Status[] = ['active', 'invited', 'paused', 'blocked'];
 const WORDS = [
   'alpha',
   'bravo',

@@ -1,22 +1,9 @@
-import { expect, test, type Page } from '@playwright/test';
-import { open, scrollTo, settle } from './helpers.js';
-
-/** Header ids in visual order (by `aria-colindex`). */
-async function headerIds(page: Page): Promise<string[]> {
-  return page.evaluate(() =>
-    [
-      ...(document
-        .querySelector('argus-table')
-        ?.shadowRoot?.querySelectorAll<HTMLElement>('[role="columnheader"]') ?? []),
-    ]
-      .sort((a, b) => Number(a.ariaColIndex) - Number(b.ariaColIndex))
-      .map((h) => h.dataset.col ?? ''),
-  );
-}
+import { expect, test } from '@playwright/test';
+import { headerOrder, open, scrollTo, settle } from './helpers.js';
 
 test('hidden columns render no cells, and the rest close up', async ({ page }) => {
   await open(page, { rows: 200, cols: 8, hide: 'email,status' });
-  const ids = await headerIds(page);
+  const ids = await headerOrder(page);
   expect(ids).not.toContain('email');
   expect(ids).not.toContain('status');
   const cells = await page.evaluate(() => {
@@ -36,14 +23,14 @@ test('hidden columns render no cells, and the rest close up', async ({ page }) =
     if (table) table.columnVisibility = {};
   });
   await settle(page);
-  expect(await headerIds(page)).toContain('email');
+  expect(await headerOrder(page)).toContain('email');
 });
 
 test('a column pinned through columnPinning stays at the start edge while the rest scrolls', async ({
   page,
 }) => {
   await open(page, { rows: 200, cols: 20, pins: 'email:start,name:false' });
-  const ids = await headerIds(page);
+  const ids = await headerOrder(page);
   expect(ids.slice(0, 2)).toEqual(['index', 'email']);
   const before = await page.evaluate(
     () =>

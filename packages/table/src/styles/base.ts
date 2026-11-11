@@ -161,8 +161,6 @@ export const baseStyles = css`
       background: var(--argus-header-bg, light-dark(#f9fafb, #111827));
       color: var(--argus-header-fg, inherit);
       font-weight: 600;
-    }
-    [part~='header-cell'] {
       position: relative;
     }
     [part~='resize-handle'] {

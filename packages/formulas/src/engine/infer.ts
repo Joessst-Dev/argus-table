@@ -14,6 +14,7 @@ export function inferType(
   const infer = (n: FormulaNode): ValueType => {
     switch (n.type) {
       case 'number':
+      case 'percent':
         return 'number';
       case 'text':
         return 'text';
@@ -21,8 +22,6 @@ export function inferType(
         return 'boolean';
       case 'ref':
         return refType(n.name);
-      case 'percent':
-        return 'number';
       case 'unary':
         return n.operator === '-' ? 'number' : infer(n.operand);
       case 'binary':

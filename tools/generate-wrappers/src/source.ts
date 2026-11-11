@@ -12,11 +12,35 @@ export function doc(text: string): string {
   return text.replace(/\s+/g, ' ').replaceAll('*/', '*\\/').trim();
 }
 
-/** The types the elements' events refer to, sorted, for an import from `argus-table`. */
-export function eventTypes(elements: readonly ElementInfo[]): string[] {
+/**
+ * Content properties' types in a framework's wrapper, by property name. `null`:
+ * the wrapper sets the property itself and leaves it out (`contentRenderer`).
+ */
+export type ContentTypes = Readonly<Record<string, string | null>>;
+
+/** Whether an element renders content: the wrapper then gives it a content renderer. */
+export const rendersContent = (el: ElementInfo): boolean =>
+  el.properties.some((p) => p.name === 'contentRenderer');
+
+/** A content property's type; the row type is `unknown` for an element that isn't generic. */
+export function contentType(types: ContentTypes, property: string, generic: boolean): string {
+  const type = types[property] ?? 'unknown';
+  return generic ? type : type.replace(/\bT\b/g, 'unknown');
+}
+
+/** Whether any element has a property typed for the framework's content. */
+export const usesContentTypes = (elements: readonly ElementInfo[], types: ContentTypes): boolean =>
+  elements.some((el) => el.properties.some((p) => typeof types[p.name] === 'string'));
+
+/**
+ * The types to import from `argus-table`, sorted: the ones the elements' events
+ * refer to and, with content, `CellContext`.
+ */
+export function argusTypes(elements: readonly ElementInfo[], withContent: boolean): string[] {
   const types = new Set<string>();
   for (const el of elements) {
     for (const e of el.events) for (const t of referencedTypes(e.type)) types.add(t);
   }
+  if (withContent) types.add('CellContext');
   return [...types].sort();
 }

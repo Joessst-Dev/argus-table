@@ -92,7 +92,7 @@ class ContentDirective extends AsyncDirective {
     if (!isForeign(value)) {
       this.#release();
       this.#content = undefined;
-      return this.render(value);
+      return toChild(value as CellContent | null | undefined);
     }
     const host = part.options?.host;
     const renderer = (host as ContentHost | undefined)?.contentRenderer;

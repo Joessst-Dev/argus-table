@@ -70,7 +70,7 @@ const opsOf = (kind: FilterKind) =>
 const valueless = (op: string) => op === 'empty' || op === 'notEmpty';
 
 /** A set value as the list shows it. */
-export const setLabel = (value: FilterValue) => (value === null ? '(Empty)' : String(value));
+const setLabel = (value: FilterValue) => (value === null ? '(Empty)' : String(value));
 
 /**
  * A form for a column's filter, filled from the filter it has. `undefined` when the
@@ -130,7 +130,6 @@ export function filterOf(form: FilterForm): ColumnFilter | undefined {
   const value = read(form.value);
   const to = op === 'between' ? read(form.to) : undefined;
   if (value === undefined && to === undefined) return undefined;
-  if (op !== 'between' && value === undefined) return undefined;
   return kind === 'number'
     ? { kind, op: rangeOp, value: value as number | undefined, to: to as number | undefined }
     : { kind, op: rangeOp, value: value as string | undefined, to: to as string | undefined };

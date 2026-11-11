@@ -97,7 +97,7 @@ function renderRow<T>(
   if (selected) parts += ' row-selected';
   const retry = state === 'error' ? loading?.retry.get(row.index) : undefined;
   // The Retry button goes in the first data column, after a selection column.
-  const retryCol = firstDataColumn(columns);
+  const retryCol = retry === undefined ? undefined : firstDataColumn(columns);
   return html`<div
     part=${parts}
     class="row"

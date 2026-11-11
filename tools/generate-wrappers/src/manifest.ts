@@ -75,11 +75,11 @@ export interface ElementInfo {
 }
 
 /** The elements every wrapper covers. */
-export const TAGS = ['argus-table', 'argus-column'] as const;
+const TAGS = ['argus-table', 'argus-column'] as const;
 export type Tag = (typeof TAGS)[number];
 
 /** Properties with two-way binding, by element: the property, its event and the detail field. */
-export const MODELS: Readonly<Record<Tag, readonly ElementModel[]>> = {
+const MODELS: Readonly<Record<Tag, readonly ElementModel[]>> = {
   'argus-table': [
     { property: 'sorting', event: 'argus-sort-change', detailKey: 'sorting' },
     { property: 'columnSizing', event: 'argus-column-resize', detailKey: 'sizing' },

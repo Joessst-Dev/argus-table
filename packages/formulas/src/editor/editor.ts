@@ -1,6 +1,6 @@
 import { html, nothing, render, type TemplateResult } from 'lit';
 import { live } from 'lit/directives/live.js';
-import type { Problem } from './session.js';
+import type { Mode, Problem } from './session.js';
 import type { ValueType } from '../engine/functions/index.js';
 import { callAt, completionAt, highlight, type Completion } from './assist.js';
 import type { FunctionDoc } from './docs.js';
@@ -19,7 +19,7 @@ export interface PreviewTable {
 }
 
 export interface EditorOptions {
-  mode: 'add' | 'edit' | 'view';
+  mode: Mode;
   /** The field focused first. */
   focus: 'name' | 'formula';
   name: string;
@@ -280,9 +280,10 @@ export function openEditor(options: EditorOptions): Promise<EditorResult | undef
       const preview = options.preview(name, formula);
       const items = completion?.items ?? [];
       const listId = `${ids}-list`;
+      const hint = signature();
       const describedBy = [
         formulaProblem ? `${ids}-problem` : '',
-        signature() === nothing ? '' : `${ids}-hint`,
+        hint === nothing ? '' : `${ids}-hint`,
       ]
         .filter(Boolean)
         .join(' ');
@@ -403,7 +404,7 @@ export function openEditor(options: EditorOptions): Promise<EditorResult | undef
                           >
                             <span>${item.label}</span>
                             <span class="argus-formula-suggestion-kind">
-                              ${item.kind === 'column' ? 'column' : item.kind === 'function' ? 'function' : 'value'}
+                              ${item.kind === 'boolean' ? 'value' : item.kind}
                             </span>
                           </li>`,
                       )}
@@ -418,7 +419,7 @@ export function openEditor(options: EditorOptions): Promise<EditorResult | undef
                   </p>`
                 : nothing
             }
-            ${signature()}
+            ${hint}
           </div>
 
           ${
@@ -497,9 +498,7 @@ export function openEditor(options: EditorOptions): Promise<EditorResult | undef
       return;
     }
     element.showModal();
-    const first = container.querySelector<HTMLInputElement>(
-      `[id="${ids}-${options.focus === 'name' ? 'name' : 'formula'}"]`,
-    );
+    const first = container.querySelector<HTMLInputElement>(`[id="${ids}-${options.focus}"]`);
     first?.focus();
     if (first && options.focus === 'formula') {
       first.setSelectionRange(formula.length, formula.length);

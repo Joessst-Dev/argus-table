@@ -125,15 +125,9 @@ export function compileFilter(filter: ColumnFilter): ((value: unknown) => boolea
       if (filter.op === 'notEmpty') return (v) => textOf(v) !== '';
       const needle = (filter.value ?? '').toLowerCase();
       if (!needle) return undefined;
-      const op = filter.op;
-      return (v) => {
-        const text = textOf(v).toLowerCase();
-        return op === 'equals'
-          ? text === needle
-          : op === 'startsWith'
-            ? text.startsWith(needle)
-            : text.includes(needle);
-      };
+      if (filter.op === 'equals') return (v) => textOf(v).toLowerCase() === needle;
+      if (filter.op === 'startsWith') return (v) => textOf(v).toLowerCase().startsWith(needle);
+      return (v) => textOf(v).toLowerCase().includes(needle);
     }
     case 'number': {
       const test = compare(filter.op, numberOf(filter.value), numberOf(filter.to));
@@ -151,7 +145,7 @@ export function compileFilter(filter: ColumnFilter): ((value: unknown) => boolea
 }
 
 /** The words of a quick filter, lowercased; empty when it keeps every row. */
-export function quickTerms(quickFilter: string | undefined): string[] {
+function quickTerms(quickFilter: string | undefined): string[] {
   return (quickFilter ?? '').toLowerCase().split(/\s+/).filter(Boolean);
 }
 

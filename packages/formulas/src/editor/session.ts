@@ -2,6 +2,7 @@ import type { ColumnDef, PluginHost } from 'argus-table';
 import {
   compileColumns,
   display,
+  formulaRefs,
   lookupOf,
   nameOf,
   parseOrError,
@@ -88,13 +89,7 @@ export function checkFormula<T>(
     if (def.formula === undefined) continue;
     const t = def.id === id ? tree : parseOrError(def.formula);
     if (t instanceof FormulaSyntaxError) continue;
-    uses.set(
-      def.id,
-      refsOf(t).flatMap((name) => {
-        const target = lookup(name);
-        return target?.formula !== undefined ? [target.id] : [];
-      }),
-    );
+    uses.set(def.id, formulaRefs(t, lookup));
   }
   if (analyze(uses).cyclic.has(id)) {
     return {
@@ -127,11 +122,7 @@ function newId<T>(name: string, defs: readonly ColumnDef<T>[]): string {
  * The columns with each formula name that led to column `id` by its old header
  * renamed to `name`. Names by id stay as they are.
  */
-export function renameRefs<T>(
-  defs: readonly ColumnDef<T>[],
-  id: string,
-  name: string,
-): ColumnDef<T>[] {
+function renameRefs<T>(defs: readonly ColumnDef<T>[], id: string, name: string): ColumnDef<T>[] {
   const lookup = lookupOf(defs);
   return defs.map((def) => {
     if (def.formula === undefined || def.id === id) return def;

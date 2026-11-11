@@ -162,6 +162,13 @@ function gridRowOf(row: Element | null, layout: RowLayout): GridRow | undefined 
   return index ? layout.fromAriaRowIndex(Number(index)) : undefined;
 }
 
+/** The grid row a cell or column header is in. */
+function gridRowOfCell(cell: HTMLElement, layout: RowLayout): GridRow | undefined {
+  return cell.getAttribute('role') === 'columnheader'
+    ? HEADER
+    : gridRowOf(cell.parentElement, layout);
+}
+
 /**
  * The pinned edge's shadow, drawn once per side over the scroller rather than
  * per row: a shadow on every pinned cell repaints on every scroll frame. It
@@ -186,6 +193,14 @@ function track<T>(column: ColumnView<T, CellContent>): string {
   return column.flex === undefined
     ? `${String(column.width)}px`
     : `minmax(${String(column.minWidth)}px, ${String(column.flex)}fr)`;
+}
+
+/** Total width of the columns pinned to one side. */
+function pinnedWidth<T>(
+  columns: readonly ColumnView<T, CellContent>[],
+  side: 'start' | 'end',
+): number {
+  return columns.reduce((sum, c) => (c.pin === side ? sum + c.width : sum), 0);
 }
 
 /**
@@ -569,7 +584,7 @@ export class ArgusTable<T = unknown> extends LitElement {
   /** Whether the checkbox column was last shown; a change re-measures the pinned columns. */
   #selectionColumn = false;
   #selectionColumnChanged = false;
-  /** The select-all checkbox's state, kept until `selection`, `data` or `getRowId` change. */
+  /** The select-all checkbox's state, kept until the selection or the shown rows change. */
   #checkAll: { key: readonly unknown[]; state: CheckAll['state'] } | undefined;
   /** Moves the table applied itself, by column; their events fire once the update is done. */
   readonly #appliedReorders = new Map<string, ColumnReorderDetail>();
@@ -652,15 +667,9 @@ export class ArgusTable<T = unknown> extends LitElement {
   /** Scroll back to the top after the update (a new sort order for a data source). */
   #scrollToTop = false;
   // Looked up lazily: the virtualizer's hostUpdated runs before firstUpdated.
-  readonly #virtual = new VirtualController(this, () =>
-    this.renderRoot.querySelector<HTMLElement>('[part~="table"]'),
-  );
-  readonly #pinScroll = new PinScrollController(this, () =>
-    this.renderRoot.querySelector<HTMLElement>('[part~="table"]'),
-  );
-  readonly #columnWindow = new ColumnWindowController<T>(this, () =>
-    this.renderRoot.querySelector<HTMLElement>('[part~="table"]'),
-  );
+  readonly #virtual = new VirtualController(this, () => this.#scroller());
+  readonly #pinScroll = new PinScrollController(this, () => this.#scroller());
+  readonly #columnWindow = new ColumnWindowController<T>(this, () => this.#scroller());
   /** The columns the last render rendered (all of them, unless `virtualizeColumns`). */
   #rendered: RenderedColumn<T>[] = [];
   #rowPx = 40;
@@ -691,6 +700,11 @@ export class ArgusTable<T = unknown> extends LitElement {
    */
   #scrollTarget: { row: number; count: number } | undefined;
 
+  /** The scroll container (`part="table"`); `null` before the first render. */
+  #scroller(): HTMLElement | null {
+    return this.renderRoot.querySelector<HTMLElement>('[part~="table"]');
+  }
+
   constructor() {
     super();
     // The user's own scrolling (or a click, or a key) wins over a restored position.
@@ -707,15 +721,19 @@ export class ArgusTable<T = unknown> extends LitElement {
     super.connectedCallback();
     if (!this.hasAttribute('role')) this.setAttribute('role', 'grid');
     if (this.hasUpdated) this.#observeProbe();
-    if (this.#lightPart && !this.#lightConnected) {
-      this.#lightConnected = true;
-      this.#lightPart.setConnected(true);
-      flushContent(this);
-    }
+    this.#setLightConnected(true);
     // A zoom change changes the tallest body the engine renders.
     this.#unwatchMaxHeight = watchMaxElementHeight(() => {
       this.requestUpdate();
     });
+  }
+
+  /** Connects or disconnects the cell content (framework content mounts and unmounts with it). */
+  #setLightConnected(connected: boolean): void {
+    if (!this.#lightPart || this.#lightConnected === connected) return;
+    this.#lightConnected = connected;
+    this.#lightPart.setConnected(connected);
+    flushContent(this);
   }
 
   override disconnectedCallback(): void {
@@ -723,11 +741,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     this.#probeObserver?.disconnect();
     this.#rowMeasure.stop();
     // Framework content in the cells is unmounted until the table comes back.
-    if (this.#lightPart && this.#lightConnected) {
-      this.#lightConnected = false;
-      this.#lightPart.setConnected(false);
-      flushContent(this);
-    }
+    this.#setLightConnected(false);
     this.#unwatchMaxHeight?.();
     this.#unwatchMaxHeight = undefined;
   }
@@ -827,7 +841,7 @@ export class ArgusTable<T = unknown> extends LitElement {
    * nothing in the table.
    */
   getState(): Required<TableState> {
-    const scroller = this.renderRoot.querySelector<HTMLElement>('[part~="table"]');
+    const scroller = this.#scroller();
     return structuredClone({
       sorting: this.#sorting.value,
       columnSizing: this.#sizing.value,
@@ -873,7 +887,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     if (this.#data.rows?.totalKnown === false && scroll.row >= count) {
       this.#scrollTarget = { row: scroll.row, count };
     }
-    const scroller = this.renderRoot.querySelector<HTMLElement>('[part~="table"]');
+    const scroller = this.#scroller();
     if (scroller) scroller.scrollLeft = scroll.left * this.#direction();
     // The scroll event comes before the next frame, and the rows move with its update.
     await new Promise(requestAnimationFrame);
@@ -960,7 +974,8 @@ export class ArgusTable<T = unknown> extends LitElement {
         pinnedRows: this.pinnedRows,
       });
     }
-    // A new page cache (new source, sort order or refresh) or none, and new measured widths.
+    // A new page cache (new source, sort order or refresh) or none, new measured
+    // widths, and whether the checkbox column shows.
     const autoWidths = this.#autoWidths.widths;
     this.#autoWidthsChanged = autoWidths !== this.#pushedAutoWidths;
     this.#pushedAutoWidths = autoWidths;
@@ -978,7 +993,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     this.#internals.ariaColCount = String(model.columns.length);
     this.#internals.ariaMultiSelectable = this.#mode() === 'multi' ? 'true' : null;
     // The header and pinned rows scroll with the body.
-    const extra = this.#rowPx + this.#pinnedPx('top', layout) + this.#pinnedPx('bottom', layout);
+    const extra = this.#headerAndPinnedPx(layout);
     const auto = this.rowHeight === 'auto';
     if (!auto) this.#rowMeasure.stop();
     // Anything but a scroll may change what rows hold (data, columns, widths).
@@ -1008,22 +1023,22 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.virtualizeColumns ? this.#keptColumns(model) : [],
     );
     this.#rendered = rendered;
-    const pinnedWidth = (side: 'start' | 'end') =>
-      columns.reduce((sum, c) => (c.pin === side ? sum + c.width : sum), 0);
-    const pinned = (side: 'start' | 'end') => `${String(pinnedWidth(side))}px`;
+    const pinStart = pinnedWidth(columns, 'start');
+    const pinEnd = pinnedWidth(columns, 'end');
+    const cols = columns.map(track).join(' ');
     const layout = layoutOf(model);
     const style: Record<string, string> = {
-      '--_cols': columns.map(track).join(' '),
+      '--_cols': cols,
       '--_width': `${String(model.totalWidth)}px`,
-      '--_pin-start': pinned('start'),
-      '--_pin-end': pinned('end'),
+      '--_pin-start': `${String(pinStart)}px`,
+      '--_pin-end': `${String(pinEnd)}px`,
       '--_pin-top-rows': String(layout.top),
       '--_pin-bottom-rows': String(layout.bottom),
     };
     const auto = this.rowHeight === 'auto';
     if (auto) {
       // New column widths or a new row height rewrap rows: read them all again.
-      const key = `${style['--_cols'] ?? ''}|${String(this.#rowPx)}`;
+      const key = `${cols}|${String(this.#rowPx)}`;
       if (key !== this.#rowsKey) {
         this.#rowsKey = key;
         this.#rowMeasure.invalidate();
@@ -1040,10 +1055,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     }
     // The header, the pinned rows and the body: what the pinned-column shadows cover.
     const contentPx =
-      this.#rowPx +
-      this.#pinnedPx('top', layout) +
-      this.#pinnedPx('bottom', layout) +
-      (model.rowCount === 0 ? 0 : this.#window.totalSize);
+      this.#headerAndPinnedPx(layout) + (model.rowCount === 0 ? 0 : this.#window.totalSize);
     return html`<div
         part="table"
         role="presentation"
@@ -1081,8 +1093,7 @@ export class ArgusTable<T = unknown> extends LitElement {
         ${renderPinnedRows('bottom', layout.bottom, rendered, firstIndex('bottom'), activeIn('bottom'))}
         <div class="probe" aria-hidden="true"></div>
       </div>
-      ${pinShadow('start', pinnedWidth('start'), contentPx)}
-      ${pinShadow('end', pinnedWidth('end'), contentPx)}`;
+      ${pinShadow('start', pinStart, contentPx)} ${pinShadow('end', pinEnd, contentPx)}`;
   }
 
   protected override firstUpdated(): void {
@@ -1109,7 +1120,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     const resized = this.rowHeight === 'auto' && this.#measureRows();
     if (this.#scrollToTop) {
       this.#scrollToTop = false;
-      const scroller = this.renderRoot.querySelector<HTMLElement>('[part~="table"]');
+      const scroller = this.#scroller();
       if (scroller) scroller.scrollTop = 0;
     }
     this.#chaseScrollTarget(model.rowCount);
@@ -1130,35 +1141,15 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.#focusActive();
     }
     if (changed.has('density') || changed.has('rowHeight')) this.#measureRowHeight();
-    if (this.#appliedResizes.size > 0) {
-      const details = [...this.#appliedResizes.values()];
-      this.#appliedResizes.clear();
-      for (const detail of details) fire(this, COLUMN_RESIZE, detail);
-    }
+    this.#fireApplied(this.#appliedResizes, COLUMN_RESIZE);
     if (this.#announceMove) {
       this.#announceMoved(model, this.#announceMove);
       this.#announceMove = undefined;
     }
-    if (this.#appliedReorders.size > 0) {
-      const details = [...this.#appliedReorders.values()];
-      this.#appliedReorders.clear();
-      for (const detail of details) fire(this, COLUMN_REORDER, detail);
-    }
-    if (this.#appliedPins.size > 0) {
-      const details = [...this.#appliedPins.values()];
-      this.#appliedPins.clear();
-      for (const detail of details) fire(this, COLUMN_PIN, detail);
-    }
-    if (this.#appliedHides.size > 0) {
-      const details = [...this.#appliedHides.values()];
-      this.#appliedHides.clear();
-      for (const detail of details) fire(this, COLUMN_HIDE, detail);
-    }
-    if (this.#appliedFilters.size > 0) {
-      const details = [...this.#appliedFilters.values()];
-      this.#appliedFilters.clear();
-      for (const detail of details) fire(this, COLUMN_FILTER, detail);
-    }
+    this.#fireApplied(this.#appliedReorders, COLUMN_REORDER);
+    this.#fireApplied(this.#appliedPins, COLUMN_PIN);
+    this.#fireApplied(this.#appliedHides, COLUMN_HIDE);
+    this.#fireApplied(this.#appliedFilters, COLUMN_FILTER);
     if (this.#announceRows) {
       this.#announceRows = false;
       this.#announceRowCount(model);
@@ -1202,6 +1193,14 @@ export class ArgusTable<T = unknown> extends LitElement {
       ...this.#autoWidths.pending(model.columns),
       ...this.#measureKeep,
     ];
+  }
+
+  /** Fires the events of changes the table applied itself, once the update is done. */
+  #fireApplied(applied: Map<string, unknown>, name: string): void {
+    if (applied.size === 0) return;
+    const details = [...applied.values()];
+    applied.clear();
+    for (const detail of details) fire(this, name, detail);
   }
 
   /**
@@ -1331,21 +1330,19 @@ export class ArgusTable<T = unknown> extends LitElement {
     const inHeader = cell.getAttribute('role') === 'columnheader';
     const { key } = event;
     const arrow = key === 'ArrowLeft' || key === 'ArrowRight';
-    if (inHeader && arrow && event.altKey && event.shiftKey) {
+    if (inHeader && arrow && event.altKey) {
       event.preventDefault();
-      // Logical: the arrow pointing toward the inline end moves the column that way.
+      // Logical: the arrow pointing toward the inline end grows the column, or
+      // moves it that way with Shift.
       const towardEnd = (key === 'ArrowRight') === (this.#direction() === 1);
-      this.#moveByKey(id, towardEnd ? 1 : -1);
-      return;
-    }
-    if (inHeader && event.altKey && arrow) {
-      event.preventDefault();
-      // Logical: the arrow pointing toward the inline end grows the column.
-      const towardEnd = (key === 'ArrowRight') === (this.#direction() === 1);
-      this.#requestResize(
-        id,
-        this.#currentWidth(id, cell) + (towardEnd ? RESIZE_STEP : -RESIZE_STEP),
-      );
+      if (event.shiftKey) {
+        this.#moveByKey(id, towardEnd ? 1 : -1);
+      } else {
+        this.#requestResize(
+          id,
+          this.#currentWidth(id, cell) + (towardEnd ? RESIZE_STEP : -RESIZE_STEP),
+        );
+      }
       return;
     }
     if (inHeader && (key === 'Enter' || key === ' ') && cell.dataset.sortCol !== undefined) {
@@ -1359,7 +1356,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     if (event.altKey || event.shiftKey || (corner && key !== 'Home' && key !== 'End')) return;
     const model = this.#table.model;
     const layout = layoutOf(model);
-    const from = inHeader ? HEADER : gridRowOf(cell.parentElement, layout);
+    const from = gridRowOfCell(cell, layout);
     if (!from) return;
     if (!inHeader && key === 'Enter') {
       // Enter on a body cell does what a click does; on a failed row, it retries.
@@ -1459,11 +1456,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     }
     // The body rows that fit between the header and the pinned rows, from the
     // focused body row (or the body's first or last row).
-    const view =
-      scroller.clientHeight -
-      this.#rowPx -
-      this.#pinnedPx('top', layout) -
-      this.#pinnedPx('bottom', layout);
+    const view = scroller.clientHeight - this.#headerAndPinnedPx(layout);
     const bodyFirst = layout.position({ section: 'body', index: 0 });
     const from = Math.min(Math.max(pos - bodyFirst, 0), Math.max(layout.body - 1, 0));
     return this.#virtual.pageRows(from, key === 'PageDown', view);
@@ -1560,10 +1553,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       const cell = gridCell(target);
       if (cell?.dataset.col !== undefined) {
         const model = this.#table.model;
-        const row =
-          cell.getAttribute('role') === 'columnheader'
-            ? HEADER
-            : gridRowOf(cell.parentElement, layoutOf(model));
+        const row = gridRowOfCell(cell, layoutOf(model));
         const { col } = cell.dataset;
         const prev = this.#active;
         if (
@@ -1662,7 +1652,7 @@ export class ArgusTable<T = unknown> extends LitElement {
 
   /**
    * Whether all, some or none of the selectable rows are selected. With `data`
-   * it's worked out once per `selection`, `data` and `getRowId`, not on scroll;
+   * it's worked out once per selection and rows shown, not on scroll;
    * with a `dataSource` every time, over the loaded rows, which eviction keeps few.
    */
   #checkAllState(model: TableModel<T, CellContent>): CheckAll['state'] {
@@ -1685,10 +1675,12 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.#visibility.value,
     ];
     const cached = this.#checkAll;
-    if (cached?.key.length !== key.length || key.some((k, i) => k !== cached.key[i])) {
-      this.#checkAll = { key, state: count() };
+    if (cached?.key.length === key.length && key.every((k, i) => k === cached.key[i])) {
+      return cached.state;
     }
-    return this.#checkAll?.state ?? 'none';
+    const state = count();
+    this.#checkAll = { key, state };
+    return state;
   }
 
   /**
@@ -1755,8 +1747,9 @@ export class ArgusTable<T = unknown> extends LitElement {
   /** The anchor row and where it is now; `undefined` if it isn't in the rows (or not loaded). */
   #anchorAt(model: TableModel<T, CellContent>): SelectionTarget | undefined {
     const id = this.#anchor;
-    const index = id === undefined ? undefined : model.indexOf(id);
-    return id === undefined || index === undefined ? undefined : { id, index };
+    if (id === undefined) return undefined;
+    const index = model.indexOf(id);
+    return index === undefined ? undefined : { id, index };
   }
 
   /**
@@ -1846,8 +1839,9 @@ export class ArgusTable<T = unknown> extends LitElement {
     const active = this.#active;
     if (!active) return;
     const col = CSS.escape(active.col);
+    const layout = layoutOf(this.#table.model);
     // aria-rowindex is unique across the grid: header, pinned and body rows.
-    const index = layoutOf(this.#table.model).ariaRowIndex(active);
+    const index = layout.ariaRowIndex(active);
     const cell = this.renderRoot.querySelector<HTMLElement>(
       `[role='row'][aria-rowindex="${String(index)}"] > [data-col="${col}"]`,
     );
@@ -1859,7 +1853,6 @@ export class ArgusTable<T = unknown> extends LitElement {
     // heights too: rows measured on the way can move the row again, so it
     // scrolls until they're done.
     if (active.section === 'body' && (this.#virtual.scaled || this.rowHeight === 'auto')) {
-      const layout = layoutOf(this.#table.model);
       const before = this.#rowPx + this.#pinnedPx('top', layout);
       if (this.#virtual.reveal(active.index, before, this.#pinnedPx('bottom', layout))) {
         this.#focusPending = true;
@@ -2113,7 +2106,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       );
     const columnId = cell?.dataset.moveCol;
     if (!cell || columnId === undefined || !canStartReorder(down, cell)) return;
-    const scroller = this.renderRoot.querySelector<HTMLElement>('[part~="table"]');
+    const scroller = this.#scroller();
     if (!scroller) return;
     const pin = this.#table.model.columns.find((c) => c.id === columnId)?.pin;
     startReorderDrag(cell, down, {
@@ -2162,9 +2155,7 @@ export class ArgusTable<T = unknown> extends LitElement {
 
   /** Where the scrolling columns show: the scroller's inside, less the pinned columns. */
   #scrollArea(scroller: HTMLElement): { left: number; right: number } {
-    const columns = this.#table.model.columns;
-    const width = (side: 'start' | 'end') =>
-      columns.reduce((sum, c) => (c.pin === side ? sum + c.width : sum), 0);
+    const width = (side: 'start' | 'end') => pinnedWidth(this.#table.model.columns, side);
     const ltr = this.#direction() === 1;
     const left = scroller.getBoundingClientRect().left + scroller.clientLeft;
     return {
@@ -2237,10 +2228,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       const columnId = cell?.dataset.col;
       if (!cell || columnId === undefined) continue;
       const model = this.#table.model;
-      const row =
-        cell.getAttribute('role') === 'columnheader'
-          ? HEADER
-          : gridRowOf(cell.parentElement, layoutOf(model));
+      const row = gridRowOfCell(cell, layoutOf(model));
       if (!row) return undefined;
       return {
         section: row.section,
@@ -2266,6 +2254,11 @@ export class ArgusTable<T = unknown> extends LitElement {
     const count = side === 'top' ? layout.top : layout.bottom;
     if (this.rowHeight !== 'auto' || count === 0) return count * this.#rowPx;
     return Math.max(this.#rowMeasure.pinned[side], count * this.#rowPx);
+  }
+
+  /** The header and the pinned rows: the rows in the scroller besides the body. */
+  #headerAndPinnedPx(layout: RowLayout): number {
+    return this.#rowPx + this.#pinnedPx('top', layout) + this.#pinnedPx('bottom', layout);
   }
 
   /**

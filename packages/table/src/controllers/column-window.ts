@@ -72,11 +72,6 @@ export class ColumnWindowController<T> implements ReactiveController {
     this.#attached = undefined;
   }
 
-  /** Number of column pool slots created so far. */
-  get poolSize(): number {
-    return this.#pool.size;
-  }
-
   /**
    * The columns to render, given the model's columns in visual order. With
    * `enabled`, `keep` names columns to render wherever they are. Call once per

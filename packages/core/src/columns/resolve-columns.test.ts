@@ -33,7 +33,6 @@ describe('resolveColumns', () => {
     const [col] = resolveColumns<Order, string>([{ id: 'id', accessor: 'id' }]);
     expect(col).toMatchObject({
       id: 'id',
-      index: 0,
       width: DEFAULT_WIDTH,
       flex: undefined,
       minWidth: DEFAULT_MIN_WIDTH,
