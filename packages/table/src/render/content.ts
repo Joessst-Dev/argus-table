@@ -17,11 +17,14 @@ export function formatValue(value: unknown): string {
 
 /**
  * Private slot names (ADR 0001): cells by row pool slot and column slot,
- * headers by column slot, pinned rows by side, index and column slot. A
+ * headers by column slot, group headers by group and pin side, pinned rows by side,
+ * index and column slot. A
  * column's slot is its `colIndex`, or its pool slot with `virtualizeColumns`.
  */
 export const cellSlot = (slot: number, colSlot: number) => `c-${String(slot)}-${String(colSlot)}`;
 export const headerSlot = (colSlot: number) => `h-${String(colSlot)}`;
+/** A column group's header, by the group's slot number (`HeaderGroupCell.slot`). */
+export const groupSlot = (slot: number) => `g-${String(slot)}`;
 export const pinnedSlot = (side: 'top' | 'bottom', index: number, colSlot: number) =>
   `${side === 'top' ? 't' : 'b'}-${String(index)}-${String(colSlot)}`;
 
@@ -75,4 +78,16 @@ export function cellStyle(
   if (column.place === undefined) return pin;
   const place = `grid-area: 1 / ${String(column.place)}`;
   return pin ? `${pin}; ${place}` : place;
+}
+
+/**
+ * Inline style of a group header row's cell: the columns it spans, placed
+ * explicitly (the rows are grids on every column's track), and a pinned one's
+ * sticky inset.
+ */
+export function groupStyle(
+  cell: Pinnable & { offset: number; colIndex: number; span: number },
+): string {
+  const place = `grid-column: ${String(cell.colIndex)} / span ${String(cell.span)}`;
+  return cell.pin ? `--_pin-offset: ${String(cell.offset)}px; ${place}` : place;
 }

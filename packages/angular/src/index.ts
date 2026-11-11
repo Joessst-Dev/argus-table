@@ -1,7 +1,11 @@
-import { ArgusColumnComponent, ArgusTableComponent } from './generated/elements.js';
+import {
+  ArgusColumnComponent,
+  ArgusColumnGroupComponent,
+  ArgusTableComponent,
+} from './generated/elements.js';
 import { ArgusCellDirective, ArgusHeaderDirective } from './content.js';
 
-export { ArgusColumnComponent, ArgusTableComponent };
+export { ArgusColumnComponent, ArgusColumnGroupComponent, ArgusTableComponent };
 export {
   ArgusCellDirective,
   ArgusHeaderDirective,
@@ -9,15 +13,17 @@ export {
   argusTemplate,
   type AngularCellContent,
   type AngularColumnDef,
+  type AngularColumnGroup,
   type ArgusCellContext,
   type ArgusHeaderContext,
   type ArgusTemplate,
 } from './content.js';
 
-/** The table, its columns and the cell and header template directives, for a standalone component's `imports`. */
+/** The table, its columns and column groups, and the cell and header template directives, for a standalone component's `imports`. */
 export const ARGUS_TABLE = [
   ArgusTableComponent,
   ArgusColumnComponent,
+  ArgusColumnGroupComponent,
   ArgusCellDirective,
   ArgusHeaderDirective,
 ] as const;
@@ -25,6 +31,7 @@ export const ARGUS_TABLE = [
 // The element classes, for typing `component.element`.
 export type {
   ArgusColumn as ArgusColumnElement,
+  ArgusColumnGroup as ArgusColumnGroupElement,
   ArgusTable as ArgusTableElement,
 } from 'argus-table';
 
@@ -39,6 +46,7 @@ export type {
   ColumnFilter,
   ColumnFilterDetail,
   ColumnFilterState,
+  ColumnGroup,
   ColumnHideDetail,
   ColumnInfo,
   ColumnOrderState,

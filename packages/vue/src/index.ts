@@ -1,7 +1,11 @@
-export { ArgusColumn, ArgusTable } from './generated/elements.js';
+export { ArgusColumn, ArgusColumnGroup, ArgusTable } from './generated/elements.js';
 export type {
   ArgusColumnElementProps,
   ArgusColumnExposed,
+  ArgusColumnGroupElementProps,
+  ArgusColumnGroupExposed,
+  ArgusColumnGroupProps,
+  ArgusColumnGroupSlots,
   ArgusColumnProps,
   ArgusColumnSlots,
   ArgusTableElementProps,
@@ -11,11 +15,12 @@ export type {
   ArgusTableProps,
   ArgusTableSlots,
 } from './generated/elements.js';
-export type { HeaderSlotProps, VueCellContent, VueColumnDef } from './content.js';
+export type { HeaderSlotProps, VueCellContent, VueColumnDef, VueColumnGroup } from './content.js';
 
 // The element classes, for typing `exposed.element` or a ref to the raw element.
 export type {
   ArgusColumn as ArgusColumnElement,
+  ArgusColumnGroup as ArgusColumnGroupElement,
   ArgusTable as ArgusTableElement,
 } from 'argus-table';
 
@@ -30,6 +35,7 @@ export type {
   ColumnFilter,
   ColumnFilterDetail,
   ColumnFilterState,
+  ColumnGroup,
   ColumnHideDetail,
   ColumnInfo,
   ColumnOrderState,

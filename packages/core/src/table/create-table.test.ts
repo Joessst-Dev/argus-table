@@ -41,6 +41,8 @@ function model(overrides: Partial<TableModelOptions<Person, string>> = {}) {
   });
 }
 
+const column = (id: string) => ({ kind: 'column' as const, id });
+
 const ids = (m: ReturnType<typeof model>) =>
   Array.from({ length: m.rowCount }, (_, i) => m.rowAt(i)?.id);
 const names = (m: ReturnType<typeof model>) =>
@@ -215,9 +217,9 @@ describe('createTableModel: selection column', () => {
     expect(m.nextSorting(SELECTION_COLUMN_ID)).toBeUndefined();
     expect(m.nextSizing(SELECTION_COLUMN_ID, 100)).toBeUndefined();
     expect(m.orderOf()).toEqual(['id', 'name', 'age', 'city', 'note', 'actions']);
-    expect(m.nextOrder(SELECTION_COLUMN_ID, 0)).toBeUndefined();
+    expect(m.nextMove(column(SELECTION_COLUMN_ID), 0)).toBeUndefined();
     // Positions in the order don't count it: 'name' moves to the first place.
-    expect(m.nextOrder('name', 0)).toEqual(['name', 'id', 'age', 'city', 'note', 'actions']);
+    expect(m.nextMove(column('name'), 0)).toEqual(['name', 'id', 'age', 'city', 'note', 'actions']);
     expect(m.valueAt(0, SELECTION_COLUMN_ID)).toBeUndefined();
     expect(m.cellContext(0, SELECTION_COLUMN_ID)).toBeUndefined();
   });
@@ -485,27 +487,34 @@ describe('createTableModel: column order', () => {
     expect(byId.city).toMatchObject({ offset: 90 });
   });
 
-  it('proposes a move within a group and refuses one across groups', () => {
+  it('proposes a move within a pin side and refuses one out of it', () => {
     const m = model();
-    expect(m.nextOrder('note', 2)).toEqual(['id', 'name', 'note', 'age', 'city', 'actions']);
-    expect(m.nextOrder('id', 1)).toEqual(['name', 'id', 'age', 'city', 'note', 'actions']);
-    expect(m.nextOrder('age', 1)).toBeUndefined();
-    expect(m.nextOrder('note', 5)).toBeUndefined();
-    expect(m.nextOrder('age', 2)).toBeUndefined();
+    expect(m.nextMove(column('note'), 0)).toEqual(['id', 'name', 'note', 'age', 'city', 'actions']);
+    expect(m.nextMove(column('id'), 1)).toEqual(['name', 'id', 'age', 'city', 'note', 'actions']);
+    expect(m.nextMove(column('age'), -1)).toBeUndefined();
+    expect(m.nextMove(column('note'), 3)).toBeUndefined();
+    expect(m.nextMove(column('age'), 0)).toBeUndefined();
   });
 
   it('proposes from a given base order, so moves can compose before an update', () => {
     const m = model();
-    const first = m.nextOrder('note', 2);
-    expect(m.nextOrder('note', 3, first)).toEqual(['id', 'name', 'age', 'note', 'city', 'actions']);
+    const first = m.nextMove(column('note'), 0);
+    expect(m.nextMove(column('note'), 1, first)).toEqual([
+      'id',
+      'name',
+      'age',
+      'note',
+      'city',
+      'actions',
+    ]);
     expect(m.orderOf(['city'])).toEqual(['id', 'name', 'city', 'age', 'note', 'actions']);
   });
 
   it('refuses to move a column with reorderable: false, but moves others past it', () => {
     const m = model({ columns: [{ id: 'a', reorderable: false }, { id: 'b' }, { id: 'c' }] });
     expect(m.columns[0]?.reorderable).toBe(false);
-    expect(m.nextOrder('a', 2)).toBeUndefined();
-    expect(m.nextOrder('c', 0)).toEqual(['c', 'a', 'b']);
+    expect(m.nextMove(column('a'), 2)).toBeUndefined();
+    expect(m.nextMove(column('c'), 0)).toEqual(['c', 'a', 'b']);
   });
 
   it('keeps the order for a new columns array and appends new columns to their group', () => {
@@ -557,8 +566,8 @@ describe('createTableModel: column pinning', () => {
     const m = model({ columnOrder: ['note', 'city', 'age', 'name', 'id'] });
     m.update({ columnPinning: { city: 'start' } });
     expect(m.columns.map((c) => c.id)).toEqual(['city', 'name', 'id', 'note', 'age', 'actions']);
-    expect(m.nextOrder('note', 4)).toEqual(['city', 'name', 'id', 'age', 'note', 'actions']);
-    expect(m.nextOrder('note', 2)).toBeUndefined();
+    expect(m.nextMove(column('note'), 1)).toEqual(['city', 'name', 'id', 'age', 'note', 'actions']);
+    expect(m.nextMove(column('note'), 2)).toBeUndefined();
   });
 
   it('gives a pinned flex column a fixed width, and its flex back once unpinned', () => {
@@ -664,8 +673,8 @@ describe('createTableModel: column visibility', () => {
   it('moves among the shown columns, keeping hidden ones in place', () => {
     const m = model({ columnVisibility: { city: false } });
     // Shown: id, name, age, note, actions. Moving age to 3 passes note (and city).
-    expect(m.nextOrder('age', 3)).toEqual(['id', 'name', 'city', 'note', 'age', 'actions']);
-    expect(m.nextOrder('city', 2)).toBeUndefined();
+    expect(m.nextMove(column('age'), 1)).toEqual(['id', 'name', 'city', 'note', 'age', 'actions']);
+    expect(m.nextMove(column('city'), 0)).toBeUndefined();
   });
 
   it('works with the selection column', () => {
@@ -1011,5 +1020,87 @@ describe('createTableModel: pinned rows', () => {
     const m = model({ pinnedRows: { bottom: [totals] } });
     m.update({ pinnedRows: undefined });
     expect(m.pinnedCount('bottom')).toBe(0);
+  });
+});
+
+describe('createTableModel: column groups', () => {
+  const groups = [
+    { id: 'who', header: 'Who', columns: ['name', { id: 'where', columns: ['city'] }] },
+    { id: 'end', columns: ['note', 'actions'] },
+  ];
+  const rows = (m: ReturnType<typeof model>) =>
+    m.headerGroups.map((row) => row.map((c) => [c.groupId ?? '-', c.colIndex, c.span]));
+
+  it('has one header row and no group rows without groups', () => {
+    const m = model();
+    expect(m.headerGroups).toEqual([]);
+    expect(m.headerRows).toBe(1);
+  });
+
+  it('builds a header row per level, split by pin side, with fillers', () => {
+    const m = model({ columnGroups: groups });
+    // id name | age city note | actions; 'who' shows on the start side and in the scrolling one.
+    expect(m.orderOf()).toEqual(['id', 'name', 'age', 'city', 'note', 'actions']);
+    expect(m.headerRows).toBe(3);
+    expect(rows(m)).toEqual([
+      [
+        ['-', 1, 1],
+        ['who', 2, 1],
+        ['-', 3, 1],
+        ['who', 4, 1],
+        ['end', 5, 1],
+        ['end', 6, 1],
+      ],
+      [
+        ['-', 1, 2],
+        ['-', 3, 1],
+        ['where', 4, 1],
+        ['-', 5, 1],
+        ['-', 6, 1],
+      ],
+    ]);
+    expect(m.headerCell(1, 'city')?.groupId).toBe('where');
+    expect(m.headerCell(0, 'id')?.kind).toBe('filler');
+  });
+
+  it('keeps headerGroups while the views stay, and rebuilds them for new groups', () => {
+    const m = model({ columnGroups: groups });
+    const first = m.headerGroups;
+    m.update({ sorting: [{ id: 'name', desc: false }] });
+    expect(m.headerGroups).toBe(first);
+    m.update({ columnGroups: [{ id: 'n', columns: ['note', 'age'] }] });
+    expect(m.orderOf()).toEqual(['id', 'name', 'age', 'note', 'city', 'actions']);
+    expect(m.headerRows).toBe(2);
+  });
+
+  it('keeps a group together in a given order, and moves it as a block', () => {
+    const m = model({ columnGroups: [{ id: 'g', columns: ['age', 'note'] }] });
+    m.update({ columnOrder: ['age', 'city', 'note'] });
+    expect(m.orderOf()).toEqual(['id', 'name', 'age', 'note', 'city', 'actions']);
+    expect(m.siblingUnits(column('city')).map((u) => u.unit.id)).toEqual(['g', 'city']);
+    expect(m.nextMove({ kind: 'group', id: 'g', pin: undefined }, 1)).toEqual([
+      'id',
+      'name',
+      'city',
+      'age',
+      'note',
+      'actions',
+    ]);
+    expect(m.nextMove(column('city'), 0)).toEqual(['id', 'name', 'city', 'age', 'note', 'actions']);
+  });
+
+  it('puts the selection column under a filler', () => {
+    const m = model({
+      selectionColumn: true,
+      columnGroups: [{ id: 'g', columns: ['id', 'name'] }],
+    });
+    expect(rows(m)).toEqual([
+      [
+        ['-', 1, 1],
+        ['g', 2, 2],
+        ['-', 4, 3],
+        ['-', 7, 1],
+      ],
+    ]);
   });
 });

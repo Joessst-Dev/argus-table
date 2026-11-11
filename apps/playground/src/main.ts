@@ -2,6 +2,7 @@ import { html } from 'lit';
 import type {
   ArgusTable,
   ColumnDef,
+  ColumnGroup,
   ColumnFilter,
   ColumnFilterState,
   DataSource,
@@ -36,6 +37,8 @@ import { installBenchHooks } from './bench-hooks.js';
 // (URL-encoded), and q=<text> sets quickFilter. Name (text), city, country, status
 // (set), amount (number) and date (date) can be filtered; the pretend server
 // (source=remote) filters too.
+// groups adds column groups: Contact over Email and Location (City, Country), Order
+// over Status, Amount and Date, and Extra over the fN columns: three header rows.
 const params = new URLSearchParams(location.search);
 // A switch, not a lookup table: the query value never picks a function to call.
 switch (params.get('theme')) {
@@ -216,6 +219,22 @@ const filterParam = params.get('filter');
 if (filterParam) table.columnFilters = JSON.parse(filterParam) as ColumnFilterState;
 if (params.has('q')) table.quickFilter = params.get('q') ?? '';
 table.columns = columns;
+if (params.has('groups')) {
+  const groups: ColumnGroup[] = [
+    {
+      id: 'contact',
+      header: 'Contact',
+      columns: ['email', { id: 'location', header: 'Location', columns: ['city', 'country'] }],
+    },
+    { id: 'order', header: 'Order', columns: ['status', 'amount', 'date'] },
+    {
+      id: 'extra',
+      header: 'Extra',
+      columns: columns.filter((c) => /^f\d+$/.test(c.id)).map((c) => c.id),
+    },
+  ];
+  table.columnGroups = groups;
+}
 table.getRowId = (p) => p.id;
 const dataStart = performance.now();
 const people = makePeople(rowCount);

@@ -91,11 +91,11 @@ export async function focused(
   });
 }
 
-/** Column ids in the order the headers show, by `aria-colindex`. */
+/** Column ids in the order the column headers show, by `aria-colindex` (no group headers). */
 export async function headerOrder(page: Page): Promise<string[]> {
   return page.evaluate(() => {
     const root = document.querySelector('argus-table')?.shadowRoot;
-    return [...(root?.querySelectorAll<HTMLElement>('[role="columnheader"]') ?? [])]
+    return [...(root?.querySelectorAll<HTMLElement>('[role="columnheader"][data-col]') ?? [])]
       .sort((a, b) => Number(a.ariaColIndex) - Number(b.ariaColIndex))
       .map((h) => h.dataset.col ?? '');
   });

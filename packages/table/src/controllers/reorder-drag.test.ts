@@ -15,10 +15,10 @@ const rtl: DropSlot[] = ltr.map((s) => ({
 
 describe('dropTarget', () => {
   test('lands in the gap nearest the pointer, by header midpoints', () => {
-    expect(dropTarget(ltr, 'a', 160, 1)).toEqual({ to: 3, columnId: 'c', edge: 'start' });
-    expect(dropTarget(ltr, 'a', 260, 1)).toEqual({ to: 4, columnId: 'c', edge: 'end' });
-    expect(dropTarget(ltr, 'c', 40, 1)).toEqual({ to: 2, columnId: 'a', edge: 'start' });
-    expect(dropTarget(ltr, 'c', 140, 1)).toEqual({ to: 3, columnId: 'b', edge: 'start' });
+    expect(dropTarget(ltr, 'a', 160, 1)).toEqual({ to: 3, id: 'c', edge: 'start' });
+    expect(dropTarget(ltr, 'a', 260, 1)).toEqual({ to: 4, id: 'c', edge: 'end' });
+    expect(dropTarget(ltr, 'c', 40, 1)).toEqual({ to: 2, id: 'a', edge: 'start' });
+    expect(dropTarget(ltr, 'c', 140, 1)).toEqual({ to: 3, id: 'b', edge: 'start' });
   });
 
   test('is undefined where the column would stay put', () => {
@@ -30,9 +30,9 @@ describe('dropTarget', () => {
 
   test('mirrors in RTL', () => {
     // 'c' is the leftmost header in RTL; past its middle is the end of the group.
-    expect(dropTarget(rtl, 'a', 40, -1)).toEqual({ to: 4, columnId: 'c', edge: 'end' });
-    expect(dropTarget(rtl, 'a', 140, -1)).toEqual({ to: 3, columnId: 'c', edge: 'start' });
-    expect(dropTarget(rtl, 'c', 260, -1)).toEqual({ to: 2, columnId: 'a', edge: 'start' });
+    expect(dropTarget(rtl, 'a', 40, -1)).toEqual({ to: 4, id: 'c', edge: 'end' });
+    expect(dropTarget(rtl, 'a', 140, -1)).toEqual({ to: 3, id: 'c', edge: 'start' });
+    expect(dropTarget(rtl, 'c', 260, -1)).toEqual({ to: 2, id: 'a', edge: 'start' });
   });
 
   test('works with headers missing in between (virtualized columns)', () => {
@@ -43,10 +43,10 @@ describe('dropTarget', () => {
       { id: 'k', index: 10, rect: { left: 0, right: 100 } },
       { id: 'l', index: 11, rect: { left: 100, right: 200 } },
     ];
-    expect(dropTarget(slots, 'a', 40, 1)).toEqual({ to: 9, columnId: 'k', edge: 'start' });
-    expect(dropTarget(slots, 'a', 140, 1)).toEqual({ to: 10, columnId: 'l', edge: 'start' });
-    expect(dropTarget(slots, 'a', 260, 1)).toEqual({ to: 11, columnId: 'l', edge: 'end' });
-    expect(dropTarget(slots, 'l', 40, 1)).toEqual({ to: 10, columnId: 'k', edge: 'start' });
+    expect(dropTarget(slots, 'a', 40, 1)).toEqual({ to: 9, id: 'k', edge: 'start' });
+    expect(dropTarget(slots, 'a', 140, 1)).toEqual({ to: 10, id: 'l', edge: 'start' });
+    expect(dropTarget(slots, 'a', 260, 1)).toEqual({ to: 11, id: 'l', edge: 'end' });
+    expect(dropTarget(slots, 'l', 40, 1)).toEqual({ to: 10, id: 'k', edge: 'start' });
     expect(dropTarget(slots, 'l', 160, 1)).toBeUndefined();
   });
 });

@@ -9,6 +9,7 @@ import {
   header,
   rendersContent,
   usesContentTypes,
+  usesGroups,
   type ContentTypes,
 } from './source.ts';
 
@@ -38,6 +39,7 @@ const pascal = (camel: string) => camel.charAt(0).toUpperCase() + camel.slice(1)
  */
 const CONTENT_INPUTS: ContentTypes = {
   columns: 'readonly AngularColumnDef<T>[]',
+  columnGroups: 'readonly AngularColumnGroup[]',
   header: 'AngularCellContent | (() => AngularCellContent)',
   cell: '(row: T, context: CellContext<T>) => AngularCellContent',
   contentRenderer: null,
@@ -146,6 +148,7 @@ export function emitAngular(elements: readonly ElementInfo[]): string {
   const contentNames = [
     ...(elements.some(rendersContent) ? ['ArgusTableBase'] : []),
     ...(usesContent ? ['type AngularCellContent', 'type AngularColumnDef'] : []),
+    ...(usesContent && usesGroups(elements) ? ['type AngularColumnGroup'] : []),
   ];
   const contentImport = contentNames.length
     ? `import { ${contentNames.join(', ')} } from '../content.js';\n`

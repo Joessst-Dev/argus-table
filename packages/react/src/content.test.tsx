@@ -1,7 +1,13 @@
 import { afterEach, describe, expect, test } from 'vitest';
 import { act, createContext, useContext, useLayoutEffect, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { ArgusTable, type ArgusTableElement, type ReactColumnDef } from './index.js';
+import {
+  ArgusColumn,
+  ArgusColumnGroup,
+  ArgusTable,
+  type ArgusTableElement,
+  type ReactColumnDef,
+} from './index.js';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -119,6 +125,37 @@ describe('React content in cells and headers', () => {
     expect(headerOf(el, 'customer')?.querySelector('i.jsx-header')?.textContent).toBe('Customer');
     // Plain columns still render through Lit.
     expect(cells(el, 'id')[0]?.textContent).toBe('o0');
+  });
+
+  test('renders JSX in column group headers, from columnGroups and <ArgusColumnGroup>', async () => {
+    const groupOf = (el: ArgusTableElement) =>
+      el.shadowRoot
+        ?.querySelector<HTMLSlotElement>('[part~="header-group-cell"] slot')
+        ?.assignedElements()[0];
+    const el = await mount(
+      <ArgusTable<Order>
+        style={size}
+        columns={columns}
+        columnGroups={[
+          { id: 'g', header: <u className="jsx-group">Who</u>, columns: ['customer'] },
+        ]}
+        data={orders(3)}
+      />,
+    );
+    expect(groupOf(el)?.querySelector('u.jsx-group')?.textContent).toBe('Who');
+    act(() => {
+      root?.unmount();
+    });
+    container?.remove();
+    const declarative = await mount(
+      <ArgusTable<Order> style={size} data={orders(3)}>
+        <ArgusColumnGroup groupId="g" header={<s className="jsx-group">Order</s>}>
+          <ArgusColumn<Order> columnId="id" header="Id" accessor="id" />
+          <ArgusColumn<Order> columnId="total" header="Total" accessor="total" />
+        </ArgusColumnGroup>
+      </ArgusTable>,
+    );
+    expect(groupOf(declarative)?.querySelector('s.jsx-group')?.textContent).toBe('Order');
   });
 
   test('pooled cells keep their components while scrolling: no remounts', async () => {

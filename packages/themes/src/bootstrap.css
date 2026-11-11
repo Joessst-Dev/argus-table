@@ -63,6 +63,10 @@ argus-table {
     font-weight: 700;
     border-block-end: 2px solid currentColor;
   }
+  /* Column groups: as bold, but the divider stays under the column headers. */
+  &::part(header-group-cell) {
+    font-weight: 700;
+  }
   /* Pinned rows (totals and the like) set off like a tfoot. */
   &::part(row-pinned) {
     font-weight: 700;

@@ -47,6 +47,8 @@ export const baseStyles = css`
       block-size: 100%;
       overflow: auto;
       overscroll-behavior: contain;
+      /* The header: one row tall, and a row more per level of column groups. */
+      --_header-h: calc(var(--_header-rows, 1) * var(--_row-height));
     }
 
     /*
@@ -57,7 +59,7 @@ export const baseStyles = css`
      * an arrow key) scrolled the body.
      */
     [part~='body'] > .row > [role='gridcell'] {
-      scroll-margin-block: calc((1 + var(--_pin-top-rows, 0)) * var(--_row-height))
+      scroll-margin-block: calc(var(--_header-h) + var(--_pin-top-rows, 0) * var(--_row-height))
         calc(var(--_pin-bottom-rows, 0) * var(--_row-height));
     }
     [role='gridcell']:not([data-pin]),
@@ -119,7 +121,7 @@ export const baseStyles = css`
 
     /*
      * Pinned rows: a sticky row group below the header and one at the bottom of
-     * the view. The header is one row tall. They keep their place in the flow,
+     * the view. The header is --_header-h tall. They keep their place in the flow,
      * so body row i still starts i rows below the top group.
      */
     .pinned {
@@ -127,7 +129,7 @@ export const baseStyles = css`
       z-index: 2;
     }
     .pinned[data-side='top'] {
-      inset-block-start: var(--_row-height);
+      inset-block-start: var(--_header-h);
     }
     .pinned[data-side='bottom'] {
       inset-block-end: 0;
@@ -162,6 +164,48 @@ export const baseStyles = css`
       color: var(--argus-header-fg, inherit);
       font-weight: 600;
       position: relative;
+    }
+    /*
+     * Column groups: a cell per group over its columns, and an empty filler over
+     * columns without a group at that level, so the header reads as one block. The
+     * label of a group in the scrolling area stays in view while its columns scroll
+     * past (sticky inside the cell, which clips rather than scrolls).
+     */
+    [part~='header-group-cell'],
+    [part~='header-group-filler'] {
+      box-sizing: border-box;
+      min-inline-size: 0;
+      background: var(--argus-header-bg, light-dark(#f9fafb, #111827));
+      color: var(--argus-header-fg, inherit);
+    }
+    [part~='header-group-cell'] {
+      display: flex;
+      align-items: center;
+      position: relative;
+      padding-inline: var(--_pad);
+      overflow: clip;
+      white-space: nowrap;
+      font-weight: 600;
+      border-block-end: var(--_border);
+      border-inline-end: var(--_border);
+    }
+    .group-label {
+      min-inline-size: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    [part~='header-group-cell']:not([data-pin]) > .group-label {
+      position: sticky;
+      inset-inline-start: calc(var(--_pin-start, 0px) + var(--_pad));
+    }
+    [data-move-group] {
+      user-select: none;
+    }
+    [data-dragging] [part~='header-group-cell'] {
+      cursor: grabbing;
+    }
+    [part~='header-group-cell-dragging'] {
+      opacity: 0.5;
     }
     [part~='resize-handle'] {
       position: absolute;
@@ -217,6 +261,7 @@ export const baseStyles = css`
       inset-inline-end: 0;
     }
     [part~='header-cell']:focus-visible,
+    [part~='header-group-cell']:focus-visible,
     [part~='cell']:focus-visible {
       outline: var(--argus-focus-ring, 2px solid Highlight);
       outline-offset: -2px;
@@ -393,12 +438,11 @@ export const baseStyles = css`
       padding-block: 0;
     }
     [data-auto-rows] > [part~='body'] > .row > [role='gridcell'] {
-      scroll-margin-block: calc(var(--_row-height) + var(--_pin-top-h, 0px))
-        var(--_pin-bottom-h, 0px);
+      scroll-margin-block: calc(var(--_header-h) + var(--_pin-top-h, 0px)) var(--_pin-bottom-h, 0px);
     }
     [data-auto-rows] > [part~='empty'] {
       min-block-size: calc(
-        100% - var(--_row-height) - var(--_pin-top-h, 0px) - var(--_pin-bottom-h, 0px)
+        100% - var(--_header-h) - var(--_pin-top-h, 0px) - var(--_pin-bottom-h, 0px)
       );
     }
     ::slotted(*) {
@@ -445,7 +489,8 @@ export const baseStyles = css`
       align-items: center;
       justify-content: center;
       min-block-size: calc(
-        100% - (1 + var(--_pin-top-rows, 0) + var(--_pin-bottom-rows, 0)) * var(--_row-height)
+        100% - var(--_header-h) - (var(--_pin-top-rows, 0) + var(--_pin-bottom-rows, 0)) *
+          var(--_row-height)
       );
       padding: var(--_pad);
       box-sizing: border-box;

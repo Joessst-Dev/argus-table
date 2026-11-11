@@ -62,7 +62,7 @@ Columns can also be written as `<argus-column>` children. They are data-only ele
 | —                                        | `filterFn`, `filterOptions` | Properties only                                                                                                      |
 
 - Adding, removing or moving an `argus-column`, or changing one of its attributes or properties, rebuilds the column list, so `v-for`, `@for` or `.map()` in a framework just work. Sizes, order and sorting are kept by id, as with a new `columns` array. The columns tell the table themselves; the table has no `MutationObserver` on its children, which would fire on every cell render while scrolling.
-- Only direct children count, in document order.
+- Only direct children count, in document order, and the children of `<argus-column-group>` children (see [Column groups](#column-groups)).
 - A child `<template>` is static content for every cell of the column (cloned once per rendered cell and kept while the cell is recycled). Content that depends on the row needs the `cell` property. Changes inside the template's content aren't picked up: replace the template.
 - Rule: a non-empty `columns` property wins, and the children are ignored (with a one-time console warning). `columns` is `[]` by default, so a framework wrapper that always binds it doesn't hide the children.
 - The generated cell content is rendered as direct children of the table (slots need direct children; see ADR 0001), into a Lit part that ends at a private comment marker. Children added later go after the marker, so they never mix with the generated content.
@@ -108,6 +108,39 @@ Columns can also be written as `<argus-column>` children. They are data-only ele
 - `reorderable: false` keeps a column from being picked up or moved by keys. Other columns can still move past it, so its position can change.
 - `columnOrder` is the order as column ids, as the table shows them. `[]` (the default) keeps the order of `columns`; after a move it lists every column. A host-set order is read per group: unknown and repeated ids are ignored, and columns it doesn't list follow the listed ones of their group in `columns` order. A new `columns` array keeps the order, matched by id.
 
+## Column groups
+
+`columnGroups` puts headers over several columns. Groups nest, and each level adds a header row above the column headers.
+
+```ts
+table.columnGroups = [
+  { id: 'customer', header: 'Customer', columns: ['name', { id: 'address', header: 'Address', columns: ['city', 'country'] }] },
+  { id: 'order', header: 'Order', columns: ['status', 'total'] },
+];
+```
+
+```html
+<argus-table>
+  <argus-column column-id="id" header="Id"></argus-column>
+  <argus-column-group group-id="customer" header="Customer">
+    <argus-column column-id="name" header="Name"></argus-column>
+    <argus-column-group group-id="address" header="Address">
+      <argus-column column-id="city" header="City"></argus-column>
+      <argus-column column-id="country" header="Country"></argus-column>
+    </argus-column-group>
+  </argus-column-group>
+</argus-table>
+```
+
+- A group is `{ id, header?, columns }`: `columns` lists column ids and nested groups, in order. `header` takes the same content as a column's (text, a template, a node, a function, framework content in the wrappers); without one, the group shows its id. Group ids are unique among groups (an id may equal a column id). Unknown column ids are ignored, a column listed twice belongs to the first group that lists it, and a group left without columns isn't shown.
+- `columns` stays a flat list, and so do the state properties and events: groups only add headers and keep their columns together. Plugins see the flat columns as before.
+- Groups are top-aligned: a top-level group is in the first header row, a group inside it in the second, and so on. Header rows = the deepest nesting among the shown columns + 1. Columns without a group at a level sit under an empty filler there (part `header-group-filler`). A group whose shown columns are all hidden goes away, and its row with it if it was the deepest.
+- A group's columns stay next to each other in the column order: on its first column's place, even when `columnOrder` lists them apart. A column moves only within its innermost group; a group moves as a whole, among the columns and groups beside it, by a drag on its header or Alt+Shift+Arrow on it. A group moves when every one of its shown columns may (`reorderable`). `argus-column-reorder` then carries `groupId`, and `columnId` is its first column.
+- Pinning splits a group: its columns pinned to a side show under a group cell of their own on that side, sticky with them. The label of a group in the scrolling area stays in view while its columns scroll past.
+- Group headers don't sort, resize or get a column menu. They take part in keyboard navigation (see [Accessibility](08-accessibility.md)).
+- A non-empty `columnGroups` wins over `<argus-column-group>` children, and a non-empty `columns` turns off the children, groups included. `<argus-column-group>` takes `group-id` and `header` (text as the attribute; content or a function as the property), and holds `<argus-column>`s and groups.
+- `columnGroups` isn't user state: it isn't in `getState()`, and no event changes it.
+
 ## Pinning and visibility
 
 - `columnPinning` pins columns at runtime, by id, over their own `pin`: `{ total: 'end', id: false }` pins `total` to the end and unpins `id`. Columns it doesn't list keep their `pin`. `columnVisibility` hides and shows them, over their own `hidden`: `{ email: false, notes: true }` hides `email` and shows `notes`, defined as `hidden`. Both are plain objects, so they save as JSON.
@@ -147,6 +180,7 @@ table.quickFilter = 'oslo paid'; // from the app's own search box
 | Property              | Attribute              | Type                                                                 | Default                                                                                                                                                             |
 | --------------------- | ---------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `columns`             | —                      | `ColumnDef[]`                                                        | `[]`                                                                                                                                                                |
+| `columnGroups`        | —                      | `ColumnGroup[]`                                                      | `[]` (see [Column groups](#column-groups))                                                                                                                          |
 | `data`                | —                      | `T[]`                                                                | `[]`                                                                                                                                                                |
 | `dataSource`          | —                      | `{ getRows(request), pageSize? }`                                    | — (wins over `data` while set; see [Data source](#data-source))                                                                                                     |
 | `pinnedRows`          | —                      | `{ top?: T[], bottom?: T[] }`                                        | — (see [Pinned rows](#pinned-rows))                                                                                                                                 |
@@ -328,7 +362,7 @@ All `CustomEvent`, bubbling and composed. See [State and events](../code-archite
 | `argus-row-click`      | `{ row, rowId, index, pinned? }`                                                       |
 | `argus-cell-click`     | `{ row, columnId, value, pinned? }`                                                    |
 | `argus-range-change`   | `{ start, end }` visible rows                                                          |
-| `argus-column-reorder` | `{ columnId, order }`                                                                  |
+| `argus-column-reorder` | `{ columnId, groupId?, order }`: `groupId` when a column group moved                   |
 | `argus-column-pin`     | `{ columnId, pin, pinning }`: `pin` is `'start'`, `'end'` or `false`                   |
 | `argus-column-hide`    | `{ columnId, hidden, visibility }`: fires when a column is hidden and when it is shown |
 | `argus-load-error`     | `{ error, start, end }`: a `dataSource` page failed; `end` exclusive                   |
@@ -338,7 +372,7 @@ All `CustomEvent`, bubbling and composed. See [State and events](../code-archite
 - The package exports each name as a constant (`SORT_CHANGE`, `COLUMN_RESIZE`, `CELL_CLICK`, `ROW_CLICK`, `RANGE_CHANGE`, …), and `HTMLElementEventMap` types each `detail`.
 - `argus-sort-change` fires on a click on a sortable header, or Enter or Space on a focused one; the order cycles ascending → descending → unsorted. When `sorting` is uncontrolled, it fires after the rows are re-sorted. When controlled, it carries the proposed order and nothing changes until the host sets `sorting`. v0.1 sorts by one column at a time.
 - `argus-column-resize` fires when a column is resized by dragging its `resize-handle` or with Alt+Arrow on its focused header (10 px; the arrow toward the inline end grows it), and when a double-click on the handle or `autosizeColumns()` fits it to its content (once per column that changes, each with the whole new `sizing`). A press on the handle without moving changes nothing. The handle is a `separator` labelled "Resize column" (English until the table gets an i18n option). During a drag it fires once per animation frame, so a controlled host can follow the drag; `width` is already clamped to `minWidth`/`maxWidth`.
-- `argus-column-reorder` fires when a column is moved: on drop after a header drag, or with Alt+Shift+Arrow on its focused header. `order` is the whole new order. When `columnOrder` is uncontrolled, it fires after the columns have moved; when controlled, it carries the proposed order and nothing changes until the host sets `columnOrder`. A drop where the column would stay put, or a cancelled drag, fires nothing.
+- `argus-column-reorder` fires when a column or column group is moved: on drop after a header drag, or with Alt+Shift+Arrow on its focused header. `order` is the whole new order. When `columnOrder` is uncontrolled, it fires after the columns have moved; when controlled, it carries the proposed order and nothing changes until the host sets `columnOrder`. A drop where the column would stay put, or a cancelled drag, fires nothing.
 - `argus-column-pin` and `argus-column-hide` fire when a plugin pins, unpins, hides or shows a column (`setPin()`, `setHidden()`), after the update when uncontrolled, with the proposal when controlled. Setting `columnPinning` or `columnVisibility` fires nothing. `argus-column-filter` works the same for `setFilter()`; it isn't `argus-column-filters-change` or `argus-filter-change` because Angular's `[(columnFilters)]` owns the output `columnFiltersChange`.
 - `argus-cell-click` and `argus-row-click` fire on a click in the body, in that order, including clicks on content inside a cell (check `event.composedPath()` to skip your own buttons). `row` is the data object, `value` what the column's accessor reads. On a pinned row, `pinned` is `'top'` or `'bottom'` and `index` is the row's index in its list. Enter on a focused body cell fires both too (Enter pressed in content inside a cell is left to that content). Header clicks fire neither.
 
@@ -429,7 +463,7 @@ interface ContentRenderer {
 
 ## Parts
 
-`table`, `header`, `header-row`, `header-cell`, `header-cell-sorted`, `header-cell-filtered`, `filter-indicator`, `header-cell-dragging`, `header-cell-selection`, `cell-selection`, `selection-checkbox`, `drop-indicator`, `resize-handle`, `body`, `row`, `row-pinned`, `row-pinned-top`, `row-pinned-bottom`, `row-even`, `row-odd`, `row-selected`, `row-loading`, `cell`, `cell-pinned`, `cell-pinned-edge`, `cell-pinned-row`, `cell-sorted`, `footer`, `skeleton`, `skeleton-error`, `retry`, `empty`.
+`table`, `header`, `header-row`, `header-group-row`, `header-group-cell`, `header-group-cell-dragging`, `header-group-filler`, `header-cell`, `header-cell-sorted`, `header-cell-filtered`, `filter-indicator`, `header-cell-dragging`, `header-cell-selection`, `cell-selection`, `selection-checkbox`, `drop-indicator`, `resize-handle`, `body`, `row`, `row-pinned`, `row-pinned-top`, `row-pinned-bottom`, `row-even`, `row-odd`, `row-selected`, `row-loading`, `cell`, `cell-pinned`, `cell-pinned-edge`, `cell-pinned-row`, `cell-sorted`, `footer`, `skeleton`, `skeleton-error`, `retry`, `empty`.
 
 - `row-pinned` is on every row from `pinnedRows`, with `row-pinned-top` or `row-pinned-bottom` for its side (`::part()` can't tell them apart by attribute). Pinned rows also have `row`, but not `row-even`/`row-odd`. Their cells add `cell-pinned-row` to `cell`; don't confuse it with `cell-pinned`, which marks cells in pinned _columns_.
 
@@ -438,7 +472,9 @@ interface ContentRenderer {
 - `row-selected` is on body rows whose id is in `selection`; see [Row selection](#row-selection).
 - `cell-selection` is added to `cell` in the checkbox column (pinned rows included), `header-cell-selection` to its `header-cell`, and `selection-checkbox` is on every one of its checkboxes, the select-all one too. Style them with `accent-color`, for example: `argus-table::part(selection-checkbox) { accent-color: rebeccapurple; }`.
 
-- `header-cell-dragging` is added to `header-cell` while that header is dragged; `drop-indicator` is a line inside the header where it would land, on its inline-start or inline-end edge. See [Column order](#column-order).
+- `header-group-row` is a row of group headers above `header-row` (the column headers), one per level of `columnGroups`. `header-group-cell` is a group's header, spanning its columns; `header-group-filler` is the empty cell over columns without a group at that level, kept apart so a group's borders don't reach it. Group cells take `--argus-header-bg` and `--argus-header-fg`, and are as tall as a header row. See [Column groups](#column-groups).
+
+- `header-cell-dragging` is added to `header-cell` while that header is dragged, and to the headers of a dragged group's columns (the group cell gets `header-group-cell-dragging`); `drop-indicator` is a line inside the header where it would land, on its inline-start or inline-end edge. See [Column order](#column-order).
 
 - `header-cell-sorted` is added next to `header-cell` on the sorted column's header. `cell-sorted` is for body cells in that column. They are separate so that `::part(cell-sorted)` never matches headers. The direction is exposed through `aria-sort` only; attribute selectors can't follow `::part()`, so styling per direction is left out until a theme needs it.
 - `cell-pinned` is on every pinned cell on either side, and `cell-pinned-edge` is added on the pinned cell next to the scrolling columns. There are no per-side parts; the component mirrors the edge shadow itself.

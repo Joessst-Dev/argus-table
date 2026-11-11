@@ -9,13 +9,16 @@ import {
   type ReactPortal,
 } from 'react';
 import { createPortal, flushSync } from 'react-dom';
-import type { CellContent, ColumnDef, ContentRenderer } from 'argus-table';
+import type { CellContent, ColumnDef, ColumnGroup, ContentRenderer } from 'argus-table';
 
 /** What a header or cell may return in React: a React node, or what the table renders itself. */
 export type ReactCellContent = CellContent | ReactNode;
 
 /** A column whose `header` and `cell` may return React nodes (JSX). */
 export type ReactColumnDef<T = unknown> = ColumnDef<T, ReactCellContent>;
+
+/** A column group (`columnGroups`) whose `header` may be React content. */
+export type ReactColumnGroup = ColumnGroup<ReactCellContent>;
 
 interface Entry {
   key: string;

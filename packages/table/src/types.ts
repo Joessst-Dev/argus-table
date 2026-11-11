@@ -1,5 +1,5 @@
 import type { TemplateResult } from 'lit';
-import type { ColumnDef as CoreColumnDef } from '@argus-table/core';
+import type { ColumnDef as CoreColumnDef, ColumnGroup as CoreColumnGroup } from '@argus-table/core';
 
 /**
  * What a column's `header` or `cell` may produce: a Lit template, a DOM node, or
@@ -15,6 +15,12 @@ export type CellContent = TemplateResult | Node | string | number;
  * `contentRenderer`.
  */
 export type ColumnDef<T = unknown, TContent = CellContent> = CoreColumnDef<T, TContent>;
+
+/**
+ * A header over several columns (`columnGroups`): an `id`, a `header`, and the
+ * `columns` it spans, by id, with nested groups among them.
+ */
+export type ColumnGroup<TContent = CellContent> = CoreColumnGroup<TContent>;
 
 /** Row density. Each one sets defaults for `--argus-row-height` and `--argus-cell-padding-inline`. */
 export type Density = 'compact' | 'comfortable' | 'spacious';

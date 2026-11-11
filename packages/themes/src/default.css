@@ -37,7 +37,8 @@ argus-table {
   &::part(cell) {
     font-variant-numeric: tabular-nums;
   }
-  &::part(header-cell) {
+  &::part(header-cell),
+  &::part(header-group-cell) {
     font-size: 0.875em;
   }
   &::part(header-cell-sorted) {

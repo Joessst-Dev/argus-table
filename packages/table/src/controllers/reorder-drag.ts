@@ -1,19 +1,19 @@
 import { INTERACTIVE } from '../interactive.js';
 
-/** Where a dragged column would land: its new position and the header that shows the drop line. */
+/** Where a dragged column or group would land: its new position and the header that shows the drop line. */
 export interface DropTarget {
-  /** Position in the whole column order after the move, 0-based. */
+  /** Position among its siblings after the move, 0-based. */
   to: number;
-  /** The header that draws the drop line. */
-  columnId: string;
+  /** The slot (a column or group header) that draws the drop line. */
+  id: string;
   /** The edge of that header the line is on, in logical terms. */
   edge: 'start' | 'end';
 }
 
-/** A header of the dragged column's group, in visual order. */
+/** A header of what the dragged column or group moves among, in visual order. */
 export interface DropSlot {
   id: string;
-  /** Its position in the whole column order, 0-based. */
+  /** Its position among them, 0-based. */
   index: number;
   rect: { left: number; right: number };
 }
@@ -39,11 +39,11 @@ export function dropTarget(
   if (!at) {
     // Past the last header: after it.
     const to = last.index >= dragged.index ? last.index : last.index + 1;
-    return to === dragged.index ? undefined : { to, columnId: last.id, edge: 'end' };
+    return to === dragged.index ? undefined : { to, id: last.id, edge: 'end' };
   }
   // Taking the column out shifts the ones after it one place back.
   const to = at.index > dragged.index ? at.index - 1 : at.index;
-  return to === dragged.index ? undefined : { to, columnId: at.id, edge: 'start' };
+  return to === dragged.index ? undefined : { to, id: at.id, edge: 'start' };
 }
 
 export interface ReorderDragOptions {
@@ -108,7 +108,7 @@ export function startReorderDrag(
   let target: DropTarget | undefined;
 
   const same = (a: DropTarget | undefined, b: DropTarget | undefined) =>
-    a?.to === b?.to && a?.columnId === b?.columnId && a?.edge === b?.edge;
+    a?.to === b?.to && a?.id === b?.id && a?.edge === b?.edge;
 
   const tick = () => {
     frame = 0;
