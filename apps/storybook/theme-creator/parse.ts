@@ -52,6 +52,18 @@ export function parseValue(raw: string): Value {
   return text;
 }
 
+// One level of nested parentheses: `#fff`, `rgb(0 0 0 / 0.5)`.
+const ARG = String.raw`((?:[^()]|\([^()]*\))*?)`;
+/**
+ * Lightning CSS's stand-in for light-dark() in builds that target older
+ * browsers (Vite's minifier, for one): `var(--lightningcss-light, a)
+ * var(--lightningcss-dark, b)`.
+ */
+const LOWERED = new RegExp(
+  String.raw`var\(--lightningcss-light,\s*${ARG}\)\s*var\(--lightningcss-dark,\s*${ARG}\)`,
+  'g',
+);
+
 /**
  * Normalises what CSSOM serialises: `rgb(1, 2, 3)` back to hex, runs of
  * whitespace (multi-line font stacks) to one space.
@@ -61,6 +73,10 @@ export function tidyValue(raw: string): string {
   return raw
     .replace(/\s+/g, ' ')
     .trim()
+    .replace(
+      LOWERED,
+      (_, light: string, dark: string) => `light-dark(${light.trim()}, ${dark.trim()})`,
+    )
     .replace(
       /rgba?\((\d+), (\d+), (\d+)(?:, ([\d.]+))?\)/g,
       (_, r: string, g: string, b: string, a?: string) =>
@@ -167,7 +183,8 @@ export function parseTheme(css: string): ParseResult {
       switch (target.kind) {
         case 'host':
           for (const [property, value] of declarations) {
-            if (property === 'color-scheme') continue;
+            // color-scheme is written again; --lightningcss-* switch a lowered light-dark().
+            if (property === 'color-scheme' || property.startsWith('--lightningcss-')) continue;
             if (property.startsWith('--')) setToken(theme.tokens, property, value, 'argus-table');
             else warnings.push(`Left out ${property} on argus-table: a theme sets tokens only.`);
           }

@@ -117,11 +117,18 @@ const without = <T extends object>(record: T, key: string): T =>
 @customElement('argus-theme-creator')
 export class ArgusThemeCreator extends LitElement {
   static override styles = css`
+    /*
+     * Controls on the left scroll with the page; the preview and the output
+     * stay in view beside them (sticky, scrolling on their own). The output
+     * sits beside the preview on wide screens and below it otherwise; on
+     * narrow screens everything stacks, preview first.
+     */
     :host {
       display: grid;
-      grid-template-columns: minmax(280px, 340px) minmax(0, 1fr) minmax(300px, 400px);
+      grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+      align-items: start;
       gap: 16px;
-      padding: 16px;
+      padding: 0 16px;
       color-scheme: light dark;
       font:
         14px/1.4 system-ui,
@@ -131,9 +138,40 @@ export class ArgusThemeCreator extends LitElement {
       box-sizing: border-box;
       min-block-size: 100vh;
     }
-    @media (width < 1200px) {
+    .controls {
+      padding-block: 16px;
+      min-inline-size: 0;
+    }
+    .workspace {
+      position: sticky;
+      inset-block-start: 0;
+      max-block-size: 100vh;
+      overflow: auto;
+      box-sizing: border-box;
+      padding-block: 16px;
+      display: grid;
+      gap: 16px;
+      align-content: start;
+      min-inline-size: 0;
+    }
+    .workspace > section {
+      min-inline-size: 0;
+    }
+    @media (width >= 1500px) {
+      .workspace {
+        grid-template-columns: minmax(0, 1fr) minmax(320px, 400px);
+      }
+    }
+    @media (width < 760px) {
       :host {
         grid-template-columns: minmax(0, 1fr);
+      }
+      .workspace {
+        position: static;
+        max-block-size: none;
+        overflow: visible;
+        order: -1;
+        padding-block-end: 0;
       }
     }
     h1 {
@@ -213,8 +251,26 @@ export class ArgusThemeCreator extends LitElement {
       font-family: ui-monospace, monospace;
       font-size: 12px;
     }
-    button {
+    /*
+     * Explicit colours: WebKit's dark native buttons have white text on light
+     * grey. Not inside the preview tables: their content (the column menu's
+     * button) is the theme's to style.
+     */
+    button:not(argus-table *) {
       font: inherit;
+      color: CanvasText;
+      background: color-mix(in srgb, CanvasText 8%, Canvas);
+      border: 1px solid color-mix(in srgb, CanvasText 30%, Canvas);
+      border-radius: 4px;
+      padding: 2px 10px;
+      cursor: pointer;
+    }
+    button:not(argus-table *):hover {
+      background: color-mix(in srgb, CanvasText 14%, Canvas);
+    }
+    button:not(argus-table *):disabled {
+      color: color-mix(in srgb, CanvasText 55%, Canvas);
+      cursor: default;
     }
     .sizes {
       display: grid;
@@ -257,7 +313,7 @@ export class ArgusThemeCreator extends LitElement {
       gap: 12px;
     }
     .previews.both {
-      grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr));
     }
     .pane {
       padding: 12px;
@@ -266,6 +322,8 @@ export class ArgusThemeCreator extends LitElement {
       color: CanvasText;
       border: 1px solid color-mix(in srgb, CanvasText 15%, Canvas);
       display: grid;
+      /* Tables take the pane's width, not their columns'. */
+      grid-template-columns: minmax(0, 1fr);
       gap: 8px;
       min-inline-size: 0;
     }
@@ -280,7 +338,7 @@ export class ArgusThemeCreator extends LitElement {
       font-size: 0.9rem;
     }
     .pane argus-table.main {
-      block-size: 380px;
+      block-size: 320px;
     }
     .pane argus-table.loading {
       block-size: 120px;
@@ -517,9 +575,11 @@ export class ArgusThemeCreator extends LitElement {
 
   protected override render(): TemplateResult {
     return html`
-      <section aria-labelledby="controls-title">${this.#renderControls()}</section>
-      <section aria-labelledby="preview-title">${this.#renderPreview()}</section>
-      <section aria-labelledby="output-title">${this.#renderOutput()}</section>
+      <section class="controls" aria-labelledby="controls-title">${this.#renderControls()}</section>
+      <div class="workspace">
+        <section aria-labelledby="preview-title">${this.#renderPreview()}</section>
+        <section aria-labelledby="output-title">${this.#renderOutput()}</section>
+      </div>
     `;
   }
 

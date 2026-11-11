@@ -1,9 +1,11 @@
-// The shipped themes as starting points, read from their source CSS.
-import defaultCss from '../../../packages/themes/src/default.css?inline';
-import materialCss from '../../../packages/themes/src/material.css?inline';
-import fluentCss from '../../../packages/themes/src/fluent.css?inline';
-import bootstrapCss from '../../../packages/themes/src/bootstrap.css?inline';
-import minimalCss from '../../../packages/themes/src/minimal.css?inline';
+// The shipped themes as starting points, read from their source CSS. `?raw`,
+// not `?inline`: a production build minifies `?inline` CSS and lowers
+// light-dark() to Lightning CSS's --lightningcss-* switches.
+import defaultCss from '../../../packages/themes/src/default.css?raw';
+import materialCss from '../../../packages/themes/src/material.css?raw';
+import fluentCss from '../../../packages/themes/src/fluent.css?raw';
+import bootstrapCss from '../../../packages/themes/src/bootstrap.css?raw';
+import minimalCss from '../../../packages/themes/src/minimal.css?raw';
 import { DEFAULT_SEEDS } from './derive.js';
 import {
   emptyTheme,
