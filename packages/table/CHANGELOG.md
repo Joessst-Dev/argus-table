@@ -1,5 +1,150 @@
 # argus-table
 
+## 0.3.0
+
+### Minor Changes
+
+- 1d1a6f0: `rowHeight: 'auto'` (`row-height="auto"`) fits each row to its content: wrapped text in `wrap` columns, and content taller than a line.
+
+  ```html
+  <argus-table row-height="auto"></argus-table>
+  ```
+
+  - The row height from `density` or `--argus-row-height` is the least a row is, and the header's height: the header doesn't grow. Pinned rows grow like body rows.
+  - Content sits at the top of the cell, with the padding that centres one line, so one-line rows look as before. The new `--argus-cell-padding-block` token sets that padding.
+  - Rows are measured as they render (framework content included), and again when their content changes size, such as an image loading: give images a size, so rows don't move then. Rows not seen yet count as one row.
+  - Rows above the view that get taller don't move the rows you're looking at, and don't cut a scroll short.
+  - Heights follow rows through sorting and filtering. Keyboard navigation, `scrollToRow()`, `getState()`/`setState()` and a million rows work as with fixed heights.
+  - With `virtualizeColumns`, a row's height counts the columns rendered: a tall cell scrolling in from the side makes its row taller then.
+
+- d052e1d: Rows can be filtered. `columnFilters` sets a filter per column id and saves as JSON; `quickFilter` searches every shown column, for your own search box:
+
+  ```js
+  table.columnFilters = {
+    city: { kind: 'set', values: ['Lisbon', 'Oslo'] },
+    total: { kind: 'number', op: 'between', value: 100, to: 500 },
+  };
+  table.quickFilter = 'oslo paid'; // or <argus-table quick-filter="…">
+  ```
+
+  - Four kinds of filter: `text` (contains, equals, starts with, empty, not empty, ignoring case), `number` and `date` (equal, not equal, less, greater, between, empty, not empty; dates by day, from ISO strings), and `set` (one of a list of values). A row shows when it passes every filter, and each word of `quickFilter` is found in one of its shown columns.
+  - A column's `filter` (`'text'`, `'number'`, `'date'` or `'set'`, also as an `<argus-column filter>` attribute) lets users filter it from plugins such as the column menu. `filterFn(value, filter, row)` replaces the built-in matching, and `filterOptions` lists the values a `set` filter offers.
+  - Filtered headers get the `header-cell-filtered` part and a funnel mark (part `filter-indicator`, token `--argus-filter-indicator-color`), and screen readers hear "Filtered" on them and the number of rows left after a change.
+  - With a `dataSource`, the server filters: `getRows()` now receives `filters` and `quickFilter`, and a change reloads from the top.
+  - Like `columnPinning`, `columnFilters` is uncontrolled until you set it. Plugins use the new `host.setFilter()`, which fires `argus-column-filter` (`{ columnId, filter, filters }`), and `host.filterValues()` for the values of a set filter. `host.column()` now reports a column's `filter` kind and its `filterValue`.
+  - Select-all and Shift ranges take the rows the filters leave.
+  - The bundle with everything inlined grows by about 1.9 kB (gzip).
+
+- 090fcba: Columns take a `formula` (and `<argus-column>` a `formula` attribute) for the new `@argus-table/formulas` plugin, which computes the column from other columns. Without the plugin the table ignores it.
+
+  Fixed: when a column kept its `id` but got a different `accessor`, cells kept showing the old values and the rows kept their old sort order until `data` changed. They now follow the new accessor.
+
+- 9a28979: Columns can be pinned, unpinned, hidden and shown at runtime. Two new properties do it by column id, over each column's own settings, and save as JSON:
+
+  ```js
+  table.columnPinning = { total: 'end', id: false }; // pin total to the end, unpin id
+  table.columnVisibility = { email: false }; // hide email
+  ```
+
+  - A column definition (or `<argus-column>`) can start hidden with `hidden`, and `pinnable: false` or `hideable: false` keep users from pinning or hiding it.
+  - A hidden column isn't rendered, but the table still sorts by it and it keeps its place in the column order. Keyboard moves (Alt+Shift+Arrow) step over it, and focus on a column being hidden moves to the next one.
+  - A pinned column joins its side nearest its place in the order, and a `{ flex }` column takes a fixed width while it's pinned.
+  - Like `columnOrder`, both are uncontrolled until you set them. Plugins pin and hide columns with the new `host.setPin()` and `host.setHidden()`, which fire `argus-column-pin` (`{ columnId, pin, pinning }`) and `argus-column-hide` (`{ columnId, hidden, visibility }`, also when a column is shown). When the property is controlled, the event carries the proposed state and nothing changes until you set it. `host.column()` now describes hidden columns too, and `host.columns()` lists every column in order.
+
+- e611a9e: Column virtualization for wide tables. Add `virtualize-columns` (the `virtualizeColumns` property) and the table renders only the scrolling columns in view, plus two on each side, instead of every column in every row:
+
+  ```html
+  <argus-table virtualize-columns></argus-table>
+  ```
+
+  - Pinned columns, the checkbox column and the focused cell's column always render. Focus survives scrolling sideways, and the arrow keys, Home and End reach every column.
+  - `width: 'auto'` columns out of view still fit their content, and `autosizeColumns()` still measures columns out of view.
+  - Column reordering by drag works across columns that aren't rendered yet: the table scrolls, and the columns render as they come into view.
+  - Off by default. With it on, cells are reused as columns scroll in and out, so their order in the DOM no longer follows the columns: page CSS that relies on it (`:nth-child` on cells) doesn't apply. `aria-colindex` gives each cell's position.
+
+- b48284b: Columns can wrap their text: `wrap: true` on a column, or `wrap` on `<argus-column>`, wraps cell text onto more lines instead of cutting it off.
+
+  ```js
+  { id: 'note', header: 'Note', accessor: 'note', wrap: true }
+  ```
+
+  - Rows keep their height. Text that fits stays centred; longer text starts at the top and is clipped, so give wrapped columns room with `rowHeight` or `--argus-row-height`.
+  - Headers don't wrap.
+  - A `width: 'auto'` column fits its text unwrapped, up to `maxWidth`.
+
+- 55b84a3: Headers and cells can show content from a framework, such as React elements. A `header` or `cell` may now return content the table doesn't render itself; it goes to the table's new `contentRenderer` (`render(target, content)`, `release(target)`, `flush()`), which the framework wrappers set for you. Each cell keeps its target while the table scrolls, so the framework updates the content in place instead of remounting it, and the content is committed before the table measures `width: 'auto'` columns or the page paints.
+
+  - `ColumnDef` takes the content type as an optional second parameter (`ColumnDef<Row, MyContent>`), for wrappers and frameworks.
+  - Plugins that nest a column's header or cell in their own template wrap it with the new `host.content()` (also exported as `content()`), so framework content works there too.
+
+- d1716be: Plugins can read body rows in the current order with `host.row(index)`, and a dialog a plugin opens from a header no longer sorts the column or starts a column drag when it's pressed.
+- fc539da: Plugins. The new `plugins` property takes add-ons, such as the column menu from `@argus-table/header-menu`:
+
+  ```js
+  import { headerMenu } from '@argus-table/header-menu';
+  table.plugins = [headerMenu()];
+  ```
+
+  - A plugin is an object with a `name` and any of three hooks. `connect(host)` runs while the table is connected and may return a cleanup function. `columns(defs, host)` changes the column definitions before the table reads them, for example to add computed columns or wrap headers. `keydown(event, target, host)` sees keys on a focused header or cell before the table does, and returns `true` to claim one.
+  - The `host` lets a plugin read the resolved columns (`column(id)`), find the header or cell of an event (`cellOf(event)`), sort (`setSort(columnId, 'asc' | 'desc' | null)`, which follows the controlled and uncontrolled rules of `sorting`), focus a header, announce a message to screen readers, and re-render. The table's own API is on `host.element`.
+  - Plugins run in array order. A new array with the same plugins changes nothing, and a plugin that throws is reported in the console and skipped instead of breaking the table.
+  - The types `ArgusPlugin`, `PluginHost`, `CellTarget` and `ColumnInfo` are exported.
+
+  Clicks on interactive content in a header (a button, a link, an input) no longer sort the column.
+
+- 5c08bb1: Row selection. Set `selectionMode` (or the `selection-mode` attribute) to `'single'` or `'multi'`, and the selected rows' ids are in `selection`:
+
+  ```html
+  <argus-table selection-mode="multi"></argus-table>
+  <script type="module">
+    const table = document.querySelector('argus-table');
+    table.getRowId = (order) => order.id;
+    table.addEventListener('argus-row-select', (e) => console.log(e.detail.selection)); // ['o2', 'o7']
+  </script>
+  ```
+
+  - A click selects a row. In `'multi'` mode, Ctrl+click (Cmd+click on macOS) adds or removes a row, Shift+click selects the range from the last row clicked, and Ctrl+Shift+click adds that range.
+  - From the keyboard, Space toggles the focused row. In `'multi'` mode, Shift+ArrowUp/ArrowDown and Shift+PageUp/PageDown extend the selection, and Ctrl+A (Cmd+A) selects every row.
+  - `selection` is uncontrolled until you set it, like `sorting`. Once set, a change only fires `argus-row-select` with the proposed ids, and the table waits for you to set them. `ROW_SELECT` and `RowSelectDetail` are exported.
+  - Clicks on buttons, links and inputs inside cells don't select. Pinned rows can't be selected, and neither can `dataSource` rows still loading. With a `dataSource`, Ctrl+A selects the rows loaded so far.
+  - Ids stay selected through sorting and new data, and show again when their rows come back.
+  - Selected rows get the part `row-selected` and `aria-selected="true"`. `--argus-row-selected-bg` paints them (pinned columns too), which the default and Material-inspired themes already set. Without it, they use the system highlight colour.
+
+- cfbc794: `getState()` and `setState()` save and restore a user's layout. `getState()` returns the sort order, column widths, column order, pins, hidden columns, filters, selection, `quickFilter` and the scroll position as one object of plain JSON (the new `TableState` type), and `setState(state)` puts it back:
+
+  ```js
+  const KEY = 'orders-table';
+  await table.setState(JSON.parse(localStorage.getItem(KEY) ?? '{}'));
+  addEventListener('pagehide', () => {
+    localStorage.setItem(KEY, JSON.stringify(table.getState()));
+  });
+  ```
+
+  - `setState()` changes only the keys it's given, and ignores ids of columns that no longer exist. It fires no events, like setting a property.
+  - Properties you control are left alone: set them yourself. The others stay uncontrolled, so users go on changing them as before.
+  - `scroll` (`{ row, left }`: the row at the top and the horizontal offset, positive in RTL too) is applied after the rest. With a `dataSource`, a row beyond the rows counted so far is scrolled to as its pages arrive, unless the user scrolls, clicks or presses a key first.
+  - `getState()` returns a copy, with controlled properties at the values you set.
+  - The bundle with everything inlined grows by about 0.5 kB (gzip).
+
+- a691e9d: A checkbox column for row selection. Add `selection-checkboxes` (the `selectionCheckboxes` property) to a table with a `selectionMode`:
+
+  ```html
+  <argus-table selection-mode="multi" selection-checkboxes></argus-table>
+  ```
+
+  - The column comes first, pinned to the start. A row's checkbox selects or deselects that row and keeps the others, and Shift+click adds the range from the last row clicked.
+  - In `multi` mode the header has a select-all checkbox. It's checked when every row is selected and mixed when some are. A click selects every row, or clears the selection when all are selected. With a `dataSource` it covers the rows loaded so far.
+  - Space on a focused checkbox cell, or on the header, does the same as clicking its checkbox. The checkboxes don't take focus themselves, so the arrow keys keep working.
+  - The column isn't one of your `columns`. It isn't in `columnOrder` or `columnSizing`, can't be sorted, resized or moved, and clicks in it fire no `argus-cell-click` or `argus-row-click`. Its id, `--argus-selection`, is reserved.
+  - New parts: `cell-selection`, `header-cell-selection`, and `selection-checkbox` on the checkboxes, so `::part(selection-checkbox) { accent-color: … }` colours them.
+
+  Also: Ctrl+A (Cmd+A) now adds every row to the selection instead of replacing it, so ids selected on `dataSource` pages that were dropped from memory stay selected.
+
+### Patch Changes
+
+- 282b5eb: Fix `virtualizeColumns`: after scrolling sideways, cells no longer wrap onto extra lines within their row, which left the table overlapping and unreadable. Each cell now stays on its row's line.
+- ad09697: In Firefox, the header and the rows pinned to the top stay in view deep in large tables. Firefox lets go of them once a table has scrolled more than about 8.95M px (about 220,000 rows of 40 px), so the table now keeps its scroll range under that there, as it already does past the browsers' maximum element height. Tables that tall scroll a little further per wheel step in Firefox.
+
 ## 0.2.2
 
 ### Patch Changes

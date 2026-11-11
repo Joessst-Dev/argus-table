@@ -1,5 +1,48 @@
 # @argus-table/react
 
+## 0.3.0
+
+### Minor Changes
+
+- 1d1a6f0: `rowHeight` accepts `'auto'`, to fit each row to its content. In Angular templates, `rowHeight="48px"` typechecks too.
+- d052e1d: `columnFilters` binds two-way like `columnPinning`: `v-model:column-filters` in Vue, `[(columnFilters)]` in Angular, and `onColumnFilter` in React. `quickFilter` is a plain prop. `<ArgusColumn>` takes `filter`, `filterFn` and `filterOptions`, and the filter types (`ColumnFilter`, `ColumnFilterState`, …) are exported.
+- 090fcba: `ArgusColumn` takes a `formula` prop (an input in Angular) for the `@argus-table/formulas` plugin.
+- 9a28979: The `columnPinning` and `columnVisibility` props bind two-way like `columnOrder`: `v-model:column-pinning` and `v-model:column-visibility` in Vue, `[(columnPinning)]` and `[(columnVisibility)]` in Angular, and `onColumnPin` / `onColumnHide` in React. `<ArgusColumn>` takes `pinnable` and `hideable`.
+- e611a9e: The `virtualizeColumns` prop (`virtualize-columns` in Vue and Angular templates) turns on the table's column virtualization for wide tables.
+- b48284b: `ArgusColumn` takes `wrap`, to wrap a column's cell text onto more lines.
+- 55b84a3: JSX in cells and headers: a column's `cell` and `header` (in `columns` or on `<ArgusColumn>`) can return any React node.
+
+  ```tsx
+  const columns: ReactColumnDef<Order>[] = [
+    { id: 'status', header: <b>Status</b>, cell: (o) => <StatusBadge status={o.status} /> },
+  ];
+  ```
+
+  The content renders through portals in your component tree, so it sees your providers (theme, router, store). Cells are pooled: as the table scrolls, a cell's component gets the next row's props instead of remounting, so keep per-row state in your data. `react-dom` is now a peer dependency.
+
+- fc539da: The `plugins` prop passes add-ons to the table, such as `headerMenu()` from `@argus-table/header-menu`. Keep the array stable between renders (a constant, `useMemo` in React, a non-reactive value in Vue, a field in Angular): a new plugin instance reconnects and closes an open menu. The `ArgusPlugin`, `PluginHost`, `CellTarget` and `ColumnInfo` types are re-exported.
+- 5c08bb1: Row selection in the wrappers: the `selectionMode` and `selection` props, and the `argus-row-select` event as `onRowSelect` (React), `row-select` (Vue) and `rowSelect` (Angular). `selection` binds two-way like `sorting`: `selection` with `onRowSelect` in React, `v-model:selection` in Vue, `[(selection)]` in Angular. The `SelectionMode`, `SelectionState` and `RowSelectDetail` types are re-exported.
+- cfbc794: `getState()` and `setState(state)` are available on the React ref, the Vue template ref and the Angular component, to save and restore a user's layout. The `TableState` and `ScrollState` types are exported.
+- a691e9d: The `selectionCheckboxes` prop (`selection-checkboxes` in Vue and Angular templates) adds the table's checkbox column.
+
+### Patch Changes
+
+- Updated dependencies [1d1a6f0]
+- Updated dependencies [d052e1d]
+- Updated dependencies [090fcba]
+- Updated dependencies [9a28979]
+- Updated dependencies [282b5eb]
+- Updated dependencies [e611a9e]
+- Updated dependencies [b48284b]
+- Updated dependencies [ad09697]
+- Updated dependencies [55b84a3]
+- Updated dependencies [d1716be]
+- Updated dependencies [fc539da]
+- Updated dependencies [5c08bb1]
+- Updated dependencies [cfbc794]
+- Updated dependencies [a691e9d]
+  - argus-table@0.3.0
+
 ## 0.2.2
 
 ### Patch Changes

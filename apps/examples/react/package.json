@@ -8,8 +8,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@argus-table/react": "^0.2.2",
-    "@argus-table/themes": "^0.2.0",
+    "@argus-table/react": "^0.3.0",
+    "@argus-table/themes": "^0.3.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },

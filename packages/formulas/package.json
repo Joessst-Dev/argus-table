@@ -1,6 +1,6 @@
 {
   "name": "@argus-table/formulas",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "Formula columns for argus-table: compute a column per row from other columns, spreadsheet style.",
   "license": "MIT",
   "repository": {

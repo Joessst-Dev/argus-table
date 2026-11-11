@@ -52,6 +52,10 @@ jobs:
       (github.event_name == 'release' && startsWith(github.event.release.tag_name, 'argus-table@'))
     name: bench (${{ matrix.browser }})
     runs-on: ubuntu-24.04
+    # The Playwright image has the browsers and their system libraries (see ci.yml).
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      options: --user 1001 --ipc=host
     timeout-minutes: 75
     continue-on-error: true
     strategy:
@@ -61,29 +65,6 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup
-
-      - name: Read Playwright version
-        id: playwright
-        run: |
-          echo "version=$(pnpm --filter @argus-table/benchmarks exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-          # The browsers are built per OS release (ubuntu24, ubuntu26): a cache made
-          # on one must not be restored on another.
-          echo "image=${ImageOS:-$RUNNER_OS}" >> "$GITHUB_OUTPUT"
-
-      - name: Cache Playwright browsers
-        id: browser-cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ steps.playwright.outputs.image }}-${{ matrix.browser }}-${{ steps.playwright.outputs.version }}
-
-      - name: Install ${{ matrix.browser }}
-        if: steps.browser-cache.outputs.cache-hit != 'true'
-        run: pnpm --filter @argus-table/benchmarks exec playwright install --with-deps ${{ matrix.browser }}
-
-      - name: Install ${{ matrix.browser }} system dependencies
-        if: steps.browser-cache.outputs.cache-hit == 'true'
-        run: pnpm --filter @argus-table/benchmarks exec playwright install-deps ${{ matrix.browser }}
 
       - name: Benchmark
         env:
