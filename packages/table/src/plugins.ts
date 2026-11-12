@@ -189,4 +189,12 @@ export interface PluginHost<T = unknown> {
    * as usual. Use it wherever a plugin nests what `header` or `cell` returned.
    */
   content(value: unknown): unknown;
+  /**
+   * A column's or column group's own header, as the table would show it, ready to
+   * nest in a plugin's template: `header` called if it is a function (a group
+   * without one shows its id), then wrapped like `content()`. Saves the assertion
+   * a function `header` needs where content is `unknown`:
+   * `html\`<b>${host.header(def)}</b>\``.
+   */
+  header(def: ColumnDef<T, unknown> | ColumnGroup<unknown>): unknown;
 }

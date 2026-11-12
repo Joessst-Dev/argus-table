@@ -333,9 +333,10 @@ interface ArgusPlugin<T> {
 | `requestUpdate()`                             | Re-renders: header and cell functions run again                                                                                                                                                                                                   |
 | `row(index)`                                  | The body row at `index` in the current order; `undefined` past the end and for a `dataSource` row not loaded yet                                                                              |
 | `content(value)`                              | Wraps a column's own header or cell content for the plugin's template (see below)                                                                                                                                |
+| `header(def)`                                 | A column's or column group's own header as the table shows it (a function `header` called, a group without one shows its id), wrapped like `content()` for the plugin's template |
 
 - Clicks on interactive content in a header (a button, a link, an input, a popover, a dialog) don't sort, so a plugin can put controls and dialogs in headers.
-- `content(value)` wraps a column's own header or cell content for the plugin's template, so framework content still reaches the table's `contentRenderer` (see [Framework content](#framework-content)): `` html`<b>${host.content(own)}</b>` ``. The column menu and formula headers use it.
+- `content(value)` wraps a column's own header or cell content for the plugin's template, so framework content still reaches the table's `contentRenderer` (see [Framework content](#framework-content)): `` html`<b>${host.content(own)}</b>` ``. For a header, `header(def)` does the whole job: it calls a function `header` (which the hooks type as `unknown`, so the call would otherwise need an assertion) and wraps the result: `` html`<b>${host.header(def)}</b>` ``. The column menu and formula headers use it.
 - Later hooks are optional additions and later host members are additions too, so neither breaks existing plugins. A `state` hook (plugin state saved with `getState()` and restored by `setState()`) waits for a plugin that has state of its own: the column menu has none, and formulas live in `columns`.
 
 ### Column menu (`@argus-table/header-menu`)

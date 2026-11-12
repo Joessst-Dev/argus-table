@@ -344,6 +344,31 @@ describe('plugin keys', () => {
 });
 
 describe('plugin host', () => {
+  test("header(def) gives a column's or group's own header, as the table shows it", async () => {
+    const seen: string[] = [];
+    const quoted: ArgusPlugin<Person> = {
+      name: 'quoted',
+      columns: (defs, host) => defs.map((d) => ({ ...d, header: () => html`«${host.header(d)}»` })),
+      columnGroups: (groups, host) =>
+        groups.map((g) => ({ ...g, header: () => html`«${host.header(g)}»` })),
+    };
+    const el = await fixture({
+      columns: [
+        { id: 'name', header: 'Name', accessor: 'name' },
+        { id: 'age', header: () => html`<i>Age</i>`, accessor: 'age' },
+        { id: 'city', accessor: 'address.city' },
+      ],
+      columnGroups: [{ id: 'who', columns: ['name', 'age'] }],
+      data: people(2),
+      plugins: [quoted],
+    });
+    for (const cell of shadow(el).querySelectorAll('[role="columnheader"]')) {
+      seen.push(slotted(cell)?.textContent.trim() ?? '');
+    }
+    // The group without a header shows its id; the column without one, nothing.
+    expect(seen).toEqual(['«who»', '«Name»', '«Age»', '«»']);
+  });
+
   const data = [
     { id: 'a', name: 'Ann', age: 30, address: { city: 'X' } },
     { id: 'b', name: 'Bob', age: 10, address: { city: 'Y' } },

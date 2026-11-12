@@ -201,11 +201,6 @@ function contributions<T>(host: PluginHost<T>, columnId: string): HeaderMenuGrou
 }
 
 /** A column's text header, or its id when the header isn't text. */
-/** A column's own header content; plugins see content as `unknown`, so a function header is asserted to return it. */
-function ownHeader<T>(def: ColumnDef<T, unknown>): unknown {
-  return typeof def.header === 'function' ? (def.header as () => unknown)() : def.header;
-}
-
 function textOf<T>(def: ColumnDef<T, unknown>): string {
   const { header } = def;
   return typeof header === 'string' || typeof header === 'number' ? String(header) : def.id;
@@ -258,15 +253,14 @@ function hasMenu<T>(state: TableState<T>, column: ColumnInfo | undefined): colum
 
 /** The column's own header, then the menu button, then the menu while it is open. */
 function header<T>(state: TableState<T>, def: ColumnDef<T, unknown>, labelId: string): unknown {
-  const raw = ownHeader(def);
+  // As the table shows it; framework content (React, Vue) renders in our template too.
+  const own = state.host.header(def);
   const column = state.host.column(def.id);
-  if (!hasMenu(state, column)) return raw ?? '';
-  // Through the table, so framework content (React, Vue) renders in our template too.
-  const own = state.host.content(raw);
+  if (!hasMenu(state, column)) return own;
   const isOpen = state.open === def.id;
   const menuId = `${labelId}-menu`;
   return html`<span class="argus-header-menu-header"
-    ><span class="argus-header-menu-label" id=${labelId}>${own ?? nothing}</span
+    ><span class="argus-header-menu-label" id=${labelId}>${own}</span
     ><button
       class="argus-header-menu-button"
       type="button"
