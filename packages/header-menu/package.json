@@ -1,6 +1,6 @@
 {
   "name": "@argus-table/header-menu",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "A column menu for argus-table: sort and fit a column from a button in its header, or from the keyboard.",
   "license": "MIT",
   "repository": {

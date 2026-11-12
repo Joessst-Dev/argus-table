@@ -1,5 +1,61 @@
 # @argus-table/formulas
 
+## 0.4.0
+
+### Minor Changes
+
+- 333ad32: Follow the 1.0 plugin API (ADR 0004).
+
+  - **Formulas:**
+    - Exports `FORMULA_COLUMN_ADD`, `FORMULA_COLUMN_CHANGE` and `FORMULA_COLUMN_REMOVE` for its event names, and `FormulaMenuGroup` and `FormulaMenuItem` for its menu items.
+    - `FormulaColumnDetail` and `FormulaColumnChangeDetail` take the columns' content type as a second parameter, which defaults to the table's own. `detail.columns` is a readonly array.
+  - **Wrappers:** they re-export the new `SortDirection` type, and a check keeps their type re-exports in step with `argus-table`.
+
+- ed14d91: Whole columns in formulas. `[[amount]]` is every value of a column in the rows the table's filters keep (as Excel's `SUBTOTAL` counts them), while `[amount]` stays the row's own value:
+
+  ```text
+  Share    = [amount] / SUM([[amount]])
+  Orders   = COUNTIF([[customer]], [customer])
+  Manager  = XLOOKUP([manager_id], [[id]], [[name]], "—")
+  Position = RANK([amount], [[amount]])
+  ```
+
+  - `SUM`, `MIN`, `MAX` and `AVERAGE` take whole columns, and the new Columns functions are `COUNT`, `COUNTA`, `COUNTBLANK`, `SUMIF`, `COUNTIF`, `AVERAGEIF` (criteria such as `">10"`, `"<>done"` or wildcards), `XLOOKUP`, `MATCH`, `INDEX` and `RANK`.
+  - Totals follow the filters, the quick filter and new `data`. Filters on a column that uses whole columns hide rows without changing its totals.
+  - A total such as `SUM([[amount]])` is computed once per set of rows, and criteria and lookups that change from row to row use an index of the column, so they stay fast on large tables.
+  - With a `dataSource`, whole columns are `#N/A`.
+  - The editor suggests columns after `[[`, highlights whole columns, and notes `SUM([amount])` (one value of the row) without blocking the save.
+
+  The plugin's size budget grows from 9 to 12.3 kB min+gzip.
+
+- 08c5fcf: **Breaking (formulas):** the formula editor's text-colour tokens end in `-fg`, like every other text colour:
+
+  - `--argus-formula-error-color` → `--argus-formula-error-fg`
+  - `--argus-formula-function-color` → `--argus-formula-function-fg`
+  - `--argus-formula-ref-color` → `--argus-formula-ref-fg`
+  - `--argus-formula-number-color` → `--argus-formula-number-fg`
+  - `--argus-formula-text-color` → `--argus-formula-text-fg`
+
+  **Fallbacks (column menu and formula editor):** each token now has one fallback per role:
+
+  - Lines and popup edges fall back to 20% of the text colour.
+  - Form controls fall back to 30% of the text colour.
+  - The hovered item falls back to 10% of the text colour.
+
+  **Themes:** all five themes set the add-on tokens (`--argus-menu-*`, `--argus-dialog-*`, `--argus-formula-*`), so the column menu and the formula editor take on each theme. They also follow the renamed table tokens (`--argus-border`, `--argus-border-radius`, `--argus-row-odd-bg`, `--argus-row-pinned-bg`).
+
+### Patch Changes
+
+- 50ad445: The README documents `--argus-formula-input-bg`, the background behind a formula as you type in the editor (default: `--argus-bg`).
+- Updated dependencies [6edb3cd]
+- Updated dependencies [333ad32]
+- Updated dependencies [443f4be]
+- Updated dependencies [bb8194e]
+- Updated dependencies [ed14d91]
+- Updated dependencies [218350c]
+- Updated dependencies [08c5fcf]
+  - argus-table@0.4.0
+
 ## 0.3.0
 
 ### Minor Changes

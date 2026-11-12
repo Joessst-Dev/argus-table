@@ -1,5 +1,105 @@
 # argus-table
 
+## 0.4.0
+
+### Minor Changes
+
+- 333ad32: **Breaking:** attribute, type and plugin API changes for 1.0 (ADR 0004).
+
+  - **Boolean attributes:** `virtualize-columns="false"` and `selection-checkboxes="false"` now turn the feature off, like the column flags (`sortable="false"`). Before, any value turned it on.
+  - **Saved state:**
+    - `getState()` now includes `version: 1`. `setState()` ignores state of any other version, as it ignores unknown column ids, and reads state without a version as version 1.
+    - `scroll.left` is renamed `scroll.inline`: it is the offset from the start edge, positive in RTL too. A saved `scroll` without `inline` restores only the row.
+  - **State arrays are `readonly`:** `SortState`, `ColumnOrderState`, `SelectionState` and a set filter's `values`.
+  - **New type:** `SortDirection` (`'asc' | 'desc'`).
+  - **Plugins:**
+    - Every `PluginHost` member is now required: `columns()`, `setPin()`, `setHidden()`, `setFilter()`, `filterValues()`, `filteredIndexes()`, `row()` and `content()`. You no longer need to check that they exist.
+    - `setSort(columnId, undefined)` clears a sort; it used to take `null`.
+    - `ColumnInfo.filterValue` is renamed `columnFilter`, and `ColumnInfo.filter` is no longer optional. `ColumnInfo.sorted` is a `SortDirection | undefined`.
+    - The `columns` and `columnGroups` hooks see content as `unknown` (`ColumnDef<T, unknown>`), since in React and Vue it is the framework's own content. They may return `undefined` to leave the columns as they are.
+    - `willUpdate` gets a `ReadonlySet<string>` of property names.
+  - `toColumnDef()` and `toColumnGroup()` on `<argus-column>` and `<argus-column-group>` are internal and no longer in the Custom Elements Manifest.
+
+- 443f4be: More for column groups:
+
+  - Resize a group: drag the handle on its header, or press Alt+Arrow on it. The change is spread over its resizable columns in proportion to their widths, within their bounds. A double-click on the handle fits each of its columns to its content. These are column resizes: `argus-column-resize` fires once per column that changes.
+  - `reorderable: false` on a group (`reorderable="false"` on `<argus-column-group>`) keeps it from moving as a whole; its columns still move within it.
+  - Plugins can change the groups before the table reads them, with a new `columnGroups(groups, host)` hook beside `columns`.
+
+- bb8194e: Column groups: headers over several columns, nested to any depth. Set `columnGroups`, or wrap `<argus-column>`s in `<argus-column-group>`:
+
+  ```js
+  table.columnGroups = [
+    {
+      id: 'customer',
+      header: 'Customer',
+      columns: ['name', { id: 'address', header: 'Address', columns: ['city', 'country'] }],
+    },
+    { id: 'order', header: 'Order', columns: ['status', 'total'] },
+  ];
+  ```
+
+  ```html
+  <argus-column-group group-id="customer" header="Customer">
+    <argus-column column-id="name" header="Name"></argus-column>
+    <argus-column column-id="city" header="City"></argus-column>
+  </argus-column-group>
+  ```
+
+  - Each level of nesting adds a header row above the column headers. `columns` stays a flat list, and so do `columnOrder`, the other state properties and what plugins see.
+  - A group's columns stay next to each other: on its first column's place, even when `columnOrder` lists them apart. Columns move only within their group, and a group moves as a whole: drag its header, or press Alt+Shift+Arrow on it. `argus-column-reorder` then has a `groupId`.
+  - A group whose columns are pinned to different sides shows on each side, sticky with its columns. A wide group's label stays in view while its columns scroll past, `virtualizeColumns` included.
+  - Group headers are column headers (`aria-colspan` over their columns) in the keyboard navigation: ArrowUp from a column header goes to its group, ArrowDown back. Columns without a group at a level sit under an empty filler cell. Groups don't sort or resize.
+  - New parts: `header-group-row`, `header-group-cell`, `header-group-cell-dragging` and `header-group-filler`. Group headers take `--argus-header-bg` and `--argus-header-fg`, and each header row is `--argus-row-height` tall.
+  - The CDN bundle grows by about 3.3 kB (min+gzip), to 58.2 kB; its size budget goes from 55 to 59 kB.
+
+- ed14d91: Two plugin additions for columns computed from more than their definitions:
+
+  - The `willUpdate(changed, host)` hook runs at the start of each update with the names of the properties that changed, before the `columns` hooks. A `host.invalidateColumns()` there runs `columns` again in the same update.
+  - `host.filteredIndexes(except?)` gives the indexes in `data` of the rows the filters and the quick filter keep, leaving out the filters on the `except` columns and their text in the quick filter. An accessor of one of those columns may call it while the table filters or sorts.
+
+- 218350c: **Breaking:** state events are renamed to `argus-<property>-change`. Each event's `detail` now holds the new value under the property's name, followed by what caused the change:
+
+  | Before                 | After                            | `detail`                                                                                             |
+  | ---------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------- |
+  | `argus-sort-change`    | `argus-sorting-change`           | `{ sorting }`                                                                                        |
+  | `argus-column-resize`  | `argus-column-sizing-change`     | `{ columnSizing, columnId, width }` (was `sizing`)                                                   |
+  | `argus-column-reorder` | `argus-column-order-change`      | `{ columnOrder, columnId, groupId? }` (was `order`)                                                  |
+  | `argus-column-pin`     | `argus-column-pinning-change`    | `{ columnPinning, columnId, pin }` (was `pinning`)                                                   |
+  | `argus-column-hide`    | `argus-column-visibility-change` | `{ columnVisibility, columnId, visible }` (was `visibility`, and `hidden` with the opposite meaning) |
+  | `argus-column-filter`  | `argus-column-filters-change`    | `{ columnFilters, columnId, columnFilter }` (was `filters` and `filter`)                             |
+  | `argus-row-select`     | `argus-selection-change`         | `{ selection }`                                                                                      |
+  - The exported constants follow the new names: `SORTING_CHANGE`, `COLUMN_SIZING_CHANGE`, `COLUMN_ORDER_CHANGE`, `COLUMN_PINNING_CHANGE`, `COLUMN_VISIBILITY_CHANGE`, `COLUMN_FILTERS_CHANGE` and `SELECTION_CHANGE`.
+  - The detail types are renamed too: `SortingChangeDetail`, `ColumnSizingChangeDetail`, `ColumnOrderChangeDetail`, `ColumnPinningChangeDetail`, `ColumnVisibilityChangeDetail`, `ColumnFiltersChangeDetail` and `SelectionChangeDetail`.
+  - `argus-range-change` now reports `{ first, last }` (both inclusive) instead of `{ start, end }`.
+  - `argus-cell-click` now also has `rowId` and `index`, like `argus-row-click`.
+
+- 08c5fcf: **Breaking:** renamed tokens and a renamed part, plus new parts, for 1.0 (ADR 0004).
+
+  **Renamed tokens:**
+
+  | Before                  | After                   |
+  | ----------------------- | ----------------------- |
+  | `--argus-pinned-row-bg` | `--argus-row-pinned-bg` |
+  | `--argus-row-stripe-bg` | `--argus-row-odd-bg`    |
+  | `--argus-outline`       | `--argus-border`        |
+  | `--argus-radius`        | `--argus-border-radius` |
+
+  **Renamed part:** `cell-pinned-row` → `cell-in-pinned-row`. `cell-pinned` keeps meaning a cell in a pinned _column_.
+
+  **New parts:**
+
+  - `header-cell-sorted-asc` and `header-cell-sorted-desc`, so you can style the sort direction; `::part()` can't read `aria-sort`.
+  - `sort-indicator`, the chevron in a sortable header.
+  - `header-cell-pinned` and `header-cell-pinned-edge`, like the body cells' `cell-pinned` and `cell-pinned-edge`.
+  - `row-error` on the rows of a `dataSource` page that failed to load, next to `row-loading`.
+
+  The CDN bundle's size budget goes from 59 to 59.5 kB.
+
+### Patch Changes
+
+- 6edb3cd: Corrected API docs. The `dataSource` docs now mention `filters` and `quickFilter`, `argus-range-change` reports the rows in view, the `resize-handle` part also sits on column group headers, and `cell-sorted`, `cell-pinned` and `cell-pinned-edge` also cover pinned-row cells. `sorting` documents how several items sort. `@argus-table/themes` now releases with the other packages under one version.
+
 ## 0.3.0
 
 ### Minor Changes

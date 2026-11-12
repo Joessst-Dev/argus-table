@@ -8,9 +8,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@argus-table/header-menu": "^0.3.0",
-    "@argus-table/themes": "^0.3.0",
-    "argus-table": "^0.3.0"
+    "@argus-table/header-menu": "^0.4.0",
+    "@argus-table/themes": "^0.4.0",
+    "argus-table": "^0.4.0"
   },
   "devDependencies": {
     "vite": "^8.3.5"

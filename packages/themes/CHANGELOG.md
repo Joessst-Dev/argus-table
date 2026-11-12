@@ -1,5 +1,30 @@
 # @argus-table/themes
 
+## 0.4.0
+
+### Minor Changes
+
+- 08c5fcf: **Breaking (formulas):** the formula editor's text-colour tokens end in `-fg`, like every other text colour:
+
+  - `--argus-formula-error-color` → `--argus-formula-error-fg`
+  - `--argus-formula-function-color` → `--argus-formula-function-fg`
+  - `--argus-formula-ref-color` → `--argus-formula-ref-fg`
+  - `--argus-formula-number-color` → `--argus-formula-number-fg`
+  - `--argus-formula-text-color` → `--argus-formula-text-fg`
+
+  **Fallbacks (column menu and formula editor):** each token now has one fallback per role:
+
+  - Lines and popup edges fall back to 20% of the text colour.
+  - Form controls fall back to 30% of the text colour.
+  - The hovered item falls back to 10% of the text colour.
+
+  **Themes:** all five themes set the add-on tokens (`--argus-menu-*`, `--argus-dialog-*`, `--argus-formula-*`), so the column menu and the formula editor take on each theme. They also follow the renamed table tokens (`--argus-border`, `--argus-border-radius`, `--argus-row-odd-bg`, `--argus-row-pinned-bg`).
+
+### Patch Changes
+
+- bb8194e: Every theme styles column group headers (`header-group-cell`) like its column headers.
+- 50ad445: The README links the new theme creator in the docs: start from one of these themes, change a few seeds or any token, check contrast in light and dark, and copy, download or share the CSS.
+
 ## 0.3.0
 
 ### Minor Changes

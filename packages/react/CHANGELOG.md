@@ -1,5 +1,37 @@
 # @argus-table/react
 
+## 0.4.0
+
+### Minor Changes
+
+- bb8194e: Column groups: the table takes `columnGroups`, and `ArgusColumnGroup` (`ArgusColumnGroupComponent` in Angular, also in `ARGUS_TABLE`) wraps `ArgusColumn`s as `<argus-column-group>` does. A group's `header` can be framework content, typed as `ReactColumnGroup`, `VueColumnGroup` and `AngularColumnGroup`.
+- 218350c: **Breaking:** the event props, emits and outputs follow the new `argus-<property>-change` event names, and their `detail` holds the value under the property's name (for example `e.detail.columnSizing`, previously `e.detail.sizing`).
+
+  - **React:** the props are now `onSortingChange`, `onColumnSizingChange`, `onColumnOrderChange`, `onColumnPinningChange`, `onColumnVisibilityChange`, `onColumnFiltersChange` and `onSelectionChange`. They replace `onSortChange`, `onColumnResize`, `onColumnReorder`, `onColumnPin`, `onColumnHide`, `onColumnFilter` and `onRowSelect`.
+  - **Vue:** the emits are now `sorting-change`, `column-sizing-change`, `column-order-change`, `column-pinning-change`, `column-visibility-change`, `column-filters-change` and `selection-change`. `v-model:…` works as before.
+  - **Angular:**
+    - Each state has one output, `sortingChange`, `columnSizingChange` and so on, which emits the new value, so `[(sorting)]` and the other two-way bindings work as before.
+    - The outputs that emitted the whole event (`sortChange`, `columnResize`, `columnReorder`, `columnPin`, `columnHide`, `columnFilter` and `rowSelect`) are gone.
+    - For the whole event, bind the element's own event, for example `(argus-column-sizing-change)="save($event.detail)"`.
+
+### Patch Changes
+
+- 333ad32: Follow the 1.0 plugin API (ADR 0004).
+
+  - **Formulas:**
+    - Exports `FORMULA_COLUMN_ADD`, `FORMULA_COLUMN_CHANGE` and `FORMULA_COLUMN_REMOVE` for its event names, and `FormulaMenuGroup` and `FormulaMenuItem` for its menu items.
+    - `FormulaColumnDetail` and `FormulaColumnChangeDetail` take the columns' content type as a second parameter, which defaults to the table's own. `detail.columns` is a readonly array.
+  - **Wrappers:** they re-export the new `SortDirection` type, and a check keeps their type re-exports in step with `argus-table`.
+
+- Updated dependencies [6edb3cd]
+- Updated dependencies [333ad32]
+- Updated dependencies [443f4be]
+- Updated dependencies [bb8194e]
+- Updated dependencies [ed14d91]
+- Updated dependencies [218350c]
+- Updated dependencies [08c5fcf]
+  - argus-table@0.4.0
+
 ## 0.3.0
 
 ### Minor Changes
