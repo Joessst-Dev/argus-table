@@ -56,7 +56,8 @@ Columns can also be written as `<argus-column>` children. They are data-only ele
 | —                                        | `cell`           | Property only. Wins over a `<template>` child                                                                                   |
 | `width`                                  | `width`          | `90` or `90px`, `auto`, or `2fr` for `{ flex: 2 }`. Anything else means the default                                             |
 | `min-width`, `max-width`, `pin`, `align` | same, camelCased |                                                                                                                                 |
-| `sortable`, `resizable`, `reorderable`   | same             | Absent: the default. `"false"`: off. Any other value: on. So `resizable="false"` turns resizing off                             |
+| `sortable`, `resizable`, `reorderable`, `pinnable`, `hideable` | same | Absent: the default. `"false"`: off. Any other value: on. So `resizable="false"` turns resizing off |
+| `hidden`                                 | `hidden`         | The standard attribute: hides the column, like `hidden` in a column definition |
 | `filter`                                 | `filter`         | `text`, `number`, `date` or `set` (see [Filtering](#filtering))                                                                 |
 | `wrap`                                   | `wrap`           | A flag like `sortable`. Wraps the cell text                                                                                     |
 | —                                        | `filterFn`, `filterOptions` | Properties only                                                                                                      |
@@ -331,6 +332,7 @@ interface ArgusPlugin<T> {
 | `invalidateColumns()`                         | Runs the `columns` and `columnGroups` hooks again on the next update                                                                                                                                                                              |
 | `requestUpdate()`                             | Re-renders: header and cell functions run again                                                                                                                                                                                                   |
 | `row(index)`                                  | The body row at `index` in the current order; `undefined` past the end and for a `dataSource` row not loaded yet. Optional, like any later addition: check it exists                                                                              |
+| `content(value)`                              | Wraps a column's own header or cell content for the plugin's template (see below). Optional, like any later addition                                                                                                                                |
 
 - Clicks on interactive content in a header (a button, a link, an input, a popover, a dialog) don't sort, so a plugin can put controls and dialogs in headers.
 - `content(value)` (optional, like any later addition) wraps a column's own header or cell content for the plugin's template, so framework content still reaches the table's `contentRenderer` (see [Framework content](#framework-content)): `` html`<b>${host.content(own)}</b>` ``. The column menu and formula headers use it.
@@ -338,7 +340,7 @@ interface ArgusPlugin<T> {
 
 ### Column menu (`@argus-table/header-menu`)
 
-Each column gets a button (`tabindex="-1"`, "Column menu") at the end of its header content. Its menu sorts the column ascending or descending, clears its sort, filters it (Filter… and Clear filter, on columns with a `filter` kind), pins it to the start or end or unpins it, fits its width (a resize, as with a double-click on the handle), and hides it; a "Hidden columns" group shows hidden columns again (one item each, and "Show all"). Items that don't apply to the column are left out: not sortable, not resizable, `pinnable: false`, `hideable: false`, or the last column shown. `headerMenu({ pin: false, hide: false, filter: false })` turns the pin, hide and filter items off. Pinning, hiding and filtering go through the plugin host's `setPin()`, `setHidden()` and `setFilter()`, so they follow the `columnPinning`, `columnVisibility` and `columnFilters` rules. Filter… opens a form under the header (a `popover` with `role="dialog"`): an operator and a value or range for `text`, `number` and `date`, or a searchable checkbox list for `set` from `filterValues()` (the values the other filters leave, or `filterOptions`; a `set` column with a `dataSource` and no `filterOptions` gets no Filter…). Typed values apply 250 ms after typing stops, choices at once; Enter or Done closes the form on its header, Escape closes it as it is, Clear removes the filter, and a press outside closes it. Alt+ArrowDown, the context menu key, Shift+F10 or a right-click on a header opens it; see [Accessibility](08-accessibility.md). The menu is a native `popover` rendered inside the header's light-DOM content: it inherits the table's tokens and sits in the top layer, unclipped by the table. Styling: the classes `argus-header-menu-button`, `argus-header-menu`, `argus-header-menu-item` and `argus-header-filter`, and the tokens `--argus-menu-bg`, `--argus-menu-fg`, `--argus-menu-shadow` and `--argus-menu-item-active-bg`.
+Each column gets a button (`tabindex="-1"`, "Column menu") at the end of its header content. Its menu sorts the column ascending or descending, clears its sort, filters it (Filter… and Clear filter, on columns with a `filter` kind), pins it to the start or end or unpins it, fits its width (a resize, as with a double-click on the handle), and hides it; a "Hidden columns" group shows hidden columns again (one item each, and "Show all"). Items that don't apply to the column are left out: not sortable, not resizable, `pinnable: false`, `hideable: false`, or the last column shown. `headerMenu({ pin: false, hide: false, filter: false })` turns the pin, hide and filter items off. Pinning, hiding and filtering go through the plugin host's `setPin()`, `setHidden()` and `setFilter()`, so they follow the `columnPinning`, `columnVisibility` and `columnFilters` rules. Filter… opens a form under the header (a `popover` with `role="dialog"`): an operator and a value or range for `text`, `number` and `date`, or a searchable checkbox list for `set` from `filterValues()` (the values the other filters leave, or `filterOptions`; a `set` column with a `dataSource` and no `filterOptions` gets no Filter…). Typed values apply 250 ms after typing stops, choices at once; Enter or Done closes the form on its header, Escape closes it as it is, Clear removes the filter, and a press outside closes it. Alt+ArrowDown, the context menu key, Shift+F10 or a right-click on a header opens it; see [Accessibility](08-accessibility.md). The menu is a native `popover` rendered inside the header's light-DOM content: it inherits the table's tokens and sits in the top layer, unclipped by the table. Styling: the classes `argus-header-menu-button`, `argus-header-menu`, `argus-header-menu-item` and `argus-header-filter`, and the `--argus-menu-*` tokens (see [Add-on tokens](#add-on-tokens)).
 
 Other plugins add items through a method header-menu looks for on every plugin in `plugins`: `headerMenuItems(columnId, host)` returns groups `{ label?, items }` of items `{ label, detail?, danger?, run() }` (the exported `HeaderMenuContributor`, `HeaderMenuGroup` and `HeaderMenuItem` types). Groups follow the built-in items, each after a separator; a labelled one is a `role="group"` with a heading. `run()` runs after the menu closes and places focus itself. A column with items gets a menu even if it can't sort or resize. This is header-menu's contract, not the table's: plugins that don't know about it are unaffected.
 
@@ -398,7 +400,7 @@ All `CustomEvent`, bubbling and composed. See [State and events](../code-archite
 
 ## Methods
 
-`scrollToRow(index)`, `scrollToColumn(id)`, `refresh()`, `autosizeColumns(ids?)`, `getState()` / `setState()`.
+`scrollToRow(index)`, `refresh()`, `autosizeColumns(ids?)`, `getState()` / `setState()`. (`scrollToColumn(id)` was planned and isn't built; it is on the list of additions after 1.0 in [ADR 0004](../../adr/0004-api-1-0.md).)
 
 - `autosizeColumns(ids?)` (v0.2): fits the given columns (default: every resizable one) to the header, the pinned rows and the rendered body rows, as a resize; see [Column widths](#column-widths). Columns with `resizable: false` keep their width. Resolves once the table has re-rendered.
 - `refresh()` (v0.2): with a `dataSource`, drops every loaded page and loads the rows in view again; with `data`, re-renders the cells. Resolves once the table has re-rendered.
@@ -469,7 +471,7 @@ interface ContentRenderer {
 
 ## Parts
 
-`table`, `header`, `header-row`, `header-group-row`, `header-group-cell`, `header-group-cell-dragging`, `header-group-filler`, `header-cell`, `header-cell-sorted`, `header-cell-filtered`, `filter-indicator`, `header-cell-dragging`, `header-cell-selection`, `cell-selection`, `selection-checkbox`, `drop-indicator`, `resize-handle`, `body`, `row`, `row-pinned`, `row-pinned-top`, `row-pinned-bottom`, `row-even`, `row-odd`, `row-selected`, `row-loading`, `cell`, `cell-pinned`, `cell-pinned-edge`, `cell-pinned-row`, `cell-sorted`, `footer`, `skeleton`, `skeleton-error`, `retry`, `empty`.
+`table`, `header`, `header-row`, `header-group-row`, `header-group-cell`, `header-group-cell-dragging`, `header-group-filler`, `header-cell`, `header-cell-sorted`, `header-cell-filtered`, `filter-indicator`, `header-cell-dragging`, `header-cell-selection`, `cell-selection`, `selection-checkbox`, `drop-indicator`, `resize-handle`, `body`, `row`, `row-pinned`, `row-pinned-top`, `row-pinned-bottom`, `row-even`, `row-odd`, `row-selected`, `row-loading`, `cell`, `cell-pinned`, `cell-pinned-edge`, `cell-pinned-row`, `cell-sorted`, `skeleton`, `skeleton-error`, `retry`, `empty`.
 
 - `row-pinned` is on every row from `pinnedRows`, with `row-pinned-top` or `row-pinned-bottom` for its side (`::part()` can't tell them apart by attribute). Pinned rows also have `row`, but not `row-even`/`row-odd`. Their cells add `cell-pinned-row` to `cell`; don't confuse it with `cell-pinned`, which marks cells in pinned _columns_.
 
@@ -499,3 +501,30 @@ interface ContentRenderer {
 - `--argus-row-selected-bg` is the background of selected rows, pinned columns included; it wins over `--argus-row-hover-bg`. Default: the system `Highlight` colour at 22% over `--argus-bg`.
 - `--argus-focus-ring` is an `outline` value for the focused cell or header (`:focus-visible`). Default: `2px solid Highlight`.
 - `--argus-pinned-shadow` takes a `box-shadow` value written for a shadow falling toward the end side, for example `4px 0 6px -4px rgb(0 0 0 / .2)`. The component mirrors it for the end edge and in RTL. `none` removes it.
+
+### Add-on tokens
+
+The add-ons read these in the table's light DOM, so they are set on the table like its own. They also read the table's `--argus-bg`, `--argus-fg`, `--argus-font`, `--argus-border-color`, `--argus-focus-ring` and `--argus-header-bg`. The `--argus-menu-*` tokens are shared by every add-on menu, the `--argus-dialog-*` tokens by every add-on dialog.
+
+| Token | Read by | What it sets | Default |
+| --- | --- | --- | --- |
+| `--argus-menu-bg` | header-menu, formulas | Background of the column menu and the filter form | `var(--argus-bg)` |
+| `--argus-menu-fg` | header-menu, formulas | Their text colour | `var(--argus-fg)` |
+| `--argus-menu-shadow` | header-menu, formulas | Shadow under the menu and the editor's suggestions | `0 4px 16px rgb(0 0 0 / 0.16)` |
+| `--argus-menu-item-active-bg` | header-menu, formulas | The hovered or focused menu item, the editor's selected suggestion | the text colour at 10% |
+| `--argus-menu-danger-fg` | header-menu | Destructive items (removing a formula column) | `inherit` |
+| `--argus-menu-detail-font` | header-menu | Details in the menu (a formula) | `ui-monospace, monospace` |
+| `--argus-dialog-bg` | formulas | Background of the formula editor | `var(--argus-menu-bg)` |
+| `--argus-dialog-fg` | formulas | Its text colour | `var(--argus-menu-fg)` |
+| `--argus-dialog-accent` | formulas | The save button | `Highlight` |
+| `--argus-dialog-accent-fg` | formulas | Text on the save button | `HighlightText` |
+| `--argus-dialog-shadow` | formulas | Shadow under the editor | `0 20px 48px rgb(0 0 0 / 0.28)` |
+| `--argus-dialog-backdrop` | formulas | Behind the editor | `rgb(0 0 0 / 0.4)` |
+| `--argus-formula-error-color` | formulas | Error values, problems and their underline | the text colour |
+| `--argus-formula-font` | formulas | The formula input | `ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace` |
+| `--argus-formula-input-bg` | formulas | Background of the formula input | `var(--argus-bg)` |
+| `--argus-formula-function-color` | formulas | Function names in a formula | `inherit` |
+| `--argus-formula-ref-bg` | formulas | Background of column names in a formula | the text colour at 10% |
+| `--argus-formula-ref-color` | formulas | Column names in a formula | `inherit` |
+| `--argus-formula-number-color` | formulas | Numbers in a formula | `inherit` |
+| `--argus-formula-text-color` | formulas | Text literals in a formula | `inherit` |

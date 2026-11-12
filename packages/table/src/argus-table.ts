@@ -247,7 +247,7 @@ function pinnedWidth<T>(
  * @fires {CustomEvent<ColumnFilterDetail>} argus-column-filter - A column's filter was set, changed or cleared, through a plugin such as the column menu. `detail: { columnId, filter, filters }`: `filter` is the column's new filter, or `undefined` when it was cleared; `filters` is the new state, or the proposed one when `columnFilters` is controlled.
  * @fires {CustomEvent<CellClickDetail<T>>} argus-cell-click - A body or pinned-row cell was clicked, or Enter was pressed on it. `detail: { row, columnId, value, pinned? }`; `pinned` is `'top'` or `'bottom'` for a pinned row. Fires before `argus-row-click`.
  * @fires {CustomEvent<RowClickDetail<T>>} argus-row-click - A body or pinned row was clicked, or Enter was pressed on one of its cells. `detail: { row, rowId, index, pinned? }`; for a pinned row, `index` is its index in its list.
- * @fires {CustomEvent<RangeChangeDetail>} argus-range-change - The visible rows changed. `detail: { start, end }` (row indices, inclusive).
+ * @fires {CustomEvent<RangeChangeDetail>} argus-range-change - The rows in view changed (rows rendered ahead of the scroll position not counted). `detail: { start, end }` (row indices in the current order, inclusive).
  * @fires {CustomEvent<RowSelectDetail>} argus-row-select - The selected rows changed: by a click on a row (Ctrl/Cmd toggles, Shift selects a range), with Space, Shift+Arrow or Shift+PageUp/PageDown on a body cell, or with Ctrl/Cmd+A. Only with a `selectionMode`. `detail: { selection }`: the new row ids, or the proposed ones when `selection` is controlled.
  * @fires {CustomEvent<LoadErrorDetail>} argus-load-error - A `dataSource` page failed to load: `getRows()` rejected or threw. `detail: { error, start, end }` (`end` exclusive). The rows show a Retry button.
  *
@@ -266,7 +266,7 @@ function pinnedWidth<T>(
  * @csspart filter-indicator - The mark in the header of a filtered column, after the sort indicator.
  * @csspart header-cell-dragging - Added to `header-cell` on the header being dragged to a new position, and on the headers of a dragged group's columns.
  * @csspart drop-indicator - The line on the edge of the header where a dragged column or group would land.
- * @csspart resize-handle - The drag handle on the inline-end edge of a resizable column's header. A double-click fits the column to its content.
+ * @csspart resize-handle - The drag handle on the inline-end edge of a resizable column's header, and of a column group's header with resizable columns. A double-click fits the column (or the group's columns) to its content.
  * @csspart body - The row group holding the rendered body rows.
  * @csspart row - Every body row.
  * @csspart row-even - Body rows with an even index (0-based).
@@ -281,9 +281,9 @@ function pinnedWidth<T>(
  * @csspart row-pinned-bottom - The rows pinned to the bottom.
  * @csspart cell-pinned-row - Every cell of a pinned row (next to `cell`).
  * @csspart cell - Every body cell.
- * @csspart cell-sorted - Body cells in the sorted column.
- * @csspart cell-pinned - Body cells in a pinned column, on either side.
- * @csspart cell-pinned-edge - The pinned body cell next to the scrolling columns (one per pinned side).
+ * @csspart cell-sorted - Body and pinned-row cells in the sorted column.
+ * @csspart cell-pinned - Body and pinned-row cells in a pinned column, on either side.
+ * @csspart cell-pinned-edge - The pinned cell next to the scrolling columns (one per pinned side), in body and pinned rows.
  * @csspart skeleton - The placeholder bar in each cell of a row that is still loading.
  * @csspart skeleton-error - Added to `skeleton` in a row whose page failed to load.
  * @csspart retry - The Retry button in the first cell of a failed page's first visible row.
@@ -361,11 +361,12 @@ export class ArgusTable<T = unknown> extends LitElement {
 
   /**
    * Loads rows page by page as they scroll into view, instead of `data`:
-   * `{ getRows({ start, end, sorting, signal }), pageSize? }`, where `end` is
-   * exclusive and `getRows` resolves to `{ rows, total? }`. Without a `total`,
-   * the table grows as pages arrive and a short page marks the end. Sorting
-   * happens on the server: a new order reloads from the top. While set, it wins
-   * over `data`. Replace the object to change `getRows` or `pageSize`.
+   * `{ getRows({ start, end, sorting, filters, quickFilter, signal }), pageSize? }`,
+   * where `end` is exclusive and `getRows` resolves to `{ rows, total? }`. Without a
+   * `total`, the table grows as pages arrive and a short page marks the end. Sorting
+   * and filtering happen on the server: a new order or filter reloads from the top.
+   * While set, it wins over `data`. Replace the object to change `getRows` or
+   * `pageSize`.
    */
   @property({ attribute: false })
   dataSource?: DataSource<T>;
