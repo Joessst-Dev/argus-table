@@ -83,6 +83,8 @@ A quiet, airy table that reads like a timeline: header and body on one surface, 
 
 The [theme creator](https://joessst-dev.github.io/argus-table/?path=/story/themes-theme-creator--creator) starts from any of these themes. Change a few seeds (accent, surface, header, lines, rows, type, depth) or any single token and part option, check WCAG contrast in light and dark, then copy or download the CSS, or share a link to your theme. It writes a file in the same shape as these: tokens and `::part()` rules on `argus-table`, `light-dark()` colours and the `data-argus-theme` switches.
 
+To start from your brand colours, fonts or website instead, ask your coding agent with the [`argus-table-theme` skill](https://github.com/Joessst-Dev/argus-table/tree/main/skills#readme). It hands back a link that opens the creator with your theme.
+
 The full list of tokens and parts is in the argus-table docs.
 
 MIT licensed.
