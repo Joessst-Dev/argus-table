@@ -302,6 +302,120 @@ describe('filtering', () => {
   });
 });
 
+describe('whole columns', () => {
+  const filterable = (...extra: ColumnDef<Row>[]): ColumnDef<Row>[] => [
+    ...base.map((c): ColumnDef<Row> => {
+      if (c.id === 'name') return { ...c, filter: 'text', sortable: true };
+      return c.id === 'price' ? { ...c, filter: 'number' } : c;
+    }),
+    ...extra,
+  ];
+  const share: ColumnDef<Row> = {
+    id: 'share',
+    header: 'Share',
+    formula: '[qty] / SUM([[qty]])',
+    filter: 'number',
+    sortable: true,
+  };
+
+  test('cover the rows the filters keep', async () => {
+    const el = await fixture({ columns: filterable(share) });
+    // Quantities 12, 4, 0 of 16.
+    expect(texts(el, 'share')).toEqual(['0.75', '0.25', '0']);
+    el.columnFilters = { price: { kind: 'number', op: 'ge', value: 1 } };
+    await settle(el);
+    expect(texts(el, 'name')).toEqual(['Apple', 'Cherry']);
+    expect(texts(el, 'share')).toEqual(['1', '0']);
+    el.columnFilters = {};
+    await settle(el);
+    expect(texts(el, 'share')).toEqual(['0.75', '0.25', '0']);
+  });
+
+  test('a filter on a column using them hides rows but leaves the totals alone', async () => {
+    const el = await fixture({ columns: filterable(share) });
+    el.columnFilters = { share: { kind: 'number', op: 'gt', value: 0.2 } };
+    await settle(el);
+    expect(texts(el, 'name')).toEqual(['Apple', 'Banana']);
+    expect(texts(el, 'share')).toEqual(['0.75', '0.25']);
+  });
+
+  test('follow the quick filter, the user’s filters and new data', async () => {
+    const el = await fixture({ columns: filterable(share), quickFilter: 'banana' });
+    expect(texts(el, 'share')).toEqual(['1']);
+    el.quickFilter = '';
+    await settle(el);
+    expect(texts(el, 'share')).toEqual(['0.75', '0.25', '0']);
+    el.data = [...data, { id: 'd', name: 'Date', price: 3, qty: 4 }];
+    await settle(el);
+    expect(texts(el, 'share')).toEqual(['0.6', '0.2', '0', '0.2']);
+  });
+
+  test('sort by a column using them, again after a filter', async () => {
+    const el = await fixture({
+      columns: filterable({ ...share, formula: 'RANK([price], [[price]], TRUE)' }),
+      sorting: [{ id: 'share', desc: false }],
+    });
+    expect(texts(el, 'name')).toEqual(['Banana', 'Apple', 'Cherry']);
+    expect(texts(el, 'share')).toEqual(['1', '2', '3']);
+    el.columnFilters = { name: { kind: 'text', op: 'contains', value: 'e' } };
+    await settle(el);
+    expect(texts(el, 'name')).toEqual(['Apple', 'Cherry']);
+    expect(texts(el, 'share')).toEqual(['1', '2']);
+  });
+
+  test('look up, count and rank, and are computed for pinned rows too', async () => {
+    const el = await fixture({
+      columns: filterable(
+        { id: 'cherry', formula: 'XLOOKUP("cherry", [[name]], [[price]])' },
+        { id: 'cheaper', formula: 'COUNTIF([[price]], "<" & [price])' },
+        share,
+      ),
+      pinnedRows: { bottom: [{ id: 'p', name: 'Pinned', price: 1, qty: 8 }] },
+    });
+    expect(texts(el, 'cherry')).toEqual(['10', '10', '10']);
+    expect(texts(el, 'cheaper')).toEqual(['1', '0', '2']);
+    const pinned = el.shadowRoot?.querySelector('[part~="row-pinned-bottom"] [data-col="share"]');
+    expect(contentOf(pinned ?? null)?.textContent).toBe('0.5');
+  });
+
+  test('other formula columns keep their accessors when the rows change', async () => {
+    let seen: readonly ColumnDef<Row>[] = [];
+    const spy: ArgusPlugin<Row> = {
+      name: 'spy',
+      columns(defs) {
+        seen = defs;
+        return defs;
+      },
+    };
+    const el = await fixture({
+      columns: filterable({ id: 'total', formula: '[price] * [qty]' }, share),
+      plugins: [formulas(), spy],
+    });
+    const accessor = (id: string) => seen.find((d) => d.id === id)?.accessor;
+    const total = accessor('total');
+    const before = accessor('share');
+    el.columnFilters = { price: { kind: 'number', op: 'ge', value: 1 } };
+    await settle(el);
+    expect(accessor('total')).toBe(total);
+    expect(accessor('share')).not.toBe(before);
+    // A filter on the column itself doesn't change its rows.
+    const after = accessor('share');
+    el.columnFilters = { ...el.columnFilters, share: { kind: 'number', op: 'ge', value: 0 } };
+    await settle(el);
+    expect(accessor('share')).toBe(after);
+  });
+
+  test('are #N/A with a dataSource, whose rows aren’t all loaded', async () => {
+    const dataSource: DataSource<Row> = {
+      getRows: ({ start, end }) => Promise.resolve({ rows: data.slice(start, end), total: 3 }),
+    };
+    const el = await fixture({ data: undefined, dataSource, columns: withFormulas(share) });
+    await vi.waitFor(() => {
+      expect(errorOf(el, 'share')?.[0]).toBe('#N/A');
+    });
+  });
+});
+
 describe('updates', () => {
   test('new data is computed again', async () => {
     const el = await fixture({

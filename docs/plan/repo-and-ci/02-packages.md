@@ -13,7 +13,7 @@ Six packages are published to npm; `@argus-table/core` stays private and is bund
 | `@argus-table/vue` | Vite library mode, `.d.ts` via `tsc`; bindings generated from the manifest | Yes | `argus-table`; `vue` as peer |
 | `@argus-table/angular` | ng-packagr (Angular Package Format, partial compilation); bindings generated from the manifest | Yes | `argus-table`; `@angular/core` 20–22 as peer |
 | `@argus-table/header-menu` (Phase 3) | Vite library mode, `.d.ts` via `tsc` | Yes | `argus-table` and `lit` as peers (a plugin: it imports only types from `argus-table`) |
-| `@argus-table/formulas` (Phase 3) | Vite library mode, `.d.ts` via `tsc`; engine tests in Node, plugin tests in the browser | Yes | `argus-table` and `lit` as peers (a plugin, like the header menu); its own size budget (8 kB) |
+| `@argus-table/formulas` (Phase 3) | Vite library mode, `.d.ts` via `tsc`; engine tests in Node, plugin tests in the browser | Yes | `argus-table` and `lit` as peers (a plugin, like the header menu); its own size budgets (12.3 kB for the plugin, 8 kB for the editor it loads on first use) |
 
 ## Generated wrappers
 

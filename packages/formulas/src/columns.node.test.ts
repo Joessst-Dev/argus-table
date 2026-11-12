@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { ColumnDef } from 'argus-table';
-import { compileColumns, functionTable, lookupOf, parseOrError } from './columns.js';
-import { checkFormula } from './editor/session.js';
+import {
+  compileColumns,
+  functionTable,
+  lookupOf,
+  parseOrError,
+  type RowSource,
+} from './columns.js';
+import { isFormulaError } from './engine/errors.js';
+import { checkFormula, noteOn } from './editor/session.js';
 
 const functions = functionTable();
 
@@ -21,6 +28,9 @@ describe('checkFormula', () => {
     ['1 + nope(2)', { message: 'There is no function NOPE.', start: 4, end: 8 }],
     ['ROUND()', { message: 'ROUND takes 1 to 2 arguments.', start: 0, end: 7 }],
     ['[Draft] + 1', { message: 'The formula depends on its own result.', start: 0, end: 11 }],
+    ['SUM([[price]])', undefined],
+    ['SUM([[Weight]])', { message: 'There is no column [[Weight]].', start: 4, end: 14 }],
+    ['SUM([[Draft]])', { message: 'The formula depends on its own result.', start: 0, end: 14 }],
   ])('%s', (formula, expected) => {
     expect(checkFormula(defs(formula), 'draft', functions)).toEqual(expected);
   });
@@ -77,5 +87,99 @@ describe('compileColumns', () => {
       'bad: The formula ends too early.',
       'draft: ROUND takes 1 to 2 arguments.',
     ]);
+  });
+});
+
+describe('noteOn', () => {
+  it('notes a total of one value of the row', () => {
+    expect(noteOn('[qty] / SUM([qty])')).toBe(
+      'SUM([qty]) uses one value, the row’s own. For the whole column, write [[qty]].',
+    );
+    expect(noteOn('SUM([[qty]])')).toBeUndefined();
+    expect(noteOn('SUM([a], [b])')).toBeUndefined();
+    expect(noteOn('SUM([a')).toBeUndefined();
+  });
+});
+
+describe('compileColumns with whole columns', () => {
+  interface Item {
+    group: string;
+    n: number;
+  }
+  const items: Item[] = [
+    { group: 'a', n: 1 },
+    { group: 'b', n: 2 },
+    { group: 'a', n: 3 },
+    { group: 'c', n: 4 },
+  ];
+  const columns: ColumnDef<Item>[] = [
+    { id: 'group', accessor: 'group' },
+    { id: 'n', accessor: 'n' },
+    { id: 'double', formula: '[n] * 2' },
+    { id: 'share', formula: '[double] / SUM([[double]])' },
+    { id: 'pct', formula: 'ROUND([share] * 100)' },
+  ];
+  /** A source over `items` keeping `keep`, recording what it was asked. */
+  const source = (keep: readonly number[], asked: string[][] = []): RowSource<Item> => ({
+    data: () => items,
+    indexes: (except) => {
+      asked.push([...except]);
+      return keep;
+    },
+  });
+  const values = (compiled: ReturnType<typeof compileColumns<Item>>, id: string) =>
+    items.map((row, i) => {
+      const value = compiled.get(id)?.result(row, i);
+      return isFormulaError(value) ? value.code : value;
+    });
+
+  it('computes over the rows of the source, leaving out the columns using them', () => {
+    const asked: string[][] = [];
+    const compiled = compileColumns(columns, {
+      functions,
+      parse: parseOrError,
+      rows: source([0, 1, 2], asked),
+    });
+    // 2 + 4 + 6 = 12.
+    expect(values(compiled, 'pct')).toEqual([17, 33, 50, 67]);
+    expect(asked).toEqual([['pct', 'share']]);
+    expect(compiled.get('share')?.ranges).toBe(true);
+    expect(compiled.get('pct')?.ranges).toBe(true);
+    expect(compiled.get('double')?.ranges).toBe(false);
+  });
+
+  it('computes again only the columns using them, for a new source', () => {
+    const rows = source([0]);
+    const first = compileColumns(columns, { functions, parse: parseOrError, rows });
+    const same = compileColumns([...columns], {
+      functions,
+      parse: parseOrError,
+      previous: first,
+      rows,
+    });
+    expect(same.get('share')).toBe(first.get('share'));
+    const next = compileColumns(columns, {
+      functions,
+      parse: parseOrError,
+      previous: first,
+      rows: source([0, 1]),
+    });
+    expect(next.get('double')).toBe(first.get('double'));
+    expect(next.get('share')).not.toBe(first.get('share'));
+    expect(values(next, 'share')).toEqual([1 / 3, 2 / 3, 1, 4 / 3]);
+  });
+
+  it('are #N/A without rows, and a whole column of itself is a cycle', () => {
+    const none = compileColumns(columns, {
+      functions,
+      parse: parseOrError,
+      rows: { data: () => items, indexes: () => undefined },
+    });
+    expect(values(none, 'share')).toEqual(['#N/A', '#N/A', '#N/A', '#N/A']);
+    const cycle = compileColumns([...columns, { id: 'loop', formula: 'SUM([[loop]])' }], {
+      functions,
+      parse: parseOrError,
+    });
+    expect(values(cycle, 'loop')[0]).toBe('#CYCLE!');
   });
 });

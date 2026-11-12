@@ -241,7 +241,11 @@ describe('rowPredicate', () => {
       city: { kind: 'set', values: ['Berlin'] },
       age: { kind: 'number', op: 'ge', value: 30 },
     };
-    expect(pass(rowPredicate(byId, filters, '', all, 'city'))).toEqual(['Ada', 'Ben', 'Dan']);
+    expect(pass(rowPredicate(byId, filters, '', all, new Set(['city'])))).toEqual([
+      'Ada',
+      'Ben',
+      'Dan',
+    ]);
   });
 });
 

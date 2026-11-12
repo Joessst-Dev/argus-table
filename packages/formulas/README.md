@@ -45,9 +45,12 @@ ROUND([Total] * 1.19, 2)
 IF([stock] < 10, "Low", "OK")
 CONCAT([first_name], " ", [last_name])
 DAYS(TODAY(), [created_at])
+[amount] / SUM([[amount]])
+COUNTIF([[customer]], [customer])
 ```
 
-- **Columns** go in square brackets, by `id` or by text `header` (case doesn't matter): `[Unit price]`. A formula can use other formula columns.
+- **Columns** go in square brackets, by `id` or by text `header` (case doesn't matter): `[Unit price]` is the row's value. A formula can use other formula columns.
+- **Whole columns** go in double brackets: `[[amount]]` is every value of the column, for the functions in the Columns group and `SUM`, `MIN`, `MAX` and `AVERAGE` (see [Whole columns](#whole-columns)).
 - **Operators:** `+ - * / ^`, `%` after a number (`20%` is 0.2), `&` joins text, and `= <> < <= > >=` compare. `^` goes left to right and a leading minus binds tightest, as in spreadsheets: `-2^2` is 4.
 - **Values:** numbers with `.` as the decimal point, text in double quotes (`""` for a quote inside), `TRUE` and `FALSE`. A leading `=` is allowed.
 - **Types** convert as in spreadsheets: an empty cell is 0 in arithmetic and `""` in text, numeric text counts as a number, and text compares without case.
@@ -58,14 +61,34 @@ Numbers show with up to 15 significant digits, so `0.1 + 0.2` shows `0.3`. Colum
 
 Names are case-insensitive.
 
-| Group | Functions                                                                                                                                                        |
-| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Math  | `SUM`, `MIN`, `MAX`, `AVERAGE` (over their arguments within the row, skipping empty ones), `ROUND`, `ROUNDUP`, `ROUNDDOWN`, `ABS`, `INT`, `MOD`, `POWER`, `SQRT` |
-| Logic | `IF`, `IFS`, `AND`, `OR`, `NOT`, `IFERROR`, `ISBLANK`                                                                                                            |
-| Text  | `CONCAT`, `LEFT`, `RIGHT`, `MID`, `LEN`, `UPPER`, `LOWER`, `TRIM`, `TEXT`                                                                                        |
-| Date  | `TODAY`, `YEAR`, `MONTH`, `DAY`, `DAYS`, `DATEDIF`                                                                                                               |
+| Group   | Functions                                                                                                                                                           |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Math    | `SUM`, `MIN`, `MAX`, `AVERAGE` (over their arguments and whole columns, skipping empty ones), `ROUND`, `ROUNDUP`, `ROUNDDOWN`, `ABS`, `INT`, `MOD`, `POWER`, `SQRT` |
+| Columns | `COUNT`, `COUNTA`, `COUNTBLANK`, `SUMIF`, `COUNTIF`, `AVERAGEIF`, `XLOOKUP`, `MATCH`, `INDEX`, `RANK`                                                               |
+| Logic   | `IF`, `IFS`, `AND`, `OR`, `NOT`, `IFERROR`, `ISBLANK`                                                                                                               |
+| Text    | `CONCAT`, `LEFT`, `RIGHT`, `MID`, `LEN`, `UPPER`, `LOWER`, `TRIM`, `TEXT`                                                                                           |
+| Date    | `TODAY`, `YEAR`, `MONTH`, `DAY`, `DAYS`, `DATEDIF`                                                                                                                  |
 
 `TEXT(value, pattern)` takes number patterns (`0.00`, `#,##0`, `0%`, `"€ "0.00`) and date patterns (`yyyy-mm-dd`, `d mmm yyyy`, `hh:mm`, `h:mm AM/PM`). Dates are `Date` values or ISO text (`2024-03-09` is local midnight).
+
+## Whole columns
+
+`[[name]]` is a whole column: the column's values in every row the table's filters keep, in `data` order (whatever the sort). Totals follow the filters, as Excel's `SUBTOTAL` does:
+
+```text
+Share    = [amount] / SUM([[amount]])
+Orders   = COUNTIF([[customer]], [customer])
+Big ones = SUMIF([[amount]], ">1000")
+Manager  = XLOOKUP([manager_id], [[id]], [[name]], "—")
+Position = RANK([amount], [[amount]])
+```
+
+- **Filters on the column itself don't count.** A filter on `Share`, or the quick filter finding text in it, hides rows but leaves the totals `Share` is computed from alone; a filter on `region` changes them. The same holds for every formula column using whole columns, directly or through another formula column. Pinned rows aren't part of any whole column, though their formulas use the same totals.
+- **In functions only.** `SUM`, `MIN`, `MAX`, `AVERAGE` and the Columns group take whole columns; a whole column anywhere else (`[[amount]] * 2`, `ROUND([[amount]])`, your own functions) is `#VALUE!`. In a whole column, totals count numbers and numeric text and skip the rest.
+- **Criteria** (`SUMIF`, `COUNTIF`, `AVERAGEIF`) are a value (equal, text without case), or text starting with `=`, `<>`, `<`, `<=`, `>` or `>=` (`">10"`, `"<>done"`, `">=" & [limit]`, dates as ISO text). In `=` and `<>` text, `*` matches any characters and `?` one.
+- **Lookups:** `XLOOKUP(value, column, result_column, [if_not_found])` finds the first exact match (text without case); `MATCH(value, column, [type])` gives a position, `0` for an exact match and `1` (the default) or `-1` for sorted data; `INDEX(column, position)` reads one, from 1. `RANK(value, column, [ascending])` ranks among the column's numbers, the largest first unless `ascending`; ties share a rank.
+- **With a `dataSource`**, whole columns are `#N/A`: its rows aren't all loaded.
+- **Speed.** A part that doesn't depend on the row, such as `SUM([[amount]])`, is computed once per set of rows; criteria and lookups that change from row to row go through an index of the column built once, not a scan per row. Wildcard and text-order criteria scan the column once per distinct criterion. A change of filters, quick filter or `data` computes the columns using whole columns again, and only those.
 
 ### Your own functions
 
@@ -119,16 +142,16 @@ Labels are in English.
 
 Errors are cell values, never crashes. They pass through the rest of the formula, show their code, and explain themselves in a tooltip. They sort last, in both directions.
 
-| Value     | Meaning                                                |
-| --------- | ------------------------------------------------------ |
-| `#DIV/0!` | Division by zero                                       |
-| `#VALUE!` | A value has the wrong type, such as text in arithmetic |
-| `#REF!`   | No column has that name                                |
-| `#NAME?`  | No function has that name                              |
-| `#NUM!`   | The number is out of range, such as `SQRT(-1)`         |
-| `#N/A`    | No condition in `IFS` is true                          |
-| `#CYCLE!` | The formula depends on its own result                  |
-| `#ERROR!` | The formula can't be read; the console says why, once  |
+| Value     | Meaning                                                                                           |
+| --------- | ------------------------------------------------------------------------------------------------- |
+| `#DIV/0!` | Division by zero                                                                                  |
+| `#VALUE!` | A value has the wrong type, such as text in arithmetic, or a whole column where one value belongs |
+| `#REF!`   | No column has that name                                                                           |
+| `#NAME?`  | No function has that name                                                                         |
+| `#NUM!`   | The number is out of range, such as `SQRT(-1)`                                                    |
+| `#N/A`    | No condition in `IFS` is true, no match in a lookup, or whole columns with a `dataSource`         |
+| `#CYCLE!` | The formula depends on its own result                                                             |
+| `#ERROR!` | The formula can't be read; the console says why, once                                             |
 
 A `cell` function on a formula column only gets values: the plugin shows errors itself. `IFERROR([a] / [b], 0)` replaces an error with a value.
 

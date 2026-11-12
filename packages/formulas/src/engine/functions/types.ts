@@ -16,6 +16,13 @@ export interface FunctionDef {
    */
   branches?: (count: number) => number[];
   /**
+   * For functions that return a value of a whole-column argument (`INDEX`,
+   * `XLOOKUP`): its position. The result type is that column's.
+   */
+  returnsFrom?: number;
+  /** Takes whole columns (`ColumnRange` values) as arguments; else they are `#VALUE!`. */
+  ranges?: boolean;
+  /**
    * Gets the argument values. If one of them is an error, the call returns it
    * without running `fn`.
    */

@@ -672,6 +672,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.#requestFilter(columnId, filter);
     },
     filterValues: (columnId, limit) => this.#table.model.filterValues(columnId, limit),
+    filteredIndexes: (except) => this.#table.model.indexesPassing(except),
     cellOf: (event) => this.#cellTarget(event),
     setSort: (columnId, direction) => {
       this.#setSort(columnId, direction);
@@ -976,6 +977,7 @@ export class ArgusTable<T = unknown> extends LitElement {
 
   protected override willUpdate(changed: PropertyValues<this>): void {
     if (changed.has('plugins')) this.#plugins.set(this.plugins);
+    this.#plugins.willUpdate(new Set(changed.keys()));
     const columns = this.#plugins.transform(this.#effectiveColumns());
     this.#columnsChanged = columns !== this.#columns;
     this.#columns = columns;

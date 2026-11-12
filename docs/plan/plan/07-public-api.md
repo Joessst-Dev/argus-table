@@ -291,12 +291,13 @@ import { headerMenu } from '@argus-table/header-menu';
 table.plugins = [headerMenu()];
 ```
 
-A plugin is an object with a `name` and any of four hooks:
+A plugin is an object with a `name` and any of five hooks:
 
 ```ts
 interface ArgusPlugin<T> {
   name: string; // in error messages
   connect?(host: PluginHost<T>): (() => void) | undefined; // a cleanup
+  willUpdate?(changed: ReadonlySet<PropertyKey>, host: PluginHost<T>): void;
   columns?(defs: readonly ColumnDef<T>[], host: PluginHost<T>): readonly ColumnDef<T>[];
   columnGroups?(groups: readonly ColumnGroup[], host: PluginHost<T>): readonly ColumnGroup[];
   keydown?(event: KeyboardEvent, target: CellTarget, host: PluginHost<T>): boolean | undefined;
@@ -304,6 +305,7 @@ interface ArgusPlugin<T> {
 ```
 
 - `connect` runs while the table is connected: when the plugin joins a connected table, and again after the table is moved in the DOM. Its cleanup runs when the plugin leaves `plugins` or the table disconnects. Plugins connect in array order and clean up in reverse.
+- `willUpdate` runs at the start of each update of the table, before the `columns` and `columnGroups` hooks, with the names of the properties that changed (`data`, `columnFilters`, `quickFilter`, `columnVisibility`, …; on the first update, every property with a value). Calling `host.invalidateColumns()` there runs `columns` again in the same update, for columns computed from more than their definitions: formula columns with whole columns recompute when the filters or the data change.
 - `columns` changes the column definitions before the table reads them: add computed columns, wrap a `header`, change defaults. The hooks chain in array order, starting from `columns` (or the `<argus-column>` children). They run again only when those columns or `plugins` change, or after `host.invalidateColumns()`; a `header` or `cell` function a plugin returns still runs on every render, so a plugin's own state shows after `host.requestUpdate()`. Returned columns are ordinary columns: they sort, resize, move and virtualize like any other.
 - `columnGroups` does the same for the [column groups](#column-groups), starting from `columnGroups` (or the `<argus-column-group>` children), and runs again when those or `plugins` change, or after `host.invalidateColumns()`. The Vue and Angular wrappers' template plugins use it for group headers.
 - `keydown` sees a key on a focused header or cell (not the checkbox column) before the table does. Returning `true` claims the key and the table ignores it; the plugin calls `preventDefault()` itself. `target` is `{ section, columnId, rowIndex, rowId }`, with `section` `'header'`, `'top'`, `'body'` or `'bottom'`. Keys pressed in content inside a cell never reach the hook, as they never reach the table.
@@ -323,6 +325,7 @@ interface ArgusPlugin<T> {
 | `setHidden(columnId, hidden)`                 | Hides or shows a column, through the `columnVisibility` rules. Columns with `hideable: false`, and the last column shown, don't hide. Optional                                                                                                    |
 | `setFilter(columnId, filter \| undefined)`    | Sets a column's filter or clears it, through the `columnFilters` rules. Only columns with a `filter` kind take one. Optional                                                                                                                      |
 | `filterValues(columnId, limit?)`              | The values a `set` filter offers: `filterOptions`, else the distinct values of the rows the other filters keep, sorted, at most `limit` (1000) with `truncated`. `undefined` with a `dataSource` and no `filterOptions`. Optional              |
+| `filteredIndexes(except?)`                    | The indexes in `data` of the rows the column filters and the quick filter keep, ascending (not sorted), leaving out the filters on the `except` columns and their text in the quick filter. `undefined` with a `dataSource`. An accessor of an `except` column may call it while the table filters or sorts. Optional |
 | `focusHeader(columnId)`                       | Moves the grid's focus to a header after the next update                                                                                                                                                                                          |
 | `announce(message)`                           | Says something through the table's polite live region                                                                                                                                                                                             |
 | `invalidateColumns()`                         | Runs the `columns` and `columnGroups` hooks again on the next update                                                                                                                                                                              |

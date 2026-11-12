@@ -7,13 +7,14 @@ import {
   nameOf,
   parseOrError,
   readerOf,
+  rowSource,
   type FormulaFunction,
 } from '../columns.js';
 import { compile } from '../engine/compile.js';
 import { FormulaSyntaxError, isFormulaError } from '../engine/errors.js';
 import type { FunctionTable } from '../engine/functions/index.js';
 import { analyze } from '../engine/graph.js';
-import { refsOf, type FormulaNode } from '../engine/parse.js';
+import { nodesOf, refsOf, type FormulaNode } from '../engine/parse.js';
 import { tokenize } from '../engine/tokenize.js';
 import { DOCS, type FunctionDoc } from './docs.js';
 import { openEditor, type PreviewTable } from './editor.js';
@@ -44,40 +45,20 @@ export function checkFormula<T>(
     return { message: tree.message, start: tree.start, end: tree.end };
   }
   const lookup = lookupOf(defs);
-  let found: Problem | undefined;
-  const visit = (n: FormulaNode): void => {
-    if (found) return;
-    switch (n.type) {
-      case 'ref':
-        if (!lookup(n.name)) {
-          found = { message: `There is no column [${n.name}].`, start: n.start, end: n.end };
-        }
-        return;
-      case 'call':
-        if (!functions[n.name]) {
-          found = {
-            message: `There is no function ${n.name}.`,
-            start: n.start,
-            end: n.start + n.name.length,
-          };
-          return;
-        }
-        n.args.forEach(visit);
-        return;
-      case 'unary':
-      case 'percent':
-        visit(n.operand);
-        return;
-      case 'binary':
-        visit(n.left);
-        visit(n.right);
-        return;
-      default:
-        return;
+  // The first unknown column or function, left to right.
+  for (const n of nodesOf(tree)) {
+    if ((n.type === 'ref' || n.type === 'range') && !lookup(n.name)) {
+      const written = n.type === 'ref' ? `[${n.name}]` : `[[${n.name}]]`;
+      return { message: `There is no column ${written}.`, start: n.start, end: n.end };
     }
-  };
-  visit(tree);
-  if (found) return found;
+    if (n.type === 'call' && !functions[n.name]) {
+      return {
+        message: `There is no function ${n.name}.`,
+        start: n.start,
+        end: n.start + n.name.length,
+      };
+    }
+  }
   try {
     compile(tree, { functions, ref: () => () => undefined });
   } catch (error) {
@@ -97,6 +78,25 @@ export function checkFormula<T>(
       start: 0,
       end: formula.length,
     };
+  }
+  return undefined;
+}
+
+const TOTALS = new Set(['SUM', 'MIN', 'MAX', 'AVERAGE', 'COUNT', 'COUNTA', 'COUNTBLANK']);
+
+/**
+ * A note on a formula that is fine but likely not what was meant: a total of a
+ * single value of the row (`SUM([amount])`), where the whole column was meant.
+ */
+export function noteOn(formula: string): string | undefined {
+  const tree = parseOrError(formula);
+  if (tree instanceof FormulaSyntaxError) return undefined;
+  for (const n of nodesOf(tree)) {
+    if (n.type !== 'call' || !TOTALS.has(n.name) || n.args.length !== 1) continue;
+    const [only] = n.args;
+    if (only?.type === 'ref') {
+      return `${n.name}([${only.name}]) uses one value, the row’s own. For the whole column, write [[${only.name}]].`;
+    }
   }
   return undefined;
 }
@@ -130,8 +130,10 @@ function renameRefs<T>(defs: readonly ColumnDef<T>[], id: string, name: string):
     let out = '';
     let at = 0;
     for (const token of tokenize(source, true)) {
-      if (token.kind !== 'ref' || token.value === id || lookup(token.value)?.id !== id) continue;
-      out += `${source.slice(at, token.start)}[${name}]`;
+      if (token.kind !== 'ref' && token.kind !== 'range') continue;
+      if (token.value === id || lookup(token.value)?.id !== id) continue;
+      const written = token.kind === 'ref' ? `[${name}]` : `[[${name}]]`;
+      out += `${source.slice(at, token.start)}${written}`;
       at = token.end;
     }
     return at ? { ...def, formula: out + source.slice(at) } : def;
@@ -199,7 +201,11 @@ function withDraft<T>(
  */
 function preview<T>(session: Session<T>, defs: ColumnDef<T>[], id: string): PreviewTable {
   const { host } = session;
-  const compiled = compileColumns(defs, { functions: session.functions, parse: session.parse });
+  const compiled = compileColumns(defs, {
+    functions: session.functions,
+    parse: session.parse,
+    rows: rowSource(host),
+  });
   const draft = compiled.get(id);
   const lookup = lookupOf(defs);
   const draftDef = defs.find((d) => d.id === id);
@@ -278,6 +284,7 @@ export async function edit<T>(session: Session<T>): Promise<Outcome<T> | undefin
         formula: formula.trim()
           ? checkFormula(draft.defs, draft.id, functions)
           : { message: 'Enter a formula.', start: 0, end: 0 },
+        note: noteOn(formula),
       };
     },
     preview(name, formula) {

@@ -24,6 +24,14 @@ export interface ArgusPlugin<T = unknown> {
    */
   connect?(host: PluginHost<T>): (() => void) | undefined;
   /**
+   * Runs at the start of each update of the table, before the `columns` and
+   * `columnGroups` transforms, with the names of the table's properties that
+   * changed (`data`, `columnFilters`, `quickFilter`, `columnVisibility`, …).
+   * Call `host.invalidateColumns()` here to have `columns` run again in this same
+   * update, for columns that depend on more than the column definitions.
+   */
+  willUpdate?(changed: ReadonlySet<PropertyKey>, host: PluginHost<T>): void;
+  /**
    * Changes the column definitions before the table reads them: add computed
    * columns, wrap `header` content, change defaults. Gets the output of the
    * plugin before it (the first one gets `columns` or the `<argus-column>`
@@ -143,6 +151,15 @@ export interface PluginHost<T = unknown> {
     columnId: string,
     limit?: number,
   ): { values: FilterValue[]; truncated: boolean } | undefined;
+  /**
+   * The indexes in `data` of the rows the column filters and the quick filter
+   * keep, ascending (not in the sorted order), leaving out the filters on the
+   * `except` columns and their text in the quick filter: for values computed over
+   * the rows shown, such as a share of a total. `undefined` with a `dataSource`.
+   * A column's `accessor` may call it while the table filters or sorts, as long as
+   * that column is one of `except` (the table doesn't read it for this list).
+   */
+  filteredIndexes?(except?: readonly string[]): readonly number[] | undefined;
   /** Moves focus to a column's header, after the next update. */
   focusHeader(columnId: string): void;
   /** Says something to screen readers through a polite live region. */

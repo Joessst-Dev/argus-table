@@ -1,6 +1,6 @@
 /** How the editor describes a function: its arguments (`[name]` is optional, `…` repeats) and what it gives. */
 export interface FunctionDoc {
-  group: 'Math' | 'Logic' | 'Text' | 'Date' | 'Yours';
+  group: 'Math' | 'Columns' | 'Logic' | 'Text' | 'Date' | 'Yours';
   params: readonly string[];
   description: string;
 }
@@ -13,10 +13,48 @@ const doc = (
 
 /** The built-in functions, as the editor's hints and function list show them. */
 export const DOCS: Readonly<Record<string, FunctionDoc>> = {
-  SUM: doc('Math', ['value', '…'], 'Adds the values; empty ones are skipped.'),
-  MIN: doc('Math', ['value', '…'], 'The smallest of the values; empty ones are skipped.'),
-  MAX: doc('Math', ['value', '…'], 'The largest of the values; empty ones are skipped.'),
-  AVERAGE: doc('Math', ['value', '…'], 'The mean of the values; empty ones are skipped.'),
+  SUM: doc(
+    'Math',
+    ['value', '…'],
+    'Adds the values, or the numbers of a whole column such as [[amount]].',
+  ),
+  MIN: doc('Math', ['value', '…'], 'The smallest of the values, or of a whole column.'),
+  MAX: doc('Math', ['value', '…'], 'The largest of the values, or of a whole column.'),
+  AVERAGE: doc('Math', ['value', '…'], 'The mean of the values, or of a whole column.'),
+  COUNT: doc('Columns', ['values', '…'], 'How many numbers there are, such as in [[amount]].'),
+  COUNTA: doc('Columns', ['values', '…'], 'How many values aren’t empty.'),
+  COUNTBLANK: doc('Columns', ['values'], 'How many values are empty.'),
+  SUMIF: doc(
+    'Columns',
+    ['column', 'criterion', '[sum_column]'],
+    'Adds the numbers of the rows meeting the criterion, such as ">10" or [region].',
+  ),
+  COUNTIF: doc(
+    'Columns',
+    ['column', 'criterion'],
+    'How many rows meet the criterion, such as "done", "<>done" or ">=" & [limit].',
+  ),
+  AVERAGEIF: doc(
+    'Columns',
+    ['column', 'criterion', '[average_column]'],
+    'The mean of the numbers of the rows meeting the criterion.',
+  ),
+  XLOOKUP: doc(
+    'Columns',
+    ['value', 'column', 'result_column', '[if_not_found]'],
+    'The result column’s value in the first row whose column equals the value.',
+  ),
+  MATCH: doc(
+    'Columns',
+    ['value', 'column', '[type]'],
+    'The position of the value in the column: 0 exact, 1 (default) the last at most it in ascending data.',
+  ),
+  INDEX: doc('Columns', ['column', 'position'], 'The value at a position of the column, from 1.'),
+  RANK: doc(
+    'Columns',
+    ['value', 'column', '[ascending]'],
+    'The value’s rank among the column’s numbers: 1 for the largest, or the smallest if ascending.',
+  ),
   ROUND: doc(
     'Math',
     ['value', '[digits]'],

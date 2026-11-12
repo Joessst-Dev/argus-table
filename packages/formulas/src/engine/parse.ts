@@ -17,8 +17,10 @@ export type FormulaNode = Span &
     | { type: 'number'; value: number }
     | { type: 'text'; value: string }
     | { type: 'boolean'; value: boolean }
-    /** A column, by the name in brackets. */
+    /** A column's value in this row, by the name in brackets. */
     | { type: 'ref'; name: string }
+    /** A whole column (`[[name]]`): the values of the rows the filters keep. */
+    | { type: 'range'; name: string }
     /** A function call; `name` is upper case. */
     | { type: 'call'; name: string; args: FormulaNode[] }
     | { type: 'unary'; operator: '-' | '+'; operand: FormulaNode }
@@ -88,6 +90,8 @@ export function parse(source: string): FormulaNode {
         return { type: 'text', value: token.value, start, end };
       case 'ref':
         return { type: 'ref', name: token.value, start, end };
+      case 'range':
+        return { type: 'range', name: token.value, start, end };
       case 'open': {
         const inner = expression(0);
         const close = next();
@@ -177,14 +181,12 @@ export function parse(source: string): FormulaNode {
   return tree;
 }
 
-/** The column names a formula refers to, each once, in order of appearance. */
-export function refsOf(node: FormulaNode): string[] {
-  const names = new Set<string>();
+/** A node and every node under it, each before its own (pre-order, left to right). */
+export function nodesOf(node: FormulaNode): FormulaNode[] {
+  const nodes: FormulaNode[] = [];
   const visit = (n: FormulaNode): void => {
+    nodes.push(n);
     switch (n.type) {
-      case 'ref':
-        names.add(n.name);
-        break;
       case 'call':
         n.args.forEach(visit);
         break;
@@ -201,5 +203,18 @@ export function refsOf(node: FormulaNode): string[] {
     }
   };
   visit(node);
+  return nodes;
+}
+
+/**
+ * The column names a formula refers to, each once, in order of appearance: in
+ * this row (`[name]`) and as whole columns (`[[name]]`), or only as whole
+ * columns with `wholeOnly`.
+ */
+export function refsOf(node: FormulaNode, wholeOnly = false): string[] {
+  const names = new Set<string>();
+  for (const n of nodesOf(node)) {
+    if (n.type === 'range' || (n.type === 'ref' && !wholeOnly)) names.add(n.name);
+  }
   return [...names];
 }

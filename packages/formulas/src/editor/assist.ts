@@ -1,7 +1,16 @@
 import { tokenize } from '../engine/tokenize.js';
 
 export type SegmentKind =
-  'plain' | 'function' | 'ref' | 'number' | 'text' | 'boolean' | 'operator' | 'name' | 'error';
+  | 'plain'
+  | 'function'
+  | 'ref'
+  | 'range'
+  | 'number'
+  | 'text'
+  | 'boolean'
+  | 'operator'
+  | 'name'
+  | 'error';
 
 /** A run of formula text with one colour. */
 export interface Segment {
@@ -37,7 +46,8 @@ export function highlight(source: string): Segment[] {
         break;
       }
       case 'ref':
-        kind = 'ref';
+      case 'range':
+        kind = token.kind;
         break;
       case 'number':
         kind = 'number';
@@ -110,8 +120,8 @@ const IDENTIFIER_START = /^[A-Za-z0-9_.]*/;
 const MAX_ITEMS = 12;
 
 /**
- * What can complete the text at `cursor`: column names after an unclosed `[`,
- * or function names (and `TRUE`/`FALSE`) for a name being typed. `undefined`
+ * What can complete the text at `cursor`: column names after an unclosed `[`
+ * (or `[[`, for a whole column), or function names (and `TRUE`/`FALSE`) for a name being typed. `undefined`
  * inside text in quotes, or when nothing matches.
  */
 export function completionAt(
@@ -122,6 +132,7 @@ export function completionAt(
 ): Completion | undefined {
   let inText = false;
   let refStart = -1;
+  let whole = false;
   for (let i = 0; i < cursor; i++) {
     const c = source.charAt(i);
     if (inText) {
@@ -130,23 +141,29 @@ export function completionAt(
         else inText = false;
       }
     } else if (refStart >= 0) {
-      if (c === ']') refStart = -1;
+      if (c === ']') {
+        refStart = -1;
+        if (whole && source.charAt(i + 1) === ']') i++;
+      }
     } else if (c === '"') {
       inText = true;
     } else if (c === '[') {
       refStart = i;
+      whole = source.charAt(i + 1) === '[' && i + 1 < cursor;
+      if (whole) i++;
     }
   }
   if (inText) return undefined;
 
   if (refStart >= 0) {
+    const [open, close] = whole ? ['[[', ']]'] : ['[', ']'];
     const typed = source
-      .slice(refStart + 1, cursor)
+      .slice(refStart + open.length, cursor)
       .trim()
       .toLowerCase();
-    const close = source.indexOf(']', cursor);
-    const open = source.indexOf('[', cursor);
-    const to = close >= 0 && (open < 0 || open > close) ? close + 1 : cursor;
+    const closeAt = source.indexOf(close, cursor);
+    const next = source.indexOf('[', cursor);
+    const to = closeAt >= 0 && (next < 0 || next > closeAt) ? closeAt + close.length : cursor;
     const matches = columns
       .filter((name) => name.toLowerCase().includes(typed))
       .sort(
@@ -158,7 +175,7 @@ export function completionAt(
     return {
       from: refStart,
       to,
-      items: matches.map((name) => ({ label: name, insert: `[${name}]`, kind: 'column' })),
+      items: matches.map((name) => ({ label: name, insert: open + name + close, kind: 'column' })),
     };
   }
 
