@@ -15,9 +15,9 @@ interface Args {
   'header-fg': string;
   'border-color': string;
   'border-width': string;
-  outline: string;
-  radius: string;
-  'row-stripe-bg': string;
+  border: string;
+  'border-radius': string;
+  'row-odd-bg': string;
   'row-hover-bg': string;
   'row-height': string;
   'cell-padding-inline': string;
@@ -33,9 +33,9 @@ const empty: Args = {
   'header-fg': '',
   'border-color': '',
   'border-width': '',
-  outline: '',
-  radius: '',
-  'row-stripe-bg': '',
+  border: '',
+  'border-radius': '',
+  'row-odd-bg': '',
   'row-hover-bg': '',
   'row-height': '',
   'cell-padding-inline': '',
@@ -83,7 +83,7 @@ export const Playground: Story = {};
 /** Striped rows, a hover colour and taller rows, from tokens alone. */
 export const Striped: Story = {
   args: {
-    'row-stripe-bg': 'light-dark(#f4f6fb, #1a1f2a)',
+    'row-odd-bg': 'light-dark(#f4f6fb, #1a1f2a)',
     'row-hover-bg': 'light-dark(#e6ecfa, #232b3b)',
     'row-height': '44px',
   },
@@ -95,11 +95,11 @@ export const Striped: Story = {
   },
 };
 
-/** A border around the table and rounded corners: `--argus-outline` and `--argus-radius`. */
+/** A border around the table and rounded corners: `--argus-border` and `--argus-border-radius`. */
 export const Rounded: Story = {
   args: {
-    outline: '1px solid light-dark(#d0d5dd, #3a414c)',
-    radius: '12px',
+    border: '1px solid light-dark(#d0d5dd, #3a414c)',
+    'border-radius': '12px',
   },
   play: async ({ canvasElement }) => {
     const table = canvasElement.querySelector('argus-table');

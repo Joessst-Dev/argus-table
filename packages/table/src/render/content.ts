@@ -41,7 +41,7 @@ export function cellParts(
   column: Pinnable & { sorted: 'asc' | 'desc' | false; kind: 'data' | 'selection' },
   pinnedRow = false,
 ): string {
-  let parts = pinnedRow ? 'cell cell-pinned-row' : 'cell';
+  let parts = pinnedRow ? 'cell cell-in-pinned-row' : 'cell';
   if (column.kind === 'selection') parts += ' cell-selection';
   if (column.pin) parts += column.pinEdge ? ' cell-pinned cell-pinned-edge' : ' cell-pinned';
   if (column.sorted) parts += ' cell-sorted';

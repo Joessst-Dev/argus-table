@@ -28,11 +28,11 @@ argus-table {
   /* No column lines, only a faint hairline between rows. */
   --argus-border-color: light-dark(#ecedef, #22252a);
   --argus-border-width: 1px;
-  --argus-outline: none;
-  --argus-radius: 0;
+  --argus-border: none;
+  --argus-border-radius: 0;
   --argus-row-height: 56px;
   --argus-cell-padding-inline: 16px;
-  --argus-row-stripe-bg: var(--argus-bg);
+  --argus-row-odd-bg: var(--argus-bg);
   --argus-row-hover-bg: light-dark(#f5f6f7, #191b1f);
   /* The amber at a low strength over the background. */
   --argus-row-selected-bg: light-dark(#fdf4e7, #2a241b);
@@ -43,7 +43,27 @@ argus-table {
   --argus-drop-indicator-color: light-dark(#b45309, #f0b35b);
   --argus-filter-indicator-color: light-dark(#b45309, #f0b35b);
   --argus-skeleton-bg: light-dark(#eceef1, #23262b);
-  --argus-pinned-row-bg: var(--argus-bg);
+  --argus-row-pinned-bg: var(--argus-bg);
+
+  /* Add-ons: plain surfaces, the accent for actions and functions, red for errors. */
+  --argus-menu-bg: var(--argus-bg);
+  --argus-menu-fg: var(--argus-fg);
+  --argus-menu-shadow: 0 8px 24px -8px light-dark(rgb(0 0 0 / 0.18), rgb(0 0 0 / 0.7));
+  --argus-menu-item-active-bg: var(--argus-row-hover-bg);
+  --argus-menu-danger-fg: light-dark(#b91c1c, #f87171);
+  --argus-dialog-bg: var(--argus-bg);
+  --argus-dialog-fg: var(--argus-fg);
+  --argus-dialog-accent: light-dark(#b45309, #f0b35b);
+  --argus-dialog-accent-fg: light-dark(#ffffff, #17181b);
+  --argus-dialog-shadow: 0 24px 64px -16px light-dark(rgb(0 0 0 / 0.22), rgb(0 0 0 / 0.8));
+  --argus-dialog-backdrop: rgb(0 0 0 / 0.3);
+  --argus-formula-input-bg: var(--argus-bg);
+  --argus-formula-error-fg: light-dark(#b91c1c, #f87171);
+  --argus-formula-function-fg: light-dark(#b45309, #f0b35b);
+  --argus-formula-ref-bg: var(--argus-row-selected-bg);
+  --argus-formula-ref-fg: var(--argus-fg);
+  --argus-formula-number-fg: var(--argus-fg);
+  --argus-formula-text-fg: light-dark(#5b616b, #a1a6af);
 
   &[density='compact'] {
     --argus-row-height: 44px;

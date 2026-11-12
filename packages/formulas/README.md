@@ -171,15 +171,15 @@ Each formula is parsed and compiled once into plain functions: there is no `eval
 
 Pass `formulas({ marker: false })` to leave headers alone. The add-on's CSS is in the `argus-formulas` cascade layer, so your rules win. The editor is light-DOM content of a header, so it takes the tokens set on `argus-table` or a theme:
 
-| Token                                                                                                                                                 | Default                                                         |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| `--argus-formula-error-color`                                                                                                                         | The text colour: error values, problems and their underline     |
-| `--argus-dialog-bg`, `--argus-dialog-fg`                                                                                                              | `--argus-menu-bg` / `--argus-menu-fg`, then the table's colours |
-| `--argus-dialog-accent`, `--argus-dialog-accent-fg`                                                                                                   | `Highlight`, `HighlightText`: the save button                   |
-| `--argus-dialog-shadow`, `--argus-dialog-backdrop`                                                                                                    | A soft shadow; black at 40% behind the dialog                   |
-| `--argus-formula-font`                                                                                                                                | `ui-monospace` and other monospace fonts                        |
-| `--argus-formula-input-bg`                                                                                                                            | `--argus-bg`: behind the formula as you type                    |
-| `--argus-formula-function-color`, `--argus-formula-ref-bg`, `--argus-formula-ref-color`, `--argus-formula-number-color`, `--argus-formula-text-color` | The text colour; column names on a faint tint                   |
+| Token                                                                                                                                     | Default                                                         |
+| ----------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `--argus-formula-error-fg`                                                                                                                | The text colour: error values, problems and their underline     |
+| `--argus-dialog-bg`, `--argus-dialog-fg`                                                                                                  | `--argus-menu-bg` / `--argus-menu-fg`, then the table's colours |
+| `--argus-dialog-accent`, `--argus-dialog-accent-fg`                                                                                       | `Highlight`, `HighlightText`: the save button                   |
+| `--argus-dialog-shadow`, `--argus-dialog-backdrop`                                                                                        | A soft shadow; black at 40% behind the dialog                   |
+| `--argus-formula-font`                                                                                                                    | `ui-monospace` and other monospace fonts                        |
+| `--argus-formula-input-bg`                                                                                                                | `--argus-bg`: behind the formula as you type                    |
+| `--argus-formula-function-fg`, `--argus-formula-ref-bg`, `--argus-formula-ref-fg`, `--argus-formula-number-fg`, `--argus-formula-text-fg` | The text colour; column names on a faint tint                   |
 
 The editor also uses the table's `--argus-border-color`, `--argus-focus-ring`, `--argus-header-bg`, `--argus-font` and the menu tokens for its suggestion list. Its classes start with `argus-formula-` (the dialog is `argus-formula-editor`).
 

@@ -263,7 +263,12 @@ function pinnedWidth<T>(
  * @csspart header-group-cell-dragging - Added to `header-group-cell` on the group being dragged to a new position.
  * @csspart header-group-filler - The empty cell of a group row over columns without a group at that level.
  * @csspart header-cell - Every column header.
- * @csspart header-cell-sorted - The header of the sorted column. The direction is in `aria-sort`.
+ * @csspart header-cell-sorted - Added to `header-cell` on the headers of sorted columns. The direction is also in `aria-sort`.
+ * @csspart header-cell-sorted-asc - Added to `header-cell` on the headers of columns sorted ascending, next to `header-cell-sorted`.
+ * @csspart header-cell-sorted-desc - Added to `header-cell` on the headers of columns sorted descending, next to `header-cell-sorted`.
+ * @csspart header-cell-pinned - Added to `header-cell` on the headers of pinned columns, on either side.
+ * @csspart header-cell-pinned-edge - Added to `header-cell-pinned` on the pinned header next to the scrolling columns (one per pinned side).
+ * @csspart sort-indicator - The chevron in a sortable column's header, shown while it is sorted and pointing the way it sorts. It is drawn with borders in `currentColor`.
  * @csspart header-cell-filtered - Added to `header-cell` on the headers of filtered columns.
  * @csspart filter-indicator - The mark in the header of a filtered column, after the sort indicator.
  * @csspart header-cell-dragging - Added to `header-cell` on the header being dragged to a new position, and on the headers of a dragged group's columns.
@@ -274,6 +279,7 @@ function pinnedWidth<T>(
  * @csspart row-even - Body rows with an even index (0-based).
  * @csspart row-odd - Body rows with an odd index.
  * @csspart row-loading - Body rows whose `dataSource` page hasn't loaded yet, or failed.
+ * @csspart row-error - Added to `row-loading` on body rows whose `dataSource` page failed to load.
  * @csspart row-selected - Body rows whose id is in `selection`.
  * @csspart cell-selection - Added to `cell` in the checkbox column (`selectionCheckboxes`), pinned rows included.
  * @csspart header-cell-selection - Added to `header-cell` on the checkbox column's header.
@@ -281,7 +287,7 @@ function pinnedWidth<T>(
  * @csspart row-pinned - Every row from `pinnedRows`, on either side. Also has `row`, but no `row-even`/`row-odd`.
  * @csspart row-pinned-top - The rows pinned below the header.
  * @csspart row-pinned-bottom - The rows pinned to the bottom.
- * @csspart cell-pinned-row - Every cell of a pinned row (next to `cell`).
+ * @csspart cell-in-pinned-row - Every cell of a pinned row (next to `cell`).
  * @csspart cell - Every body cell.
  * @csspart cell-sorted - Body and pinned-row cells in the sorted column.
  * @csspart cell-pinned - Body and pinned-row cells in a pinned column, on either side.
@@ -298,19 +304,19 @@ function pinnedWidth<T>(
  * @cssprop [--argus-header-fg=inherit] - Header text colour.
  * @cssprop [--argus-border-color] - Colour of the row borders.
  * @cssprop [--argus-border-width=1px] - Width of the row borders.
- * @cssprop [--argus-outline=none] - Border around the whole table, as a `border` shorthand (`1px solid …`). Inside the element's size.
- * @cssprop [--argus-radius=0] - Corner radius of the table. Header, rows and pinned columns are clipped to it.
+ * @cssprop [--argus-border=none] - Border around the whole table, as a `border` shorthand (`1px solid …`). Inside the element's size. The lines between rows are `--argus-border-width` and `--argus-border-color`.
+ * @cssprop [--argus-border-radius=0] - Corner radius of the table. Header, rows and pinned columns are clipped to it.
  * @cssprop [--argus-row-height] - Height of a row, and of each header row. Default per density: 32px, 40px, 52px. With `rowHeight: 'auto'`: the height of each header row and the least a body or pinned row is.
  * @cssprop [--argus-cell-padding-inline] - Inline padding of cells. Default per density: 8px, 12px, 16px.
  * @cssprop [--argus-cell-padding-block] - Block padding of body and pinned-row cells with `rowHeight: 'auto'`, where content sits at the top of the cell. Default: what centres one line of text in `--argus-row-height`.
- * @cssprop [--argus-row-stripe-bg] - Background of odd rows. Default: no stripes.
+ * @cssprop [--argus-row-odd-bg] - Background of odd rows. Default: no stripes.
  * @cssprop [--argus-pinned-shadow] - Shadow on the pinned edge, as a `box-shadow` falling toward the end side (`4px 0 6px -4px …`). Mirrored for the end edge and in RTL; `none` removes it.
  * @cssprop [--argus-resize-handle-color] - Colour of the resize handle's line, shown on hover, focus and drag.
  * @cssprop [--argus-focus-ring=2px solid Highlight] - Outline of the focused header or cell.
  * @cssprop [--argus-filter-indicator-color=currentColor] - Colour of the mark in the header of a filtered column.
  * @cssprop [--argus-drop-indicator-color=Highlight] - Colour of the line that marks where a dragged column would land.
  * @cssprop [--argus-row-hover-bg] - Background of the hovered row. Default: no change.
- * @cssprop [--argus-pinned-row-bg=var(--argus-bg)] - Background of the pinned rows, pinned columns included.
+ * @cssprop [--argus-row-pinned-bg=var(--argus-bg)] - Background of the pinned rows, pinned columns included.
  * @cssprop [--argus-skeleton-bg] - Colour of the skeleton bars in rows still loading. Default: the text colour at low opacity.
  * @cssprop [--argus-row-selected-bg] - Background of selected rows, pinned columns included. Default: the system highlight colour, mixed into `--argus-bg`. It wins over `--argus-row-hover-bg`.
  */

@@ -35,7 +35,7 @@ export const CHECKS: readonly ContrastCheck[] = [
     id: 'stripe',
     label: 'Text on striped rows',
     fg: '--argus-fg',
-    bg: '--argus-row-stripe-bg',
+    bg: '--argus-row-odd-bg',
     min: 4.5,
   },
   {
@@ -56,7 +56,7 @@ export const CHECKS: readonly ContrastCheck[] = [
     id: 'pinned-row',
     label: 'Text on pinned rows',
     fg: '--argus-fg',
-    bg: '--argus-pinned-row-bg',
+    bg: '--argus-row-pinned-bg',
     min: 4.5,
   },
   {

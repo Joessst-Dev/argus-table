@@ -53,7 +53,7 @@ export const CreatorTest: Story = {
     preset.value = 'material';
     preset.dispatchEvent(new Event('change'));
     await creator.updateComplete;
-    await expect(creator.css).toContain('--argus-radius: 12px;');
+    await expect(creator.css).toContain('--argus-border-radius: 12px;');
     await waitFor(() => expect(background()).toEqual(['rgb(254, 247, 255)', 'rgb(20, 18, 24)']));
 
     // The accent changes the focus ring in both schemes.

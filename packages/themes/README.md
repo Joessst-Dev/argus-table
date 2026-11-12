@@ -1,6 +1,6 @@
 # @argus-table/themes
 
-Themes for [argus-table](https://www.npmjs.com/package/argus-table). Each theme is one CSS file that sets the table's `--argus-*` tokens and `::part()` rules, and nothing else.
+Themes for [argus-table](https://www.npmjs.com/package/argus-table). Each theme is one CSS file that sets the table's `--argus-*` tokens and `::part()` rules, and nothing else. Each also sets the tokens of the add-ons, so the column menu ([`@argus-table/header-menu`](https://www.npmjs.com/package/@argus-table/header-menu)) and the formula editor ([`@argus-table/formulas`](https://www.npmjs.com/package/@argus-table/formulas)) take on the theme.
 
 ```bash
 npm i argus-table @argus-table/themes
@@ -23,7 +23,7 @@ Neutral. It uses the page's font, follows the system's light or dark setting, an
 - **Change a value:** set the token after the theme, for example `argus-table { --argus-focus-ring: 2px solid teal; }`.
 - **`light-dark()` in your own overrides:** declare `color-scheme: light dark` on `argus-table` in the same stylesheet. Build tools that polyfill `light-dark()` (such as Vite's Lightning CSS minifier) only switch colours where the stylesheet sets `color-scheme`.
 - **Density:** the theme keeps the table's row heights and padding per `density`. Override one density with `argus-table[density='compact'] { --argus-row-height: 28px; }`.
-- **Corners and outline:** the table is square with no outer border. Round it and draw one with `argus-table { --argus-radius: 8px; --argus-outline: 1px solid #e3e6ea; }`.
+- **Corners and outline:** the table is square with no outer border. Round it and draw one with `argus-table { --argus-border-radius: 8px; --argus-border: 1px solid #e3e6ea; }`.
 
 ## Material-inspired
 
@@ -61,7 +61,7 @@ It looks like a Bootstrap 5 `.table.table-striped.table-hover`, without loading 
 
 - **Fonts:** Bootstrap's system font stack; nothing to load.
 - **Rows:** the table's own heights, which match Bootstrap's: 40px at `comfortable` (the default) and 32px at `compact`, like `.table-sm` with its 0.25rem padding.
-- **No stripes:** `argus-table { --argus-row-stripe-bg: var(--argus-bg); }` after the theme.
+- **No stripes:** `argus-table { --argus-row-odd-bg: var(--argus-bg); }` after the theme.
 - **Scheme and overrides:** work the same as in the default theme.
 
 ## Minimal

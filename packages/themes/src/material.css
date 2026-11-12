@@ -9,7 +9,7 @@
  * @fontsource/roboto), or the table falls back to the system font.
  *
  * A theme sets tokens and ::part() rules only. To change one value, set the
- * token after this file: argus-table { --argus-radius: 0; }
+ * token after this file: argus-table { --argus-border-radius: 0; }
  *
  * color-scheme sits on argus-table itself so that build tools polyfilling
  * light-dark() switch these colours too (see default.css).
@@ -26,11 +26,11 @@ argus-table {
   /* outline-variant */
   --argus-border-color: light-dark(#cac4d0, #49454f);
   --argus-border-width: 1px;
-  --argus-outline: 1px solid light-dark(#cac4d0, #49454f);
-  --argus-radius: 12px;
+  --argus-border: 1px solid light-dark(#cac4d0, #49454f);
+  --argus-border-radius: 12px;
   --argus-row-height: 52px;
   --argus-cell-padding-inline: 16px;
-  --argus-row-stripe-bg: var(--argus-bg);
+  --argus-row-odd-bg: var(--argus-bg);
   /* An 8% on-surface state layer over the surface. */
   --argus-row-hover-bg: light-dark(#ece5ed, #252229);
   /* secondary-container */
@@ -44,7 +44,35 @@ argus-table {
   --argus-filter-indicator-color: light-dark(#6750a4, #d0bcff);
   /* surface-container-highest, surface-container-low */
   --argus-skeleton-bg: light-dark(#e6e0e9, #36343b);
-  --argus-pinned-row-bg: light-dark(#f7f2fa, #1d1b20);
+  --argus-row-pinned-bg: light-dark(#f7f2fa, #1d1b20);
+
+  /* Add-ons: menus on surface-container, the editor on surface-container-high (elevation 2 and 3). */
+  --argus-menu-bg: light-dark(#f3edf7, #211f26);
+  --argus-menu-fg: var(--argus-fg);
+  --argus-menu-shadow:
+    0 1px 2px light-dark(rgb(0 0 0 / 0.3), rgb(0 0 0 / 0.6)),
+    0 2px 6px 2px light-dark(rgb(0 0 0 / 0.15), rgb(0 0 0 / 0.3));
+  --argus-menu-item-active-bg: light-dark(#e6e0e9, #36343b);
+  /* error */
+  --argus-menu-danger-fg: light-dark(#b3261e, #f2b8b5);
+  --argus-dialog-bg: light-dark(#ece6f0, #2b2930);
+  --argus-dialog-fg: var(--argus-fg);
+  /* primary, on-primary */
+  --argus-dialog-accent: light-dark(#6750a4, #d0bcff);
+  --argus-dialog-accent-fg: light-dark(#ffffff, #381e72);
+  --argus-dialog-shadow:
+    0 4px 8px 3px light-dark(rgb(0 0 0 / 0.15), rgb(0 0 0 / 0.3)),
+    0 1px 3px light-dark(rgb(0 0 0 / 0.3), rgb(0 0 0 / 0.6));
+  /* scrim */
+  --argus-dialog-backdrop: rgb(0 0 0 / 0.32);
+  --argus-formula-input-bg: var(--argus-bg);
+  --argus-formula-error-fg: light-dark(#b3261e, #f2b8b5);
+  /* primary, secondary-container, secondary, tertiary */
+  --argus-formula-function-fg: light-dark(#6750a4, #d0bcff);
+  --argus-formula-ref-bg: light-dark(#e8def8, #4a4458);
+  --argus-formula-ref-fg: var(--argus-fg);
+  --argus-formula-number-fg: light-dark(#625b71, #ccc2dc);
+  --argus-formula-text-fg: light-dark(#7d5260, #efb8c8);
 
   /* Taller rows than the element's own 32 / 40 / 52px, at every density. */
   &[density='compact'] {

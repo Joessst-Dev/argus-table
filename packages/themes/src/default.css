@@ -20,9 +20,9 @@ argus-table {
   --argus-header-fg: light-dark(#1f2937, #e5e7eb);
   --argus-border-color: light-dark(#e3e6ea, #2c323c);
   --argus-border-width: 1px;
-  --argus-outline: none;
-  --argus-radius: 0;
-  --argus-row-stripe-bg: var(--argus-bg);
+  --argus-border: none;
+  --argus-border-radius: 0;
+  --argus-row-odd-bg: var(--argus-bg);
   --argus-row-hover-bg: light-dark(#f3f5f8, #1f242d);
   --argus-row-selected-bg: light-dark(#e8eefb, #1c2740);
   --argus-pinned-shadow: 4px 0 6px -4px light-dark(rgb(0 0 0 / 0.16), rgb(0 0 0 / 0.55));
@@ -31,7 +31,27 @@ argus-table {
   --argus-drop-indicator-color: light-dark(#2f5bd3, #8aa6f2);
   --argus-filter-indicator-color: light-dark(#2f5bd3, #8aa6f2);
   --argus-skeleton-bg: light-dark(#e6e9ee, #2a303a);
-  --argus-pinned-row-bg: var(--argus-header-bg);
+  --argus-row-pinned-bg: var(--argus-header-bg);
+
+  /* Add-ons: the column menu (@argus-table/header-menu) and the formula editor (@argus-table/formulas). */
+  --argus-menu-bg: var(--argus-bg);
+  --argus-menu-fg: var(--argus-fg);
+  --argus-menu-shadow: 0 4px 16px light-dark(rgb(0 0 0 / 0.16), rgb(0 0 0 / 0.6));
+  --argus-menu-item-active-bg: var(--argus-row-hover-bg);
+  --argus-menu-danger-fg: light-dark(#b42318, #f97066);
+  --argus-dialog-bg: var(--argus-menu-bg);
+  --argus-dialog-fg: var(--argus-menu-fg);
+  --argus-dialog-accent: light-dark(#2f5bd3, #8aa6f2);
+  --argus-dialog-accent-fg: light-dark(#ffffff, #0b1530);
+  --argus-dialog-shadow: 0 20px 48px light-dark(rgb(0 0 0 / 0.28), rgb(0 0 0 / 0.7));
+  --argus-dialog-backdrop: rgb(0 0 0 / 0.4);
+  --argus-formula-input-bg: var(--argus-bg);
+  --argus-formula-error-fg: light-dark(#b42318, #f97066);
+  --argus-formula-function-fg: light-dark(#2f5bd3, #8aa6f2);
+  --argus-formula-ref-bg: var(--argus-row-selected-bg);
+  --argus-formula-ref-fg: var(--argus-fg);
+  --argus-formula-number-fg: light-dark(#0e7a4d, #4fd1a1);
+  --argus-formula-text-fg: light-dark(#a23b0e, #f0a070);
 
   /* Numbers line up in columns. */
   &::part(cell) {

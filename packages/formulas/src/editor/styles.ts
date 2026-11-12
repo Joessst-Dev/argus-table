@@ -3,6 +3,11 @@
  * header's light-DOM content, so it inherits the table's tokens; it resets
  * what a header passes down (bold, no wrapping, ellipsis). Colours come from
  * tokens with neutral fallbacks. In its own layer, so page CSS wins.
+ *
+ * One fallback per token and role, shared by the add-ons: `--argus-border-color`
+ * falls back to 20% of the text colour for lines (separators, popup edges) and
+ * 30% for form controls, so their edges stay visible; `--argus-menu-item-active-bg`
+ * to 10%.
  */
 const CSS = `
 @layer argus-formulas {
@@ -52,13 +57,13 @@ const CSS = `
     min-block-size: 2.25em;
     padding: 0 12px;
     border: var(--argus-border-width, 1px) solid
-      var(--argus-border-color, color-mix(in srgb, currentColor 25%, transparent));
+      var(--argus-border-color, color-mix(in srgb, currentColor 30%, transparent));
     border-radius: 6px;
     background: transparent;
     cursor: pointer;
   }
   .argus-formula-editor button:hover {
-    background: var(--argus-menu-item-active-bg, color-mix(in srgb, currentColor 8%, transparent));
+    background: var(--argus-menu-item-active-bg, color-mix(in srgb, currentColor 10%, transparent));
   }
   .argus-formula-editor :focus-visible {
     outline: var(--argus-focus-ring, 2px solid Highlight);
@@ -95,7 +100,7 @@ const CSS = `
     background: var(--argus-bg, Canvas);
   }
   .argus-formula-editor input[aria-invalid='true'] {
-    border-color: var(--argus-formula-error-color, currentColor);
+    border-color: var(--argus-formula-error-fg, currentColor);
   }
   .argus-formula-field {
     position: relative;
@@ -136,28 +141,28 @@ const CSS = `
     overflow: hidden;
   }
   .argus-formula-function {
-    color: var(--argus-formula-function-color, inherit);
+    color: var(--argus-formula-function-fg, inherit);
     font-weight: 600;
   }
   .argus-formula-ref,
   .argus-formula-range {
     border-radius: 3px;
     background: var(--argus-formula-ref-bg, color-mix(in srgb, currentColor 10%, transparent));
-    color: var(--argus-formula-ref-color, inherit);
+    color: var(--argus-formula-ref-fg, inherit);
   }
   /* A whole column: its brackets doubled, and in bold. */
   .argus-formula-range {
     font-weight: 600;
   }
   .argus-formula-number {
-    color: var(--argus-formula-number-color, inherit);
+    color: var(--argus-formula-number-fg, inherit);
   }
   .argus-formula-text {
-    color: var(--argus-formula-text-color, inherit);
+    color: var(--argus-formula-text-fg, inherit);
   }
   .argus-formula-name,
   .argus-formula-bad {
-    text-decoration: underline wavy var(--argus-formula-error-color, currentColor);
+    text-decoration: underline wavy var(--argus-formula-error-fg, currentColor);
     text-decoration-skip-ink: none;
   }
   .argus-formula-suggestions {
@@ -186,7 +191,7 @@ const CSS = `
     cursor: pointer;
   }
   .argus-formula-suggestions li[aria-selected='true'] {
-    background: var(--argus-menu-item-active-bg, color-mix(in srgb, currentColor 12%, transparent));
+    background: var(--argus-menu-item-active-bg, color-mix(in srgb, currentColor 10%, transparent));
   }
   .argus-formula-suggestion-kind,
   .argus-formula-hint span,
@@ -212,7 +217,7 @@ const CSS = `
   }
   .argus-formula-problem {
     margin: 0;
-    color: var(--argus-formula-error-color, inherit);
+    color: var(--argus-formula-error-fg, inherit);
   }
   .argus-formula-insert,
   .argus-formula-functions [role='group'] {
@@ -260,7 +265,7 @@ const CSS = `
   .argus-formula-preview td {
     padding: 6px 10px;
     border-block-end: var(--argus-border-width, 1px) solid
-      var(--argus-border-color, color-mix(in srgb, currentColor 15%, transparent));
+      var(--argus-border-color, color-mix(in srgb, currentColor 20%, transparent));
     text-align: start;
     white-space: nowrap;
     overflow: hidden;

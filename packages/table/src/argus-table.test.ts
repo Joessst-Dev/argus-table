@@ -345,8 +345,8 @@ describe('outline and radius', () => {
 
   test('rounds the table and draws a border inside its size from the tokens', async () => {
     const el = await fixture({ columns, data: people(10) });
-    el.style.setProperty('--argus-radius', '12px');
-    el.style.setProperty('--argus-outline', '2px solid rgb(1, 2, 3)');
+    el.style.setProperty('--argus-border-radius', '12px');
+    el.style.setProperty('--argus-border', '2px solid rgb(1, 2, 3)');
     await settle(el);
     const style = getComputedStyle(el);
     expect(style.borderBottomRightRadius).toBe('12px');
@@ -418,9 +418,14 @@ describe('pinned columns', () => {
       expect(parts[8]).toBe('cell cell-pinned cell-pinned-edge');
       expect(row.querySelectorAll('[part~="cell-pinned-edge"]')).toHaveLength(2);
     }
-    // Header cells pin too, without new parts.
+    // Header cells pin too, with their own parts.
     const headers = [...shadow(el).querySelectorAll('[part~="header-cell"]')];
-    expect(headers.map((h) => h.getAttribute('part'))).toEqual(headers.map(() => 'header-cell'));
+    expect(headers.map((h) => h.getAttribute('part'))).toEqual([
+      'header-cell header-cell-pinned',
+      'header-cell header-cell-pinned header-cell-pinned-edge',
+      ...Array<string>(6).fill('header-cell'),
+      'header-cell header-cell-pinned header-cell-pinned-edge',
+    ]);
     expect(headers.map((h) => h.getAttribute('data-pin'))).toEqual([
       'start',
       'start',
@@ -560,7 +565,7 @@ describe('pinned columns', () => {
 
   test('paints pinned cells with the row surface so scrolling content stays hidden', async () => {
     const el = await fixture({ columns: pinnedColumns, data: people(2) });
-    el.style.setProperty('--argus-row-stripe-bg', 'rgb(1, 2, 3)');
+    el.style.setProperty('--argus-row-odd-bg', 'rgb(1, 2, 3)');
     const [, odd] = rowsInOrder(el);
     const pinned = odd?.querySelector('[part~="cell-pinned"]');
     expect(pinned && getComputedStyle(pinned).backgroundColor).toBe('rgb(1, 2, 3)');
@@ -719,7 +724,10 @@ describe('sorting', () => {
   test('sets aria-sort and the sorted parts on the sorted column only', async () => {
     const el = await fixture({ columns: sortColumns, data, sorting: [{ id: 'age', desc: true }] });
     expect(headerCell(el, 1).getAttribute('aria-sort')).toBe('descending');
-    expect(headerCell(el, 1).getAttribute('part')).toBe('header-cell header-cell-sorted');
+    expect(headerCell(el, 1).getAttribute('part')).toBe(
+      'header-cell header-cell-sorted header-cell-sorted-desc',
+    );
+    expect(headerCell(el, 1).querySelector('[part="sort-indicator"]')).not.toBeNull();
     expect(headerCell(el, 0).hasAttribute('aria-sort')).toBe(false);
     for (const row of bodyRows(el)) {
       const parts = [...row.querySelectorAll('[part~="cell"]')].map((c) => c.getAttribute('part'));
@@ -728,6 +736,9 @@ describe('sorting', () => {
     el.sorting = [{ id: 'age', desc: false }];
     await settle(el);
     expect(headerCell(el, 1).getAttribute('aria-sort')).toBe('ascending');
+    expect(headerCell(el, 1).getAttribute('part')).toBe(
+      'header-cell header-cell-sorted header-cell-sorted-asc',
+    );
   });
 
   test('draws the sort chevron the same way in RTL', async () => {
@@ -1900,6 +1911,7 @@ describe('dataSource (infinite loading)', () => {
     await load(el);
     const row = firstRow(el);
     expect(row?.getAttribute('part')).toContain('row-loading');
+    expect(row?.getAttribute('part')).not.toContain('row-error');
     expect(row?.getAttribute('aria-busy')).toBe('true');
     expect(row?.querySelectorAll('[part~="skeleton"]')).toHaveLength(3);
     expect(rowText(row as Element)).toEqual(['', '', '']);
@@ -2023,7 +2035,7 @@ describe('dataSource (infinite loading)', () => {
     expect(errors).toEqual([{ error: failure, start: 0, end: 20 }]);
 
     const row = firstRow(el) as Element;
-    expect(row.getAttribute('part')).toContain('row-loading');
+    expect(row.getAttribute('part')).toContain('row-loading row-error');
     expect(row.hasAttribute('aria-busy')).toBe(false);
     expect(row.querySelectorAll('[part~="skeleton-error"]')).toHaveLength(2);
     const retry = row.querySelector<HTMLButtonElement>('[part~="retry"]');
@@ -2233,9 +2245,9 @@ describe('pinned rows', () => {
     expect(top && rowText(top)).toEqual(['Average', '45', '']);
     expect(bottom && rowText(bottom)).toEqual(['Total', '999', '']);
     const cell = bottom?.querySelector('[data-col="name"]');
-    expect(cell?.getAttribute('part')).toBe('cell cell-pinned-row cell-pinned cell-pinned-edge');
+    expect(cell?.getAttribute('part')).toBe('cell cell-in-pinned-row cell-pinned cell-pinned-edge');
     expect(bottom?.querySelector('[data-col="age"]')?.getAttribute('part')).toBe(
-      'cell cell-pinned-row',
+      'cell cell-in-pinned-row',
     );
     // Both groups are row groups of the grid.
     expect(top?.parentElement?.getAttribute('role')).toBe('rowgroup');
@@ -2522,9 +2534,9 @@ describe('pinned rows', () => {
     expect(pinned(el, 'bottom').map((r) => rowText(r)[0])).toEqual(['Total', 'Average']);
   });
 
-  test('uses --argus-pinned-row-bg for the whole row, pinned columns included', async () => {
+  test('uses --argus-row-pinned-bg for the whole row, pinned columns included', async () => {
     const el = await fixture({ columns, data: people(5), pinnedRows });
-    el.style.setProperty('--argus-pinned-row-bg', 'rgb(1, 2, 3)');
+    el.style.setProperty('--argus-row-pinned-bg', 'rgb(1, 2, 3)');
     await settle(el);
     const row = pinned(el, 'bottom')[0];
     const cell = row?.querySelector('[data-col="name"]');

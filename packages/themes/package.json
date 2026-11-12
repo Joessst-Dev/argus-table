@@ -12,7 +12,9 @@
   "nx": {
     "name": "themes",
     "implicitDependencies": [
-      "argus-table"
+      "argus-table",
+      "header-menu",
+      "formulas"
     ]
   },
   "exports": {

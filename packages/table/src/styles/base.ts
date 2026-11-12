@@ -18,8 +18,8 @@ export const baseStyles = css`
       background: var(--argus-bg, Canvas);
       font: var(--argus-font, inherit);
       /* contain: content clips the header, rows and pinned shadows to the rounded corners. */
-      border: var(--argus-outline, none);
-      border-radius: var(--argus-radius, 0);
+      border: var(--argus-border, none);
+      border-radius: var(--argus-border-radius, 0);
       --_row-height: var(--argus-row-height, 40px);
       --_pad: var(--argus-cell-padding-inline, 12px);
       --_border: var(--argus-border-width, 1px) solid
@@ -97,7 +97,7 @@ export const baseStyles = css`
       background: var(--_row-surface);
     }
     [part~='row-odd'] {
-      --_row-bg: var(--argus-row-stripe-bg, var(--argus-bg, Canvas));
+      --_row-bg: var(--argus-row-odd-bg, var(--argus-bg, Canvas));
     }
     [part~='row']:hover {
       --_row-surface: var(--argus-row-hover-bg, var(--_row-bg));
@@ -135,7 +135,7 @@ export const baseStyles = css`
       inset-block-end: 0;
     }
     [part~='row-pinned'] {
-      --_row-bg: var(--argus-pinned-row-bg, var(--argus-bg, Canvas));
+      --_row-bg: var(--argus-row-pinned-bg, var(--argus-bg, Canvas));
     }
 
     [part~='cell'],
