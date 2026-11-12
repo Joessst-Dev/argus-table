@@ -932,7 +932,7 @@ export class ArgusTable<T = unknown> extends LitElement {
    */
   async setState(state: TableState): Promise<void> {
     // Another format (a later version's): nothing it holds can be trusted to mean the same.
-    if ((state.version ?? 1) !== 1) return;
+    if (((state.version as number | undefined) ?? 1) !== 1) return;
     this.#restore('sorting', this.#sorting, state.sorting);
     this.#restore('columnSizing', this.#sizing, state.columnSizing);
     this.#restore('columnOrder', this.#order, state.columnOrder);
