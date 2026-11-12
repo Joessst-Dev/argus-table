@@ -52,6 +52,17 @@ describe('highlight', () => {
     expect(segments.find((s) => s.text === '[Total]')?.start).toBe(6);
   });
 
+  it('marks whole columns apart from values of the row', () => {
+    expect(
+      highlight('[Total] / SUM([[Total]])')
+        .filter((s) => s.kind === 'ref' || s.kind === 'range')
+        .map((s) => [s.kind, s.text]),
+    ).toEqual([
+      ['ref', '[Total]'],
+      ['range', '[[Total]]'],
+    ]);
+  });
+
   it('marks bare names and unreadable parts', () => {
     expect(highlight('price + "a').map((s) => s.kind)).toEqual([
       'name',
@@ -96,6 +107,15 @@ describe('completionAt', () => {
     expect(t?.items.map((i) => i.label)).toEqual(['Total', 'Unit price', 'Quantity', 'Status']);
     expect(t).toMatchObject({ from: 4, to: 6 });
     expect(t?.items[0]).toEqual({ label: 'Total', insert: '[Total]', kind: 'column' });
+  });
+
+  it('offers whole columns after an unclosed [[', () => {
+    const t = at('SUM([[t|');
+    expect(t).toMatchObject({ from: 4, to: 7 });
+    expect(t?.items[0]).toEqual({ label: 'Total', insert: '[[Total]]', kind: 'column' });
+    expect(at('SUM([[Tot|al]]) * 2')).toMatchObject({ from: 4, to: 13 });
+    expect(at('SUM([[Total]]) + ro|')?.items[0]?.label).toBe('ROUND');
+    expect(at('SUM([[Total]]) + [q|')?.items[0]).toMatchObject({ insert: '[Quantity]' });
   });
 
   it('replaces the whole name when the bracket is already closed', () => {

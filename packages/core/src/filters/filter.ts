@@ -156,19 +156,19 @@ function quickTerms(quickFilter: string | undefined): string[] {
  *
  * Each value is read once per test through the column's `getValue`. A column with a
  * `filterFn` uses it in place of the built-in matching. Filters for unknown columns,
- * and `except` (for the values a column's own filter offers), are skipped.
+ * and on the `except` columns (for the values a column's own filter offers), are skipped.
  */
 export function rowPredicate<TData>(
   columns: ReadonlyMap<string, FilterColumn<TData>>,
   filters: ColumnFilterState | undefined,
   quickFilter: string | undefined,
   quickColumns: readonly FilterColumn<TData>[],
-  except?: string,
+  except?: ReadonlySet<string>,
 ): RowPredicate<TData> | undefined {
   const tests: RowPredicate<TData>[] = [];
   for (const [id, filter] of Object.entries(filters ?? {})) {
     const column = columns.get(id);
-    if (!column || id === except) continue;
+    if (!column || except?.has(id)) continue;
     const { getValue, filterFn } = column;
     if (filterFn) {
       tests.push((row, index) => filterFn(getValue(row, index), filter, row));

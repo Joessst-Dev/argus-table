@@ -324,6 +324,14 @@ export interface TableModel<TData, TContent> {
     columnId: string,
     limit?: number,
   ): { values: FilterValue[]; truncated: boolean } | undefined;
+  /**
+   * The indexes in `data` of the rows the column filters and the quick filter keep,
+   * ascending (not sorted), leaving out the filters on the `except` columns and their
+   * text in the quick filter. `undefined` for remote rows. Reads only the core rows
+   * and the other columns' accessors, so an accessor of an `except` column can call it
+   * while the model filters or sorts.
+   */
+  indexesPassing(except?: Iterable<string>): readonly number[] | undefined;
   /** Number of rows pinned to a side. */
   pinnedCount(side: RowPin): number;
   /**
@@ -510,14 +518,16 @@ export function createTableModel<TData, TContent>(
 
   // The row test of the filters, the quick filter and the shown columns (which the quick
   // filter reads). Remote rows are filtered by their source.
-  const predicateFor = (except?: string) =>
+  // `except`: columns whose filter is left out; with `quick`, their text is left out
+  // of the quick filter too.
+  const predicateFor = (except?: ReadonlySet<string>, quick = false) =>
     options.remote
       ? undefined
       : rowPredicate(
           byId,
           options.columnFilters,
           options.quickFilter,
-          resolved.filter((c) => c.hasAccessor && !hiddenOf(c)),
+          resolved.filter((c) => c.hasAccessor && !hiddenOf(c) && !(quick && except?.has(c.id))),
           except,
         );
   setRowPredicate(table, predicateFor());
@@ -846,7 +856,17 @@ export function createTableModel<TData, TContent>(
         original: TData;
         index: number;
       }>;
-      return distinctValues(rows, column, predicateFor(columnId), limit);
+      return distinctValues(rows, column, predicateFor(new Set([columnId])), limit);
+    },
+
+    indexesPassing(except) {
+      if (options.remote) return undefined;
+      const keep = predicateFor(new Set(except), true);
+      const kept: number[] = [];
+      for (const row of table.getCoreRowModel().rows) {
+        if (!keep || keep(row.original as TData, row.index)) kept.push(row.index);
+      }
+      return kept;
     },
 
     pinnedCount(side) {

@@ -17,8 +17,10 @@ export type FormulaNode = Span &
     | { type: 'number'; value: number }
     | { type: 'text'; value: string }
     | { type: 'boolean'; value: boolean }
-    /** A column, by the name in brackets. */
+    /** A column's value in this row, by the name in brackets. */
     | { type: 'ref'; name: string }
+    /** A whole column (`[[name]]`): the values of the rows the filters keep. */
+    | { type: 'range'; name: string }
     /** A function call; `name` is upper case. */
     | { type: 'call'; name: string; args: FormulaNode[] }
     | { type: 'unary'; operator: '-' | '+'; operand: FormulaNode }
@@ -88,6 +90,8 @@ export function parse(source: string): FormulaNode {
         return { type: 'text', value: token.value, start, end };
       case 'ref':
         return { type: 'ref', name: token.value, start, end };
+      case 'range':
+        return { type: 'range', name: token.value, start, end };
       case 'open': {
         const inner = expression(0);
         const close = next();
@@ -177,12 +181,19 @@ export function parse(source: string): FormulaNode {
   return tree;
 }
 
-/** The column names a formula refers to, each once, in order of appearance. */
-export function refsOf(node: FormulaNode): string[] {
+/**
+ * The column names a formula refers to, each once, in order of appearance: in
+ * this row (`[name]`) and as whole columns (`[[name]]`), or only as whole
+ * columns with `wholeOnly`.
+ */
+export function refsOf(node: FormulaNode, wholeOnly = false): string[] {
   const names = new Set<string>();
   const visit = (n: FormulaNode): void => {
     switch (n.type) {
       case 'ref':
+        if (!wholeOnly) names.add(n.name);
+        break;
+      case 'range':
         names.add(n.name);
         break;
       case 'call':

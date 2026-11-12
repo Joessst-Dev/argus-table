@@ -426,6 +426,45 @@ describe('changing a column', () => {
     );
   });
 
+  test('Rename… renames whole-column references too', async () => {
+    const el = await fixture();
+    el.columns = [
+      ...columns,
+      { id: 'share', header: 'Share', formula: '[Total] / SUM([[Total]])' },
+    ];
+    await settle(el);
+    const changes: FormulaColumnChangeDetail[] = [];
+    el.addEventListener('argus-formula-column-change', (e) => changes.push(e.detail));
+    await choose(el, 'total', 'Rename…');
+    const dialog = await editor(el);
+    type(field(dialog, 'Column name'), 'Net');
+    button(dialog, 'Save').click();
+    await closed(el);
+    expect(changes[0]?.columns.find((c) => c.id === 'share')?.formula).toBe('[Net] / SUM([[Net]])');
+  });
+
+  test('previews whole columns, and notes a total of one value without blocking', async () => {
+    const el = await fixture();
+    const changes: FormulaColumnChangeDetail[] = [];
+    el.addEventListener('argus-formula-column-change', (e) => changes.push(e.detail));
+    await choose(el, 'total', 'Edit formula…');
+    const dialog = await editor(el);
+    const formula = field(dialog, 'Formula');
+    type(formula, '[qty] / SUM([[qty]])');
+    await settle(el);
+    expect(previewText(dialog).map((row) => row.at(-1))).toEqual(['Total', '0.75', '0.25', '0']);
+    const note = () => dialog.querySelector('[id$="-note"]');
+    expect(note()).toBeNull();
+    type(formula, 'SUM([qty])');
+    await settle(el);
+    expect(note()?.textContent).toContain('For the whole column, write [[qty]]');
+    expect(formula.getAttribute('aria-describedby')).toContain(note()?.id);
+    expect(formula.getAttribute('aria-invalid')).toBe('false');
+    button(dialog, 'Save').click();
+    await closed(el);
+    expect(changes[0]?.column.formula).toBe('SUM([qty])');
+  });
+
   test('saving without a change proposes nothing', async () => {
     const el = await fixture();
     const changes = vi.fn();

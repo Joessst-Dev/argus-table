@@ -127,6 +127,95 @@ export const Default: Story = {
   },
 };
 
+const totalOf = (item: Item) => item.price * item.qty * (1 - item.discount);
+
+const wholeColumns: ColumnDef<Item>[] = [
+  {
+    id: 'product',
+    header: 'Product',
+    accessor: 'product',
+    width: 140,
+    pin: 'start',
+    filter: 'set',
+  },
+  // Unit price, Quantity and Discount, which Total reads.
+  ...dataColumns.slice(1, 4),
+  {
+    id: 'total',
+    header: 'Total',
+    formula: '[Unit price] * [Quantity] * (1 - [Discount])',
+    width: 100,
+    sortable: true,
+  },
+  {
+    id: 'share',
+    header: 'Share %',
+    formula: 'ROUND([Total] / SUM([[Total]]) * 100, 3)',
+    width: 100,
+    sortable: true,
+  },
+  {
+    id: 'orders',
+    header: 'Orders of product',
+    formula: 'COUNTIF([[Product]], [Product])',
+    width: 150,
+  },
+  {
+    id: 'rank',
+    header: 'Rank',
+    formula: 'RANK([Total], [[Total]])',
+    width: 80,
+    sortable: true,
+  },
+  {
+    id: 'best',
+    header: 'Best seller',
+    formula: 'INDEX([[Product]], MATCH(MAX([[Total]]), [[Total]], 0))',
+    width: 130,
+  },
+];
+
+const wholePlugins = [formulas<Item>(), headerMenu<Item>()];
+
+/**
+ * `[[name]]` is a whole column: its values in every row the filters keep, while
+ * `[name]` is the row's own value. Share % divides by `SUM([[Total]])`, Orders of
+ * product counts with `COUNTIF`, Rank ranks with `RANK`, and Best seller looks up
+ * the product of the largest total with `INDEX` and `MATCH`. Filter Product from
+ * its column menu: every total follows. A filter on Share % itself hides rows but
+ * leaves its totals alone.
+ */
+export const WholeColumns: Story = {
+  render: () =>
+    html`<argus-table
+      style="block-size: 420px"
+      .columns=${wholeColumns}
+      .data=${data}
+      .plugins=${wholePlugins}
+      .sorting=${[{ id: 'rank', desc: false }]}
+    ></argus-table>`,
+  play: async ({ canvasElement }) => {
+    const table = await tableIn(canvasElement);
+    const sum = data.reduce((acc, item) => acc + totalOf(item), 0);
+    const best = data.reduce((a, b) => (totalOf(b) > totalOf(a) ? b : a));
+    await waitFor(() => expect(textOf(table, 0, 'rank')).toBe('1'));
+    await expect(textOf(table, 0, 'orders')).toBe(String(data.length / products.length));
+    await expect(textOf(table, 0, 'best')).toBe(best.product);
+    await expect(Number(textOf(table, 0, 'share'))).toBeCloseTo((totalOf(best) / sum) * 100, 2);
+
+    // Only notebooks: the totals, ranks and the best seller follow the filter.
+    table.columnFilters = { product: { kind: 'set', values: ['Notebook'] } };
+    const notebooks = data.filter((item) => item.product === 'Notebook');
+    const notebookSum = notebooks.reduce((acc, item) => acc + totalOf(item), 0);
+    const top = Math.max(...notebooks.map(totalOf));
+    await waitFor(() => expect(textOf(table, 0, 'product')).toBe('Notebook'));
+    await expect(textOf(table, 0, 'rank')).toBe('1');
+    await expect(textOf(table, 0, 'best')).toBe('Notebook');
+    await expect(textOf(table, 0, 'orders')).toBe(String(notebooks.length));
+    await expect(Number(textOf(table, 0, 'share'))).toBeCloseTo((top / notebookSum) * 100, 2);
+  },
+};
+
 const errorColumns: ColumnDef<Item>[] = [
   ...dataColumns.slice(0, 3),
   { id: 'per', header: 'Per piece', formula: '[Unit price] / [Quantity]', width: 110 },

@@ -32,7 +32,8 @@ export interface EditorOptions {
   functions: readonly string[];
   docs: Readonly<Record<string, FunctionDoc>>;
   /** What's wrong with the name and the formula as typed, if anything. */
-  check(name: string, formula: string): { name?: string; formula?: Problem };
+  /** Problems block saving; a `note` doesn't. */
+  check(name: string, formula: string): { name?: string; formula?: Problem; note?: string };
   preview(name: string, formula: string): PreviewTable;
 }
 
@@ -281,8 +282,11 @@ export function openEditor(options: EditorOptions): Promise<EditorResult | undef
       const items = completion?.items ?? [];
       const listId = `${ids}-list`;
       const hint = signature();
+      // Shown as soon as there is one: it never blocks saving.
+      const note = readOnly || formulaProblem ? undefined : options.check(name, formula).note;
       const describedBy = [
         formulaProblem ? `${ids}-problem` : '',
+        note ? `${ids}-note` : '',
         hint === nothing ? '' : `${ids}-hint`,
       ]
         .filter(Boolean)
@@ -419,6 +423,7 @@ export function openEditor(options: EditorOptions): Promise<EditorResult | undef
                   </p>`
                 : nothing
             }
+            ${note ? html`<p class="argus-formula-note" id=${`${ids}-note`}>${note}</p>` : nothing}
             ${hint}
           </div>
 

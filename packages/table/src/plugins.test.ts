@@ -211,6 +211,77 @@ describe('plugin columns', () => {
     expect(spy.mock.calls.length).toBe(calls + 2);
   });
 
+  test('willUpdate gets the changed properties before the transforms run', async () => {
+    const log: string[] = [];
+    const plugin: ArgusPlugin<Person> = {
+      name: 'watch',
+      willUpdate(changed) {
+        log.push(
+          `willUpdate ${[...changed].filter((k) => k === 'data' || k === 'quickFilter').join(',')}`,
+        );
+      },
+      columns(defs) {
+        log.push('columns');
+        return defs;
+      },
+    };
+    const el = await fixture({ columns, data: people(3), plugins: [plugin] });
+    log.length = 0;
+    el.quickFilter = 'Person 1';
+    await settle(el);
+    expect(log).toEqual(['willUpdate quickFilter']);
+    log.length = 0;
+    el.data = people(4);
+    await settle(el);
+    expect(log).toEqual(['willUpdate data']);
+  });
+
+  test('invalidateColumns() in willUpdate runs columns again in the same update', async () => {
+    let factor = 1;
+    const plugin: ArgusPlugin<Person> = {
+      name: 'scale',
+      willUpdate(changed, host) {
+        if (changed.has('quickFilter') && host.element.hasUpdated) {
+          factor = 10;
+          host.invalidateColumns();
+        }
+      },
+      columns: (defs) => {
+        const f = factor;
+        return [...defs, { id: 'scaled', header: 'Scaled', accessor: (p: Person) => p.age * f }];
+      },
+    };
+    const el = await fixture({ columns, data: people(3), plugins: [plugin] });
+    expect(rowText(rowsInOrder(el)[2] as Element)[3]).toBe('2');
+    let updates = 0;
+    const updating = el as unknown as { performUpdate(): void };
+    const original = updating.performUpdate.bind(el);
+    vi.spyOn(updating, 'performUpdate').mockImplementation(() => {
+      updates++;
+      original();
+    });
+    el.quickFilter = 'Person';
+    await settle(el);
+    expect(rowText(rowsInOrder(el)[2] as Element)[3]).toBe('20');
+    expect(updates).toBeLessThanOrEqual(2);
+  });
+
+  test('a willUpdate that throws is reported and skipped', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const broken: ArgusPlugin<Person> = {
+      name: 'broken',
+      willUpdate() {
+        throw new Error('boom');
+      },
+    };
+    const el = await fixture({ columns, data: people(3), plugins: [broken] });
+    expect(error).toHaveBeenCalledWith(
+      'argus-table: plugin "broken" threw in willUpdate',
+      expect.any(Error),
+    );
+    expect(rowsInOrder(el)).toHaveLength(3);
+  });
+
   test('a header function from a plugin re-renders with requestUpdate()', async () => {
     let label = 'A';
     const { plugin, host } = hostGrabber();

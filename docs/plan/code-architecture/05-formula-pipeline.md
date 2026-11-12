@@ -29,3 +29,14 @@ flowchart TD
 Error values shown in cells: `#DIV/0!`, `#VALUE!`, `#REF!`, `#CYCLE!`.
 
 Changing one formula re-runs the pipeline for that column and the columns that depend on it. Changing data only clears the value cache; nothing is re-parsed.
+
+Whole columns (`[[name]]`) read a *universe*: the rows the table's filters keep, leaving out the filters on the columns using whole columns. Columns using them are compiled again for each universe (a new `data`, other filters, the quick filter), so their accessors change and the table re-reads them; the others keep theirs.
+
+```mermaid
+flowchart LR
+    change["data, filters, quick filter"] --> hook["plugin willUpdate<br/>compares the universe key"]
+    hook --> source["new row source<br/>invalidateColumns()"]
+    source --> recompile["compile the range-dependent columns<br/>new accessors"]
+    recompile --> lazy["first use of a range<br/>host.filteredIndexes(dependent)"]
+    lazy --> range["ColumnRange per column<br/>memo of SUM([[x]]), indexes for COUNTIF / XLOOKUP"]
+```

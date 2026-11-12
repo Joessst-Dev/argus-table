@@ -4,6 +4,8 @@ export type TokenKind =
   | 'number'
   | 'string'
   | 'ref'
+  /** A whole column: `[[name]]`. */
+  | 'range'
   | 'name'
   | 'operator'
   | 'comma'
@@ -15,7 +17,8 @@ export type TokenKind =
 
 /**
  * A piece of a formula. `value` is the number's digits, the text without its
- * quotes, the column name without its brackets, or the name or operator as
+ * quotes, the column name without its brackets (one pair, or two for a whole
+ * column), or the name or operator as
  * written. `start` and `end` are offsets into the formula.
  */
 export interface Token {
@@ -82,6 +85,20 @@ export function tokenize(source: string, lenient = false): Token[] {
       }
       if (closed) tokens.push({ kind: 'string', value, start, end: at });
       else bad('The text has no closing quote.', start, source.length);
+      continue;
+    }
+
+    if (source.startsWith('[[', at)) {
+      // A whole column: [[name]].
+      const close = source.indexOf(']]', at + 2);
+      if (close < 0) {
+        bad('The column name has no closing ]].', start, source.length);
+        continue;
+      }
+      const value = source.slice(at + 2, close).trim();
+      if (value) tokens.push({ kind: 'range', value, start, end: close + 2 });
+      else bad('The column name is empty.', start, close + 2);
+      at = close + 2;
       continue;
     }
 

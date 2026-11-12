@@ -7,6 +7,7 @@ import {
   nameOf,
   parseOrError,
   readerOf,
+  rowSource,
   type FormulaFunction,
 } from '../columns.js';
 import { compile } from '../engine/compile.js';
@@ -49,8 +50,10 @@ export function checkFormula<T>(
     if (found) return;
     switch (n.type) {
       case 'ref':
+      case 'range':
         if (!lookup(n.name)) {
-          found = { message: `There is no column [${n.name}].`, start: n.start, end: n.end };
+          const written = n.type === 'ref' ? `[${n.name}]` : `[[${n.name}]]`;
+          found = { message: `There is no column ${written}.`, start: n.start, end: n.end };
         }
         return;
       case 'call':
@@ -101,6 +104,44 @@ export function checkFormula<T>(
   return undefined;
 }
 
+const TOTALS = new Set(['SUM', 'MIN', 'MAX', 'AVERAGE', 'COUNT', 'COUNTA', 'COUNTBLANK']);
+
+/**
+ * A note on a formula that is fine but likely not what was meant: a total of a
+ * single value of the row (`SUM([amount])`), where the whole column was meant.
+ */
+export function noteOn(formula: string): string | undefined {
+  const tree = parseOrError(formula);
+  if (tree instanceof FormulaSyntaxError) return undefined;
+  let note: string | undefined;
+  const visit = (n: FormulaNode): void => {
+    if (note) return;
+    switch (n.type) {
+      case 'call': {
+        const [only] = n.args;
+        if (TOTALS.has(n.name) && n.args.length === 1 && only?.type === 'ref') {
+          note = `${n.name}([${only.name}]) uses one value, the row’s own. For the whole column, write [[${only.name}]].`;
+          return;
+        }
+        n.args.forEach(visit);
+        return;
+      }
+      case 'unary':
+      case 'percent':
+        visit(n.operand);
+        return;
+      case 'binary':
+        visit(n.left);
+        visit(n.right);
+        return;
+      default:
+        return;
+    }
+  };
+  visit(tree);
+  return note;
+}
+
 /** The id of the column being added, in the preview and the checks. */
 const DRAFT = '\u0000new';
 const PREVIEW_ROWS = 5;
@@ -130,8 +171,10 @@ function renameRefs<T>(defs: readonly ColumnDef<T>[], id: string, name: string):
     let out = '';
     let at = 0;
     for (const token of tokenize(source, true)) {
-      if (token.kind !== 'ref' || token.value === id || lookup(token.value)?.id !== id) continue;
-      out += `${source.slice(at, token.start)}[${name}]`;
+      if (token.kind !== 'ref' && token.kind !== 'range') continue;
+      if (token.value === id || lookup(token.value)?.id !== id) continue;
+      const written = token.kind === 'ref' ? `[${name}]` : `[[${name}]]`;
+      out += `${source.slice(at, token.start)}${written}`;
       at = token.end;
     }
     return at ? { ...def, formula: out + source.slice(at) } : def;
@@ -199,7 +242,11 @@ function withDraft<T>(
  */
 function preview<T>(session: Session<T>, defs: ColumnDef<T>[], id: string): PreviewTable {
   const { host } = session;
-  const compiled = compileColumns(defs, { functions: session.functions, parse: session.parse });
+  const compiled = compileColumns(defs, {
+    functions: session.functions,
+    parse: session.parse,
+    rows: rowSource(host),
+  });
   const draft = compiled.get(id);
   const lookup = lookupOf(defs);
   const draftDef = defs.find((d) => d.id === id);
@@ -278,6 +325,7 @@ export async function edit<T>(session: Session<T>): Promise<Outcome<T> | undefin
         formula: formula.trim()
           ? checkFormula(draft.defs, draft.id, functions)
           : { message: 'Enter a formula.', start: 0, end: 0 },
+        note: noteOn(formula),
       };
     },
     preview(name, formula) {

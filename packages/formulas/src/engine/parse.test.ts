@@ -14,6 +14,8 @@ function show(node: FormulaNode): string {
       return node.value ? 'TRUE' : 'FALSE';
     case 'ref':
       return `[${node.name}]`;
+    case 'range':
+      return `[[${node.name}]]`;
     case 'call':
       return `${node.name}(${node.args.map(show).join(', ')})`;
     case 'unary':
@@ -122,6 +124,31 @@ describe('parse', () => {
     const error = syntaxError(formula);
     expect(error.message).toMatch(message);
     expect([error.start, error.end]).toEqual([start, end]);
+  });
+});
+
+describe('whole columns', () => {
+  it('reads [[name]] as a whole column, next to [name]', () => {
+    expect(tree('[amount] / SUM([[ amount ]])')).toBe('(/ [amount] SUM([[amount]]))');
+    expect(tokenize('[[Unit price]]')[0]).toEqual({
+      kind: 'range',
+      value: 'Unit price',
+      start: 0,
+      end: 14,
+    });
+  });
+
+  it('reports a missing ]] or an empty name', () => {
+    expect(syntaxError('SUM([[a]').message).toBe('The column name has no closing ]].');
+    expect(syntaxError('SUM([[ ]])').message).toBe('The column name is empty.');
+    expect(tokenize('[[a] + 1', true).map((t) => t.kind)).toEqual(['error', 'end']);
+  });
+
+  it('lists whole columns among the refs, or alone', () => {
+    const node = parse('COUNTIF([[c]], [c]) + SUM([[a]])');
+    expect(refsOf(node)).toEqual(['c', 'a']);
+    expect(refsOf(node, true)).toEqual(['c', 'a']);
+    expect(refsOf(parse('[c] + SUM([[a]])'), true)).toEqual(['a']);
   });
 });
 

@@ -139,10 +139,15 @@ const CSS = `
     color: var(--argus-formula-function-color, inherit);
     font-weight: 600;
   }
-  .argus-formula-ref {
+  .argus-formula-ref,
+  .argus-formula-range {
     border-radius: 3px;
     background: var(--argus-formula-ref-bg, color-mix(in srgb, currentColor 10%, transparent));
     color: var(--argus-formula-ref-color, inherit);
+  }
+  /* A whole column: its brackets doubled, and in bold. */
+  .argus-formula-range {
+    font-weight: 600;
   }
   .argus-formula-number {
     color: var(--argus-formula-number-color, inherit);

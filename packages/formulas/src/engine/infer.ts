@@ -21,6 +21,7 @@ export function inferType(
       case 'boolean':
         return 'boolean';
       case 'ref':
+      case 'range':
         return refType(n.name);
       case 'unary':
         return n.operator === '-' ? 'number' : infer(n.operand);
@@ -31,6 +32,10 @@ export function inferType(
       case 'call': {
         const def = functions[n.name];
         if (!def) return 'unknown';
+        if (def.returnsFrom !== undefined) {
+          const from = n.args[def.returnsFrom];
+          return from ? infer(from) : 'unknown';
+        }
         if (!def.branches) return def.returns;
         const types = def
           .branches(n.args.length)

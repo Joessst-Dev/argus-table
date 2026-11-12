@@ -2,7 +2,7 @@ import type { ReactiveController, ReactiveControllerHost } from 'lit';
 import type { ArgusPlugin, CellTarget, PluginHost } from '../plugins.js';
 import type { ColumnDef, ColumnGroup } from '../types.js';
 
-type Hook = 'connect' | 'cleanup' | 'columns' | 'columnGroups' | 'keydown';
+type Hook = 'connect' | 'cleanup' | 'willUpdate' | 'columns' | 'columnGroups' | 'keydown';
 
 interface Memo<V> {
   input: readonly V[];
@@ -49,6 +49,16 @@ export class PluginController<T> implements ReactiveController {
 
   hostDisconnected(): void {
     for (const plugin of [...this.#connected.keys()].reverse()) this.#disconnect(plugin);
+  }
+
+  /** Tells the plugins, in order, which properties changed; before the transforms. */
+  willUpdate(changed: ReadonlySet<PropertyKey>): void {
+    for (const plugin of this.#plugins) {
+      if (!plugin.willUpdate || this.#failed.has(plugin)) continue;
+      this.#guard(plugin, 'willUpdate', () => {
+        plugin.willUpdate?.(changed, this.#api);
+      });
+    }
   }
 
   /** The plugins' `columns` transforms applied in order; the same array while nothing changed. */

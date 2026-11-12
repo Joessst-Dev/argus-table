@@ -821,6 +821,27 @@ describe('createTableModel: filtering', () => {
     expect(m.filterValues('zz')).toBeUndefined();
   });
 
+  it('lists the indexes of the rows passing the filters, leaving out the except columns', () => {
+    const m = fmodel({
+      sorting: [{ id: 'name', desc: true }],
+      columnFilters: {
+        age: { kind: 'number', op: 'gt', value: 10 },
+        city: { kind: 'set', values: ['Bonn'] },
+      },
+    });
+    expect(m.indexesPassing()).toEqual([0]);
+    expect(m.indexesPassing(['city'])).toEqual([0, 3]);
+    expect(m.indexesPassing(['city', 'age'])).toEqual([0, 1, 2, 3]);
+  });
+
+  it('leaves the except columns out of the quick filter', () => {
+    const m = fmodel({ quickFilter: 'dresden' });
+    expect(m.indexesPassing()).toEqual([3]);
+    expect(m.indexesPassing(['city'])).toEqual([]);
+    // The values a set filter offers still search the column's own text.
+    expect(m.filterValues('city')?.values).toEqual(['Dresden']);
+  });
+
   it('offers filterOptions as they are', () => {
     const m = fmodel({
       columns: filterable.map((c) => (c.id === 'city' ? { ...c, filterOptions: ['X', 'Y'] } : c)),
@@ -840,6 +861,7 @@ describe('createTableModel: filtering', () => {
     });
     expect(m.rowCount).toBe(5);
     expect(m.filterValues('city')).toBeUndefined();
+    expect(m.indexesPassing()).toBeUndefined();
   });
 });
 

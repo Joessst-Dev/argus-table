@@ -266,6 +266,61 @@ describe('filters from plugins', () => {
   });
 });
 
+describe('filteredIndexes', () => {
+  test('lists the data indexes of the rows the filters keep, leaving out the except columns', async () => {
+    const { plugin, host } = grab();
+    const el = await fixture({
+      columns,
+      data: people(10),
+      plugins: [plugin],
+      sorting: [{ id: 'age', desc: true }],
+      columnFilters: { age: { kind: 'number', op: 'lt', value: 7 } },
+    });
+    expect(host().filteredIndexes?.()).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    expect(host().filteredIndexes?.(['age'])).toHaveLength(10);
+    el.quickFilter = 'City 3';
+    await settle(el);
+    expect(host().filteredIndexes?.()).toEqual([3]);
+    expect(host().filteredIndexes?.(['name'])).toEqual([3]);
+    // Only the city column has "City 3" in it.
+    expect(host().filteredIndexes?.(['city'])).toEqual([]);
+  });
+
+  test('a column can read it from its accessor while the table filters and sorts', async () => {
+    let read: (() => readonly Person[]) | undefined;
+    // The row's share of the ages of the rows the filters keep (leaving out its own).
+    const share: ColumnDef<Person> = {
+      id: 'share',
+      accessor: (p) => {
+        const rows = read?.() ?? [];
+        const total = rows.reduce((sum, r) => sum + r.age, 0);
+        return total ? p.age / total : 0;
+      },
+      sortable: true,
+      filter: 'number',
+    };
+    const plugin: ArgusPlugin<Person> = {
+      name: 'share',
+      connect(host) {
+        read = () =>
+          (host.filteredIndexes?.(['share']) ?? []).flatMap((i) => host.element.data[i] ?? []);
+      },
+    };
+    const el = await fixture({
+      columns: [...columns.map((c) => ({ ...c, filter: 'number' as const })), share],
+      data: people(5),
+      plugins: [plugin],
+      sorting: [{ id: 'share', desc: true }],
+      columnFilters: {
+        age: { kind: 'number', op: 'ge', value: 1 },
+        share: { kind: 'number', op: 'gt', value: 0.2 },
+      },
+    });
+    // Ages 1–4 total 10: shares 0.1–0.4, and the filter on share keeps 0.3 and 0.4.
+    expect(names(el)).toEqual(['Person 4', 'Person 3']);
+  });
+});
+
 describe('filters with focus and selection', () => {
   test('a focused row that is filtered out hands focus to the row in its place', async () => {
     const el = await fixture({ columns, data: people(10), getRowId });

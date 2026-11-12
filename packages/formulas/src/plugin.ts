@@ -6,8 +6,10 @@ import {
   functionTable,
   nameOf,
   parseOrError,
+  rowSource,
   type Compiled,
   type FormulaFunction,
+  type RowSource,
 } from './columns.js';
 import { FormulaError, FormulaSyntaxError, isFormulaError } from './engine/errors.js';
 import type { FormulaNode } from './engine/parse.js';
@@ -66,7 +68,34 @@ interface TableState<T> {
   editing: string | undefined;
   /** The element the editor renders into, placed in that header's content. */
   anchor: HTMLElement | undefined;
+  /** The rows whole columns (`[[name]]`) cover; a new one when they change. */
+  rows: RowSource<T>;
+  /** What `rows` was made for (see `rowsKey`). */
+  rowsKey: { data: unknown; rest: string } | undefined;
 }
+
+/**
+ * What the rows of whole columns depend on: the data, the filters (but those on
+ * the columns using whole columns, `dependent`), the quick filter and the
+ * columns shown (which it searches).
+ */
+function rowsKey<T>(host: PluginHost<T>, compiled: ReadonlyMap<string, Compiled<T>>) {
+  const el = host.element;
+  const filters = Object.entries(el.columnFilters).filter(([id]) => !compiled.get(id)?.ranges);
+  return {
+    data: el.dataSource ?? el.data,
+    rest: JSON.stringify([filters, el.quickFilter, el.columnVisibility]),
+  };
+}
+
+/** The table's properties the rows of whole columns depend on (see `rowsKey`). */
+const ROW_PROPERTIES = ['data', 'dataSource', 'columnFilters', 'quickFilter', 'columnVisibility'];
+
+const usesRanges = <T>(compiled: ReadonlyMap<string, Compiled<T>>) =>
+  [...compiled.values()].some((c) => c.ranges);
+
+const sameKey = (a: TableState<never>['rowsKey'], b: TableState<never>['rowsKey']) =>
+  a?.data === b?.data && a?.rest === b?.rest;
 
 const errorContent = (error: FormulaError) =>
   html`<span class="argus-formula-error" title=${error.message}>${error.code}</span>`;
@@ -119,6 +148,8 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPl
         warned: new Set(),
         editing: undefined,
         anchor: undefined,
+        rows: rowSource(host),
+        rowsKey: undefined,
       };
       states.set(host.element, state);
     }
@@ -235,6 +266,14 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPl
       };
     },
 
+    willUpdate(changed, host) {
+      // Other rows for whole columns: the columns using them compute again.
+      if (!ROW_PROPERTIES.some((name) => changed.has(name))) return;
+      const state = stateOf(host);
+      if (!usesRanges(state.compiled)) return;
+      if (!sameKey(rowsKey(host, state.compiled), state.rowsKey)) host.invalidateColumns();
+    },
+
     columns(defs, host) {
       const state = stateOf(host);
       state.host = host;
@@ -245,11 +284,14 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPl
         state.compiled = new Map();
         return defs;
       }
+      // Rows other than those the columns last read (or none read yet): a new source.
+      if (!sameKey(rowsKey(host, state.compiled), state.rowsKey)) state.rows = rowSource(host);
       const compiled = hasFormulas
         ? compileColumns(defs, {
             functions,
             parse: parseOnce,
             previous: state.compiled,
+            rows: state.rows,
             onBroken(def, error) {
               const key = `${def.id}\u0000${def.formula ?? ''}`;
               if (state.warned.has(key)) return;
@@ -259,6 +301,7 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPl
           })
         : new Map<string, Compiled<T>>();
       state.compiled = compiled;
+      state.rowsKey = usesRanges(compiled) ? rowsKey(host, compiled) : undefined;
       // The server sorts and filters with `dataSource`, and it doesn't know the formulas.
       const remote = host.element.dataSource !== undefined;
       return defs.map((def) => {
