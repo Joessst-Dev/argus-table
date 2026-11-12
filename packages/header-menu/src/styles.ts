@@ -2,6 +2,11 @@
  * The add-on's CSS. The button and the menu are light-DOM content of the table,
  * so the sheet goes to the table's root node (the document, or the shadow root
  * the table sits in), once per root. In its own layer, so page CSS wins.
+ *
+ * One fallback per token and role, shared by the add-ons: `--argus-border-color`
+ * falls back to 20% of the text colour for lines (separators, popup edges) and
+ * 30% for form controls, so their edges stay visible; `--argus-menu-item-active-bg`
+ * to 10%.
  */
 const CSS = `
 @layer argus-header-menu {
@@ -40,7 +45,7 @@ const CSS = `
   .argus-header-menu-button:hover,
   .argus-header-menu-button[aria-expanded='true'] {
     opacity: 1;
-    background: var(--argus-menu-item-active-bg, color-mix(in srgb, currentColor 12%, transparent));
+    background: var(--argus-menu-item-active-bg, color-mix(in srgb, currentColor 10%, transparent));
   }
   .argus-header-menu-button svg {
     inline-size: 1em;

@@ -94,7 +94,7 @@ async function tableIn(canvasElement: HTMLElement): Promise<ArgusTable<Order>> {
  * import '@argus-table/themes/bootstrap.css';
  * ```
  *
- * Turn the stripes off with `argus-table { --argus-row-stripe-bg: var(--argus-bg); }`.
+ * Turn the stripes off with `argus-table { --argus-row-odd-bg: var(--argus-bg); }`.
  * The status badges are the page's own CSS: cell content is light DOM.
  */
 export const Bootstrap: Story = {

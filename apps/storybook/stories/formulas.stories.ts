@@ -233,12 +233,12 @@ const errorColumns: ColumnDef<Item>[] = [
 /**
  * Errors are cell values, never crashes: they pass through the rest of the
  * formula, explain themselves in a tooltip, and sort last. `IFERROR` replaces
- * them. `--argus-formula-error-color` colours them.
+ * them. `--argus-formula-error-fg` colours them.
  */
 export const Errors: Story = {
   render: () =>
     html`<argus-table
-      style="block-size: 260px; --argus-formula-error-color: #b42318"
+      style="block-size: 260px; --argus-formula-error-fg: #b42318"
       .columns=${errorColumns}
       .data=${items(5)}
       .plugins=${plugins}

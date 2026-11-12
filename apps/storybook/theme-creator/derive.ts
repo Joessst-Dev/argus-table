@@ -109,17 +109,17 @@ export function readSeeds(base: ParsedTheme): Seeds {
   const lines: Seeds['lines'] = {
     strength: DEFAULT_SEEDS.lines.strength,
     width: px(lookup('--argus-border-width')) || 1,
-    outline: (base.tokens['--argus-outline'] ?? 'none') !== 'none',
-    radius: px(base.tokens['--argus-radius']) || 0,
+    outline: (base.tokens['--argus-border'] ?? 'none') !== 'none',
+    radius: px(base.tokens['--argus-border-radius']) || 0,
   };
   if (bg && fg && border.light)
     lines.strength = clamp((towards(bg, fg, border.light) - 0.06) / 0.0018);
 
   const rows: Seeds['rows'] = {
-    stripes: !same(color('--argus-row-stripe-bg', 'light'), bg),
+    stripes: !same(color('--argus-row-odd-bg', 'light'), bg),
     hover:
       base.tokens['--argus-row-hover-bg'] !== undefined &&
-      !same(color('--argus-row-hover-bg', 'light'), color('--argus-row-stripe-bg', 'light')),
+      !same(color('--argus-row-hover-bg', 'light'), color('--argus-row-odd-bg', 'light')),
     height: { ...ELEMENT_SIZES.height },
     padding: { ...ELEMENT_SIZES.padding },
   };
@@ -259,7 +259,7 @@ const DERIVATIONS: Derivation[] = [
     value: ({ lines }) => `${String(lines.width)}px`,
   },
   {
-    token: '--argus-outline',
+    token: '--argus-border',
     deps: ({ lines }) =>
       lines.outline
         ? ['lines.outline', 'lines.width', 'lines.strength', 'surface', 'text']
@@ -270,12 +270,12 @@ const DERIVATIONS: Derivation[] = [
         : 'none',
   },
   {
-    token: '--argus-radius',
+    token: '--argus-border-radius',
     deps: () => ['lines.radius'],
     value: ({ lines }) => (lines.radius === 0 ? '0' : `${String(lines.radius)}px`),
   },
   {
-    token: '--argus-row-stripe-bg',
+    token: '--argus-row-odd-bg',
     deps: ({ rows }) => (rows.stripes ? ['rows.stripes', 'surface', 'text'] : ['rows.stripes']),
     value: ({ rows }, c) =>
       rows.stripes ? perScheme(c, (x) => mix(x.bg, x.fg, 0.035)) : 'var(--argus-bg)',
@@ -293,7 +293,7 @@ const DERIVATIONS: Derivation[] = [
     value: (_, c) => perScheme(c, (x, s) => mix(x.bg, x.accent, s === 'light' ? 0.14 : 0.28)),
   },
   {
-    token: '--argus-pinned-row-bg',
+    token: '--argus-row-pinned-bg',
     deps: ({ header }) =>
       header.style === 'body' ? ['header.style', 'surface', 'text'] : ['header.style'],
     value: ({ header }, c) =>
@@ -372,7 +372,7 @@ const DERIVATIONS: Derivation[] = [
     value: ({ type }) => type.mono.trim(),
   },
   {
-    token: '--argus-formula-function-color',
+    token: '--argus-formula-function-fg',
     deps: () => ['accent', 'surface'],
     value: (_, c) => perScheme(c, (x) => ensureContrast(x.accent, x.bg, 4.5)),
   },

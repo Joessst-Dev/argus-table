@@ -23,7 +23,7 @@ const CSS = `
     text-overflow: ellipsis;
   }
   .argus-formula-error {
-    color: var(--argus-formula-error-color, inherit);
+    color: var(--argus-formula-error-fg, currentColor);
   }
 }
 `;

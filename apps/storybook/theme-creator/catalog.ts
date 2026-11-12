@@ -41,14 +41,14 @@ const declaration = (manifest as { modules: { declarations?: ManifestDeclaration
 
 const LENGTHS = new Set([
   '--argus-border-width',
-  '--argus-radius',
+  '--argus-border-radius',
   '--argus-row-height',
   '--argus-cell-padding-inline',
   '--argus-cell-padding-block',
 ]);
 const TEXTS = new Set([
   '--argus-font',
-  '--argus-outline',
+  '--argus-border',
   '--argus-pinned-shadow',
   '--argus-focus-ring',
   '--argus-menu-shadow',
@@ -99,6 +99,7 @@ const addonTokens: TokenInfo[] = [
     'header-menu',
     '--argus-menu-danger-fg',
     'Text colour of destructive menu items (removing a formula column).',
+    'inherit',
   ),
   addon(
     'header-menu',
@@ -120,18 +121,23 @@ const addonTokens: TokenInfo[] = [
   ),
   addon('formulas', '--argus-dialog-accent', 'The editor’s save button.', 'Highlight'),
   addon('formulas', '--argus-dialog-accent-fg', 'Text on the save button.', 'HighlightText'),
-  addon('formulas', '--argus-dialog-shadow', 'Shadow under the formula editor.'),
+  addon(
+    'formulas',
+    '--argus-dialog-shadow',
+    'Shadow under the formula editor.',
+    '0 20px 48px rgb(0 0 0 / 0.28)',
+  ),
   addon('formulas', '--argus-dialog-backdrop', 'Behind the editor.', 'rgb(0 0 0 / 0.4)'),
   addon(
     'formulas',
-    '--argus-formula-error-color',
+    '--argus-formula-error-fg',
     'Error values, problems and their underline. Default: the text colour.',
   ),
   addon(
     'formulas',
     '--argus-formula-font',
     'Font of the formula input.',
-    'ui-monospace, monospace',
+    "ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace",
   ),
   addon(
     'formulas',
@@ -139,11 +145,11 @@ const addonTokens: TokenInfo[] = [
     'Background of the formula input.',
     'var(--argus-bg)',
   ),
-  addon('formulas', '--argus-formula-function-color', 'Function names in a formula.'),
+  addon('formulas', '--argus-formula-function-fg', 'Function names in a formula.'),
   addon('formulas', '--argus-formula-ref-bg', 'Background of column names in a formula.'),
-  addon('formulas', '--argus-formula-ref-color', 'Column names in a formula.'),
-  addon('formulas', '--argus-formula-number-color', 'Numbers in a formula.'),
-  addon('formulas', '--argus-formula-text-color', 'Text literals in a formula.'),
+  addon('formulas', '--argus-formula-ref-fg', 'Column names in a formula.'),
+  addon('formulas', '--argus-formula-number-fg', 'Numbers in a formula.'),
+  addon('formulas', '--argus-formula-text-fg', 'Text literals in a formula.'),
 ];
 
 export const TOKENS: readonly TokenInfo[] = [...tableTokens, ...addonTokens];

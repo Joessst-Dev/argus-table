@@ -8,7 +8,7 @@
  * The theme loads no fonts: it uses Bootstrap's system font stack.
  *
  * A theme sets tokens and ::part() rules only. To change one value, set the
- * token after this file. No stripes: argus-table { --argus-row-stripe-bg: var(--argus-bg); }
+ * token after this file. No stripes: argus-table { --argus-row-odd-bg: var(--argus-bg); }
  *
  * color-scheme sits on argus-table itself so that build tools polyfilling
  * light-dark() switch these colours too (see default.css).
@@ -27,12 +27,12 @@ argus-table {
   /* border-color */
   --argus-border-color: light-dark(#dee2e6, #495057);
   --argus-border-width: 1px;
-  --argus-outline: none;
-  --argus-radius: 0;
+  --argus-border: none;
+  --argus-border-radius: 0;
   /* .table's 0.5rem padding; its rows are 40px, the table's own comfortable height. */
   --argus-cell-padding-inline: 8px;
   /* .table-striped: the text colour at 5% over the background. */
-  --argus-row-stripe-bg: light-dark(#f2f2f2, #2c3034);
+  --argus-row-odd-bg: light-dark(#f2f2f2, #2c3034);
   /* .table-hover: 7.5% */
   --argus-row-hover-bg: light-dark(#ececec, #323539);
   /* .table-primary (primary-bg-subtle): clearer than .table-active next to the stripes. */
@@ -45,7 +45,30 @@ argus-table {
   --argus-filter-indicator-color: light-dark(#0d6efd, #6ea8fe);
   /* secondary-bg */
   --argus-skeleton-bg: light-dark(#e9ecef, #343a40);
-  --argus-pinned-row-bg: var(--argus-bg);
+  --argus-row-pinned-bg: var(--argus-bg);
+
+  /* Add-ons: a .dropdown-menu and a .modal. */
+  --argus-menu-bg: var(--argus-bg);
+  --argus-menu-fg: var(--argus-fg);
+  --argus-menu-shadow: 0 0.5rem 1rem light-dark(rgb(0 0 0 / 0.15), rgb(0 0 0 / 0.5));
+  --argus-menu-item-active-bg: light-dark(#e9ecef, #2b3035);
+  /* danger */
+  --argus-menu-danger-fg: light-dark(#dc3545, #ea868f);
+  --argus-dialog-bg: var(--argus-bg);
+  --argus-dialog-fg: var(--argus-fg);
+  /* .btn-primary at its hover colour, which keeps white text above 4.5:1 */
+  --argus-dialog-accent: #0b5ed7;
+  --argus-dialog-accent-fg: #ffffff;
+  --argus-dialog-shadow: 0 0.5rem 1rem light-dark(rgb(0 0 0 / 0.15), rgb(0 0 0 / 0.5));
+  --argus-dialog-backdrop: rgb(0 0 0 / 0.5);
+  --argus-formula-input-bg: var(--argus-bg);
+  --argus-formula-error-fg: light-dark(#dc3545, #ea868f);
+  /* primary, success and warning text emphasis */
+  --argus-formula-function-fg: light-dark(#0a58ca, #6ea8fe);
+  --argus-formula-ref-bg: var(--argus-row-selected-bg);
+  --argus-formula-ref-fg: var(--argus-fg);
+  --argus-formula-number-fg: light-dark(#198754, #75b798);
+  --argus-formula-text-fg: light-dark(#664d03, #ffda6a);
 
   /* .table-sm: 0.25rem padding, 32px rows (the table's own compact height). */
   &[density='compact'] {

@@ -93,7 +93,7 @@ function renderRow<T>(
 ) {
   const state = loading?.stateAt(row.index) ?? 'loaded';
   let parts = row.index % 2 === 0 ? 'row row-even' : 'row row-odd';
-  if (state !== 'loaded') parts += ' row-loading';
+  if (state !== 'loaded') parts += state === 'error' ? ' row-loading row-error' : ' row-loading';
   if (selected) parts += ' row-selected';
   const retry = state === 'error' ? loading?.retry.get(row.index) : undefined;
   // The Retry button goes in the first data column, after a selection column.

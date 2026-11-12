@@ -111,7 +111,7 @@ describe('share', () => {
     const draft = {
       ...newDraft('fluent', 'Ocean'),
       seeds: { accent: { light: '#0a7d5a', dark: '#5fd3a8' } },
-      overrides: { '--argus-radius': '6px' },
+      overrides: { '--argus-border-radius': '6px' },
     };
     const encoded = await encodeDraft(draft);
     expect(encoded).toMatch(/^[\w-]+$/);

@@ -58,7 +58,8 @@ export interface CheckAll {
 /**
  * The sticky header: a row per level of column groups, then the row of column
  * headers. Header content is slotted from the light DOM. Pinned
- * header cells use the same private `data-pin` hooks as body cells, but no parts.
+ * header cells use the same private `data-pin` hooks as body cells, and the parts
+ * `header-cell-pinned` and `header-cell-pinned-edge`.
  * Every header carries `data-col` (its column id) and sortable ones also
  * `data-sort-col`; the element's delegated handlers read them. Headers take part
  * in the grid's roving tabindex: the active one is the tab stop (`activeCol`).
@@ -112,7 +113,15 @@ export function renderHeader<T>({
                 ? selectAllCheckbox(checkAll)
                 : html`<slot name=${headerSlot(c.slot)}></slot>`
             }
-            ${c.sortable ? html`<span class="sort-indicator" aria-hidden="true"></span>` : nothing}
+            ${
+              c.sortable
+                ? html`<span
+                    part="sort-indicator"
+                    class="sort-indicator"
+                    aria-hidden="true"
+                  ></span>`
+                : nothing
+            }
             ${c.filtered ? html`<span part="filter-indicator" aria-hidden="true"></span>` : nothing}
             ${c.resizable ? resizeHandle(c) : nothing}
             ${
@@ -131,7 +140,11 @@ export function renderHeader<T>({
 }
 
 function headerParts<T>(c: RenderedColumn<T>, drag: HeaderDrag | undefined): string {
-  let parts = c.sorted ? 'header-cell header-cell-sorted' : 'header-cell';
+  let parts = c.sorted
+    ? `header-cell header-cell-sorted header-cell-sorted-${c.sorted}`
+    : 'header-cell';
+  if (c.pin)
+    parts += c.pinEdge ? ' header-cell-pinned header-cell-pinned-edge' : ' header-cell-pinned';
   if (c.filtered) parts += ' header-cell-filtered';
   if (c.kind === 'selection') parts += ' header-cell-selection';
   if (drag?.columns.has(c.id)) parts += ' header-cell-dragging';

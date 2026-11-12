@@ -261,7 +261,7 @@ table.pinnedRows = { bottom: [{ id: 'total', customer: 'Total', total: sum }] };
 - They stay in place while the body scrolls: the bottom rows sit at the bottom of the view, or right after the last row when the body is shorter. With no data rows, the `empty` slot shows between them.
 - Rows are numbered header, top, body, bottom: `aria-rowindex` of the first body row is 2 plus the number of top rows, and `aria-rowcount` counts them all (still `-1` while a `dataSource` total is unknown).
 - They take part in keyboard navigation (see [Accessibility](08-accessibility.md)), and clicks and Enter fire `argus-cell-click` and `argus-row-click` with `pinned` in the detail.
-- Parts: `row row-pinned row-pinned-top` (or `-bottom`) on the row, `cell cell-pinned-row` on its cells. `--argus-pinned-row-bg` sets their background, pinned columns included.
+- Parts: `row row-pinned row-pinned-top` (or `-bottom`) on the row, `cell cell-in-pinned-row` on its cells. `--argus-row-pinned-bg` sets their background, pinned columns included.
 - Replace the object to update them.
 
 ## Row selection
@@ -355,7 +355,7 @@ table.plugins = [formulas({ functions: { VAT: { fn: (n) => Number(n) * 0.19, arg
 
 - Options: `functions` adds functions or replaces built-in ones (per plugin instance, not a global registry), `marker: false` leaves headers alone.
 - List it before `headerMenu()`: formulas name columns by their text header, which the header menu wraps in a function.
-- Errors are values: the cell shows the code (`#DIV/0!` and so on) in an element with the class `argus-formula-error` and a tooltip that explains it, coloured by `--argus-formula-error-color`. They sort last. A column's own `cell` gets values only.
+- Errors are values: the cell shows the code (`#DIV/0!` and so on) in an element with the class `argus-formula-error` and a tooltip that explains it, coloured by `--argus-formula-error-fg`. They sort last. A column's own `cell` gets values only.
 - With a `dataSource`, formula columns can't be sorted: the server sorts and doesn't know them.
 - `editing: 'view' | 'edit' | 'none'` (default `'view'`) puts formula items in `headerMenu()`'s menu: view a formula, or edit, rename, delete and add formula columns in a modal editor loaded on first use. Changes are proposed through `argus-formula-column-add`, `-change` and `-remove` (`detail.column`, `detail.columns`, and `detail.previous` on a change); the app sets `columns` to `detail.columns`. See [Formula columns](09-formula-columns.md#ui).
 
@@ -473,11 +473,11 @@ interface ContentRenderer {
 
 ## Parts
 
-`table`, `header`, `header-row`, `header-group-row`, `header-group-cell`, `header-group-cell-dragging`, `header-group-filler`, `header-cell`, `header-cell-sorted`, `header-cell-filtered`, `filter-indicator`, `header-cell-dragging`, `header-cell-selection`, `cell-selection`, `selection-checkbox`, `drop-indicator`, `resize-handle`, `body`, `row`, `row-pinned`, `row-pinned-top`, `row-pinned-bottom`, `row-even`, `row-odd`, `row-selected`, `row-loading`, `cell`, `cell-pinned`, `cell-pinned-edge`, `cell-pinned-row`, `cell-sorted`, `skeleton`, `skeleton-error`, `retry`, `empty`.
+`table`, `header`, `header-row`, `header-group-row`, `header-group-cell`, `header-group-cell-dragging`, `header-group-filler`, `header-cell`, `header-cell-sorted`, `header-cell-sorted-asc`, `header-cell-sorted-desc`, `header-cell-pinned`, `header-cell-pinned-edge`, `header-cell-filtered`, `sort-indicator`, `filter-indicator`, `header-cell-dragging`, `header-cell-selection`, `cell-selection`, `selection-checkbox`, `drop-indicator`, `resize-handle`, `body`, `row`, `row-pinned`, `row-pinned-top`, `row-pinned-bottom`, `row-even`, `row-odd`, `row-selected`, `row-loading`, `row-error`, `cell`, `cell-pinned`, `cell-pinned-edge`, `cell-in-pinned-row`, `cell-sorted`, `skeleton`, `skeleton-error`, `retry`, `empty`.
 
-- `row-pinned` is on every row from `pinnedRows`, with `row-pinned-top` or `row-pinned-bottom` for its side (`::part()` can't tell them apart by attribute). Pinned rows also have `row`, but not `row-even`/`row-odd`. Their cells add `cell-pinned-row` to `cell`; don't confuse it with `cell-pinned`, which marks cells in pinned _columns_.
+- `row-pinned` is on every row from `pinnedRows`, with `row-pinned-top` or `row-pinned-bottom` for its side (`::part()` can't tell them apart by attribute). Pinned rows also have `row`, but not `row-even`/`row-odd`. Their cells add `cell-in-pinned-row` to `cell`; don't confuse it with `cell-pinned`, which marks cells in pinned _columns_.
 
-- `row-loading`, `skeleton`, `skeleton-error` and `retry` belong to `dataSource` loading; see [Data source](#data-source).
+- `row-loading`, `row-error`, `skeleton`, `skeleton-error` and `retry` belong to `dataSource` loading; see [Data source](#data-source). A failed page's rows have both `row-loading` and `row-error`.
 
 - `row-selected` is on body rows whose id is in `selection`; see [Row selection](#row-selection).
 - `cell-selection` is added to `cell` in the checkbox column (pinned rows included), `header-cell-selection` to its `header-cell`, and `selection-checkbox` is on every one of its checkboxes, the select-all one too. Style them with `accent-color`, for example: `argus-table::part(selection-checkbox) { accent-color: rebeccapurple; }`.
@@ -486,16 +486,16 @@ interface ContentRenderer {
 
 - `header-cell-dragging` is added to `header-cell` while that header is dragged, and to the headers of a dragged group's columns (the group cell gets `header-group-cell-dragging`); `drop-indicator` is a line inside the header where it would land, on its inline-start or inline-end edge. See [Column order](#column-order).
 
-- `header-cell-sorted` is added next to `header-cell` on the sorted column's header. `cell-sorted` is for body cells in that column. They are separate so that `::part(cell-sorted)` never matches headers. The direction is exposed through `aria-sort` only; attribute selectors can't follow `::part()`, so styling per direction is left out until a theme needs it.
-- `cell-pinned` is on every pinned cell on either side, and `cell-pinned-edge` is added on the pinned cell next to the scrolling columns. There are no per-side parts; the component mirrors the edge shadow itself.
+- `header-cell-sorted` is added next to `header-cell` on a sorted column's header, with `header-cell-sorted-asc` or `header-cell-sorted-desc` for the direction (attribute selectors can't follow `::part()`, so `aria-sort` alone can't be styled). `cell-sorted` is for body cells in that column. They are separate so that `::part(cell-sorted)` never matches headers. `sort-indicator` is the chevron in a sortable header, drawn with borders in `currentColor`.
+- `cell-pinned` is on every pinned cell on either side, and `cell-pinned-edge` is added on the pinned cell next to the scrolling columns; headers of pinned columns get `header-cell-pinned` and `header-cell-pinned-edge`. There are no per-side parts; the component mirrors the edge shadow itself.
 
 ## Tokens (first set)
 
-`--argus-bg`, `--argus-fg`, `--argus-header-bg`, `--argus-header-fg`, `--argus-border-color`, `--argus-border-width`, `--argus-row-hover-bg`, `--argus-row-stripe-bg`, `--argus-row-selected-bg`, `--argus-cell-padding-inline`, `--argus-cell-padding-block`, `--argus-row-height`, `--argus-font`, `--argus-pinned-shadow`, `--argus-resize-handle-color`, `--argus-focus-ring`, `--argus-skeleton-bg`, `--argus-pinned-row-bg`, `--argus-drop-indicator-color`, `--argus-filter-indicator-color`, `--argus-outline`, `--argus-radius`.
+`--argus-bg`, `--argus-fg`, `--argus-header-bg`, `--argus-header-fg`, `--argus-border-color`, `--argus-border-width`, `--argus-row-hover-bg`, `--argus-row-odd-bg`, `--argus-row-selected-bg`, `--argus-cell-padding-inline`, `--argus-cell-padding-block`, `--argus-row-height`, `--argus-font`, `--argus-pinned-shadow`, `--argus-resize-handle-color`, `--argus-focus-ring`, `--argus-skeleton-bg`, `--argus-row-pinned-bg`, `--argus-drop-indicator-color`, `--argus-filter-indicator-color`, `--argus-border`, `--argus-border-radius`.
 
 - `--argus-skeleton-bg` colours the skeleton bars of rows still loading. Default: the text colour at 12% opacity.
-- `--argus-outline` is a `border` shorthand drawn around the whole table, inside its size. `--argus-radius` rounds the table's corners; the element's paint containment clips the header, rows and pinned columns to them. Defaults: `none` and `0`. Added in v0.2 for the Material-inspired theme's outlined, rounded surface: a theme can't set `border` or `border-radius` on the host itself.
-- `--argus-pinned-row-bg` is the background of the rows from `pinnedRows`, pinned columns included (a background set through `::part(row-pinned)` wouldn't reach the cells in pinned columns, which paint their own). Default: `--argus-bg`.
+- `--argus-border` is a `border` shorthand drawn around the whole table, inside its size. `--argus-border-radius` rounds the table's corners; the element's paint containment clips the header, rows and pinned columns to them. Defaults: `none` and `0`. Added in v0.2 for the Material-inspired theme's outlined, rounded surface: a theme can't set `border` or `border-radius` on the host itself.
+- `--argus-row-pinned-bg` is the background of the rows from `pinnedRows`, pinned columns included (a background set through `::part(row-pinned)` wouldn't reach the cells in pinned columns, which paint their own). Default: `--argus-bg`.
 
 - `--argus-row-height` and `--argus-cell-padding-inline` each have a default per density: 32 / 40 / 52 px rows and 8 / 12 / 16 px padding for compact / comfortable / spacious; see [Styling and theming](06-styling-and-theming.md).
 - `--argus-cell-padding-block` applies with `rowHeight: 'auto'` only: the block padding of body and pinned-row cells, whose content then sits at the top. Default: what centres one line of text (`1lh`) in `--argus-row-height`.
@@ -506,7 +506,7 @@ interface ContentRenderer {
 
 ### Add-on tokens
 
-The add-ons read these in the table's light DOM, so they are set on the table like its own. They also read the table's `--argus-bg`, `--argus-fg`, `--argus-font`, `--argus-border-color`, `--argus-focus-ring` and `--argus-header-bg`. The `--argus-menu-*` tokens are shared by every add-on menu, the `--argus-dialog-*` tokens by every add-on dialog.
+The add-ons read these in the table's light DOM, so they are set on the table like its own, and every theme in `@argus-table/themes` sets them (a test checks it). They also read the table's `--argus-bg`, `--argus-fg`, `--argus-font`, `--argus-border-color`, `--argus-focus-ring` and `--argus-header-bg`. The `--argus-menu-*` tokens are shared by every add-on menu, the `--argus-dialog-*` tokens by every add-on dialog.
 
 | Token | Read by | What it sets | Default |
 | --- | --- | --- | --- |
@@ -522,11 +522,11 @@ The add-ons read these in the table's light DOM, so they are set on the table li
 | `--argus-dialog-accent-fg` | formulas | Text on the save button | `HighlightText` |
 | `--argus-dialog-shadow` | formulas | Shadow under the editor | `0 20px 48px rgb(0 0 0 / 0.28)` |
 | `--argus-dialog-backdrop` | formulas | Behind the editor | `rgb(0 0 0 / 0.4)` |
-| `--argus-formula-error-color` | formulas | Error values, problems and their underline | the text colour |
+| `--argus-formula-error-fg` | formulas | Error values, problems and their underline | the text colour |
 | `--argus-formula-font` | formulas | The formula input | `ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace` |
 | `--argus-formula-input-bg` | formulas | Background of the formula input | `var(--argus-bg)` |
-| `--argus-formula-function-color` | formulas | Function names in a formula | `inherit` |
+| `--argus-formula-function-fg` | formulas | Function names in a formula | `inherit` |
 | `--argus-formula-ref-bg` | formulas | Background of column names in a formula | the text colour at 10% |
-| `--argus-formula-ref-color` | formulas | Column names in a formula | `inherit` |
-| `--argus-formula-number-color` | formulas | Numbers in a formula | `inherit` |
-| `--argus-formula-text-color` | formulas | Text literals in a formula | `inherit` |
+| `--argus-formula-ref-fg` | formulas | Column names in a formula | `inherit` |
+| `--argus-formula-number-fg` | formulas | Numbers in a formula | `inherit` |
+| `--argus-formula-text-fg` | formulas | Text literals in a formula | `inherit` |

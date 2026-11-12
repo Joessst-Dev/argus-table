@@ -126,8 +126,8 @@ describe('seeds', () => {
         JSON.stringify(simplify(after[name] ?? '')) !==
         JSON.stringify(simplify(before[name] ?? '')),
     );
-    expect(changed).toEqual(['--argus-radius']);
-    expect(after['--argus-radius']).toBe('4px');
+    expect(changed).toEqual(['--argus-border-radius']);
+    expect(after['--argus-border-radius']).toBe('4px');
   });
 
   it('change the accent everywhere it shows', () => {

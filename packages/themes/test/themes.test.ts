@@ -7,9 +7,21 @@ const root = join(import.meta.dirname, '..');
 const elementSource = readFileSync(join(root, '../table/src/argus-table.ts'), 'utf8');
 
 // The element's JSDoc is the list of public names (it feeds the manifest).
-const tokens = new Set(
-  [...elementSource.matchAll(/@cssprop \[(--argus-[\w-]+)/g)].map((m) => m[1]),
+const tableTokens = new Set(
+  [...elementSource.matchAll(/@cssprop \[(--argus-[\w-]+)/g)].map((m) => m[1] ?? ''),
 );
+// The add-ons' tokens: the ones their stylesheets read, beyond the table's.
+const addonSources = [
+  '../header-menu/src/styles.ts',
+  '../formulas/src/styles.ts',
+  '../formulas/src/editor/styles.ts',
+].map((file) => readFileSync(join(root, file), 'utf8'));
+const addonTokens = new Set(
+  addonSources
+    .flatMap((source) => [...source.matchAll(/var\((--argus-[\w-]+)/g)].map((m) => m[1] ?? ''))
+    .filter((token) => token !== '' && !tableTokens.has(token)),
+);
+const tokens = new Set([...tableTokens, ...addonTokens]);
 const parts = new Set([...elementSource.matchAll(/@csspart ([\w-]+)/g)].map((m) => m[1]));
 
 interface Rule {
@@ -120,15 +132,23 @@ describe.each(themes)('%s', (file) => {
   it('sets every documented colour token, so the theme is complete', () => {
     const set = new Set(rules.flatMap((r) => r.properties));
     for (const token of tokens) {
-      // Sizes stay per density in the element; a theme may leave them alone.
+      // Sizes stay per density in the element, and the add-ons' monospace fonts
+      // fall back to the system's; a theme may leave them alone.
       if (
         token === '--argus-row-height' ||
         token === '--argus-cell-padding-inline' ||
-        token === '--argus-cell-padding-block'
+        token === '--argus-cell-padding-block' ||
+        token.endsWith('-font')
       ) {
         continue;
       }
       expect(set, token).toContain(token);
     }
+  });
+
+  it("sets the add-ons' tokens too, so menus and the formula editor take the theme", () => {
+    expect(addonTokens.size).toBeGreaterThan(15);
+    const set = new Set(rules.flatMap((r) => r.properties));
+    expect([...addonTokens].filter((t) => !t.endsWith('-font') && !set.has(t))).toEqual([]);
   });
 });

@@ -110,7 +110,7 @@ type Story = StoryObj<Args>;
  * `pinnedRows: { bottom: [totals] }` keeps a totals row at the bottom while the
  * body scrolls. Pinned rows are separate objects, read by the same columns, and
  * never sorted. They get the `row-pinned` and `row-pinned-bottom` parts, and
- * their background is `--argus-pinned-row-bg`.
+ * their background is `--argus-row-pinned-bg`.
  */
 export const Totals: Story = {
   play: async ({ canvasElement }) => {
