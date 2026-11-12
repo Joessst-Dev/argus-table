@@ -3,7 +3,8 @@ import { html } from 'lit';
 import { expect, userEvent, waitFor } from 'storybook/test';
 import '../theme-creator/theme-creator.js';
 import type { ArgusThemeCreator } from '../theme-creator/theme-creator.js';
-import { clearDraft } from '../theme-creator/share.js';
+import { newDraft } from '../theme-creator/presets.js';
+import { clearDraft, encodeDraft } from '../theme-creator/share.js';
 
 const meta = {
   title: 'Themes/Theme creator',
@@ -85,5 +86,23 @@ export const CreatorTest: Story = {
     // The CSS is a theme: light-dark() colours and the scheme switches.
     await expect(creator.css).toContain('light-dark(');
     await expect(creator.css).toContain("argus-table[data-argus-theme='dark']");
+
+    // A link opened in this tab changes only the hash: the creator opens its
+    // theme and takes the hash out of the URL, so a reload keeps changes.
+    const text = () => root.textContent;
+    location.hash = `theme=${await encodeDraft(newDraft('bootstrap', 'Linked'))}`;
+    await waitFor(() => expect(text()).toContain('Opened the theme from the link.'));
+    await expect(creator.css).toContain(
+      'Linked: an argus-table theme, based on the Bootstrap-inspired theme.',
+    );
+    await expect(location.hash).toBe('');
+
+    // An unreadable one keeps the current theme, and says so.
+    location.hash = 'theme=not-a-theme';
+    await waitFor(() =>
+      expect(text()).toContain('The link’s theme couldn’t be read; kept the current theme.'),
+    );
+    await expect(creator.css).toContain('Linked: an argus-table theme');
+    history.replaceState(history.state, '', location.pathname + location.search);
   },
 };

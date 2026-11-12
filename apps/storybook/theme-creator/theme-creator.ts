@@ -427,7 +427,15 @@ export class ArgusThemeCreator extends LitElement {
 
   override connectedCallback(): void {
     super.connectedCallback();
+    // A link opened in a tab that already shows the creator changes only the
+    // hash: the page doesn't reload, so the link is read here.
+    window.addEventListener('hashchange', this.#onHashChange);
     if (!this.#loaded) void this.#load();
+  }
+
+  override disconnectedCallback(): void {
+    super.disconnectedCallback();
+    window.removeEventListener('hashchange', this.#onHashChange);
   }
 
   /** A link's theme, else the saved draft, else the default preset. */
@@ -439,21 +447,43 @@ export class ArgusThemeCreator extends LitElement {
     } catch {
       // Another origin: only this frame's link counts.
     }
+    let unreadable = false;
     for (const hash of hashes) {
       if (!hash) continue;
-      const draft = await decodeDraft(hash);
-      if (draft) {
-        this.draft = draft;
-        this.status = 'Opened the theme from the link.';
-        return;
-      }
-      this.status = 'The link’s theme couldn’t be read; started from the default.';
+      if (await this.#open(hash)) return;
+      unreadable = true;
     }
     const saved = loadDraft();
-    if (saved) {
-      this.draft = saved;
-      this.status = 'Restored your saved draft.';
+    if (saved) this.draft = saved;
+    if (unreadable)
+      this.status = `The link’s theme couldn’t be read; ${saved ? 'restored your saved draft' : 'started from the default'}.`;
+    else if (saved) this.status = 'Restored your saved draft.';
+  }
+
+  #onHashChange = () => {
+    const hash = hashDraft(location.href);
+    if (!hash) return;
+    void this.#open(hash).then((opened) => {
+      if (!opened) this.status = 'The link’s theme couldn’t be read; kept the current theme.';
+    });
+  };
+
+  /**
+   * Opens the draft in a link's hash. The hash is then taken out of this
+   * frame's URL, so a reload keeps the user's changes (saved as they go)
+   * instead of opening the link again.
+   */
+  async #open(hash: string): Promise<boolean> {
+    const draft = await decodeDraft(hash);
+    if (!draft) return false;
+    this.draft = draft;
+    this.status = 'Opened the theme from the link.';
+    if (hashDraft(location.href) === hash) {
+      const url = new URL(location.href);
+      url.hash = '';
+      history.replaceState(history.state, '', url.href);
     }
+    return true;
   }
 
   protected override willUpdate(changed: PropertyValues<this>): void {
