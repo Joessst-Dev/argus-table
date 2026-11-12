@@ -61,6 +61,16 @@ import { headerMenu } from '@argus-table/header-menu';
 table.plugins = [formulas(), headerMenu()];
 ```
 
+## Make a theme with your coding agent
+
+The `argus-table-theme` [agent skill](skills/README.md) turns your brand colours, fonts or website into an argus-table theme. Your agent hands it back as a link to the [theme creator](https://joessst-dev.github.io/argus-table/?path=/story/themes-theme-creator--creator), where you check contrast, adjust it and download the CSS. In Claude Code:
+
+```text
+/plugin install argus-table --marketplace Joessst-Dev/argus-table
+```
+
+Other agents: `npx skills add Joessst-Dev/argus-table --skill argus-table-theme`.
+
 ## Packages
 
 | Package                                                      | Purpose                                                                      | Status |

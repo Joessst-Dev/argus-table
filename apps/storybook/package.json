@@ -4,7 +4,20 @@
   "type": "module",
   "nx": {
     "name": "storybook",
+    "implicitDependencies": [
+      "skills"
+    ],
     "targets": {
+      "test-storybook": {
+        "inputs": [
+          "default",
+          "^production",
+          "{workspaceRoot}/skills/argus-table-theme/references/*.md",
+          {
+            "env": "BROWSERS"
+          }
+        ]
+      },
       "build": {
         "inputs": [
           "production",

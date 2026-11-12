@@ -22,6 +22,10 @@ type Story = StoryObj;
  * seeds (accent, surface, header, lines, rows, type, depth), fine-tune any
  * token or part, and check contrast in light and dark. Copy or download the
  * CSS, or copy a link that opens the creator with your theme.
+ *
+ * Or let your coding agent start one: the `argus-table-theme` skill (in the
+ * repository's `skills/` folder) turns your brand colours, fonts or website
+ * into a link that opens here.
  */
 export const Creator: Story = {};
 

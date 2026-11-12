@@ -1,0 +1,14 @@
+{
+  "name": "skills",
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "targets": {
+    "lint": {
+      "command": "eslint .",
+      "options": { "cwd": "{projectRoot}" }
+    },
+    "test": {
+      "command": "node --test test/*.test.mjs",
+      "options": { "cwd": "{projectRoot}" }
+    }
+  }
+}
