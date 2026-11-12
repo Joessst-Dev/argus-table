@@ -932,10 +932,7 @@ export class ArgusTable<T = unknown> extends LitElement {
    */
   async setState(state: TableState): Promise<void> {
     // Another format (a later version's): nothing it holds can be trusted to mean the same.
-    if (state.version !== undefined && (state.version as number) !== 1) {
-      console.warn(`argus-table: setState() ignored state of version ${String(state.version)}.`);
-      return;
-    }
+    if ((state.version ?? 1) !== 1) return;
     this.#restore('sorting', this.#sorting, state.sorting);
     this.#restore('columnSizing', this.#sizing, state.columnSizing);
     this.#restore('columnOrder', this.#order, state.columnOrder);
@@ -957,7 +954,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.#scrollTarget = { row: scroll.row, count };
     }
     const scroller = this.#scroller();
-    if (scroller && Number.isFinite(scroll.inline)) {
+    if (scroller && scroll.inline >= 0) {
       scroller.scrollLeft = scroll.inline * this.#direction();
     }
     // The scroll event comes before the next frame, and the rows move with its update.
@@ -990,7 +987,8 @@ export class ArgusTable<T = unknown> extends LitElement {
 
   protected override willUpdate(changed: PropertyValues<this>): void {
     if (changed.has('plugins')) this.#plugins.set(this.plugins);
-    this.#plugins.willUpdate(new Set([...changed.keys()].map(String)));
+    // Property names: the keys are strings.
+    this.#plugins.willUpdate(new Set(changed.keys()) as ReadonlySet<string>);
     const columns = this.#plugins.transform(this.#effectiveColumns());
     this.#columnsChanged = columns !== this.#columns;
     this.#columns = columns;

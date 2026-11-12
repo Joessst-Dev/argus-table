@@ -170,12 +170,9 @@ describe('setState()', () => {
 
   test('ignores state of another version as a whole', async () => {
     const el = await fixture({ columns, data: people(100) });
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const later = { version: 2, columnSizing: { age: 120 } } as unknown as TableState;
     await el.setState(later);
     expect(el.columnSizing).toEqual({});
-    expect(warn).toHaveBeenCalledOnce();
-    warn.mockRestore();
   });
 
   test('takes state without a version, and a scroll without inline, as before', async () => {

@@ -3,6 +3,8 @@ import type { ComplexAttributeConverter } from 'lit';
 // Boolean attributes on every element read `"false"` as off (ADR 0004), unlike
 // Lit's `type: Boolean`, where any value, `"false"` too, means on.
 
+const on = (value: string) => value.trim().toLowerCase() !== 'false';
+
 /**
  * Boolean attribute with a default that may be `true`: absent → unset (the
  * default applies), `"false"` → `false`, anything else → `true`.
@@ -10,7 +12,7 @@ import type { ComplexAttributeConverter } from 'lit';
  */
 export const flagConverter: ComplexAttributeConverter<boolean | undefined> = {
   fromAttribute(value) {
-    return value === null ? undefined : value.trim().toLowerCase() !== 'false';
+    return value === null ? undefined : on(value);
   },
 };
 
@@ -21,6 +23,6 @@ export const flagConverter: ComplexAttributeConverter<boolean | undefined> = {
  */
 export const switchConverter: ComplexAttributeConverter<boolean> = {
   fromAttribute(value) {
-    return value !== null && value.trim().toLowerCase() !== 'false';
+    return value !== null && on(value);
   },
 };

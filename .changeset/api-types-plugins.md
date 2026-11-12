@@ -6,7 +6,7 @@
 
 - **Boolean attributes:** `virtualize-columns="false"` and `selection-checkboxes="false"` now turn the feature off, like the column flags (`sortable="false"`). Before, any value turned it on.
 - **Saved state:**
-  - `getState()` now includes `version: 1`. `setState()` ignores state of any other version, with a console warning, and reads state without a version as version 1.
+  - `getState()` now includes `version: 1`. `setState()` ignores state of any other version, as it ignores unknown column ids, and reads state without a version as version 1.
   - `scroll.left` is renamed `scroll.inline`: it is the offset from the start edge, positive in RTL too. A saved `scroll` without `inline` restores only the row.
 - **State arrays are `readonly`:** `SortState`, `ColumnOrderState`, `SelectionState` and a set filter's `values`.
 - **New type:** `SortDirection` (`'asc' | 'desc'`).
