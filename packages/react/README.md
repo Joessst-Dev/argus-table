@@ -45,7 +45,7 @@ export function Orders({ orders }: { orders: Order[] }) {
 ```
 
 - **Props** set the element's properties: `columns`, `data`, `dataSource`, `pinnedRows`, `getRowId`, `rowHeight`, `density`, `overscan`, `virtualizeColumns`, `sorting`, `columnSizing`, `columnOrder`, `selectionMode`, `selectionCheckboxes`, `selection` and `plugins`. Other props (`aria-label`, `className`, `style`, …) go to the element as usual.
-- **Events** are `on*` props that get the element's `CustomEvent`: `onSortChange`, `onColumnResize`, `onColumnReorder`, `onCellClick`, `onRowClick`, `onRangeChange`, `onLoadError` and `onRowSelect`. The details are in the [`argus-table` README](https://www.npmjs.com/package/argus-table).
+- **Events** are `on*` props that get the element's `CustomEvent`: `onSortingChange`, `onColumnSizingChange`, `onColumnOrderChange`, `onColumnPinningChange`, `onColumnVisibilityChange`, `onColumnFiltersChange`, `onSelectionChange`, `onCellClick`, `onRowClick`, `onRangeChange` and `onLoadError`. A `…Change` event has the new value in `e.detail` under the property's name. The details are in the [`argus-table` README](https://www.npmjs.com/package/argus-table).
 - **Cells and headers** can be JSX: a column's `cell` (and `header`) may return any React node, as well as a string, a number, a DOM node or a Lit template. See [React content in cells](#react-content-in-cells).
 - **Height:** the table virtualizes its rows, so it needs a bounded height. Its default is 400 px.
 
@@ -80,11 +80,11 @@ const [sorting, setSorting] = useState<SortState>([]);
   columns={columns}
   data={orders}
   sorting={sorting}
-  onSortChange={(e) => setSorting(e.detail.sorting)}
+  onSortingChange={(e) => setSorting(e.detail.sorting)}
 />;
 ```
 
-Selected rows work the same way, with `selectionMode="multi"`, `selection` and `onRowSelect` (`e.detail.selection`, row ids).
+Every controllable property works the same way, for example selected rows with `selectionMode="multi"`, `selection` and `onSelectionChange` (`e.detail.selection`, row ids).
 
 ## Methods
 

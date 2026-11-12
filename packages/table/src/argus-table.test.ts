@@ -290,15 +290,15 @@ describe('virtualization', () => {
 
   test('fires argus-range-change after the update with the visible rows', async () => {
     const el = await fixture({ columns, data: people(1000) });
-    const events: { start: number; end: number }[] = [];
+    const events: { first: number; last: number }[] = [];
     el.addEventListener('argus-range-change', (e) => events.push(e.detail));
     await el.scrollToRow(500);
     await settle(el);
     const last = events.at(-1);
-    expect(last?.start).toBe(500);
-    expect(last && last.end - last.start).toBeGreaterThanOrEqual(7);
+    expect(last?.first).toBe(500);
+    expect(last && last.last - last.first).toBeGreaterThanOrEqual(7);
     // Visible rows only: the rendered window (with overscan) is larger.
-    expect(bodyRows(el).length).toBeGreaterThan((last?.end ?? 0) - (last?.start ?? 0) + 1);
+    expect(bodyRows(el).length).toBeGreaterThan((last?.last ?? 0) - (last?.first ?? 0) + 1);
   });
 });
 
@@ -588,7 +588,7 @@ describe('sorting', () => {
   test('cycles a sortable header asc → desc → unsorted on click (uncontrolled)', async () => {
     const el = await fixture({ columns: sortColumns, data });
     const events: unknown[] = [];
-    el.addEventListener('argus-sort-change', (e) => events.push(e.detail.sorting));
+    el.addEventListener('argus-sorting-change', (e) => events.push(e.detail.sorting));
 
     headerCell(el, 1).click();
     await settle(el);
@@ -605,11 +605,11 @@ describe('sorting', () => {
     expect(events).toEqual([[{ id: 'age', desc: false }], [{ id: 'age', desc: true }], []]);
   });
 
-  test('fires argus-sort-change after the update, with sorted rows in place', async () => {
+  test('fires argus-sorting-change after the update, with sorted rows in place', async () => {
     const el = await fixture({ columns: sortColumns, data });
     const seen = new Promise<(string | undefined)[]>((resolve) => {
       el.addEventListener(
-        'argus-sort-change',
+        'argus-sorting-change',
         () => {
           resolve(ages(el));
         },
@@ -623,7 +623,7 @@ describe('sorting', () => {
   test('ignores clicks on headers that are not sortable', async () => {
     const el = await fixture({ columns: sortColumns, data });
     const events: unknown[] = [];
-    el.addEventListener('argus-sort-change', (e) => events.push(e.detail));
+    el.addEventListener('argus-sorting-change', (e) => events.push(e.detail));
     headerCell(el, 2).click();
     await settle(el);
     expect(events).toEqual([]);
@@ -643,7 +643,7 @@ describe('sorting', () => {
     );
     const el = await fixture({ columns: withButton, data });
     const events: unknown[] = [];
-    el.addEventListener('argus-sort-change', (e) => events.push(e.detail));
+    el.addEventListener('argus-sorting-change', (e) => events.push(e.detail));
     el.querySelector('button')?.click();
     await settle(el);
     expect(events).toEqual([]);
@@ -694,7 +694,7 @@ describe('sorting', () => {
   test('controlled: a click only proposes; the host applies it', async () => {
     const el = await fixture({ columns: sortColumns, data, sorting: [] });
     const proposed: unknown[] = [];
-    el.addEventListener('argus-sort-change', (e) => proposed.push(e.detail.sorting));
+    el.addEventListener('argus-sorting-change', (e) => proposed.push(e.detail.sorting));
 
     headerCell(el, 0).click();
     await settle(el);
@@ -884,22 +884,22 @@ describe('column resizing', () => {
     expect(el.sorting).toEqual([]);
   });
 
-  test('fires argus-column-resize after the update with columnId, width and sizing', async () => {
+  test('fires argus-column-sizing-change after the update with columnSizing, columnId and width', async () => {
     const el = await fixture({ columns: resizeColumns, data: people(1) });
     const seen: { detail: unknown; width: number }[] = [];
-    el.addEventListener('argus-column-resize', (e) => {
+    el.addEventListener('argus-column-sizing-change', (e) => {
       seen.push({ detail: e.detail, width: width(el, 0) });
     });
     await drag(el, 0, 30);
     const last = seen.at(-1);
-    expect(last?.detail).toEqual({ columnId: 'name', width: 230, sizing: { name: 230 } });
+    expect(last?.detail).toEqual({ columnSizing: { name: 230 }, columnId: 'name', width: 230 });
     expect(last?.width).toBe(230);
   });
 
   test('controlled: a drag only proposes; the host applies it; undefined hands it back', async () => {
     const el = await fixture({ columns: resizeColumns, data: people(1), columnSizing: {} });
     const proposed: unknown[] = [];
-    el.addEventListener('argus-column-resize', (e) => proposed.push(e.detail.sizing));
+    el.addEventListener('argus-column-sizing-change', (e) => proposed.push(e.detail.columnSizing));
     await drag(el, 0, 40);
     expect(proposed.at(-1)).toEqual({ name: 240 });
     expect(width(el, 0)).toBe(200);
@@ -1062,7 +1062,7 @@ describe('column reordering', () => {
     expect(el.columnOrder).toEqual([]);
 
     const clicks = vi.fn();
-    el.addEventListener('argus-sort-change', clicks);
+    el.addEventListener('argus-sorting-change', clicks);
     await drag(el, 'name', middle(el, 'id') + 5, false);
     const h = header(el, 'name');
     h.dispatchEvent(new PointerEvent('pointerup', { ...opts, clientX: middle(el, 'id') + 5 }));
@@ -1173,16 +1173,16 @@ describe('column reordering', () => {
     });
   });
 
-  test('fires argus-column-reorder after the update with columnId and order', async () => {
+  test('fires argus-column-order-change after the update with columnOrder and columnId', async () => {
     const el = await fixture({ columns: reorderColumns, data: people(1) });
     const seen: { detail: unknown; order: unknown }[] = [];
-    el.addEventListener('argus-column-reorder', (e) => {
+    el.addEventListener('argus-column-order-change', (e) => {
       seen.push({ detail: e.detail, order: order(el) });
     });
     await drag(el, 'city', middle(el, 'name') - 5);
     expect(seen).toEqual([
       {
-        detail: { columnId: 'city', order: ['city', 'name', 'age', 'id'] },
+        detail: { columnOrder: ['city', 'name', 'age', 'id'], columnId: 'city' },
         order: ['city', 'name', 'age', 'id'],
       },
     ]);
@@ -1191,7 +1191,7 @@ describe('column reordering', () => {
   test('controlled: a move only proposes; the host applies it; undefined hands it back', async () => {
     const el = await fixture({ columns: reorderColumns, data: people(1), columnOrder: [] });
     const proposed: unknown[] = [];
-    el.addEventListener('argus-column-reorder', (e) => proposed.push(e.detail.order));
+    el.addEventListener('argus-column-order-change', (e) => proposed.push(e.detail.columnOrder));
     await drag(el, 'id', middle(el, 'name') - 5);
     expect(proposed).toEqual([['id', 'name', 'age', 'city']]);
     expect(order(el)).toEqual(['name', 'age', 'city', 'id']);
@@ -1259,7 +1259,7 @@ describe('auto width', () => {
     });
   const resizes = (el: HTMLElement) => {
     const seen: unknown[] = [];
-    el.addEventListener('argus-column-resize', (e) => seen.push(e.detail));
+    el.addEventListener('argus-column-sizing-change', (e) => seen.push(e.detail));
     return seen;
   };
   const handleOf = (el: HTMLElement, id: string) => {
@@ -1396,7 +1396,7 @@ describe('auto width', () => {
     const fitted = widthOf(el, 'city');
     expect(fitted).toBeLessThan(150);
     expect(fits(el, 'city')).toBe(true);
-    expect(seen).toEqual([{ columnId: 'city', width: fitted, sizing: { city: fitted } }]);
+    expect(seen).toEqual([{ columnId: 'city', width: fitted, columnSizing: { city: fitted } }]);
     expect(el.columnSizing).toEqual({ city: fitted });
   });
 
@@ -1429,7 +1429,7 @@ describe('auto width', () => {
     expect(widthOf(el, 'city')).toBe(40);
     expect(seen.map((d) => (d as { columnId: string }).columnId)).toEqual(['age', 'name']);
     // Every event carries the whole new sizing.
-    expect((seen.at(-1) as { sizing: object }).sizing).toEqual(el.columnSizing);
+    expect((seen.at(-1) as { columnSizing: object }).columnSizing).toEqual(el.columnSizing);
   });
 
   test('controlled: autosizeColumns() proposes every change in one sizing', async () => {
@@ -1438,10 +1438,10 @@ describe('auto width', () => {
       { id: 'age', header: 'Age', accessor: 'age', width: 300 },
     ];
     const el = await fixture({ columns: cols, data: withLong(20), columnSizing: { age: 300 } });
-    const seen = resizes(el) as { columnId: string; sizing: Record<string, number> }[];
+    const seen = resizes(el) as { columnId: string; columnSizing: Record<string, number> }[];
     await el.autosizeColumns();
     expect(seen.map((d) => d.columnId)).toEqual(['name', 'age']);
-    expect(Object.keys(seen[0]?.sizing ?? {}).sort()).toEqual(['age', 'name']);
+    expect(Object.keys(seen[0]?.columnSizing ?? {}).sort()).toEqual(['age', 'name']);
     expect(el.columnSizing).toEqual({ age: 300 });
     expect(widthOf(el, 'name')).toBe(60);
   });
@@ -1773,7 +1773,7 @@ describe('click events', () => {
     if (!(content instanceof HTMLElement)) throw new Error('no cell content');
     content.click();
     expect(seen).toEqual([
-      ['cell', { row: data[4], columnId: 'city', value: 'City 4' }],
+      ['cell', { row: data[4], rowId: 'p4', index: 4, columnId: 'city', value: 'City 4' }],
       ['row', { row: data[4], rowId: 'p4', index: 4 }],
     ]);
   });
@@ -1800,7 +1800,7 @@ describe('click events', () => {
     };
     expect(enter(cell).defaultPrevented).toBe(true);
     expect(seen).toEqual([
-      ['cell', { row: data[2], columnId: 'name', value: data[2]?.name }],
+      ['cell', { row: data[2], rowId: 'p2', index: 2, columnId: 'name', value: data[2]?.name }],
       ['row', { row: data[2], rowId: 'p2', index: 2 }],
     ]);
     // With a modifier, or from content inside the cell: left alone.
@@ -2333,7 +2333,10 @@ describe('pinned rows', () => {
     if (!cell) throw new Error('no cell');
     cell.click();
     expect(seen).toEqual([
-      ['cell', { row: totals, columnId: 'age', value: 999, pinned: 'bottom' }],
+      [
+        'cell',
+        { row: totals, rowId: 'bottom-0', index: 0, columnId: 'age', value: 999, pinned: 'bottom' },
+      ],
       ['row', { row: totals, rowId: 'bottom-0', index: 0, pinned: 'bottom' }],
     ]);
     seen.length = 0;
@@ -2341,7 +2344,17 @@ describe('pinned rows', () => {
     topCell?.focus();
     if (topCell) press(topCell, 'Enter');
     expect(seen).toEqual([
-      ['cell', { row: average, columnId: 'name', value: 'Average', pinned: 'top' }],
+      [
+        'cell',
+        {
+          row: average,
+          rowId: 'top-0',
+          index: 0,
+          columnId: 'name',
+          value: 'Average',
+          pinned: 'top',
+        },
+      ],
       ['row', { row: average, rowId: 'top-0', index: 0, pinned: 'top' }],
     ]);
   });

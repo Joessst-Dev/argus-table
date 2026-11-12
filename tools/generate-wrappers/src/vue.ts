@@ -16,7 +16,7 @@ import {
 
 const isBoolean = (type: string) => /^boolean(\s*\|\s*undefined)?$/.test(type);
 
-/** The handler prop Vue matches to an emit: `sort-change` → `onSort-change`, as vue-tsc writes it. */
+/** The handler prop Vue matches to an emit: `sorting-change` → `onSorting-change`, as vue-tsc writes it. */
 const handlerProp = (emit: string) => `'on${emit.charAt(0).toUpperCase()}${emit.slice(1)}'`;
 
 /**

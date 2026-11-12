@@ -62,7 +62,7 @@ export class OrdersComponent {
 Add `@import '@argus-table/themes/default.css';` to your global styles for the default theme.
 
 - **Inputs** set the element's properties: `columns`, `data`, `dataSource`, `pinnedRows`, `getRowId`, `rowHeight`, `density`, `overscan`, `virtualizeColumns`, `sorting`, `columnSizing`, `columnOrder`, `selectionMode`, `selectionCheckboxes`, `selection` and `plugins`. Other attributes (`aria-label`, `class`, `style`, …) stay on the element. `null`, as from the `async` pipe, means unset.
-- **Outputs** emit the element's `CustomEvent`: `sortChange`, `columnResize`, `columnReorder`, `cellClick`, `rowClick`, `rangeChange` and `loadError`. In `(rowClick)`, `$event.detail.row` has your row type. The details are in the [`argus-table` README](https://www.npmjs.com/package/argus-table).
+- **Outputs** `cellClick`, `rowClick`, `rangeChange` and `loadError` emit the element's `CustomEvent`; in `(rowClick)`, `$event.detail.row` has your row type. The outputs of state changes (`sortingChange`, `columnSizingChange`, `columnOrderChange`, `columnPinningChange`, `columnVisibilityChange`, `columnFiltersChange`, `selectionChange`) emit the new value, for two-way binding; bind the element's own event, such as `(argus-column-sizing-change)`, for the whole `CustomEvent`. The details are in the [`argus-table` README](https://www.npmjs.com/package/argus-table).
 - **Cells and headers** can be Angular templates: `<ng-template argusCell="<column id>">` and `argusHeader` inside `<argus-table>`, or `argusTemplate()` from a `cell` function. See [Angular templates in cells](#angular-templates-in-cells).
 - **Height:** the table virtualizes its rows, so it needs a bounded height. Its default is 400 px.
 
@@ -94,7 +94,7 @@ Give a column its cells or header with a template inside the table, named by col
 
 ## Two-way binding
 
-`[(sorting)]`, `[(columnSizing)]`, `[(columnOrder)]` and `[(selection)]` keep a value in sync with the table; `sortingChange`, `columnSizingChange`, `columnOrderChange` and `selectionChange` emit the new value. The selection event itself is `rowSelect`. Leave one unbound and the table keeps that state itself. A one-way `[sorting]` is controlled: a header click only emits the proposed order, and nothing changes until you set it.
+`[(sorting)]`, `[(columnSizing)]`, `[(columnOrder)]`, `[(columnPinning)]`, `[(columnVisibility)]`, `[(columnFilters)]` and `[(selection)]` keep a value in sync with the table; their outputs (`sortingChange` and so on) emit the new value. Leave one unbound and the table keeps that state itself. A one-way `[sorting]` is controlled: a header click only emits the proposed order, and nothing changes until you set it.
 
 ## Methods
 

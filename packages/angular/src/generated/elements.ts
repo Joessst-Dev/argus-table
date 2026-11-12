@@ -16,16 +16,16 @@ import type {
   ArgusColumnGroup as ArgusColumnGroupElement,
   CellClickDetail,
   CellContext,
-  ColumnFilterDetail,
-  ColumnHideDetail,
-  ColumnPinDetail,
-  ColumnReorderDetail,
-  ColumnResizeDetail,
+  ColumnFiltersChangeDetail,
+  ColumnOrderChangeDetail,
+  ColumnPinningChangeDetail,
+  ColumnSizingChangeDetail,
+  ColumnVisibilityChangeDetail,
   LoadErrorDetail,
   RangeChangeDetail,
   RowClickDetail,
-  RowSelectDetail,
-  SortChangeDetail,
+  SelectionChangeDetail,
+  SortingChangeDetail,
 } from 'argus-table';
 import {
   ArgusTableBase,
@@ -42,16 +42,16 @@ import { setProperty } from '../set-property.js';
   changeDetection: ChangeDetectionStrategy.OnPush,
   encapsulation: ViewEncapsulation.None,
   host: {
-    '(argus-sort-change)': 'handleSortChange($event)',
-    '(argus-column-resize)': 'handleColumnResize($event)',
-    '(argus-column-reorder)': 'handleColumnReorder($event)',
-    '(argus-column-pin)': 'handleColumnPin($event)',
-    '(argus-column-hide)': 'handleColumnHide($event)',
-    '(argus-column-filter)': 'handleColumnFilter($event)',
+    '(argus-sorting-change)': 'handleSortingChange($event)',
+    '(argus-column-sizing-change)': 'handleColumnSizingChange($event)',
+    '(argus-column-order-change)': 'handleColumnOrderChange($event)',
+    '(argus-column-pinning-change)': 'handleColumnPinningChange($event)',
+    '(argus-column-visibility-change)': 'handleColumnVisibilityChange($event)',
+    '(argus-column-filters-change)': 'handleColumnFiltersChange($event)',
+    '(argus-selection-change)': 'handleSelectionChange($event)',
     '(argus-cell-click)': 'handleCellClick($event)',
     '(argus-row-click)': 'handleRowClick($event)',
     '(argus-range-change)': 'handleRangeChange($event)',
-    '(argus-row-select)': 'handleRowSelect($event)',
     '(argus-load-error)': 'handleLoadError($event)',
   },
 })
@@ -110,34 +110,34 @@ export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
     setProperty(this.element, 'virtualizeColumns', 'virtualize-columns', value);
   }
 
-  /** The sort order, e.g. `[{ id: 'total', desc: true }]`; `[]` when unsorted. Unset, the table keeps it itself and header clicks change it. Once set, it is controlled: a click only fires `argus-sort-change` with the proposed order, and nothing changes until you set the property. Set `undefined` to hand it back. */
+  /** The sort order, e.g. `[{ id: 'total', desc: true }]`; `[]` when unsorted. Unset, the table keeps it itself and header clicks change it. Once set, it is controlled: a click only fires `argus-sorting-change` with the proposed order, and nothing changes until you set the property. Set `undefined` to hand it back. */
   @Input() set sorting(value: ArgusTableElement<T>['sorting'] | null | undefined) {
     setProperty(this.element, 'sorting', undefined, value);
   }
 
-  /** Resized widths in px by column id, e.g. `{ name: 240 }`. A resized flex column becomes fixed. Uncontrolled until set, like `sorting`: once set, a resize only fires `argus-column-resize` with the proposed widths. `undefined` hands it back. */
+  /** Resized widths in px by column id, e.g. `{ name: 240 }`. A resized flex column becomes fixed. Uncontrolled until set, like `sorting`: once set, a resize only fires `argus-column-sizing-change` with the proposed widths. `undefined` hands it back. */
   @Input() set columnSizing(value: ArgusTableElement<T>['columnSizing'] | null | undefined) {
     setProperty(this.element, 'columnSizing', undefined, value);
   }
 
-  /** The column order: column ids as the table shows them, e.g. `['id', 'total', 'customer']`. `[]` (the default) keeps the order of `columns`. Each pin group (start-pinned, scrolling, end-pinned) takes its columns in this order; unknown ids are ignored and columns it doesn't list follow the listed ones of their group. After a move it holds every column id. Uncontrolled until set, like `sorting`: once set, a move only fires `argus-column-reorder` with the proposed order. `undefined` hands it back. */
+  /** The column order: column ids as the table shows them, e.g. `['id', 'total', 'customer']`. `[]` (the default) keeps the order of `columns`. Each pin group (start-pinned, scrolling, end-pinned) takes its columns in this order; unknown ids are ignored and columns it doesn't list follow the listed ones of their group. After a move it holds every column id. Uncontrolled until set, like `sorting`: once set, a move only fires `argus-column-order-change` with the proposed order. `undefined` hands it back. */
   @Input() set columnOrder(value: ArgusTableElement<T>['columnOrder'] | null | undefined) {
     setProperty(this.element, 'columnOrder', undefined, value);
   }
 
-  /** Pins by column id, over the columns' own `pin`: `'start'` or `'end'` pins a column, `false` unpins one whose definition pins it, e.g. `{ total: 'end', id: false }`. Columns it doesn't list keep their `pin`. A pinned column joins the edge of its group nearest its place in `columnOrder`, and stops flexing. Uncontrolled until set, like `sorting`: once set, pinning from a plugin only fires `argus-column-pin` with the proposed pins. `undefined` hands it back. */
+  /** Pins by column id, over the columns' own `pin`: `'start'` or `'end'` pins a column, `false` unpins one whose definition pins it, e.g. `{ total: 'end', id: false }`. Columns it doesn't list keep their `pin`. A pinned column joins the edge of its group nearest its place in `columnOrder`, and stops flexing. Uncontrolled until set, like `sorting`: once set, pinning from a plugin only fires `argus-column-pinning-change` with the proposed pins. `undefined` hands it back. */
   @Input() set columnPinning(value: ArgusTableElement<T>['columnPinning'] | null | undefined) {
     setProperty(this.element, 'columnPinning', undefined, value);
   }
 
-  /** Visibility by column id, over the columns' own `hidden`: `false` hides a column, `true` shows one defined as `hidden`, e.g. `{ email: false }`. Columns it doesn't list keep their `hidden`. A hidden column isn't rendered, but sorting by it still works and it keeps its place in `columnOrder`. Uncontrolled until set, like `sorting`: once set, hiding or showing from a plugin only fires `argus-column-hide` with the proposed visibility. `undefined` hands it back. */
+  /** Visibility by column id, over the columns' own `hidden`: `false` hides a column, `true` shows one defined as `hidden`, e.g. `{ email: false }`. Columns it doesn't list keep their `hidden`. A hidden column isn't rendered, but sorting by it still works and it keeps its place in `columnOrder`. Uncontrolled until set, like `sorting`: once set, hiding or showing from a plugin only fires `argus-column-visibility-change` with the proposed visibility. `undefined` hands it back. */
   @Input() set columnVisibility(
     value: ArgusTableElement<T>['columnVisibility'] | null | undefined,
   ) {
     setProperty(this.element, 'columnVisibility', undefined, value);
   }
 
-  /** Filters by column id, e.g. `{ city: { kind: 'set', values: ['Berlin'] } }` or `{ total: { kind: 'number', op: 'gt', value: 100 } }`. A row shows when it passes every filter and `quickFilter`. Filters on hidden columns still apply; unknown ids are ignored. A column's `filterFn` replaces the built-in matching. With a `dataSource`, the filters go to `getRows()` and the server filters. Users set filters through plugins (the column menu) on columns with a `filter` kind. Uncontrolled until set, like `sorting`: once set, a change from a plugin only fires `argus-column-filter` with the proposed filters. `undefined` hands it back. */
+  /** Filters by column id, e.g. `{ city: { kind: 'set', values: ['Berlin'] } }` or `{ total: { kind: 'number', op: 'gt', value: 100 } }`. A row shows when it passes every filter and `quickFilter`. Filters on hidden columns still apply; unknown ids are ignored. A column's `filterFn` replaces the built-in matching. With a `dataSource`, the filters go to `getRows()` and the server filters. Users set filters through plugins (the column menu) on columns with a `filter` kind. Uncontrolled until set, like `sorting`: once set, a change from a plugin only fires `argus-column-filters-change` with the proposed filters. `undefined` hands it back. */
   @Input() set columnFilters(value: ArgusTableElement<T>['columnFilters'] | null | undefined) {
     setProperty(this.element, 'columnFilters', undefined, value);
   }
@@ -159,7 +159,7 @@ export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
     setProperty(this.element, 'selectionCheckboxes', 'selection-checkboxes', value);
   }
 
-  /** The selected rows, as row ids (from `getRowId`, or the row's index as a string), e.g. `['p4', 'p7']`. Uncontrolled until set, like `sorting`: once set, a click only fires `argus-row-select` with the proposed ids. `undefined` hands it back. The table never drops ids on its own: they stay through sorting, a new `data` or reloaded pages. With a `dataSource`, Ctrl/Cmd+A selects the loaded rows only. */
+  /** The selected rows, as row ids (from `getRowId`, or the row's index as a string), e.g. `['p4', 'p7']`. Uncontrolled until set, like `sorting`: once set, a click only fires `argus-selection-change` with the proposed ids. `undefined` hands it back. The table never drops ids on its own: they stay through sorting, a new `data` or reloaded pages. With a `dataSource`, Ctrl/Cmd+A selects the loaded rows only. */
   @Input() set selection(value: ArgusTableElement<T>['selection'] | null | undefined) {
     setProperty(this.element, 'selection', undefined, value);
   }
@@ -169,62 +169,41 @@ export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
     this.setPlugins(value);
   }
 
-  /** `argus-sort-change`: A sortable header was clicked, or activated with Enter or Space. `detail: { sorting }`: the new order, or the proposed one when `sorting` is controlled. */
-  @Output() readonly sortChange = new EventEmitter<CustomEvent<SortChangeDetail>>();
-
-  /** The new `sorting` from `argus-sort-change`, for `[(sorting)]`. */
+  /** `argus-sorting-change`, for `[(sorting)]`: the new `sorting`. Bind `(argus-sorting-change)` for the whole event. `sorting` changed: a sortable header was clicked, or activated with Enter or Space. `detail: { sorting }`. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
   @Output() readonly sortingChange = new EventEmitter<ArgusTableElement<T>['sorting']>();
 
-  /** `argus-column-resize`: A column was resized: by dragging its handle, with Alt+Arrow on its header, by a double-click on its handle (fit to content) or by `autosizeColumns()`. `detail: { columnId, width, sizing }`: the new widths, or the proposed ones when `columnSizing` is controlled. Fires on every frame of a drag, and once per column that `autosizeColumns()` changes. */
-  @Output() readonly columnResize = new EventEmitter<CustomEvent<ColumnResizeDetail>>();
-
-  /** The new `columnSizing` from `argus-column-resize`, for `[(columnSizing)]`. */
+  /** `argus-column-sizing-change`, for `[(columnSizing)]`: the new `columnSizing`. Bind `(argus-column-sizing-change)` for the whole event. `columnSizing` changed: a column was resized by dragging its handle, with Alt+Arrow on its header, by a double-click on its handle (fit to content) or by `autosizeColumns()`. `detail: { columnSizing, columnId, width }`. Fires on every frame of a drag, and once per column that changes (a group resize, `autosizeColumns()`). The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
   @Output() readonly columnSizingChange = new EventEmitter<ArgusTableElement<T>['columnSizing']>();
 
-  /** `argus-column-reorder`: A column or column group was moved: by dragging its header, or with Alt+Shift+Arrow on its focused header. Columns move within their pin side (start-pinned, scrolling, end-pinned) and their column group; groups move as a whole. `detail: { columnId, groupId?, order }`: `groupId` is set when a group moved, and `columnId` is then its first column; `order` is the new order, or the proposed one when `columnOrder` is controlled. Fires once per move, on drop. */
-  @Output() readonly columnReorder = new EventEmitter<CustomEvent<ColumnReorderDetail>>();
-
-  /** The new `columnOrder` from `argus-column-reorder`, for `[(columnOrder)]`. */
+  /** `argus-column-order-change`, for `[(columnOrder)]`: the new `columnOrder`. Bind `(argus-column-order-change)` for the whole event. `columnOrder` changed: a column or column group was moved by dragging its header, or with Alt+Shift+Arrow on its focused header. Columns move within their pin side (start-pinned, scrolling, end-pinned) and their column group; groups move as a whole. `detail: { columnOrder, columnId, groupId? }`: `groupId` is set when a group moved, and `columnId` is then its first column. Fires once per move, on drop. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
   @Output() readonly columnOrderChange = new EventEmitter<ArgusTableElement<T>['columnOrder']>();
 
-  /** `argus-column-pin`: A column was pinned to a side or unpinned, through a plugin such as the column menu. `detail: { columnId, pin, pinning }`: `pin` is `'start'`, `'end'` or `false`; `pinning` is the new state, or the proposed one when `columnPinning` is controlled. */
-  @Output() readonly columnPin = new EventEmitter<CustomEvent<ColumnPinDetail>>();
-
-  /** The new `columnPinning` from `argus-column-pin`, for `[(columnPinning)]`. */
+  /** `argus-column-pinning-change`, for `[(columnPinning)]`: the new `columnPinning`. Bind `(argus-column-pinning-change)` for the whole event. `columnPinning` changed: a column was pinned to a side or unpinned, through a plugin such as the column menu. `detail: { columnPinning, columnId, pin }`: `pin` is `'start'`, `'end'` or `false`. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
   @Output() readonly columnPinningChange = new EventEmitter<
     ArgusTableElement<T>['columnPinning']
   >();
 
-  /** `argus-column-hide`: A column was hidden or shown, through a plugin such as the column menu. `detail: { columnId, hidden, visibility }`: `hidden` is `true` when it was hidden; `visibility` is the new state, or the proposed one when `columnVisibility` is controlled. */
-  @Output() readonly columnHide = new EventEmitter<CustomEvent<ColumnHideDetail>>();
-
-  /** The new `columnVisibility` from `argus-column-hide`, for `[(columnVisibility)]`. */
+  /** `argus-column-visibility-change`, for `[(columnVisibility)]`: the new `columnVisibility`. Bind `(argus-column-visibility-change)` for the whole event. `columnVisibility` changed: a column was hidden or shown, through a plugin such as the column menu. `detail: { columnVisibility, columnId, visible }`: `visible` is `false` when it was hidden. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
   @Output() readonly columnVisibilityChange = new EventEmitter<
     ArgusTableElement<T>['columnVisibility']
   >();
 
-  /** `argus-column-filter`: A column's filter was set, changed or cleared, through a plugin such as the column menu. `detail: { columnId, filter, filters }`: `filter` is the column's new filter, or `undefined` when it was cleared; `filters` is the new state, or the proposed one when `columnFilters` is controlled. */
-  @Output() readonly columnFilter = new EventEmitter<CustomEvent<ColumnFilterDetail>>();
-
-  /** The new `columnFilters` from `argus-column-filter`, for `[(columnFilters)]`. */
+  /** `argus-column-filters-change`, for `[(columnFilters)]`: the new `columnFilters`. Bind `(argus-column-filters-change)` for the whole event. `columnFilters` changed: a column's filter was set, changed or cleared, through a plugin such as the column menu. `detail: { columnFilters, columnId, columnFilter }`: `columnFilter` is the column's new filter, or `undefined` when it was cleared. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
   @Output() readonly columnFiltersChange = new EventEmitter<
     ArgusTableElement<T>['columnFilters']
   >();
 
-  /** `argus-cell-click`: A body or pinned-row cell was clicked, or Enter was pressed on it. `detail: { row, columnId, value, pinned? }`; `pinned` is `'top'` or `'bottom'` for a pinned row. Fires before `argus-row-click`. */
+  /** `argus-selection-change`, for `[(selection)]`: the new `selection`. Bind `(argus-selection-change)` for the whole event. `selection` changed: by a click on a row (Ctrl/Cmd toggles, Shift selects a range), with Space, Shift+Arrow or Shift+PageUp/PageDown on a body cell, or with Ctrl/Cmd+A. Only with a `selectionMode`. `detail: { selection }`. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
+  @Output() readonly selectionChange = new EventEmitter<ArgusTableElement<T>['selection']>();
+
+  /** `argus-cell-click`: A body or pinned-row cell was clicked, or Enter was pressed on it. `detail: { row, rowId, index, columnId, value, pinned? }`; `pinned` is `'top'` or `'bottom'` for a pinned row, and `index` is then its index in its list. Fires before `argus-row-click`. */
   @Output() readonly cellClick = new EventEmitter<CustomEvent<CellClickDetail<T>>>();
 
   /** `argus-row-click`: A body or pinned row was clicked, or Enter was pressed on one of its cells. `detail: { row, rowId, index, pinned? }`; for a pinned row, `index` is its index in its list. */
   @Output() readonly rowClick = new EventEmitter<CustomEvent<RowClickDetail<T>>>();
 
-  /** `argus-range-change`: The rows in view changed (rows rendered ahead of the scroll position not counted). `detail: { start, end }` (row indices in the current order, inclusive). */
+  /** `argus-range-change`: The rows in view changed (rows rendered ahead of the scroll position not counted). `detail: { first, last }` (row indices in the current order, both inclusive). */
   @Output() readonly rangeChange = new EventEmitter<CustomEvent<RangeChangeDetail>>();
-
-  /** `argus-row-select`: The selected rows changed: by a click on a row (Ctrl/Cmd toggles, Shift selects a range), with Space, Shift+Arrow or Shift+PageUp/PageDown on a body cell, or with Ctrl/Cmd+A. Only with a `selectionMode`. `detail: { selection }`: the new row ids, or the proposed ones when `selection` is controlled. */
-  @Output() readonly rowSelect = new EventEmitter<CustomEvent<RowSelectDetail>>();
-
-  /** The new `selection` from `argus-row-select`, for `[(selection)]`. */
-  @Output() readonly selectionChange = new EventEmitter<ArgusTableElement<T>['selection']>();
 
   /** `argus-load-error`: A `dataSource` page failed to load: `getRows()` rejected or threw. `detail: { error, start, end }` (`end` exclusive). The rows show a Retry button. */
   @Output() readonly loadError = new EventEmitter<CustomEvent<LoadErrorDetail>>();
@@ -264,88 +243,78 @@ export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
     return this.element.setState(...args);
   }
 
-  protected handleSortChange(event: Event): void {
+  protected handleSortingChange(event: Event): void {
     // Events bubble: skip those of a table nested in a cell.
     if (event.target !== this.element) return;
-    const e = event as CustomEvent<SortChangeDetail>;
-    this.sortChange.emit(e);
-    this.sortingChange.emit(e.detail.sorting);
+    this.sortingChange.emit((event as CustomEvent<SortingChangeDetail>).detail.sorting);
   }
 
-  protected handleColumnResize(event: Event): void {
+  protected handleColumnSizingChange(event: Event): void {
     // Events bubble: skip those of a table nested in a cell.
     if (event.target !== this.element) return;
-    const e = event as CustomEvent<ColumnResizeDetail>;
-    this.columnResize.emit(e);
-    this.columnSizingChange.emit(e.detail.sizing);
+    this.columnSizingChange.emit(
+      (event as CustomEvent<ColumnSizingChangeDetail>).detail.columnSizing,
+    );
   }
 
-  protected handleColumnReorder(event: Event): void {
+  protected handleColumnOrderChange(event: Event): void {
     // Events bubble: skip those of a table nested in a cell.
     if (event.target !== this.element) return;
-    const e = event as CustomEvent<ColumnReorderDetail>;
-    this.columnReorder.emit(e);
-    this.columnOrderChange.emit(e.detail.order);
+    this.columnOrderChange.emit((event as CustomEvent<ColumnOrderChangeDetail>).detail.columnOrder);
   }
 
-  protected handleColumnPin(event: Event): void {
+  protected handleColumnPinningChange(event: Event): void {
     // Events bubble: skip those of a table nested in a cell.
     if (event.target !== this.element) return;
-    const e = event as CustomEvent<ColumnPinDetail>;
-    this.columnPin.emit(e);
-    this.columnPinningChange.emit(e.detail.pinning);
+    this.columnPinningChange.emit(
+      (event as CustomEvent<ColumnPinningChangeDetail>).detail.columnPinning,
+    );
   }
 
-  protected handleColumnHide(event: Event): void {
+  protected handleColumnVisibilityChange(event: Event): void {
     // Events bubble: skip those of a table nested in a cell.
     if (event.target !== this.element) return;
-    const e = event as CustomEvent<ColumnHideDetail>;
-    this.columnHide.emit(e);
-    this.columnVisibilityChange.emit(e.detail.visibility);
+    this.columnVisibilityChange.emit(
+      (event as CustomEvent<ColumnVisibilityChangeDetail>).detail.columnVisibility,
+    );
   }
 
-  protected handleColumnFilter(event: Event): void {
+  protected handleColumnFiltersChange(event: Event): void {
     // Events bubble: skip those of a table nested in a cell.
     if (event.target !== this.element) return;
-    const e = event as CustomEvent<ColumnFilterDetail>;
-    this.columnFilter.emit(e);
-    this.columnFiltersChange.emit(e.detail.filters);
+    this.columnFiltersChange.emit(
+      (event as CustomEvent<ColumnFiltersChangeDetail>).detail.columnFilters,
+    );
+  }
+
+  protected handleSelectionChange(event: Event): void {
+    // Events bubble: skip those of a table nested in a cell.
+    if (event.target !== this.element) return;
+    this.selectionChange.emit((event as CustomEvent<SelectionChangeDetail>).detail.selection);
   }
 
   protected handleCellClick(event: Event): void {
     // Events bubble: skip those of a table nested in a cell.
     if (event.target !== this.element) return;
-    const e = event as CustomEvent<CellClickDetail<T>>;
-    this.cellClick.emit(e);
+    this.cellClick.emit(event as CustomEvent<CellClickDetail<T>>);
   }
 
   protected handleRowClick(event: Event): void {
     // Events bubble: skip those of a table nested in a cell.
     if (event.target !== this.element) return;
-    const e = event as CustomEvent<RowClickDetail<T>>;
-    this.rowClick.emit(e);
+    this.rowClick.emit(event as CustomEvent<RowClickDetail<T>>);
   }
 
   protected handleRangeChange(event: Event): void {
     // Events bubble: skip those of a table nested in a cell.
     if (event.target !== this.element) return;
-    const e = event as CustomEvent<RangeChangeDetail>;
-    this.rangeChange.emit(e);
-  }
-
-  protected handleRowSelect(event: Event): void {
-    // Events bubble: skip those of a table nested in a cell.
-    if (event.target !== this.element) return;
-    const e = event as CustomEvent<RowSelectDetail>;
-    this.rowSelect.emit(e);
-    this.selectionChange.emit(e.detail.selection);
+    this.rangeChange.emit(event as CustomEvent<RangeChangeDetail>);
   }
 
   protected handleLoadError(event: Event): void {
     // Events bubble: skip those of a table nested in a cell.
     if (event.target !== this.element) return;
-    const e = event as CustomEvent<LoadErrorDetail>;
-    this.loadError.emit(e);
+    this.loadError.emit(event as CustomEvent<LoadErrorDetail>);
   }
 }
 

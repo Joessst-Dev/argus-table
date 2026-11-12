@@ -314,7 +314,7 @@ describe('plugin keys', () => {
     };
     const resizes: unknown[] = [];
     const el = await fixture({ columns, data: people(3), plugins: [claim] });
-    el.addEventListener('argus-column-resize', (e) => resizes.push(e.detail));
+    el.addEventListener('argus-column-sizing-change', (e) => resizes.push(e.detail));
     const name = headerOf(el, 'name');
     name.focus();
     expect(press(name, 'ArrowRight', { altKey: true }).defaultPrevented).toBe(true);
@@ -351,11 +351,11 @@ describe('plugin host', () => {
   ];
   const ages = (el: ArgusTable<Person>) => rowsInOrder(el).map((r) => rowText(r)[1]);
 
-  test('setSort sorts, clears and fires argus-sort-change (uncontrolled)', async () => {
+  test('setSort sorts, clears and fires argus-sorting-change (uncontrolled)', async () => {
     const { plugin, host } = hostGrabber();
     const el = await fixture({ columns, data, plugins: [plugin] });
     const events: unknown[] = [];
-    el.addEventListener('argus-sort-change', (e) => events.push(e.detail.sorting));
+    el.addEventListener('argus-sorting-change', (e) => events.push(e.detail.sorting));
 
     host().setSort('age', 'desc');
     await settle(el);
@@ -378,7 +378,7 @@ describe('plugin host', () => {
     const { plugin, host } = hostGrabber();
     const el = await fixture({ columns, data, sorting: [], plugins: [plugin] });
     const events: unknown[] = [];
-    el.addEventListener('argus-sort-change', (e) => events.push(e.detail.sorting));
+    el.addEventListener('argus-sorting-change', (e) => events.push(e.detail.sorting));
     host().setSort('age', 'asc');
     host().setSort('city', 'asc');
     await settle(el);

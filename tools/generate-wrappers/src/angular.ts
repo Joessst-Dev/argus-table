@@ -1,6 +1,7 @@
 // Emits @argus-table/angular's element bindings: one standalone component per
 // element, on the element's own tag, with `@Input()` setters that write to the
-// element, an `@Output()` per event and a `…Change` output per two-way property.
+// element, and an `@Output()` per event: for the events of two-way properties
+// (`argus-<property>-change`), `<property>Change` with the new value, for `[(…)]`.
 import type { ElementInfo, ElementProperty } from './manifest.ts';
 import {
   argusTypes,
@@ -73,32 +74,29 @@ function component(el: ElementInfo): string {
   }`;
     });
 
-  const outputs = el.events.flatMap((e) => {
-    const lines = [
-      `
-  /** \`${e.name}\`: ${doc(e.description)} */
-  @Output() readonly ${e.angular} = new EventEmitter<${e.type}>();`,
-    ];
+  const outputs = el.events.map((e) => {
     const model = modelOf(e.name);
-    if (model) {
-      lines.push(`
-  /** The new \`${model.property}\` from \`${e.name}\`, for \`[(${model.property})]\`. */
-  @Output() readonly ${model.property}Change = new EventEmitter<${element}${ta}['${model.property}']>();`);
-    }
-    return lines;
+    // The output of a two-way property carries the value; its whole event is on
+    // the element: `(${e.name})="…$event.detail…"`.
+    return model
+      ? `
+  /** \`${e.name}\`, for \`[(${model.property})]\`: the new \`${model.property}\`. Bind \`(${e.name})\` for the whole event. ${doc(e.description)} */
+  @Output() readonly ${e.angular} = new EventEmitter<${element}${ta}['${model.property}']>();`
+      : `
+  /** \`${e.name}\`: ${doc(e.description)} */
+  @Output() readonly ${e.angular} = new EventEmitter<${e.type}>();`;
   });
 
   const handlers = el.events.map((e) => {
     const model = modelOf(e.name);
-    const modelEmit = model
-      ? `\n    this.${model.property}Change.emit(e.detail.${model.detailKey});`
-      : '';
+    const emit = model
+      ? `this.${e.angular}.emit((event as ${e.type}).detail.${model.detailKey});`
+      : `this.${e.angular}.emit(event as ${e.type});`;
     return `
   protected handle${pascal(e.angular)}(event: Event): void {
     // Events bubble: skip those of a table nested in a cell.
     if (event.target !== this.element) return;
-    const e = event as ${e.type};
-    this.${e.angular}.emit(e);${modelEmit}
+    ${emit}
   }`;
   });
 

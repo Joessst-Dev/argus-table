@@ -72,7 +72,7 @@ export const Uncontrolled: Story = {
 };
 
 /**
- * Controlled: the host owns `sorting`. A click fires `argus-sort-change` with the
+ * Controlled: the host owns `sorting`. A click fires `argus-sorting-change` with the
  * proposed order, and the table only re-sorts when the host sets it. This one
  * accepts every change except sorting by name descending.
  */
@@ -89,7 +89,7 @@ export const Controlled: Story = {
       .columns=${columns}
       .data=${data}
       .sorting=${[{ id: 'stock', desc: true }]}
-      @argus-sort-change=${onChange}
+      @argus-sorting-change=${onChange}
     ></argus-table>`;
   },
 };

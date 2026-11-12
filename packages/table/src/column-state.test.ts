@@ -45,7 +45,7 @@ function grab(): { plugin: ArgusPlugin<Person>; host: () => PluginHost<Person> }
 }
 
 /** Records the events of a type, with the state of the table when each one fired. */
-function record<K extends 'argus-column-hide' | 'argus-column-pin'>(
+function record<K extends 'argus-column-visibility-change' | 'argus-column-pinning-change'>(
   el: ArgusTable<Person>,
   type: K,
   read: () => unknown,
@@ -92,17 +92,17 @@ describe('column visibility', () => {
     expect(rowsInOrder(el).map((r) => rowText(r)[2])).toEqual(['p2', 'p1', 'p0']);
   });
 
-  test('setHidden hides and shows, then fires argus-column-hide with the state applied', async () => {
+  test('setHidden hides and shows, then fires argus-column-visibility-change with the state applied', async () => {
     const { plugin, host } = grab();
     const el = await fixture({ columns, data: people(2), plugins: [plugin] });
-    const seen = record(el, 'argus-column-hide', () => headerIds(el));
+    const seen = record(el, 'argus-column-visibility-change', () => headerIds(el));
     host().setHidden?.('city', true);
     await settle(el);
     expect(headerIds(el)).toEqual(['name', 'age', 'id']);
     expect(el.columnVisibility).toEqual({ city: false });
     expect(seen).toEqual([
       {
-        detail: { columnId: 'city', hidden: true, visibility: { city: false } },
+        detail: { columnId: 'city', visible: false, columnVisibility: { city: false } },
         state: ['name', 'age', 'id'],
       },
     ]);
@@ -111,8 +111,8 @@ describe('column visibility', () => {
     expect(headerIds(el)).toEqual(['name', 'age', 'city', 'id']);
     expect(seen[1]?.detail).toEqual({
       columnId: 'city',
-      hidden: false,
-      visibility: { city: true },
+      visible: true,
+      columnVisibility: { city: true },
     });
   });
 
@@ -124,14 +124,14 @@ describe('column visibility', () => {
       plugins: [plugin],
       columnVisibility: { id: false },
     });
-    const seen = record(el, 'argus-column-hide', () => headerIds(el));
+    const seen = record(el, 'argus-column-visibility-change', () => headerIds(el));
     host().setHidden?.('age', true);
     await settle(el);
     expect(headerIds(el)).toEqual(['name', 'age', 'city']);
     expect(seen.map((s) => s.detail)).toEqual([
-      { columnId: 'age', hidden: true, visibility: { id: false, age: false } },
+      { columnId: 'age', visible: false, columnVisibility: { id: false, age: false } },
     ]);
-    el.columnVisibility = seen[0]?.detail.visibility;
+    el.columnVisibility = seen[0]?.detail.columnVisibility;
     await settle(el);
     expect(headerIds(el)).toEqual(['name', 'city']);
   });
@@ -145,7 +145,7 @@ describe('column visibility', () => {
       plugins: [plugin],
       columnVisibility: { age: false, city: false },
     });
-    const seen = record(el, 'argus-column-hide', () => undefined);
+    const seen = record(el, 'argus-column-visibility-change', () => undefined);
     host().setHidden?.('name', true);
     el.columnVisibility = { age: false, city: false, name: false };
     await settle(el);
@@ -268,16 +268,16 @@ describe('column pinning', () => {
     expect(headerOf(el, 'name').getBoundingClientRect().width).toBeCloseTo(150, 0);
   });
 
-  test('setPin pins, then fires argus-column-pin with the state applied', async () => {
+  test('setPin pins, then fires argus-column-pinning-change with the state applied', async () => {
     const { plugin, host } = grab();
     const el = await fixture({ columns, data: people(2), plugins: [plugin] });
-    const seen = record(el, 'argus-column-pin', () => headerIds(el));
+    const seen = record(el, 'argus-column-pinning-change', () => headerIds(el));
     host().setPin?.('city', 'start');
     await settle(el);
     expect(el.columnPinning).toEqual({ city: 'start' });
     expect(seen).toEqual([
       {
-        detail: { columnId: 'city', pin: 'start', pinning: { city: 'start' } },
+        detail: { columnId: 'city', pin: 'start', columnPinning: { city: 'start' } },
         state: ['city', 'name', 'age', 'id'],
       },
     ]);
@@ -296,13 +296,13 @@ describe('column pinning', () => {
       plugins: [plugin],
       columnPinning: {},
     });
-    const seen = record(el, 'argus-column-pin', () => headerIds(el));
+    const seen = record(el, 'argus-column-pinning-change', () => headerIds(el));
     host().setPin?.('age', 'end');
     host().setPin?.('id', 'start');
     await settle(el);
     expect(headerIds(el)).toEqual(['name', 'age', 'city', 'id']);
     expect(seen.map((s) => s.detail)).toEqual([
-      { columnId: 'id', pin: 'start', pinning: { id: 'start' } },
+      { columnId: 'id', pin: 'start', columnPinning: { id: 'start' } },
     ]);
   });
 

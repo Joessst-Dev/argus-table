@@ -64,7 +64,7 @@ import { baseStyles } from './styles/base.js';
  * A virtualized data table.
  *
  * @summary Data table with pinned rows and columns and infinite loading.
- * @fires argus-sort-change - Sorting changed. `detail: { sorting }`
+ * @fires argus-sorting-change - Sorting changed. `detail: { sorting }`
  * @csspart cell - Every body cell.
  * @cssprop [--argus-row-height=40px] - Height of one body row.
  * @slot - `<argus-column>` children (data only, not rendered).
@@ -245,15 +245,15 @@ The table model (core's adapter over `@tanstack/table-core`, wrapped by `TableCo
 
 ## Events
 
-Every public event is a `CustomEvent` with `bubbles: true` and `composed: true` (so it crosses the shadow boundary), an `argus-` prefixed kebab-case name, and a typed `detail`:
+Every public event is a `CustomEvent` with `bubbles: true` and `composed: true` (so it crosses the shadow boundary), an `argus-` prefixed kebab-case name, and a typed `detail`. A change of controllable state is `argus-<property>-change`, with the new value under the property's name in `detail`, then the cause (`{ columnSizing, columnId, width }`): the wrapper generator derives two-way binding from that naming (ADR 0004), so a new controllable property needs no generator change:
 
 ```ts
 // events.ts
-export interface ArgusSortChangeDetail { sorting: SortState }
+export interface SortingChangeDetail { sorting: SortState }
 
 declare global {
   interface HTMLElementEventMap {
-    'argus-sort-change': CustomEvent<ArgusSortChangeDetail>;
+    'argus-sorting-change': CustomEvent<SortingChangeDetail>;
   }
 }
 
@@ -304,7 +304,7 @@ Full tag list and examples: `references/documenting.md`.
 import { expect, test } from 'vitest';
 import '../src/argus-table.js';
 
-test('fires argus-sort-change when a sortable header is clicked', async () => {
+test('fires argus-sorting-change when a sortable header is clicked', async () => {
   const el = document.createElement('argus-table');
   el.columns = [{ id: 'total', header: 'Total', accessor: 'total', sortable: true }];
   el.data = [{ total: 2 }, { total: 1 }];
@@ -312,7 +312,7 @@ test('fires argus-sort-change when a sortable header is clicked', async () => {
   await el.updateComplete;
 
   const events: CustomEvent[] = [];
-  el.addEventListener('argus-sort-change', (e) => events.push(e));
+  el.addEventListener('argus-sorting-change', (e) => events.push(e));
   el.shadowRoot!.querySelector<HTMLElement>('[part~="header-cell"]')!.click();
   await el.updateComplete;
 

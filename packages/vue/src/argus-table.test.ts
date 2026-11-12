@@ -92,7 +92,7 @@ describe('<ArgusTable>', () => {
   test('emits the element events', async () => {
     const onCellClick = vi.fn();
     const onRowClick = vi.fn();
-    const onSortChange = vi.fn();
+    const onSortingChange = vi.fn();
     const { el } = await mount(() =>
       h(ArgusTable<Order>, {
         style: size,
@@ -100,7 +100,7 @@ describe('<ArgusTable>', () => {
         data: orders,
         onCellClick,
         onRowClick,
-        'onSort-change': onSortChange,
+        'onSorting-change': onSortingChange,
       }),
     );
 
@@ -113,8 +113,8 @@ describe('<ArgusTable>', () => {
 
     headers(el)[2]?.click();
     await settle(el);
-    expect(onSortChange).toHaveBeenCalledOnce();
-    expect(onSortChange.mock.calls[0]?.[0]).toMatchObject({
+    expect(onSortingChange).toHaveBeenCalledOnce();
+    expect(onSortingChange.mock.calls[0]?.[0]).toMatchObject({
       detail: { sorting: [{ id: 'total', desc: false }] },
     });
   });

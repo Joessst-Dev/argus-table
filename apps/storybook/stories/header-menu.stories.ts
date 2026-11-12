@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { html } from 'lit';
 import { expect, userEvent, waitFor } from 'storybook/test';
-import type { ArgusTable, SortChangeDetail } from 'argus-table';
+import type { ArgusTable, SortingChangeDetail } from 'argus-table';
 import 'argus-table';
 import { headerMenu } from '@argus-table/header-menu';
 import { orderColumns, orders, type Order } from './data.js';
@@ -106,18 +106,18 @@ export const Keyboard: Story = {
 
 /**
  * With `sorting` controlled, the menu only proposes the order through
- * `argus-sort-change`, like a header click; the host decides.
+ * `argus-sorting-change`, like a header click; the host decides.
  */
 export const ControlledSorting: Story = {
   render: () => {
-    const proposed: SortChangeDetail[] = [];
+    const proposed: SortingChangeDetail[] = [];
     return html`<argus-table
         style="block-size: 360px"
         .columns=${orderColumns}
         .data=${data}
         .sorting=${[]}
         .plugins=${plugins}
-        @argus-sort-change=${(e: CustomEvent<SortChangeDetail>) => {
+        @argus-sorting-change=${(e: CustomEvent<SortingChangeDetail>) => {
           proposed.push(e.detail);
           const out = (e.currentTarget as HTMLElement).nextElementSibling;
           if (out) out.textContent = `Proposed: ${JSON.stringify(e.detail.sorting)}`;
@@ -170,8 +170,8 @@ const headerOrder = (table: ArgusTable<Order>) =>
 /**
  * Pin to start, Pin to end and Don't pin set `columnPinning`; Hide column sets
  * `columnVisibility`, and every menu lists the hidden columns to show them
- * again. With the properties controlled, the menu only fires `argus-column-pin`
- * and `argus-column-hide`. `pinnable: false` and `hideable: false` leave a column
+ * again. With the properties controlled, the menu only fires `argus-column-pinning-change`
+ * and `argus-column-visibility-change`. `pinnable: false` and `hideable: false` leave a column
  * out, and `headerMenu({ pin: false, hide: false })` turns the items off.
  */
 export const PinAndHide: Story = {
@@ -224,7 +224,7 @@ const columnTexts = (table: ArgusTable<Order>, id: string) =>
  * (searchable, listed from the rows the other filters leave). Typed values apply as
  * typing pauses, Enter or Done closes the form on its header, Escape closes it as
  * it is, and Clear (or Clear filter in the menu) removes the column's filter. The
- * form sets `columnFilters`; with it controlled, it only fires `argus-column-filter`.
+ * form sets `columnFilters`; with it controlled, it only fires `argus-column-filters-change`.
  * `headerMenu({ filter: false })` turns the items off.
  */
 export const Filter: Story = {

@@ -98,7 +98,7 @@ Columns can also be written as `<argus-column>` children. They are data-only ele
 - `width: 'auto'` fits the column to its header, its pinned rows and the body rows rendered at that moment (visible plus `overscan`), within `minWidth` and `maxWidth`. Rows out of view aren't measured. Pinned columns can be `'auto'` too.
 - It measures once the first loaded rows render, and then keeps that width: scrolling, new `data` or a new `columns` array with the same ids don't change it. With no rows it fits the header (and pinned rows), and fits again when rows arrive. While a `dataSource` loads its first page, it keeps the default width.
 - The measured width isn't state: it doesn't appear in `columnSizing` and fires no event. A resize wins over it, as it does over `{ flex }`.
-- A double-click on a column's `resize-handle` fits it to the rows in view; `autosizeColumns(ids?)` does the same for several. Both are resizes: they write `columnSizing` (or propose it, when controlled) and fire `argus-column-resize`.
+- A double-click on a column's `resize-handle` fits it to the rows in view; `autosizeColumns(ids?)` does the same for several. Both are resizes: they write `columnSizing` (or propose it, when controlled) and fire `argus-column-sizing-change`.
 - Columns are measured with the browser's own layout (`max-content`), so templates, components, padding, density and the sort indicator are all counted. Web fonts still loading are measured again once they are ready.
 
 ## Column order
@@ -136,9 +136,9 @@ table.columnGroups = [
 - A group is `{ id, header?, reorderable?, columns }`: `columns` lists column ids and nested groups, in order. `header` takes the same content as a column's (text, a template, a node, a function, framework content in the wrappers); without one, the group shows its id. Group ids are unique among groups (an id may equal a column id). Unknown column ids are ignored, a column listed twice belongs to the first group that lists it, and a group left without columns isn't shown.
 - `columns` stays a flat list, and so do the state properties and events: groups only add headers and keep their columns together. Plugins see the flat columns as before.
 - Groups are top-aligned: a top-level group is in the first header row, a group inside it in the second, and so on. Header rows = the deepest nesting among the shown columns + 1. Columns without a group at a level sit under an empty filler there (part `header-group-filler`). A group whose shown columns are all hidden goes away, and its row with it if it was the deepest.
-- A group's columns stay next to each other in the column order: on its first column's place, even when `columnOrder` lists them apart. A column moves only within its innermost group; a group moves as a whole, among the columns and groups beside it, by a drag on its header or Alt+Shift+Arrow on it. A group moves when it may (`reorderable`, default `true`; `reorderable="false"` on `<argus-column-group>`) and every one of its shown columns may; with `reorderable: false` its columns still move within it. `argus-column-reorder` then carries `groupId`, and `columnId` is its first column.
+- A group's columns stay next to each other in the column order: on its first column's place, even when `columnOrder` lists them apart. A column moves only within its innermost group; a group moves as a whole, among the columns and groups beside it, by a drag on its header or Alt+Shift+Arrow on it. A group moves when it may (`reorderable`, default `true`; `reorderable="false"` on `<argus-column-group>`) and every one of its shown columns may; with `reorderable: false` its columns still move within it. `argus-column-order-change` then carries `groupId`, and `columnId` is its first column.
 - Pinning splits a group: its columns pinned to a side show under a group cell of their own on that side, sticky with them. The label of a group in the scrolling area stays in view while its columns scroll past.
-- A group with a resizable column has a `resize-handle` ("Resize group") on its header. Dragging it, or Alt+Arrow on the focused group header (10 px), resizes the group: the change is spread over its resizable columns in proportion to their widths, each within its `minWidth` and `maxWidth`; the other columns keep their width. A double-click on it fits each of its columns to its content, as `autosizeColumns()` does. These are column resizes: they write `columnSizing` (or propose it) and fire `argus-column-resize` once per column that changes.
+- A group with a resizable column has a `resize-handle` ("Resize group") on its header. Dragging it, or Alt+Arrow on the focused group header (10 px), resizes the group: the change is spread over its resizable columns in proportion to their widths, each within its `minWidth` and `maxWidth`; the other columns keep their width. A double-click on it fits each of its columns to its content, as `autosizeColumns()` does. These are column resizes: they write `columnSizing` (or propose it) and fire `argus-column-sizing-change` once per column that changes.
 - Group headers don't sort or get a column menu. They take part in keyboard navigation (see [Accessibility](08-accessibility.md)).
 - A non-empty `columnGroups` wins over `<argus-column-group>` children, and a non-empty `columns` turns off the children, groups included. `<argus-column-group>` takes `group-id` and `header` (text as the attribute; content or a function as the property), and holds `<argus-column>`s and groups.
 - `columnGroups` isn't user state: it isn't in `getState()`, and no event changes it.
@@ -149,7 +149,7 @@ table.columnGroups = [
 - A pinned column joins its group at the edge nearest its place in `columnOrder` (the order of `columns` while `columnOrder` is `[]`), so pinning a scrolling column to the start puts it after the start columns before it. Pinning doesn't change `columnOrder`, and unpinning puts the column back. A flex column takes a fixed width while it is pinned.
 - A hidden column isn't rendered (no cells, no light-DOM content, not counted in `aria-colcount` or `aria-colindex`), but it stays a column: the table can be sorted by it, formula columns read it, and it keeps its place in `columnOrder` and its width. Moves count the shown columns: Alt+Shift+Arrow steps over a hidden column. Focus on a column being hidden moves to the column that takes its place.
 - Users pin and hide columns through plugins such as the [column menu](#column-menu-argus-tableheader-menu), with the plugin host's `setPin()` and `setHidden()`. `pinnable: false` and `hideable: false` keep a column out of those, and the last column shown can't be hidden by the user. The properties themselves aren't limited: a host can hide every column.
-- Both follow the controlled/uncontrolled rules: once set, a change from a plugin only fires `argus-column-pin` or `argus-column-hide` with the proposed state.
+- Both follow the controlled/uncontrolled rules: once set, a change from a plugin only fires `argus-column-pinning-change` or `argus-column-visibility-change` with the proposed state.
 
 ## Filtering
 
@@ -168,7 +168,7 @@ table.quickFilter = 'oslo paid'; // from the app's own search box
 - Four kinds of filter, by `kind`. `text`: `contains`, `equals`, `startsWith`, `empty`, `notEmpty`, ignoring case. `number`: `eq`, `ne`, `lt`, `le`, `gt`, `ge`, `between` (inclusive; `to` is the upper bound, and a missing bound leaves that end open), `empty`, `notEmpty`; strings that are numbers count as numbers. `date`: the same operators with ISO dates (`'2026-11-10'`), compared by local day; cell values can be `Date`s, timestamps or ISO strings. `set`: `values` lists the values to keep, with `null` for empty ones; `values: []` keeps no rows.
 - Empty means `undefined`, `null`, `''` or `NaN`, so a formula column's errors are empty. `ne` keeps empty values (they aren't equal to the number); every other comparison drops them. A text or number filter without a value or bound keeps every row.
 - A column's `filterFn(value, filter, row)` replaces the built-in matching for that column, for any filter in its slot.
-- `columnFilters` is a plain object keyed by column id, so it saves as JSON. Filters on hidden columns still apply; filters for unknown columns are ignored. It follows the controlled/uncontrolled rules: once set, a change from a plugin only fires `argus-column-filter` with the proposed filters.
+- `columnFilters` is a plain object keyed by column id, so it saves as JSON. Filters on hidden columns still apply; filters for unknown columns are ignored. It follows the controlled/uncontrolled rules: once set, a change from a plugin only fires `argus-column-filters-change` with the proposed filters.
 - `quickFilter` (attribute `quick-filter`) splits into words; each word must be found, ignoring case, in the text of one of the row's shown columns. Strings, numbers and booleans are their text, a `Date` its local day (`2026-11-10`); objects and columns without an accessor aren't searched. It's the app's property: the table has no search box, and it fires no event for it.
 - Users set filters through plugins: the [column menu](#column-menu-argus-tableheader-menu) offers a filter form on columns with a `filter` kind, through the plugin host's `setFilter()` and `filterValues()`.
 - Filtered headers get the part `header-cell-filtered`, a funnel mark (part `filter-indicator`, coloured by `--argus-filter-indicator-color`) and `aria-description="Filtered"`. After a filter change, the live region announces the rows left ("42 rows"); with a `dataSource` the count isn't known yet, so nothing is announced.
@@ -271,12 +271,12 @@ table.pinnedRows = { bottom: [{ id: 'total', customer: 'Total', total: sum }] };
 ```ts
 table.selectionMode = 'multi'; // or <argus-table selection-mode="multi">
 table.getRowId = (order) => order.id;
-table.addEventListener('argus-row-select', (e) => console.log(e.detail.selection)); // ['o2', 'o7']
+table.addEventListener('argus-selection-change', (e) => console.log(e.detail.selection)); // ['o2', 'o7']
 ```
 
 - Clicks work like a file list on the desktop. A click selects only that row; Ctrl+click (Cmd+click on macOS) adds or removes one row; Shift+click selects the range from the anchor (the last row clicked without Shift) to the clicked row, and Ctrl+Shift+click adds that range. Ranges follow the current order. In `'single'` mode a click selects that row (clicking it again keeps it), Ctrl+click clears it, and Shift is a plain click.
 - Keys on a focused body cell: Space (or Shift+Space) toggles its row. In `'multi'` mode, Shift+ArrowUp/ArrowDown and Shift+PageUp/PageDown move focus through the body and select from the anchor to the focused row, and Ctrl+A (Cmd+A) selects every row, from a header too. See [Accessibility](08-accessibility.md).
-- Presses on interactive content inside a cell (a button, a link, an input, a `contenteditable`) don't select. `argus-cell-click` and `argus-row-click` still fire, before `argus-row-select`.
+- Presses on interactive content inside a cell (a button, a link, an input, a `contenteditable`) don't select. `argus-cell-click` and `argus-row-click` still fire, before `argus-selection-change`.
 - Only loaded body rows can be selected. Rows from `pinnedRows` can't, nor `dataSource` rows still loading; a range over unloaded rows selects its loaded rows only. With a `dataSource`, Ctrl+A selects the rows loaded so far: a select-all over the server's whole dataset is the host's to model.
 - The table never drops ids on its own. They stay through sorting, a new `data` array or pages evicted and loaded again, and show again when their rows come back. Filter `selection` yourself to drop rows that are gone. Without `getRowId` the ids are indices: in `data` they don't change with sorting, but a `dataSource` numbers rows in the server's order.
 - Selected rows get the part `row-selected` and `aria-selected="true"`; every other selectable row has `aria-selected="false"`, and the grid is `aria-multiselectable` in `'multi'` mode. `--argus-row-selected-bg` paints them, pinned columns included, and wins over `--argus-row-hover-bg`. In forced-colors mode they use `Highlight`.
@@ -321,7 +321,7 @@ interface ArgusPlugin<T> {
 | `column(id)`                                  | A data column as resolved, after every plugin's `columns`: `{ id, sortable, resizable, pinnable, hideable, pin, hidden, width, sorted, filter?, filterValue? }`, hidden columns too; `undefined` for unknown ids and the checkbox column                                 |
 | `columns()`                                   | Every data column the same way, hidden ones included, in the column order. Optional                                                                                                                                                               |
 | `cellOf(event)`                               | The header or cell an event happened in, as a `CellTarget`                                                                                                                                                                                        |
-| `setSort(columnId, 'asc' \| 'desc' \| null)`  | Sorts by a column or clears its sort, through the `sorting` rules: when `sorting` is controlled, only `argus-sort-change` fires with the proposal. Sortable columns only. A plugin must not set `element.sorting`, which would make it controlled |
+| `setSort(columnId, 'asc' \| 'desc' \| null)`  | Sorts by a column or clears its sort, through the `sorting` rules: when `sorting` is controlled, only `argus-sorting-change` fires with the proposal. Sortable columns only. A plugin must not set `element.sorting`, which would make it controlled |
 | `setPin(columnId, 'start' \| 'end' \| false)` | Pins a column or unpins it, through the `columnPinning` rules. Columns with `pinnable: false` don't move. Optional                                                                                                                                |
 | `setHidden(columnId, hidden)`                 | Hides or shows a column, through the `columnVisibility` rules. Columns with `hideable: false`, and the last column shown, don't hide. Optional                                                                                                    |
 | `setFilter(columnId, filter \| undefined)`    | Sets a column's filter or clears it, through the `columnFilters` rules. Only columns with a `filter` kind take one. Optional                                                                                                                      |
@@ -363,25 +363,27 @@ table.plugins = [formulas({ functions: { VAT: { fn: (n) => Number(n) * 0.19, arg
 
 All `CustomEvent`, bubbling and composed. See [State and events](../code-architecture/04-state-and-events.md) for the controlled/uncontrolled rules.
 
-| Event                  | Detail                                                                                 |
-| ---------------------- | -------------------------------------------------------------------------------------- |
-| `argus-sort-change`    | `{ sorting }`                                                                          |
-| `argus-column-resize`  | `{ columnId, width, sizing }`                                                          |
-| `argus-row-click`      | `{ row, rowId, index, pinned? }`                                                       |
-| `argus-cell-click`     | `{ row, columnId, value, pinned? }`                                                    |
-| `argus-range-change`   | `{ start, end }` visible rows                                                          |
-| `argus-column-reorder` | `{ columnId, groupId?, order }`: `groupId` when a column group moved                   |
-| `argus-column-pin`     | `{ columnId, pin, pinning }`: `pin` is `'start'`, `'end'` or `false`                   |
-| `argus-column-hide`    | `{ columnId, hidden, visibility }`: fires when a column is hidden and when it is shown |
-| `argus-load-error`     | `{ error, start, end }`: a `dataSource` page failed; `end` exclusive                   |
-| `argus-row-select`     | `{ selection }`: the selected row ids                                                  |
-| `argus-column-filter`  | `{ columnId, filter, filters }`: `filter` is `undefined` when it was cleared           |
+A change of controllable state fires `argus-<property>-change`: `detail` has the new value under the property's name, then what caused it ([ADR 0004](../../adr/0004-api-1-0.md)). When the property is uncontrolled the event fires after the update that applied the change; when it is controlled, it fires right away with the proposed value and nothing changes until the host sets the property. Setting a property never fires its event.
 
-- The package exports each name as a constant (`SORT_CHANGE`, `COLUMN_RESIZE`, `CELL_CLICK`, `ROW_CLICK`, `RANGE_CHANGE`, …), and `HTMLElementEventMap` types each `detail`.
-- `argus-sort-change` fires on a click on a sortable header, or Enter or Space on a focused one; the order cycles ascending → descending → unsorted. When `sorting` is uncontrolled, it fires after the rows are re-sorted. When controlled, it carries the proposed order and nothing changes until the host sets `sorting`. v0.1 sorts by one column at a time.
-- `argus-column-resize` fires when a column is resized by dragging its `resize-handle` or with Alt+Arrow on its focused header (10 px; the arrow toward the inline end grows it), and when a double-click on the handle or `autosizeColumns()` fits it to its content (once per column that changes, each with the whole new `sizing`). A press on the handle without moving changes nothing. The handle is a `separator` labelled "Resize column" (English until the table gets an i18n option). During a drag it fires once per animation frame, so a controlled host can follow the drag; `width` is already clamped to `minWidth`/`maxWidth`.
-- `argus-column-reorder` fires when a column or column group is moved: on drop after a header drag, or with Alt+Shift+Arrow on its focused header. `order` is the whole new order. When `columnOrder` is uncontrolled, it fires after the columns have moved; when controlled, it carries the proposed order and nothing changes until the host sets `columnOrder`. A drop where the column would stay put, or a cancelled drag, fires nothing.
-- `argus-column-pin` and `argus-column-hide` fire when a plugin pins, unpins, hides or shows a column (`setPin()`, `setHidden()`), after the update when uncontrolled, with the proposal when controlled. Setting `columnPinning` or `columnVisibility` fires nothing. `argus-column-filter` works the same for `setFilter()`; it isn't `argus-column-filters-change` or `argus-filter-change` because Angular's `[(columnFilters)]` owns the output `columnFiltersChange`.
+| Event | Detail |
+| --- | --- |
+| `argus-sorting-change` | `{ sorting }` |
+| `argus-column-sizing-change` | `{ columnSizing, columnId, width }` |
+| `argus-column-order-change` | `{ columnOrder, columnId, groupId? }`: `groupId` when a column group moved |
+| `argus-column-pinning-change` | `{ columnPinning, columnId, pin }`: `pin` is `'start'`, `'end'` or `false` |
+| `argus-column-visibility-change` | `{ columnVisibility, columnId, visible }`: fires when a column is hidden and when it is shown |
+| `argus-column-filters-change` | `{ columnFilters, columnId, columnFilter }`: `columnFilter` is `undefined` when it was cleared |
+| `argus-selection-change` | `{ selection }`: the selected row ids |
+| `argus-cell-click` | `{ row, rowId, index, columnId, value, pinned? }` |
+| `argus-row-click` | `{ row, rowId, index, pinned? }` |
+| `argus-range-change` | `{ first, last }`: the rows in view, both inclusive |
+| `argus-load-error` | `{ error, start, end }`: a `dataSource` page failed; `end` exclusive |
+
+- The package exports each name as a constant (`SORTING_CHANGE`, `COLUMN_SIZING_CHANGE`, `CELL_CLICK`, `ROW_CLICK`, `RANGE_CHANGE`, …), and `HTMLElementEventMap` types each `detail`.
+- `argus-sorting-change` fires on a click on a sortable header, or Enter or Space on a focused one; the order cycles ascending → descending → unsorted, by that one column. `sorting` itself may hold several columns, set by the host or a plugin.
+- `argus-column-sizing-change` fires when a column is resized by dragging its `resize-handle` or with Alt+Arrow on its focused header (10 px; the arrow toward the inline end grows it), and when a double-click on the handle or `autosizeColumns()` fits it to its content (once per column that changes, each with the whole new `columnSizing`). A press on the handle without moving changes nothing. The handle is a `separator` labelled "Resize column" (English until the table gets an i18n option). During a drag it fires once per animation frame, so a controlled host can follow the drag; `width` is already clamped to `minWidth`/`maxWidth`.
+- `argus-column-order-change` fires when a column or column group is moved: on drop after a header drag, or with Alt+Shift+Arrow on its focused header. `columnOrder` is the whole new order. A drop where the column would stay put, or a cancelled drag, fires nothing.
+- `argus-column-pinning-change`, `argus-column-visibility-change` and `argus-column-filters-change` fire when a plugin pins, unpins, hides, shows or filters a column (`setPin()`, `setHidden()`, `setFilter()`).
 - `argus-cell-click` and `argus-row-click` fire on a click in the body, in that order, including clicks on content inside a cell (check `event.composedPath()` to skip your own buttons). `row` is the data object, `value` what the column's accessor reads. On a pinned row, `pinned` is `'top'` or `'bottom'` and `index` is the row's index in its list. Enter on a focused body cell fires both too (Enter pressed in content inside a cell is left to that content). Header clicks fire neither.
 
 ## Column virtualization
@@ -419,24 +421,24 @@ addEventListener('pagehide', () => localStorage.setItem(KEY, JSON.stringify(tabl
 
 Each `argus-*` event drops its prefix and takes the framework's style:
 
-| Element event          | React prop        | Vue emit         | Angular output  |
-| ---------------------- | ----------------- | ---------------- | --------------- |
-| `argus-sort-change`    | `onSortChange`    | `sort-change`    | `sortChange`    |
-| `argus-column-resize`  | `onColumnResize`  | `column-resize`  | `columnResize`  |
-| `argus-column-reorder` | `onColumnReorder` | `column-reorder` | `columnReorder` |
-| `argus-column-pin`     | `onColumnPin`     | `column-pin`     | `columnPin`     |
-| `argus-column-hide`    | `onColumnHide`    | `column-hide`    | `columnHide`    |
-| `argus-column-filter`  | `onColumnFilter`  | `column-filter`  | `columnFilter`  |
-| `argus-cell-click`     | `onCellClick`     | `cell-click`     | `cellClick`     |
-| `argus-row-click`      | `onRowClick`      | `row-click`      | `rowClick`      |
-| `argus-range-change`   | `onRangeChange`   | `range-change`   | `rangeChange`   |
-| `argus-load-error`     | `onLoadError`     | `load-error`     | `loadError`     |
-| `argus-row-select`     | `onRowSelect`     | `row-select`     | `rowSelect`     |
+| Element event | React prop | Vue emit | Angular output |
+| --- | --- | --- | --- |
+| `argus-sorting-change` | `onSortingChange` | `sorting-change` | `sortingChange` |
+| `argus-column-sizing-change` | `onColumnSizingChange` | `column-sizing-change` | `columnSizingChange` |
+| `argus-column-order-change` | `onColumnOrderChange` | `column-order-change` | `columnOrderChange` |
+| `argus-column-pinning-change` | `onColumnPinningChange` | `column-pinning-change` | `columnPinningChange` |
+| `argus-column-visibility-change` | `onColumnVisibilityChange` | `column-visibility-change` | `columnVisibilityChange` |
+| `argus-column-filters-change` | `onColumnFiltersChange` | `column-filters-change` | `columnFiltersChange` |
+| `argus-selection-change` | `onSelectionChange` | `selection-change` | `selectionChange` |
+| `argus-cell-click` | `onCellClick` | `cell-click` | `cellClick` |
+| `argus-row-click` | `onRowClick` | `row-click` | `rowClick` |
+| `argus-range-change` | `onRangeChange` | `range-change` | `rangeChange` |
+| `argus-load-error` | `onLoadError` | `load-error` | `loadError` |
 
-- Handlers get the element's whole `CustomEvent`, not just its detail, so `composedPath()` stays at hand. Details that carry a row are typed with the row type (`RowClickDetail<T>`, `CellClickDetail<T>`).
+- Handlers get the element's whole `CustomEvent`, not just its detail, so `composedPath()` stays at hand. Details that carry a row are typed with the row type (`RowClickDetail<T>`, `CellClickDetail<T>`). The exception is Angular's outputs for state changes, below.
 - The row type is generic: inferred from `data` and `columns`, or given (`<ArgusTable<Order>>` in React).
-- Two-way binding covers the seven controllable properties: `sorting` (from `detail.sorting`), `columnSizing` (`detail.sizing`), `columnOrder` (`detail.order`), `columnPinning` (`detail.pinning`), `columnVisibility` (`detail.visibility`), `columnFilters` (`detail.filters`) and `selection` (`detail.selection`). React uses the usual controlled pair (`sorting` with `onSortChange`); Vue gets `v-model:sorting`, `v-model:column-sizing`, `v-model:column-order`, `v-model:column-pinning`, `v-model:column-visibility`, `v-model:column-filters` and `v-model:selection`; Angular gets `[(sorting)]`, `[(columnSizing)]`, `[(columnOrder)]`, `[(columnPinning)]`, `[(columnVisibility)]`, `[(columnFilters)]` and `[(selection)]`. A property left unbound stays uncontrolled.
-- No event may take the name of a two-way output or of a property. Angular's `[(x)]` needs an output named `xChange`, which is why the selection event is `argus-row-select` and not `argus-selection-change`, and an output named like a property would shadow it, which is why the visibility event is `argus-column-hide` and not `argus-column-visibility`. The generator fails on such a collision.
+- Two-way binding follows from the event names: a property `p` with an event `argus-<p in kebab case>-change` binds two ways, from `detail.p`. That covers the seven controllable properties: `sorting`, `columnSizing`, `columnOrder`, `columnPinning`, `columnVisibility`, `columnFilters` and `selection`. React uses the usual controlled pair (`sorting` with `onSortingChange`); Vue gets `v-model:sorting`, `v-model:column-sizing` and so on (it emits `update:<p>` with the value next to `<p>-change` with the event); Angular gets `[(sorting)]`, `[(columnSizing)]` and so on, where the output `<p>Change` emits the value; the whole event is the element's own, `(argus-column-sizing-change)="…$event.detail…"`. A property left unbound stays uncontrolled.
+- The generator fails on an event named `argus-…-change` that matches no property (only `argus-range-change` is exempt), and on an event whose wrapper name equals a property's: an output named like a property would shadow it, which is why the visibility event isn't `argus-column-visibility`.
 - Methods are reached through the element: a `ref` in React, typed `ArgusTableElement<T>`. In Vue, a template ref exposes the methods and the `element`; in Angular, a view query gives the component, which has them too.
 - Vue: the types follow vue-tsc's shape for a generic `<script setup>` component, so templates check props, events, `v-model` and the template ref against the row type. `h()` can't infer it: `h(ArgusTable<Order>, …)`. The wrapper sets the element's properties itself rather than through Vue's DOM prop patching, which would turn a removed number into `0`. A one-way `:sorting` stays controlled, because Vue props are read-only.
 - Angular: standalone components (`ArgusTableComponent`, `ArgusColumnComponent`) on the elements' own tags, so templates need no `CUSTOM_ELEMENTS_SCHEMA`. Inputs are `@Input()` setters that write to the element, and two-way binding is an input with a `…Change` output, so a one-way `[sorting]` stays controlled. Angular passes a static attribute to an input of the same name as a string (`width="90"`); a string for a property that has an attribute goes to the attribute, so the element converts it as in HTML, and the input types accept those strings. `null` (the `async` pipe) means unset.

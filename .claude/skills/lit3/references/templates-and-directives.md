@@ -34,6 +34,6 @@ Return `nothing` (not `''`, `null` or `undefined` for attributes) when you want 
 - **Positioning:** one `transform: translateY()` per row via `styleMap`; one spacer sets the total height. Never set `top` per row (layout cost).
 - **Grid template once:** compute `grid-template-columns` in `willUpdate` from column sizes and set it as one custom property on the scroll container, so header, body and footer share it.
 - **Scroll handling:** the virtualizer listens to scroll with passive listeners. Don't add your own scroll listener that sets reactive state on every event; if needed, batch with `requestAnimationFrame`.
-- **Resizing:** apply widths during drag via `requestAnimationFrame` batching (TanStack `columnResizeMode: 'onChange'`), commit and fire `argus-column-resize` on pointer up.
+- **Resizing:** apply widths during drag via `requestAnimationFrame` batching (TanStack `columnResizeMode: 'onChange'`), and fire `argus-column-sizing-change` once per frame, so a controlled host can follow the drag.
 - **hasChanged:** for properties set to equal-but-new objects often (e.g. `sorting` from a framework), consider a custom `hasChanged` that compares structurally, to skip needless updates. Don't do it for `data` (arrays can be huge).
 - **Dev mode:** Lit's development build (Vite's dev server picks the `development` export condition) warns about `change-in-update`, missing `super` calls and class-field shadowing. Read those warnings; production builds strip them.

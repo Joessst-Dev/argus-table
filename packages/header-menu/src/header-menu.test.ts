@@ -166,7 +166,7 @@ describe('header menu actions', () => {
   test('Sort descending sorts, closes the menu and focuses the header', async () => {
     const el = await fixture();
     const events: unknown[] = [];
-    el.addEventListener('argus-sort-change', (e) => events.push(e.detail.sorting));
+    el.addEventListener('argus-sorting-change', (e) => events.push(e.detail.sorting));
     buttonOf(el, 'name')?.click();
     const menu = await opened(el);
     items(menu)[1]?.click();
@@ -189,7 +189,7 @@ describe('header menu actions', () => {
   test('with controlled sorting, only proposes the order', async () => {
     const el = await fixture({ sorting: [] });
     const events: unknown[] = [];
-    el.addEventListener('argus-sort-change', (e) => events.push(e.detail.sorting));
+    el.addEventListener('argus-sorting-change', (e) => events.push(e.detail.sorting));
     buttonOf(el, 'age')?.click();
     items(await opened(el))[0]?.click();
     await settle(el);
@@ -200,7 +200,7 @@ describe('header menu actions', () => {
   test('Fit width fits the column to its content and says so', async () => {
     const el = await fixture();
     const resizes: unknown[] = [];
-    el.addEventListener('argus-column-resize', (e) => resizes.push(e.detail.columnId));
+    el.addEventListener('argus-column-sizing-change', (e) => resizes.push(e.detail.columnId));
     buttonOf(el, 'age')?.click();
     items(await opened(el))[3]?.click();
     await settle(el);
@@ -512,13 +512,13 @@ describe('pin and hide items', () => {
   test('Pin to end pins the column, keeps focus on its header and says so', async () => {
     const el = await fixture({ plugins: [full()] });
     const pins: unknown[] = [];
-    el.addEventListener('argus-column-pin', (e) => pins.push(e.detail));
+    el.addEventListener('argus-column-pinning-change', (e) => pins.push(e.detail));
     buttonOf(el, 'name')?.click();
     item(await opened(el), 'Pin to end').click();
     await settle(el);
     expect(order(el)).toEqual(['age', 'note', 'name']);
     expect(el.columnPinning).toEqual({ name: 'end' });
-    expect(pins).toEqual([{ columnId: 'name', pin: 'end', pinning: { name: 'end' } }]);
+    expect(pins).toEqual([{ columnPinning: { name: 'end' }, columnId: 'name', pin: 'end' }]);
     expect(el.shadowRoot?.activeElement).toBe(headerOf(el, 'name'));
     expect(await announced()).toBe('Name pinned to the end');
 
@@ -534,7 +534,7 @@ describe('pin and hide items', () => {
   test('with controlled columnPinning, only proposes the pins', async () => {
     const el = await fixture({ plugins: [full()], columnPinning: {} });
     const pins: unknown[] = [];
-    el.addEventListener('argus-column-pin', (e) => pins.push(e.detail.pinning));
+    el.addEventListener('argus-column-pinning-change', (e) => pins.push(e.detail.columnPinning));
     buttonOf(el, 'age')?.click();
     item(await opened(el), 'Pin to start').click();
     await settle(el);
@@ -545,12 +545,14 @@ describe('pin and hide items', () => {
   test('Hide column hides it, focuses the next header, and the others offer to show it', async () => {
     const el = await fixture({ plugins: [full()] });
     const hides: unknown[] = [];
-    el.addEventListener('argus-column-hide', (e) => hides.push(e.detail));
+    el.addEventListener('argus-column-visibility-change', (e) => hides.push(e.detail));
     buttonOf(el, 'name')?.click();
     item(await opened(el), 'Hide column').click();
     await settle(el);
     expect(order(el)).toEqual(['age', 'note']);
-    expect(hides).toEqual([{ columnId: 'name', hidden: true, visibility: { name: false } }]);
+    expect(hides).toEqual([
+      { columnVisibility: { name: false }, columnId: 'name', visible: false },
+    ]);
     expect(el.shadowRoot?.activeElement).toBe(headerOf(el, 'age'));
     expect(await announced()).toBe('Name hidden');
 
@@ -826,12 +828,12 @@ describe('filter items and form', () => {
       columnFilters: { name: { kind: 'text', op: 'equals', value: 'ann' } },
     });
     const events: unknown[] = [];
-    el.addEventListener('argus-column-filter', (e) => events.push(e.detail));
+    el.addEventListener('argus-column-filters-change', (e) => events.push(e.detail));
     const form = await openForm(el, 'name');
     expect(field(form, 'Value').value).toBe('ann');
     form.querySelector<HTMLButtonElement>('.argus-header-filter-button')?.click();
     await settle(el);
-    expect(events).toEqual([{ columnId: 'name', filter: undefined, filters: {} }]);
+    expect(events).toEqual([{ columnFilters: {}, columnId: 'name', columnFilter: undefined }]);
     // Controlled: nothing changed until the host sets it.
     expect(el.columnFilters).toEqual({ name: { kind: 'text', op: 'equals', value: 'ann' } });
     expect(formOf(el)).toBeNull();

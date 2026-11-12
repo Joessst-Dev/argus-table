@@ -1,4 +1,4 @@
 schema_version: "1.1"
 name: sort-header-events
 expected_outcome: |
-  Clicking a sortable header toggles sorting and fires a typed, bubbling, composed argus-sort-change CustomEvent after the update; works uncontrolled and controlled (no state change until host sets sorting); aria-sort only on sorted headers; tests cover both modes.
+  Clicking a sortable header toggles sorting and fires a typed, bubbling, composed argus-sorting-change CustomEvent after the update; works uncontrolled and controlled (no state change until host sets sorting); aria-sort only on sorted headers; tests cover both modes.

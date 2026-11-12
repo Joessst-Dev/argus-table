@@ -116,27 +116,27 @@ export interface PluginHost<T = unknown> {
   /**
    * Sorts by a column, or (`null`) clears the sort if it is by that column.
    * Follows the `sorting` rules: when it is controlled, only
-   * `argus-sort-change` fires with the proposed order. Does nothing for a
+   * `argus-sorting-change` fires with the proposed order. Does nothing for a
    * column that isn't sortable. Use this rather than setting `sorting`, which
    * would make it controlled.
    */
   setSort(columnId: string, direction: 'asc' | 'desc' | null): void;
   /**
    * Pins a column to a side, or (`false`) unpins it. Follows the `columnPinning`
-   * rules: when it is controlled, only `argus-column-pin` fires with the proposed
+   * rules: when it is controlled, only `argus-column-pinning-change` fires with the proposed
    * pins. Does nothing for a column with `pinnable: false`, or without a change.
    */
   setPin?(columnId: string, pin: ColumnPin | false): void;
   /**
    * Hides or shows a column. Follows the `columnVisibility` rules: when it is
-   * controlled, only `argus-column-hide` fires with the proposed visibility. Does
+   * controlled, only `argus-column-visibility-change` fires with the proposed visibility. Does
    * nothing without a change, when hiding a column with `hideable: false`, or
    * when hiding the last column shown.
    */
   setHidden?(columnId: string, hidden: boolean): void;
   /**
    * Sets a column's filter, or (`undefined`) clears it. Follows the `columnFilters`
-   * rules: when it is controlled, only `argus-column-filter` fires with the proposed
+   * rules: when it is controlled, only `argus-column-filters-change` fires with the proposed
    * filters. Does nothing without a change, or when setting a filter on a column
    * without `filter`.
    */

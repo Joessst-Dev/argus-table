@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { html } from 'lit';
 import { expect, userEvent, waitFor } from 'storybook/test';
-import type { ArgusTable, DataSource, RowSelectDetail } from 'argus-table';
+import type { ArgusTable, DataSource, SelectionChangeDetail } from 'argus-table';
 import 'argus-table';
 import { orderColumns, orders, type Order } from './data.js';
 
@@ -146,7 +146,7 @@ export const Keyboard: Story = {
 };
 
 /**
- * Controlled: the host owns `selection`. Every change fires `argus-row-select`
+ * Controlled: the host owns `selection`. Every change fires `argus-selection-change`
  * with the proposed ids, and the table only changes once the host sets them.
  * This one allows at most five rows.
  */
@@ -154,7 +154,7 @@ export const Controlled: Story = {
   render: () => {
     const count = document.createElement('output');
     count.textContent = '0 selected';
-    const onSelect = (event: CustomEvent<RowSelectDetail>) => {
+    const onSelect = (event: CustomEvent<SelectionChangeDetail>) => {
       const table = event.target as ArgusTable<Order>;
       const { selection } = event.detail;
       if (selection.length > 5) return;
@@ -177,7 +177,7 @@ export const Controlled: Story = {
         .data=${data}
         .getRowId=${getRowId}
         .selection=${[]}
-        @argus-row-select=${onSelect}
+        @argus-selection-change=${onSelect}
       ></argus-table>`;
   },
   play: async ({ canvasElement }) => {

@@ -10,8 +10,8 @@
  *
  * @summary Fast, CSS-styleable data table.
  *
- * @fires argus-sort-change - Sorting changed. `detail: { sorting: SortState }`
- * @fires argus-column-resize - A column was resized. `detail: { columnId, width, sizing }`
+ * @fires argus-sorting-change - Sorting changed. `detail: { sorting: SortState }`
+ * @fires argus-column-sizing-change - A column was resized. `detail: { columnSizing, columnId, width }`
  *
  * @slot - `<argus-column>` children; read as column definitions, not rendered.
  * @slot empty - Content shown when there are no rows.
@@ -46,7 +46,7 @@ async scrollToRow(index: number): Promise<void> { … }
 
 - One or two sentences: what, units, default, and any interaction ("ignored when `columns` is set").
 - `@internal` or `private`/`#private` hides members from the manifest.
-- Methods are documented the same way; the public ones from the plan are `scrollToRow`, `scrollToColumn`, `refresh`, `autosizeColumns`, `getState`, `setState`.
+- Methods are documented the same way; the public ones are `scrollToRow`, `refresh`, `autosizeColumns`, `getState`, `setState`.
 
 ## Checklist when adding public API
 

@@ -160,7 +160,7 @@ export const PinnedSplit: Story = {
 /**
  * A group's columns stay together. Drag a group header to move the whole group,
  * or press Alt+Shift+Arrow on it; a column moves only within its group.
- * `argus-column-reorder` then carries the `groupId`.
+ * `argus-column-order-change` then carries the `groupId`.
  */
 export const Reorder: Story = {
   render: () =>
@@ -175,7 +175,7 @@ export const Reorder: Story = {
     const el = table(canvasElement);
     await el.updateComplete;
     const moves: string[] = [];
-    el.addEventListener('argus-column-reorder', (e) => {
+    el.addEventListener('argus-column-order-change', (e) => {
       moves.push(e.detail.groupId ?? e.detail.columnId);
     });
     groupCell(el, 'g:center:state').focus();

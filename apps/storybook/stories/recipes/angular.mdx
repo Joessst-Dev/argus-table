@@ -41,20 +41,23 @@ export class OrdersComponent {
 }
 ```
 
-Inputs set the element's properties; `null` (as from the `async` pipe) means unset. Each `argus-*` event is an output without its prefix, with the element's `CustomEvent`:
+Inputs set the element's properties; `null` (as from the `async` pipe) means unset. Each `argus-*` event is an output without its prefix. The output of an `argus-<property>-change` event emits the new value, so `[(property)]` binds it two ways; for the whole event (`columnId`, `width` and so on) bind the element's own event, `(argus-column-sizing-change)="saveWidth($event.detail)"`:
 
-| Event                  | Output          |
-| ---------------------- | --------------- |
-| `argus-sort-change`    | `sortChange`    |
-| `argus-column-resize`  | `columnResize`  |
-| `argus-column-reorder` | `columnReorder` |
-| `argus-cell-click`     | `cellClick`     |
-| `argus-row-click`      | `rowClick`      |
-| `argus-range-change`   | `rangeChange`   |
-| `argus-load-error`     | `loadError`     |
-| `argus-row-select`     | `rowSelect`     |
+| Event                            | Output                                   | Two-way                |
+| -------------------------------- | ---------------------------------------- | ---------------------- |
+| `argus-sorting-change`           | `sortingChange` (the new value)          | `[(sorting)]`          |
+| `argus-column-sizing-change`     | `columnSizingChange` (the new value)     | `[(columnSizing)]`     |
+| `argus-column-order-change`      | `columnOrderChange` (the new value)      | `[(columnOrder)]`      |
+| `argus-column-pinning-change`    | `columnPinningChange` (the new value)    | `[(columnPinning)]`    |
+| `argus-column-visibility-change` | `columnVisibilityChange` (the new value) | `[(columnVisibility)]` |
+| `argus-column-filters-change`    | `columnFiltersChange` (the new value)    | `[(columnFilters)]`    |
+| `argus-selection-change`         | `selectionChange` (the new value)        | `[(selection)]`        |
+| `argus-cell-click`               | `cellClick` (the `CustomEvent`)          |                        |
+| `argus-row-click`                | `rowClick` (the `CustomEvent`)           |                        |
+| `argus-range-change`             | `rangeChange` (the `CustomEvent`)        |                        |
+| `argus-load-error`               | `loadError` (the `CustomEvent`)          |                        |
 
-`[(sorting)]`, `[(columnSizing)]`, `[(columnOrder)]` and `[(selection)]` bind the four properties the table can change. Unbound, the table keeps that state itself; a one-way `[sorting]` is controlled.
+Unbound, the table keeps that state itself; a one-way `[sorting]` is controlled.
 
 Cells and headers take Angular templates: `<ng-template argusCell="status" let-row>` inside the table renders a column's cells (`[argusCellOf]="rows"` types `row`), `argusHeader="total"` its header, and `argusGroupHeader="<group id>"` a column group's header. A `cell` function can return `argusTemplate(templateRef, context)`. Pooled cells keep their views and get the next row's context as the table scrolls:
 

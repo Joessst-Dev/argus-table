@@ -61,10 +61,10 @@ const selectedRows = (el: HTMLElement) =>
     .map((row, i) => (row.part.contains('row-selected') ? i : -1))
     .filter((i) => i >= 0);
 
-/** Collects `argus-row-select` details. */
+/** Collects `argus-selection-change` details. */
 function changes(el: HTMLElement) {
   const seen: SelectionState[] = [];
-  el.addEventListener('argus-row-select', (e) => seen.push(e.detail.selection));
+  el.addEventListener('argus-selection-change', (e) => seen.push(e.detail.selection));
   return seen;
 }
 
@@ -101,7 +101,7 @@ describe('selection: multi, clicks', () => {
     const { el, seen } = await table();
     expect(rowsInOrder(el)[0]?.getAttribute('aria-selected')).toBe('false');
     let partOnEvent: boolean | undefined;
-    el.addEventListener('argus-row-select', () => {
+    el.addEventListener('argus-selection-change', () => {
       partOnEvent = rowsInOrder(el)[3]?.part.contains('row-selected');
     });
     await click(el, 3);
@@ -180,7 +180,7 @@ describe('selection: multi, clicks', () => {
     const order: string[] = [];
     el.addEventListener('argus-cell-click', () => order.push('cell'));
     el.addEventListener('argus-row-click', () => order.push('row'));
-    el.addEventListener('argus-row-select', () => order.push('selection'));
+    el.addEventListener('argus-selection-change', () => order.push('selection'));
     await click(el, 2);
     expect(order).toEqual(['cell', 'row', 'selection']);
   });

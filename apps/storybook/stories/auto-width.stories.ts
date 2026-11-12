@@ -75,7 +75,7 @@ export const AutoColumns: Story = {
 /**
  * Double-click a header's resize handle to fit that column to the rows in view,
  * or call `autosizeColumns(ids?)` to fit several. Both count as resizes: they fire
- * `argus-column-resize` and follow the `columnSizing` rules. Price is too narrow
+ * `argus-column-sizing-change` and follow the `columnSizing` rules. Price is too narrow
  * for its header here; the play function fits it.
  */
 export const FitToContent: Story = {
