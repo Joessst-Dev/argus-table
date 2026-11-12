@@ -363,12 +363,12 @@ describe('plugin host', () => {
     expect(host().column('age')?.sorted).toBe('desc');
 
     // Clearing another column's sort changes nothing.
-    host().setSort('name', null);
+    host().setSort('name', undefined);
     host().setSort('age', 'desc');
     await settle(el);
     expect(el.sorting).toEqual([{ id: 'age', desc: true }]);
 
-    host().setSort('age', null);
+    host().setSort('age', undefined);
     await settle(el);
     expect(el.sorting).toEqual([]);
     expect(events).toEqual([[{ id: 'age', desc: true }], []]);
@@ -426,10 +426,10 @@ describe('plugin host', () => {
   test('row() reads body rows in the current order', async () => {
     const { plugin, host } = hostGrabber();
     const el = await fixture({ columns, data, plugins: [plugin] });
-    expect(host().row?.(0)).toBe(data[0]);
+    expect(host().row(0)).toBe(data[0]);
     host().setSort('age', 'asc');
     await settle(el);
-    expect([0, 1, 2].map((i) => host().row?.(i)?.name)).toEqual(['Bob', 'Cid', 'Ann']);
-    expect(host().row?.(3)).toBeUndefined();
+    expect([0, 1, 2].map((i) => host().row(i)?.name)).toEqual(['Bob', 'Cid', 'Ann']);
+    expect(host().row(3)).toBeUndefined();
   });
 });

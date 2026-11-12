@@ -76,6 +76,7 @@ import type { CheckboxHandlers } from './render/content.js';
 import { renderPinnedRows } from './render/pinned-rows.js';
 import type { ArgusPlugin, CellTarget, ColumnInfo, PluginHost } from './plugins.js';
 import { baseStyles } from './styles/base.js';
+import { switchConverter } from './attributes.js';
 import type {
   CellContent,
   ColumnDef,
@@ -92,6 +93,7 @@ import type {
   PinnedRows,
   SelectionMode,
   SelectionState,
+  SortDirection,
   SortState,
   TableState,
 } from './types.js';
@@ -418,8 +420,9 @@ export class ArgusTable<T = unknown> extends LitElement {
    * explicitly, so page CSS that relies on their order in the DOM (`:nth-child`
    * on cells) doesn't apply. `autosizeColumns()` and `width: 'auto'` columns
    * still measure columns out of view: they render for the measurement.
+   * As an attribute, `virtualize-columns="false"` is off, like no attribute.
    */
-  @property({ attribute: 'virtualize-columns', type: Boolean })
+  @property({ attribute: 'virtualize-columns', converter: switchConverter })
   virtualizeColumns = false;
 
   /**
@@ -549,8 +552,9 @@ export class ArgusTable<T = unknown> extends LitElement {
    * every row, or clears the selection when all are selected. Space on a
    * focused checkbox cell does the same. The column isn't part of `columns`,
    * `columnOrder` or `columnSizing`, and it fires no `argus-cell-click`.
+   * As an attribute, `selection-checkboxes="false"` is off, like no attribute.
    */
-  @property({ attribute: 'selection-checkboxes', type: Boolean })
+  @property({ attribute: 'selection-checkboxes', converter: switchConverter })
   selectionCheckboxes = false;
 
   /**
@@ -895,13 +899,14 @@ export class ArgusTable<T = unknown> extends LitElement {
    * The state users change, as one object of plain JSON for saving a user's
    * layout: `sorting`, `columnSizing`, `columnOrder`, `columnPinning`,
    * `columnVisibility`, `columnFilters`, `selection`, `quickFilter`, and `scroll`
-   * (the row at the top and the horizontal offset). Controlled properties are
+   * (the row at the top and the inline offset), with `version: 1`. Controlled properties are
    * included with the values you set. The object is a copy: changing it changes
    * nothing in the table.
    */
   getState(): Required<TableState> {
     const scroller = this.#scroller();
     return structuredClone({
+      version: 1 as const,
       sorting: this.#sorting.value,
       columnSizing: this.#sizing.value,
       columnOrder: this.#order.value,
@@ -911,14 +916,14 @@ export class ArgusTable<T = unknown> extends LitElement {
       selection: this.#selection.value,
       quickFilter: this.#quickFilter,
       // Negative in RTL.
-      scroll: { row: this.#virtual.topRow, left: Math.abs(scroller?.scrollLeft ?? 0) },
+      scroll: { row: this.#virtual.topRow, inline: Math.abs(scroller?.scrollLeft ?? 0) },
     });
   }
 
   /**
    * Restores state from `getState()`, for example a layout saved in
    * `localStorage`. Only the keys given change; ids of columns that no longer
-   * exist are ignored. Properties you control are left alone (set them
+   * exist are ignored. State of another `version` is ignored as a whole. Properties you control are left alone (set them
    * yourself), and the others stay uncontrolled. No change events fire.
    * `quickFilter` is set like the property: a search box of yours shows it only
    * if you read it back. `scroll` is applied after the rest, so with a
@@ -926,6 +931,11 @@ export class ArgusTable<T = unknown> extends LitElement {
    * has re-rendered there.
    */
   async setState(state: TableState): Promise<void> {
+    // Another format (a later version's): nothing it holds can be trusted to mean the same.
+    if (state.version !== undefined && (state.version as number) !== 1) {
+      console.warn(`argus-table: setState() ignored state of version ${String(state.version)}.`);
+      return;
+    }
     this.#restore('sorting', this.#sorting, state.sorting);
     this.#restore('columnSizing', this.#sizing, state.columnSizing);
     this.#restore('columnOrder', this.#order, state.columnOrder);
@@ -947,7 +957,9 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.#scrollTarget = { row: scroll.row, count };
     }
     const scroller = this.#scroller();
-    if (scroller) scroller.scrollLeft = scroll.left * this.#direction();
+    if (scroller && Number.isFinite(scroll.inline)) {
+      scroller.scrollLeft = scroll.inline * this.#direction();
+    }
     // The scroll event comes before the next frame, and the rows move with its update.
     await new Promise(requestAnimationFrame);
     await this.#settled();
@@ -978,7 +990,7 @@ export class ArgusTable<T = unknown> extends LitElement {
 
   protected override willUpdate(changed: PropertyValues<this>): void {
     if (changed.has('plugins')) this.#plugins.set(this.plugins);
-    this.#plugins.willUpdate(new Set(changed.keys()));
+    this.#plugins.willUpdate(new Set([...changed.keys()].map(String)));
     const columns = this.#plugins.transform(this.#effectiveColumns());
     this.#columnsChanged = columns !== this.#columns;
     this.#columns = columns;
@@ -2548,12 +2560,12 @@ export class ArgusTable<T = unknown> extends LitElement {
    * A plugin's sort: by a column in a direction, or (`null`) cleared if it is by
    * that column. Only sortable columns, and only a change.
    */
-  #setSort(columnId: string, direction: 'asc' | 'desc' | null): void {
+  #setSort(columnId: string, direction: SortDirection | undefined): void {
     const view = this.#table.model.columns.find((c) => c.id === columnId);
     if (view?.kind !== 'data' || !view.sortable) return;
-    const sorted = view.sorted === false ? null : view.sorted;
+    const sorted = view.sorted === false ? undefined : view.sorted;
     if (direction === sorted) return;
-    if (direction === null) this.#applySorting([]);
+    if (direction === undefined) this.#applySorting([]);
     else this.#applySorting([{ id: columnId, desc: direction === 'desc' }]);
   }
 
@@ -2591,7 +2603,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       width: view.width,
       sorted: view.sorted === false ? undefined : view.sorted,
       filter: view.filter,
-      filterValue: this.#filters.value[id],
+      columnFilter: this.#filters.value[id],
     };
   }
 

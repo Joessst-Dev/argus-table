@@ -144,7 +144,7 @@ export function slotPlugin(
       });
     },
     columnGroups(groups) {
-      const withSlots = (group: ColumnGroup): ColumnGroup => {
+      const withSlots = (group: ColumnGroup<unknown>): ColumnGroup<unknown> => {
         const id = group.id;
         const columns = group.columns.map((c) => (typeof c === 'string' ? c : withSlots(c)));
         const changed = columns.some((c, i) => c !== group.columns[i]);

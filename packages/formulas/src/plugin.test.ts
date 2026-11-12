@@ -379,7 +379,7 @@ describe('whole columns', () => {
   });
 
   test('other formula columns keep their accessors when the rows change', async () => {
-    let seen: readonly ColumnDef<Row>[] = [];
+    let seen: readonly ColumnDef<Row, unknown>[] = [];
     const spy: ArgusPlugin<Row> = {
       name: 'spy',
       columns(defs) {

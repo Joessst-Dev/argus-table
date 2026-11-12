@@ -199,7 +199,7 @@ describe('filters from plugins', () => {
       seen.push({ detail: e.detail, rows: rowsInOrder(el).length });
     });
     const filter = { kind: 'text', op: 'contains', value: 'person 1' } as const;
-    host().setFilter?.('name', filter);
+    host().setFilter('name', filter);
     await settle(el);
     expect(el.columnFilters).toEqual({ name: filter });
     expect(seen).toEqual([
@@ -209,7 +209,7 @@ describe('filters from plugins', () => {
       },
     ]);
 
-    host().setFilter?.('name', undefined);
+    host().setFilter('name', undefined);
     await settle(el);
     expect(el.columnFilters).toEqual({});
     expect(seen[1]?.detail).toEqual({
@@ -225,7 +225,7 @@ describe('filters from plugins', () => {
     const seen: unknown[] = [];
     el.addEventListener('argus-column-filters-change', (e) => seen.push(e.detail));
     const filter = { kind: 'number', op: 'gt', value: 2 } as const;
-    host().setFilter?.('age', filter);
+    host().setFilter('age', filter);
     await settle(el);
     expect(seen).toEqual([
       { columnId: 'age', columnFilter: filter, columnFilters: { age: filter } },
@@ -235,7 +235,7 @@ describe('filters from plugins', () => {
 
     // Handing it back makes it uncontrolled again.
     el.columnFilters = undefined;
-    host().setFilter?.('age', filter);
+    host().setFilter('age', filter);
     await settle(el);
     expect(names(el)).toEqual(['Person 3', 'Person 4']);
   });
@@ -245,8 +245,8 @@ describe('filters from plugins', () => {
     const el = await fixture({ columns, data: people(5), plugins: [plugin] });
     const seen: unknown[] = [];
     el.addEventListener('argus-column-filters-change', (e) => seen.push(e.detail));
-    host().setFilter?.('id', { kind: 'text', op: 'empty' });
-    host().setFilter?.('name', undefined);
+    host().setFilter('id', { kind: 'text', op: 'empty' });
+    host().setFilter('name', undefined);
     await settle(el);
     expect(seen).toEqual([]);
   });
@@ -261,14 +261,14 @@ describe('filters from plugins', () => {
     });
     expect(host().column('age')).toMatchObject({
       filter: 'number',
-      filterValue: { kind: 'number', op: 'lt', value: 7 },
+      columnFilter: { kind: 'number', op: 'lt', value: 7 },
     });
-    expect(host().column('id')).toMatchObject({ filter: undefined, filterValue: undefined });
+    expect(host().column('id')).toMatchObject({ filter: undefined, columnFilter: undefined });
     // Ages 0–6 are people 0–6, one per city.
-    expect(host().filterValues?.('city')?.values).toHaveLength(7);
+    expect(host().filterValues('city')?.values).toHaveLength(7);
     el.columnFilters = { age: { kind: 'number', op: 'lt', value: 2 } };
     await settle(el);
-    expect(host().filterValues?.('city')).toEqual({
+    expect(host().filterValues('city')).toEqual({
       values: ['City 0', 'City 1'],
       truncated: false,
     });
@@ -285,14 +285,14 @@ describe('filteredIndexes', () => {
       sorting: [{ id: 'age', desc: true }],
       columnFilters: { age: { kind: 'number', op: 'lt', value: 7 } },
     });
-    expect(host().filteredIndexes?.()).toEqual([0, 1, 2, 3, 4, 5, 6]);
-    expect(host().filteredIndexes?.(['age'])).toHaveLength(10);
+    expect(host().filteredIndexes()).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    expect(host().filteredIndexes(['age'])).toHaveLength(10);
     el.quickFilter = 'City 3';
     await settle(el);
-    expect(host().filteredIndexes?.()).toEqual([3]);
-    expect(host().filteredIndexes?.(['name'])).toEqual([3]);
+    expect(host().filteredIndexes()).toEqual([3]);
+    expect(host().filteredIndexes(['name'])).toEqual([3]);
     // Only the city column has "City 3" in it.
-    expect(host().filteredIndexes?.(['city'])).toEqual([]);
+    expect(host().filteredIndexes(['city'])).toEqual([]);
   });
 
   test('a column can read it from its accessor while the table filters and sorts', async () => {
@@ -312,7 +312,7 @@ describe('filteredIndexes', () => {
       name: 'share',
       connect(host) {
         read = () =>
-          (host.filteredIndexes?.(['share']) ?? []).flatMap((i) => host.element.data[i] ?? []);
+          (host.filteredIndexes(['share']) ?? []).flatMap((i) => host.element.data[i] ?? []);
       },
     };
     const el = await fixture({
@@ -437,11 +437,11 @@ describe('filters with a dataSource', () => {
       c.id === 'city' ? { ...c, filterOptions: ['City 0', 'City 1'] } : c,
     );
     await fixture({ columns: defs, dataSource: source, plugins: [plugin] });
-    expect(host().filterValues?.('city')).toEqual({
+    expect(host().filterValues('city')).toEqual({
       values: ['City 0', 'City 1'],
       truncated: false,
     });
-    expect(host().filterValues?.('name')).toBeUndefined();
+    expect(host().filterValues('name')).toBeUndefined();
   });
 });
 
@@ -461,7 +461,7 @@ describe('<argus-column> filters', () => {
     document.body.append(el);
     await settle(el);
     expect(host().column('name')?.filter).toBe('text');
-    expect(host().filterValues?.('city')?.values).toEqual(['City 2']);
+    expect(host().filterValues('city')?.values).toEqual(['City 2']);
     el.columnFilters = { city: { kind: 'set', values: ['City 2'] } };
     await settle(el);
     expect(names(el)).toEqual(['Person 2', 'Person 9']);

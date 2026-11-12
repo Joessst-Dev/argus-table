@@ -26,8 +26,8 @@ export class PluginController<T> implements ReactiveController {
   /** Plugins whose `connect` threw: off until `plugins` changes. */
   readonly #failed = new Set<ArgusPlugin<T>>();
   #version = 0;
-  #memo: Memo<ColumnDef<T>> | undefined;
-  #groupsMemo: Memo<ColumnGroup> | undefined;
+  #memo: Memo<ColumnDef<T, unknown>> | undefined;
+  #groupsMemo: Memo<ColumnGroup<unknown>> | undefined;
 
   constructor(host: ReactiveControllerHost & HTMLElement, api: PluginHost<T>) {
     this.#host = host;
@@ -52,7 +52,7 @@ export class PluginController<T> implements ReactiveController {
   }
 
   /** Tells the plugins, in order, which properties changed; before the transforms. */
-  willUpdate(changed: ReadonlySet<PropertyKey>): void {
+  willUpdate(changed: ReadonlySet<string>): void {
     for (const plugin of this.#plugins) {
       if (!plugin.willUpdate || this.#failed.has(plugin)) continue;
       this.#guard(plugin, 'willUpdate', () => {
@@ -67,7 +67,9 @@ export class PluginController<T> implements ReactiveController {
       plugin.columns?.(defs, this.#api),
     );
     this.#memo = memo;
-    return memo.output;
+    // Plugins see content as `unknown`; what they return renders through the
+    // `content()` directive, which hands anything else to the `contentRenderer`.
+    return memo.output as readonly ColumnDef<T>[];
   }
 
   /** The plugins' `columnGroups` transforms applied in order; the same array while nothing changed. */
@@ -76,7 +78,7 @@ export class PluginController<T> implements ReactiveController {
       plugin.columnGroups?.(groups, this.#api),
     );
     this.#groupsMemo = memo;
-    return memo.output;
+    return memo.output as readonly ColumnGroup[];
   }
 
   #run<V>(

@@ -257,7 +257,7 @@ export abstract class ArgusTableBase<T = unknown> implements AfterContentInit, O
   }
 
   /** A group, and the groups inside it, with the header from its `argusGroupHeader` template. */
-  #withGroupTemplate(group: ColumnGroup): ColumnGroup {
+  #withGroupTemplate(group: ColumnGroup<unknown>): ColumnGroup<unknown> {
     const id = group.id;
     const columns = group.columns.map((c) =>
       typeof c === 'string' ? c : this.#withGroupTemplate(c),
@@ -268,12 +268,11 @@ export abstract class ArgusTableBase<T = unknown> implements AfterContentInit, O
     return {
       ...group,
       columns,
-      header: () =>
-        argusTemplate(template.template, { $implicit: id, groupId: id }) as unknown as CellContent,
+      header: () => argusTemplate(template.template, { $implicit: id, groupId: id }),
     };
   }
 
-  #withTemplates(def: ColumnDef<T>): ColumnDef<T> {
+  #withTemplates(def: ColumnDef<T, unknown>): ColumnDef<T, unknown> {
     const id = def.id;
     const cell = this.cellTemplates?.find((t) => t.argusCell === id);
     const header = this.headerTemplates?.find((t) => t.argusHeader === id);
@@ -282,7 +281,7 @@ export abstract class ArgusTableBase<T = unknown> implements AfterContentInit, O
       ...def,
       ...(cell && {
         cell: (row: T, context: CellContext<T>) =>
-          argusTemplate(cell.template as TemplateRef<ArgusCellContext<T>>, {
+          argusTemplate(cell.template, {
             $implicit: row,
             row,
             value: context.value,
@@ -290,11 +289,10 @@ export abstract class ArgusTableBase<T = unknown> implements AfterContentInit, O
             index: context.index,
             columnId: context.columnId,
             pinned: context.pinned,
-          }) as unknown as CellContent,
+          }),
       }),
       ...(header && {
-        header: () =>
-          argusTemplate(header.template, { $implicit: id, columnId: id }) as unknown as CellContent,
+        header: () => argusTemplate(header.template, { $implicit: id, columnId: id }),
       }),
     };
   }

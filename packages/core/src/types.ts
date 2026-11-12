@@ -147,6 +147,9 @@ export interface ColumnDef<TData, TContent = unknown> {
   wrap?: boolean;
 }
 
+/** A sort direction: ascending or descending. */
+export type SortDirection = 'asc' | 'desc';
+
 /** One sorted column. */
 export interface SortItem {
   /** The column's id. */
@@ -160,7 +163,7 @@ export interface SortItem {
  * (the first decides, the next breaks ties). A header click replaces the order with
  * that one column; sorting by several columns is set by the host or a plugin.
  */
-export type SortState = SortItem[];
+export type SortState = readonly SortItem[];
 
 /**
  * A header over several columns (`columnGroups`). Groups nest: a group lists column
@@ -192,7 +195,7 @@ export type ColumnSizingState = Record<string, number>;
  * The column order: column ids as the table shows them (start-pinned, scrolling,
  * end-pinned). An empty array means the order of `columns`.
  */
-export type ColumnOrderState = string[];
+export type ColumnOrderState = readonly string[];
 
 /**
  * Pins set at runtime, keyed by column id: `'start'` or `'end'` pins a column, `false`
@@ -253,7 +256,7 @@ export interface DateFilter {
 /** Keeps rows whose value is one of `values` (`null` stands for an empty value). */
 export interface SetFilter {
   kind: 'set';
-  values: FilterValue[];
+  values: readonly FilterValue[];
 }
 
 /** One column's filter. */
@@ -272,15 +275,17 @@ export type ColumnFilterState = Record<string, ColumnFilter>;
 export type SelectionMode = 'none' | 'single' | 'multi';
 
 /** The selected rows, as row ids (from `getRowId`, or the row's index as a string). */
-export type SelectionState = string[];
+export type SelectionState = readonly string[];
 
 /**
  * Where the body is scrolled: the row at the top, as an index in the current row
  * order, and the inline offset in px from the start edge (positive in RTL too).
  */
 export interface ScrollState {
+  /** The row at the top, as an index in the current row order. */
   row: number;
-  left: number;
+  /** The inline offset in px from the start edge, positive in RTL too. */
+  inline: number;
 }
 
 /**
@@ -288,6 +293,11 @@ export interface ScrollState {
  * `getState()` returns every key, and `setState()` applies the keys it is given.
  */
 export interface TableState {
+  /**
+   * The format of the object: `1`. `getState()` sets it; `setState()` ignores an
+   * object with another version, and takes one without it as version 1.
+   */
+  version?: 1;
   sorting?: SortState;
   columnSizing?: ColumnSizingState;
   columnOrder?: ColumnOrderState;

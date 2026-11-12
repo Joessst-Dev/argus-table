@@ -169,9 +169,11 @@ describe('<ArgusTable>', () => {
   });
 
   test('binds columnSizing, columnOrder and selection two-way', async () => {
-    const state = reactive<{ sizing: Record<string, number>; order: string[]; selected: string[] }>(
-      { sizing: {}, order: [], selected: [] },
-    );
+    const state = reactive<{
+      sizing: Record<string, number>;
+      order: readonly string[];
+      selected: readonly string[];
+    }>({ sizing: {}, order: [], selected: [] });
     const { el } = await mount(() =>
       h(ArgusTable<Order>, {
         style: size,
@@ -182,12 +184,12 @@ describe('<ArgusTable>', () => {
           state.sizing = v;
         },
         columnOrder: state.order,
-        'onUpdate:columnOrder': (v: string[]) => {
+        'onUpdate:columnOrder': (v: readonly string[]) => {
           state.order = v;
         },
         selectionMode: 'multi',
         selection: state.selected,
-        'onUpdate:selection': (v: string[]) => {
+        'onUpdate:selection': (v: readonly string[]) => {
           state.selected = v;
         },
       }),

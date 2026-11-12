@@ -35,7 +35,7 @@ export interface Problem {
  * of arguments, or a cycle. `undefined` when it's fine.
  */
 export function checkFormula<T>(
-  defs: readonly ColumnDef<T>[],
+  defs: readonly ColumnDef<T, unknown>[],
   id: string,
   functions: FunctionTable,
 ): Problem | undefined {
@@ -106,7 +106,7 @@ const DRAFT = '\u0000new';
 const PREVIEW_ROWS = 5;
 
 /** An id for a new column from its name: `gross`, `gross-2`… */
-function newId<T>(name: string, defs: readonly ColumnDef<T>[]): string {
+function newId<T>(name: string, defs: readonly ColumnDef<T, unknown>[]): string {
   const base =
     name
       .toLowerCase()
@@ -122,7 +122,11 @@ function newId<T>(name: string, defs: readonly ColumnDef<T>[]): string {
  * The columns with each formula name that led to column `id` by its old header
  * renamed to `name`. Names by id stay as they are.
  */
-function renameRefs<T>(defs: readonly ColumnDef<T>[], id: string, name: string): ColumnDef<T>[] {
+function renameRefs<T>(
+  defs: readonly ColumnDef<T, unknown>[],
+  id: string,
+  name: string,
+): ColumnDef<T, unknown>[] {
   const lookup = lookupOf(defs);
   return defs.map((def) => {
     if (def.formula === undefined || def.id === id) return def;
@@ -141,7 +145,7 @@ function renameRefs<T>(defs: readonly ColumnDef<T>[], id: string, name: string):
 }
 
 function checkName<T>(
-  defs: readonly ColumnDef<T>[],
+  defs: readonly ColumnDef<T, unknown>[],
   columnId: string | undefined,
   name: string,
 ): string | undefined {
@@ -160,7 +164,7 @@ export type Mode = 'add' | 'edit' | 'view';
 export interface Session<T> {
   host: PluginHost<T>;
   /** The columns as the plugin got them. */
-  defs: readonly ColumnDef<T>[];
+  defs: readonly ColumnDef<T, unknown>[];
   mode: Mode;
   /** The column the editor opened from: the one edited, or the one to add after. */
   columnId: string;
@@ -173,15 +177,20 @@ export interface Session<T> {
 
 /** A change the user saved, for the plugin to propose through its events. */
 export type Outcome<T> =
-  | { kind: 'add'; column: ColumnDef<T>; columns: ColumnDef<T>[] }
-  | { kind: 'change'; column: ColumnDef<T>; previous: ColumnDef<T>; columns: ColumnDef<T>[] };
+  | { kind: 'add'; column: ColumnDef<T, unknown>; columns: ColumnDef<T, unknown>[] }
+  | {
+      kind: 'change';
+      column: ColumnDef<T, unknown>;
+      previous: ColumnDef<T, unknown>;
+      columns: ColumnDef<T, unknown>[];
+    };
 
 /** The columns with the draft in place: added after the column, or replacing it. */
 function withDraft<T>(
   session: Session<T>,
   name: string,
   formula: string,
-): { defs: ColumnDef<T>[]; id: string } {
+): { defs: ColumnDef<T, unknown>[]; id: string } {
   const { defs, mode, columnId } = session;
   if (mode !== 'add') {
     return {
@@ -199,7 +208,7 @@ function withDraft<T>(
  * The first rows (in the table's order) with the formula's result: the first
  * column, up to two columns the formula names, and the result.
  */
-function preview<T>(session: Session<T>, defs: ColumnDef<T>[], id: string): PreviewTable {
+function preview<T>(session: Session<T>, defs: ColumnDef<T, unknown>[], id: string): PreviewTable {
   const { host } = session;
   const compiled = compileColumns(defs, {
     functions: session.functions,
@@ -211,7 +220,7 @@ function preview<T>(session: Session<T>, defs: ColumnDef<T>[], id: string): Prev
   const draftDef = defs.find((d) => d.id === id);
   const tree = session.parse(draftDef?.formula ?? '');
   const first = defs.find((d) => d.id !== id);
-  const shown: ColumnDef<T>[] = first ? [first] : [];
+  const shown: ColumnDef<T, unknown>[] = first ? [first] : [];
   if (!(tree instanceof FormulaSyntaxError)) {
     for (const name of refsOf(tree)) {
       const target = lookup(name);
@@ -222,17 +231,17 @@ function preview<T>(session: Session<T>, defs: ColumnDef<T>[], id: string): Prev
   }
   const rows: T[] = [];
   for (let i = 0; i < PREVIEW_ROWS; i++) {
-    const row = host.row ? host.row(i) : host.element.data[i];
+    const row = host.row(i);
     if (row === undefined) break;
     rows.push(row);
   }
   const cell = (value: unknown) =>
     isFormulaError(value) ? { text: value.code, error: value.message } : { text: display(value) };
-  const valueOf = (def: ColumnDef<T>, row: T, index: number) => {
+  const valueOf = (def: ColumnDef<T, unknown>, row: T, index: number) => {
     const c = compiled.get(def.id);
     return c ? c.result(row, index) : readerOf(def)({ row, index });
   };
-  const numeric = (def: ColumnDef<T>) => {
+  const numeric = (def: ColumnDef<T, unknown>) => {
     const type = compiled.get(def.id)?.type;
     return type === 'number' || type === 'date' || def.align === 'end';
   };
@@ -295,7 +304,7 @@ export async function edit<T>(session: Session<T>): Promise<Outcome<T> | undefin
   if (!result || mode === 'view') return undefined;
 
   if (mode === 'add') {
-    const column: ColumnDef<T> = {
+    const column: ColumnDef<T, unknown> = {
       id: newId(result.name, defs),
       header: result.name,
       formula: result.formula,
@@ -306,7 +315,7 @@ export async function edit<T>(session: Session<T>): Promise<Outcome<T> | undefin
   }
   const renamed = result.name !== nameOf(current);
   if (!renamed && result.formula === current.formula) return undefined;
-  const column: ColumnDef<T> = {
+  const column: ColumnDef<T, unknown> = {
     ...current,
     header: renamed ? result.name : current.header,
     formula: result.formula,

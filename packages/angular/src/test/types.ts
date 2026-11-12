@@ -89,7 +89,7 @@ export class TypesComponent {
     return order.id;
   }
 
-  takeIds(ids: string[]): string {
+  takeIds(ids: readonly string[]): string {
     return ids.join();
   }
   takeSorting(sorting: SortState): number {

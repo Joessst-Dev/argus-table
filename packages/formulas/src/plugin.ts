@@ -1,5 +1,5 @@
 import { html, nothing, render } from 'lit';
-import type { ArgusPlugin, CellContent, CellContext, ColumnDef, PluginHost } from 'argus-table';
+import type { ArgusPlugin, CellContext, ColumnDef, PluginHost } from 'argus-table';
 import {
   compileColumns,
   display,
@@ -19,6 +19,7 @@ import { adoptStyles } from './styles.js';
 
 export type { FormulaFunction } from './columns.js';
 
+/** Options of `formulas()`. */
 export interface FormulasOptions {
   /**
    * Functions of your own, by name: `{ VAT: { fn: (n) => Number(n) * 0.19, args: [1, 1] } }`.
@@ -40,27 +41,28 @@ export interface FormulasOptions {
 }
 
 /** An item for `headerMenu()`'s column menu (its `HeaderMenuItem`, by shape: no import needed). */
-interface MenuItem {
+export interface FormulaMenuItem {
   label: string;
   detail?: string;
   danger?: boolean;
   run(): void;
 }
 
-interface MenuGroup {
+/** A group of items for `headerMenu()`'s column menu (its `HeaderMenuGroup`, by shape). */
+export interface FormulaMenuGroup {
   label?: string;
-  items: MenuItem[];
+  items: readonly FormulaMenuItem[];
 }
 
 /** The plugin, with the method `headerMenu()` asks for column menu items. */
 export type FormulasPlugin<T = unknown> = ArgusPlugin<T> & {
-  headerMenuItems(columnId: string, host: PluginHost<T>): MenuGroup[];
+  headerMenuItems(columnId: string, host: PluginHost<T>): FormulaMenuGroup[];
 };
 
 interface TableState<T> {
   host: PluginHost<T>;
   /** The columns as the plugin got them (before its own changes). */
-  defs: readonly ColumnDef<T>[];
+  defs: readonly ColumnDef<T, unknown>[];
   compiled: Map<string, Compiled<T>>;
   /** Columns whose formula was reported as broken, by id and formula. */
   warned: Set<string>;
@@ -162,8 +164,8 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPl
   };
 
   const cellFor =
-    (def: ColumnDef<T>, compiled: Compiled<T>) =>
-    (row: T, context: CellContext<T>): CellContent => {
+    (def: ColumnDef<T, unknown>, compiled: Compiled<T>) =>
+    (row: T, context: CellContext<T>): unknown => {
       // A cache hit: the table read the value (through the accessor) first.
       const value = compiled.result(row, context.index);
       if (isFormulaError(value)) return errorContent(value);
@@ -171,11 +173,17 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPl
     };
 
   const headerFor =
-    (def: ColumnDef<T>, mark: boolean, anchor: HTMLElement | undefined, host: PluginHost<T>) =>
+    (
+      def: ColumnDef<T, unknown>,
+      mark: boolean,
+      anchor: HTMLElement | undefined,
+      host: PluginHost<T>,
+    ) =>
     () => {
-      const raw = typeof def.header === 'function' ? def.header() : def.header;
+      // Plugins see content as `unknown`: a function header returns it too.
+      const raw = typeof def.header === 'function' ? (def.header as () => unknown)() : def.header;
       // Through the table, so framework content (React, Vue) renders in our template too.
-      const own = host.content ? host.content(raw) : raw;
+      const own = host.content(raw);
       if (!mark) return html`${own ?? nothing}${anchor ?? nothing}`;
       return html`<span class="argus-formula-header"
           ><span class="argus-formula-mark" aria-hidden="true">ƒx</span
@@ -331,7 +339,7 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPl
       const state = stateOf(host);
       const def = state.defs.find((d) => d.id === columnId);
       if (!def) return [];
-      const groups: MenuGroup[] = [];
+      const groups: FormulaMenuGroup[] = [];
       if (def.formula !== undefined) {
         groups.push({
           label: 'Formula',

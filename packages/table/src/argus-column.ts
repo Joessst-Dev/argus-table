@@ -1,6 +1,7 @@
 import { html, ReactiveElement, type ComplexAttributeConverter } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { templateContent } from 'lit/directives/template-content.js';
+import { flagConverter } from './attributes.js';
 import { notify } from './column-registry.js';
 import type {
   CellContent,
@@ -23,16 +24,6 @@ const widthConverter: ComplexAttributeConverter<ColumnWidth | undefined> = {
     if (!match) return undefined;
     const n = Number(match[1]);
     return match[2] === 'fr' ? { flex: n } : n;
-  },
-};
-
-/**
- * Boolean attribute with a default that may be `true`: absent → unset (the
- * default applies), `"false"` → `false`, anything else → `true`.
- */
-export const flagConverter: ComplexAttributeConverter<boolean | undefined> = {
-  fromAttribute(value) {
-    return value === null ? undefined : value.trim().toLowerCase() !== 'false';
   },
 };
 
@@ -183,6 +174,7 @@ export class ArgusColumn<T = unknown> extends ReactiveElement {
    * The column as the table reads it. Unset fields stay `undefined`, which the
    * table reads as its defaults. An unknown `pin` is ignored and an unknown
    * `align` falls back to `start`.
+   * @internal
    */
   toColumnDef(): ColumnDef<T> {
     if (this.#def) return this.#def;

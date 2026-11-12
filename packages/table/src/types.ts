@@ -63,6 +63,7 @@ export type {
   SelectionMode,
   SelectionState,
   SetFilter,
+  SortDirection,
   SortingChangeDetail,
   SortItem,
   SortState,
