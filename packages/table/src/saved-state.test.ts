@@ -336,5 +336,30 @@ describe('setState()', () => {
       await settle(el);
       expect(el.getState().scroll.row).toBe(reached);
     });
+
+    // #110: TanStack Virtual keeps the scroll command for a few frames, and the
+    // next page arriving within them made it finish the scroll toward the restored
+    // row (clamped to the rows counted when it started), after the user took over.
+    // A slow frame (as under CI load) lets the debounced page request in first.
+    test.each([
+      ['wheel', () => new WheelEvent('wheel', { deltaY: 10, bubbles: true })],
+      ['pointerdown', () => new PointerEvent('pointerdown', { bubbles: true })],
+      ['keydown', () => new KeyboardEvent('keydown', { key: 'Shift', bubbles: true })],
+    ])(
+      'a %s stops the restore, even when the next page comes before the next frame',
+      async (_, input) => {
+        const el = await fixture({ columns, dataSource: server({ total: false }).source });
+        await el.setState({ scroll: { row: 300, inline: 0 } });
+        el.dispatchEvent(input());
+        const reached = el.getState().scroll.row;
+        const until = performance.now() + 80;
+        while (performance.now() < until) {
+          // A long frame: the page request (debounced 50 ms) runs before the next one.
+        }
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        await settle(el);
+        expect(el.getState().scroll.row).toBe(reached);
+      },
+    );
   });
 });

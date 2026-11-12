@@ -575,6 +575,16 @@ export class VirtualController implements ReactiveController {
     this.#virtual.getVirtualizer().scrollToIndex(index, { align });
   }
 
+  /**
+   * Stops a `scrollToIndex()` still on its way: TanStack Virtual keeps the command
+   * for a few frames and finishes it when the row count changes, which would move
+   * the rows after the user has taken over. Scrolls written directly (`scrollBy`,
+   * `reveal`, `scrollToEdge`, the row-height mode) leave nothing pending.
+   */
+  cancelScroll(): void {
+    this.#virtual.getVirtualizer().cancelScroll();
+  }
+
   /** Scrolls by `delta` px of rows (logical px). */
   scrollBy(delta: number): void {
     const element = this.#element;

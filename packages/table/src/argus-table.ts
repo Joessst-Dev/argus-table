@@ -781,6 +781,9 @@ export class ArgusTable<T = unknown> extends LitElement {
 
   readonly #dropScrollTarget = () => {
     this.#scrollTarget = undefined;
+    // And the virtualizer's own command: it would otherwise finish the scroll to
+    // a restored row (or `scrollToRow()`'s) when the next page is counted (#110).
+    this.#virtual.cancelScroll();
   };
 
   override connectedCallback(): void {
