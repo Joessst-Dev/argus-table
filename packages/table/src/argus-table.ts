@@ -704,6 +704,12 @@ export class ArgusTable<T = unknown> extends LitElement {
     },
     row: (index) => this.#table.model.rowAt(index)?.original,
     content: (value) => content(value),
+    header: (def) => {
+      const { header } = def;
+      const own = typeof header === 'function' ? (header as () => unknown)() : header;
+      // A group without a header shows its id; a column shows nothing.
+      return content(own ?? ('columns' in def ? def.id : undefined));
+    },
   };
   readonly #plugins = new PluginController<T>(this, this.#pluginHost);
   #columnsById:

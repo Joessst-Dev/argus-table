@@ -219,17 +219,14 @@ describe('contentRenderer', () => {
     ).toBeLessThanOrEqual(1);
   });
 
-  test('plugins nest foreign content through host.content()', async () => {
+  test('plugins nest foreign content through host.header()', async () => {
     const { renderer } = recorder();
     const wrap: ArgusPlugin<Person> = {
       name: 'wrap',
       columns: (defs, host) =>
         defs.map((d) => ({
           ...d,
-          header: () => {
-            const own = typeof d.header === 'function' ? (d.header as () => unknown)() : d.header;
-            return html`<b class="wrapped">${host.content(own)}</b>`;
-          },
+          header: () => html`<b class="wrapped">${host.header(d)}</b>`,
         })),
     };
     const el = await fixture({

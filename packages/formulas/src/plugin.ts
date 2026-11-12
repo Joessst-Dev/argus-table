@@ -180,14 +180,12 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPl
       host: PluginHost<T>,
     ) =>
     () => {
-      // Plugins see content as `unknown`: a function header returns it too.
-      const raw = typeof def.header === 'function' ? (def.header as () => unknown)() : def.header;
-      // Through the table, so framework content (React, Vue) renders in our template too.
-      const own = host.content(raw);
-      if (!mark) return html`${own ?? nothing}${anchor ?? nothing}`;
+      // As the table shows it; framework content (React, Vue) renders in our template too.
+      const own = host.header(def);
+      if (!mark) return html`${own}${anchor ?? nothing}`;
       return html`<span class="argus-formula-header"
           ><span class="argus-formula-mark" aria-hidden="true">ƒx</span
-          ><span class="argus-formula-label">${own ?? nothing}</span></span
+          ><span class="argus-formula-label">${own}</span></span
         >${anchor ?? nothing}`;
     };
 
