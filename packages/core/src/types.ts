@@ -155,7 +155,11 @@ export interface SortItem {
   desc: boolean;
 }
 
-/** The sort order: an empty array when unsorted. v0.1 sorts by one column at a time. */
+/**
+ * The sort order: an empty array when unsorted. Several items sort by each in turn
+ * (the first decides, the next breaks ties). A header click replaces the order with
+ * that one column; sorting by several columns is set by the host or a plugin.
+ */
 export type SortState = SortItem[];
 
 /**
@@ -372,7 +376,10 @@ export interface CellClickDetail<TData> {
   pinned?: RowPin;
 }
 
-/** `detail` of `argus-range-change`: the first and last rendered row index (inclusive). */
+/**
+ * `detail` of `argus-range-change`: the first and last row in view, as indexes in the
+ * current order (inclusive). Rows rendered ahead of the scroll position don't count.
+ */
 export interface RangeChangeDetail {
   start: number;
   end: number;

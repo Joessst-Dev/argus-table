@@ -71,7 +71,7 @@ export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
     setProperty(this.element, 'data', undefined, value);
   }
 
-  /** Loads rows page by page as they scroll into view, instead of `data`: `{ getRows({ start, end, sorting, signal }), pageSize? }`, where `end` is exclusive and `getRows` resolves to `{ rows, total? }`. Without a `total`, the table grows as pages arrive and a short page marks the end. Sorting happens on the server: a new order reloads from the top. While set, it wins over `data`. Replace the object to change `getRows` or `pageSize`. */
+  /** Loads rows page by page as they scroll into view, instead of `data`: `{ getRows({ start, end, sorting, filters, quickFilter, signal }), pageSize? }`, where `end` is exclusive and `getRows` resolves to `{ rows, total? }`. Without a `total`, the table grows as pages arrive and a short page marks the end. Sorting and filtering happen on the server: a new order or filter reloads from the top. While set, it wins over `data`. Replace the object to change `getRows` or `pageSize`. */
   @Input() set dataSource(value: ArgusTableElement<T>['dataSource'] | null | undefined) {
     setProperty(this.element, 'dataSource', undefined, value);
   }
@@ -217,7 +217,7 @@ export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
   /** `argus-row-click`: A body or pinned row was clicked, or Enter was pressed on one of its cells. `detail: { row, rowId, index, pinned? }`; for a pinned row, `index` is its index in its list. */
   @Output() readonly rowClick = new EventEmitter<CustomEvent<RowClickDetail<T>>>();
 
-  /** `argus-range-change`: The visible rows changed. `detail: { start, end }` (row indices, inclusive). */
+  /** `argus-range-change`: The rows in view changed (rows rendered ahead of the scroll position not counted). `detail: { start, end }` (row indices in the current order, inclusive). */
   @Output() readonly rangeChange = new EventEmitter<CustomEvent<RangeChangeDetail>>();
 
   /** `argus-row-select`: The selected rows changed: by a click on a row (Ctrl/Cmd toggles, Shift selects a range), with Space, Shift+Arrow or Shift+PageUp/PageDown on a body cell, or with Ctrl/Cmd+A. Only with a `selectionMode`. `detail: { selection }`: the new row ids, or the proposed ones when `selection` is controlled. */

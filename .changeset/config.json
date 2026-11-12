@@ -11,7 +11,8 @@
       "@argus-table/vue",
       "@argus-table/angular",
       "@argus-table/header-menu",
-      "@argus-table/formulas"
+      "@argus-table/formulas",
+      "@argus-table/themes"
     ]
   ],
   "linked": [],

@@ -86,7 +86,7 @@ export interface ArgusTableEventProps<T = unknown> {
   'onCell-click'?: (event: CustomEvent<CellClickDetail<T>>) => void;
   /** `argus-row-click`: A body or pinned row was clicked, or Enter was pressed on one of its cells. `detail: { row, rowId, index, pinned? }`; for a pinned row, `index` is its index in its list. */
   'onRow-click'?: (event: CustomEvent<RowClickDetail<T>>) => void;
-  /** `argus-range-change`: The visible rows changed. `detail: { start, end }` (row indices, inclusive). */
+  /** `argus-range-change`: The rows in view changed (rows rendered ahead of the scroll position not counted). `detail: { start, end }` (row indices in the current order, inclusive). */
   'onRange-change'?: (event: CustomEvent<RangeChangeDetail>) => void;
   /** `argus-row-select`: The selected rows changed: by a click on a row (Ctrl/Cmd toggles, Shift selects a range), with Space, Shift+Arrow or Shift+PageUp/PageDown on a body cell, or with Ctrl/Cmd+A. Only with a `selectionMode`. `detail: { selection }`: the new row ids, or the proposed ones when `selection` is controlled. */
   'onRow-select'?: (event: CustomEvent<RowSelectDetail>) => void;
