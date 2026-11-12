@@ -1,7 +1,7 @@
 import { checkNumber, compare, toNumber, toText } from './coerce.js';
 import { DIV0, FormulaError, FormulaSyntaxError, isFormulaError, NUM } from './errors.js';
 import type { FunctionTable } from './functions/index.js';
-import type { BinaryOperator, FormulaNode } from './parse.js';
+import { nodesOf, type BinaryOperator, type FormulaNode } from './parse.js';
 import { isRange, NO_RANGES, RANGE_AS_VALUE } from './range.js';
 
 /** Evaluates a formula, or part of one, for one row (`scope`). */
@@ -19,38 +19,10 @@ export interface CompileOptions<S> {
 }
 
 /** Whether a node reads the row: names a column's value in it (`[name]`). */
-function readsRow(n: FormulaNode): boolean {
-  switch (n.type) {
-    case 'ref':
-      return true;
-    case 'call':
-      return n.args.some(readsRow);
-    case 'unary':
-    case 'percent':
-      return readsRow(n.operand);
-    case 'binary':
-      return readsRow(n.left) || readsRow(n.right);
-    default:
-      return false;
-  }
-}
+const readsRow = (n: FormulaNode): boolean => nodesOf(n).some((x) => x.type === 'ref');
 
 /** Whether a node uses a whole column (`[[name]]`). */
-export function usesRange(n: FormulaNode): boolean {
-  switch (n.type) {
-    case 'range':
-      return true;
-    case 'call':
-      return n.args.some(usesRange);
-    case 'unary':
-    case 'percent':
-      return usesRange(n.operand);
-    case 'binary':
-      return usesRange(n.left) || usesRange(n.right);
-    default:
-      return false;
-  }
-}
+const usesRange = (n: FormulaNode): boolean => nodesOf(n).some((x) => x.type === 'range');
 
 /** A range where one value belongs is `#VALUE!`. */
 const scalar = (value: unknown): unknown => (isRange(value) ? RANGE_AS_VALUE : value);

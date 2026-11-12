@@ -70,8 +70,14 @@ interface TableState<T> {
   anchor: HTMLElement | undefined;
   /** The rows whole columns (`[[name]]`) cover; a new one when they change. */
   rows: RowSource<T>;
-  /** What `rows` was made for (see `rowsKey`). */
-  rowsKey: { data: unknown; rest: string } | undefined;
+  /** What `rows` was made for. */
+  rowsKey: RowsKey | undefined;
+}
+
+/** What the rows of whole columns depend on: the data, and the rest as JSON. */
+interface RowsKey {
+  data: unknown;
+  rest: string;
 }
 
 /**
@@ -79,7 +85,7 @@ interface TableState<T> {
  * the columns using whole columns, `dependent`), the quick filter and the
  * columns shown (which it searches).
  */
-function rowsKey<T>(host: PluginHost<T>, compiled: ReadonlyMap<string, Compiled<T>>) {
+function rowsKey<T>(host: PluginHost<T>, compiled: ReadonlyMap<string, Compiled<T>>): RowsKey {
   const el = host.element;
   const filters = Object.entries(el.columnFilters).filter(([id]) => !compiled.get(id)?.ranges);
   return {
@@ -94,8 +100,7 @@ const ROW_PROPERTIES = ['data', 'dataSource', 'columnFilters', 'quickFilter', 'c
 const usesRanges = <T>(compiled: ReadonlyMap<string, Compiled<T>>) =>
   [...compiled.values()].some((c) => c.ranges);
 
-const sameKey = (a: TableState<never>['rowsKey'], b: TableState<never>['rowsKey']) =>
-  a?.data === b?.data && a?.rest === b?.rest;
+const sameKey = (a: RowsKey, b: RowsKey | undefined) => a.data === b?.data && a.rest === b?.rest;
 
 const errorContent = (error: FormulaError) =>
   html`<span class="argus-formula-error" title=${error.message}>${error.code}</span>`;

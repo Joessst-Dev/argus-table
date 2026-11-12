@@ -87,17 +87,18 @@ class Universe<T> {
   }
 }
 
-const universes = new WeakMap<RowSource<never>, Map<string, Universe<never>>>();
+/** Universes by source, then by their `except` columns as JSON. */
+const universes = new WeakMap<object, Map<string, Universe<unknown>>>();
 
 /** The universe of `source` for these `except` columns: the same object while both are. */
 function universeOf<T>(source: RowSource<T>, except: readonly string[]): Universe<T> {
-  let byExcept = universes.get(source as RowSource<never>) as Map<string, Universe<T>> | undefined;
+  let byExcept = universes.get(source);
   if (!byExcept) {
     byExcept = new Map();
-    universes.set(source as RowSource<never>, byExcept as Map<string, Universe<never>>);
+    universes.set(source, byExcept);
   }
   const key = JSON.stringify(except);
-  let universe = byExcept.get(key);
+  let universe = byExcept.get(key) as Universe<T> | undefined;
   if (!universe) {
     universe = new Universe(source, except);
     byExcept.set(key, universe);

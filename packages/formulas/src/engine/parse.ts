@@ -181,21 +181,12 @@ export function parse(source: string): FormulaNode {
   return tree;
 }
 
-/**
- * The column names a formula refers to, each once, in order of appearance: in
- * this row (`[name]`) and as whole columns (`[[name]]`), or only as whole
- * columns with `wholeOnly`.
- */
-export function refsOf(node: FormulaNode, wholeOnly = false): string[] {
-  const names = new Set<string>();
+/** A node and every node under it, each before its own (pre-order, left to right). */
+export function nodesOf(node: FormulaNode): FormulaNode[] {
+  const nodes: FormulaNode[] = [];
   const visit = (n: FormulaNode): void => {
+    nodes.push(n);
     switch (n.type) {
-      case 'ref':
-        if (!wholeOnly) names.add(n.name);
-        break;
-      case 'range':
-        names.add(n.name);
-        break;
       case 'call':
         n.args.forEach(visit);
         break;
@@ -212,5 +203,18 @@ export function refsOf(node: FormulaNode, wholeOnly = false): string[] {
     }
   };
   visit(node);
+  return nodes;
+}
+
+/**
+ * The column names a formula refers to, each once, in order of appearance: in
+ * this row (`[name]`) and as whole columns (`[[name]]`), or only as whole
+ * columns with `wholeOnly`.
+ */
+export function refsOf(node: FormulaNode, wholeOnly = false): string[] {
+  const names = new Set<string>();
+  for (const n of nodesOf(node)) {
+    if (n.type === 'range' || (n.type === 'ref' && !wholeOnly)) names.add(n.name);
+  }
   return [...names];
 }

@@ -1,7 +1,7 @@
 import { checkNumber, compare, toBoolean, toNumber } from '../coerce.js';
 import { parseCriterion } from '../criteria.js';
 import { DIV0, FormulaError, isFormulaError } from '../errors.js';
-import { isRange, type ColumnRange } from '../range.js';
+import { isRange, RANGE_AS_VALUE, type ColumnRange } from '../range.js';
 import { countBelow, firstIndexOf, sortedNumbers, statsOf } from '../range-index.js';
 import type { FunctionDef, FunctionTable } from './types.js';
 
@@ -29,7 +29,7 @@ function conditional(
     fn: (rangeValue, criterion, sumValue) => {
       const range = rangeArg(name, rangeValue);
       if (isFormulaError(range)) return range;
-      if (isRange(criterion)) return rangeArg(name, undefined);
+      if (isRange(criterion)) return RANGE_AS_VALUE;
       const sum = sumValue === undefined ? range : rangeArg(name, sumValue);
       if (isFormulaError(sum)) return sum;
       const stats = statsOf(range, parseCriterion(criterion), sum, count);
@@ -46,7 +46,7 @@ const xlookup: FunctionDef = {
   returnsFrom: 2,
   ranges: true,
   fn: (value, rangeValue, resultValue, ...fallback) => {
-    if (isRange(value)) return rangeArg('XLOOKUP', undefined);
+    if (isRange(value)) return RANGE_AS_VALUE;
     const range = rangeArg('XLOOKUP', rangeValue);
     if (isFormulaError(range)) return range;
     const result = rangeArg('XLOOKUP', resultValue);
@@ -77,7 +77,7 @@ const match: FunctionDef = {
   returns: 'number',
   ranges: true,
   fn: (value, rangeValue, typeValue = 1) => {
-    if (isRange(value)) return rangeArg('MATCH', undefined);
+    if (isRange(value)) return RANGE_AS_VALUE;
     const range = rangeArg('MATCH', rangeValue);
     if (isFormulaError(range)) return range;
     const type = toNumber(typeValue);

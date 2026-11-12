@@ -38,6 +38,8 @@ export type Criterion =
 
 const OPERATOR = /^(<=|>=|<>|<|>|=)?([\s\S]*)$/;
 
+const escape = (c: string) => c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 /** `*` any characters, `?` one; `~` takes the next character as it is. */
 function wildcard(text: string): RegExp {
   let source = '';
@@ -45,18 +47,24 @@ function wildcard(text: string): RegExp {
     const c = text.charAt(i);
     if (c === '~' && i + 1 < text.length) {
       i++;
-      source += text.charAt(i).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      source += escape(text.charAt(i));
     } else if (c === '*') source += '[\\s\\S]*';
     else if (c === '?') source += '[\\s\\S]';
-    else source += c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    else source += escape(c);
   }
   return new RegExp(`^${source}$`, 'i');
 }
 
+/** `TRUE` or `FALSE` written as text (any case), else `undefined`. */
+function booleanOf(text: string): boolean | undefined {
+  const upper = text.trim().toUpperCase();
+  return upper === 'TRUE' || upper === 'FALSE' ? upper === 'TRUE' : undefined;
+}
+
 /** The keys text written in a criterion matches: as text, and as the number, boolean or date it reads as. */
 function textKeys(text: string): Key[] {
-  const upper = text.trim().toUpperCase();
-  if (upper === 'TRUE' || upper === 'FALSE') return [upper === 'TRUE'];
+  const bool = booleanOf(text);
+  if (bool !== undefined) return [bool];
   const keys: Key[] = [keyOf(text)];
   const date = toDate(text);
   if (!isFormulaError(date)) keys.push(keyOf(date));
@@ -66,8 +74,8 @@ function textKeys(text: string): Key[] {
 function operandOf(text: string): Operand {
   const n = numberIn(text);
   if (typeof n === 'number') return { kind: 'number', value: n };
-  const upper = text.trim().toUpperCase();
-  if (upper === 'TRUE' || upper === 'FALSE') return { kind: 'boolean', value: upper === 'TRUE' };
+  const bool = booleanOf(text);
+  if (bool !== undefined) return { kind: 'boolean', value: bool };
   const date = toDate(text);
   if (!isFormulaError(date)) return { kind: 'date', value: date.getTime() };
   return { kind: 'text', value: text.toLowerCase() };

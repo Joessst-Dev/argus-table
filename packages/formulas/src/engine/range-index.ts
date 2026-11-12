@@ -37,14 +37,21 @@ class Acc implements Stats {
     this.sum += n;
     this.numbers++;
   }
+
+  /** Adds the rows counted in `other`. */
+  merge(other: Acc): void {
+    this.matches += other.matches;
+    this.sum += other.sum;
+    this.numbers += other.numbers;
+    this.errors += other.errors;
+    this.error ??= other.error;
+  }
 }
 
 /** The values of one kind, sorted, with running totals of the range to sum in that order. */
 interface Sorted {
   /** The comparable values, ascending. */
   keys: Float64Array;
-  /** The row of each, in the same order. */
-  rows: Int32Array;
   /** Running totals (index `i` covers the first `i`). */
   sums: Float64Array;
   numbers: Int32Array;
@@ -139,7 +146,6 @@ function sortedIndex(
   const n = rows.length;
   const sorted: Sorted = {
     keys: new Float64Array(n),
-    rows: Int32Array.from(rows),
     sums: new Float64Array(n + 1),
     numbers: new Int32Array(n + 1),
     errors: new Int32Array(n + 1),
@@ -147,17 +153,30 @@ function sortedIndex(
   };
   rows.forEach((row, i) => {
     sorted.keys[i] = values[row] ?? 0;
-    const s = numberIn(sum.values[row]);
-    const err = isFormulaError(s);
-    const num = typeof s === 'number';
-    sorted.sums[i + 1] = (sorted.sums[i] ?? 0) + (num ? s : 0);
-    sorted.numbers[i + 1] = (sorted.numbers[i] ?? 0) + (num ? 1 : 0);
-    sorted.errors[i + 1] = (sorted.errors[i] ?? 0) + (err ? 1 : 0);
-    if (num && !Number.isInteger(s)) sorted.exact = false;
+    const added = numberIn(sum.values[row]);
+    const isNumber = typeof added === 'number';
+    sorted.sums[i + 1] = (sorted.sums[i] ?? 0) + (isNumber ? added : 0);
+    sorted.numbers[i + 1] = (sorted.numbers[i] ?? 0) + (isNumber ? 1 : 0);
+    sorted.errors[i + 1] = (sorted.errors[i] ?? 0) + (isFormulaError(added) ? 1 : 0);
+    if (isNumber && !Number.isInteger(added)) sorted.exact = false;
   });
   if (Math.abs(sorted.sums[n] ?? 0) >= 2 ** 53) sorted.exact = false;
   cache.sorted.set(kind, sorted);
   return sorted;
+}
+
+/** The positions in `keys` (ascending) of the values meeting `op value`, as `[from, to)`. */
+function segment(keys: Float64Array, op: '<' | '<=' | '>' | '>=', value: number): [number, number] {
+  switch (op) {
+    case '<':
+      return [0, bound(keys, value, false)];
+    case '<=':
+      return [0, bound(keys, value, true)];
+    case '>':
+      return [bound(keys, value, true), keys.length];
+    case '>=':
+      return [bound(keys, value, false), keys.length];
+  }
 }
 
 /** The first error in `sum` among the rows meeting `c` (the rare case: a scan). */
@@ -190,12 +209,7 @@ export function statsOf(range: ColumnRange, c: Criterion, sum: ColumnRange, coun
     const acc = new Acc();
     for (const key of new Set(c.keys)) {
       const part = byKey.get(key);
-      if (!part) continue;
-      acc.matches += part.matches;
-      acc.sum += part.sum;
-      acc.numbers += part.numbers;
-      acc.errors += part.errors;
-      acc.error ??= part.error;
+      if (part) acc.merge(part);
     }
     if (c.op === '=') return acc;
     // `<>`: everything else. Whole numbers subtract exactly; other sums are added up again.
@@ -211,16 +225,7 @@ export function statsOf(range: ColumnRange, c: Criterion, sum: ColumnRange, coun
   if ('operand' in c && (c.operand.kind === 'number' || c.operand.kind === 'date')) {
     const sorted = sortedIndex(range, sum, c.operand.kind, cache);
     if (count || sorted.exact) {
-      const y = c.operand.value;
-      const n = sorted.keys.length;
-      const [from, to] =
-        c.op === '<'
-          ? [0, bound(sorted.keys, y, false)]
-          : c.op === '<='
-            ? [0, bound(sorted.keys, y, true)]
-            : c.op === '>'
-              ? [bound(sorted.keys, y, true), n]
-              : [bound(sorted.keys, y, false), n];
+      const [from, to] = segment(sorted.keys, c.op, c.operand.value);
       const errors = (sorted.errors[to] ?? 0) - (sorted.errors[from] ?? 0);
       return {
         matches: to - from,

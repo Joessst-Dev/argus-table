@@ -14,7 +14,7 @@ import { compile } from '../engine/compile.js';
 import { FormulaSyntaxError, isFormulaError } from '../engine/errors.js';
 import type { FunctionTable } from '../engine/functions/index.js';
 import { analyze } from '../engine/graph.js';
-import { refsOf, type FormulaNode } from '../engine/parse.js';
+import { nodesOf, refsOf, type FormulaNode } from '../engine/parse.js';
 import { tokenize } from '../engine/tokenize.js';
 import { DOCS, type FunctionDoc } from './docs.js';
 import { openEditor, type PreviewTable } from './editor.js';
@@ -45,42 +45,20 @@ export function checkFormula<T>(
     return { message: tree.message, start: tree.start, end: tree.end };
   }
   const lookup = lookupOf(defs);
-  let found: Problem | undefined;
-  const visit = (n: FormulaNode): void => {
-    if (found) return;
-    switch (n.type) {
-      case 'ref':
-      case 'range':
-        if (!lookup(n.name)) {
-          const written = n.type === 'ref' ? `[${n.name}]` : `[[${n.name}]]`;
-          found = { message: `There is no column ${written}.`, start: n.start, end: n.end };
-        }
-        return;
-      case 'call':
-        if (!functions[n.name]) {
-          found = {
-            message: `There is no function ${n.name}.`,
-            start: n.start,
-            end: n.start + n.name.length,
-          };
-          return;
-        }
-        n.args.forEach(visit);
-        return;
-      case 'unary':
-      case 'percent':
-        visit(n.operand);
-        return;
-      case 'binary':
-        visit(n.left);
-        visit(n.right);
-        return;
-      default:
-        return;
+  // The first unknown column or function, left to right.
+  for (const n of nodesOf(tree)) {
+    if ((n.type === 'ref' || n.type === 'range') && !lookup(n.name)) {
+      const written = n.type === 'ref' ? `[${n.name}]` : `[[${n.name}]]`;
+      return { message: `There is no column ${written}.`, start: n.start, end: n.end };
     }
-  };
-  visit(tree);
-  if (found) return found;
+    if (n.type === 'call' && !functions[n.name]) {
+      return {
+        message: `There is no function ${n.name}.`,
+        start: n.start,
+        end: n.start + n.name.length,
+      };
+    }
+  }
   try {
     compile(tree, { functions, ref: () => () => undefined });
   } catch (error) {
@@ -113,33 +91,14 @@ const TOTALS = new Set(['SUM', 'MIN', 'MAX', 'AVERAGE', 'COUNT', 'COUNTA', 'COUN
 export function noteOn(formula: string): string | undefined {
   const tree = parseOrError(formula);
   if (tree instanceof FormulaSyntaxError) return undefined;
-  let note: string | undefined;
-  const visit = (n: FormulaNode): void => {
-    if (note) return;
-    switch (n.type) {
-      case 'call': {
-        const [only] = n.args;
-        if (TOTALS.has(n.name) && n.args.length === 1 && only?.type === 'ref') {
-          note = `${n.name}([${only.name}]) uses one value, the row’s own. For the whole column, write [[${only.name}]].`;
-          return;
-        }
-        n.args.forEach(visit);
-        return;
-      }
-      case 'unary':
-      case 'percent':
-        visit(n.operand);
-        return;
-      case 'binary':
-        visit(n.left);
-        visit(n.right);
-        return;
-      default:
-        return;
+  for (const n of nodesOf(tree)) {
+    if (n.type !== 'call' || !TOTALS.has(n.name) || n.args.length !== 1) continue;
+    const [only] = n.args;
+    if (only?.type === 'ref') {
+      return `${n.name}([${only.name}]) uses one value, the row’s own. For the whole column, write [[${only.name}]].`;
     }
-  };
-  visit(tree);
-  return note;
+  }
+  return undefined;
 }
 
 /** The id of the column being added, in the preview and the checks. */
