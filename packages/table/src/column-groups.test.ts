@@ -530,7 +530,7 @@ describe('column groups: follow-ups', () => {
   const opts = { bubbles: true, composed: true, pointerId: 1, button: 0 };
 
   test('a plugin can change the groups with columnGroups()', async () => {
-    const seen: (readonly ColumnGroup[])[] = [];
+    const seen: (readonly ColumnGroup<unknown>[])[] = [];
     const upper: ArgusPlugin<Person> = {
       name: 'upper',
       columnGroups: (gs) => {

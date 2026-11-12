@@ -54,7 +54,7 @@ export function rowSource<T>(host: PluginHost<T>): RowSource<T> {
   return {
     data: () => host.element.data,
     indexes: (except) =>
-      host.element.dataSource === undefined ? host.filteredIndexes?.(except) : undefined,
+      host.element.dataSource === undefined ? host.filteredIndexes(except) : undefined,
   };
 }
 
@@ -158,7 +158,7 @@ function readPath(source: unknown, keys: readonly string[]): unknown {
 }
 
 /** A data column's value reader (its accessor), for a formula naming it. */
-export function readerOf<T>(def: ColumnDef<T>): Evaluate<Scope<T>> {
+export function readerOf<T>(def: ColumnDef<T, unknown>): Evaluate<Scope<T>> {
   const { accessor } = def;
   if (typeof accessor === 'function') return (s) => accessor(s.row, s.index);
   if (typeof accessor === 'string') {
@@ -201,11 +201,11 @@ const sameInputs = (a: readonly unknown[], b: readonly unknown[]) =>
 
 /** Finds a column a formula names: by id, then by text header, then by id in any case. */
 export function lookupOf<T>(
-  defs: readonly ColumnDef<T>[],
-): (name: string) => ColumnDef<T> | undefined {
+  defs: readonly ColumnDef<T, unknown>[],
+): (name: string) => ColumnDef<T, unknown> | undefined {
   const byId = new Map(defs.map((d) => [d.id, d]));
-  const byHeader = new Map<string, ColumnDef<T>>();
-  const byIdCase = new Map<string, ColumnDef<T>>();
+  const byHeader = new Map<string, ColumnDef<T, unknown>>();
+  const byIdCase = new Map<string, ColumnDef<T, unknown>>();
   for (const def of defs) {
     const header = typeof def.header === 'string' ? def.header.trim().toLowerCase() : undefined;
     if (header && !byHeader.has(header)) byHeader.set(header, def);
@@ -218,7 +218,7 @@ export function lookupOf<T>(
 /** The formula columns a formula names, by id: its edges in the dependency graph. */
 export function formulaRefs<T>(
   tree: FormulaNode,
-  lookup: (name: string) => ColumnDef<T> | undefined,
+  lookup: (name: string) => ColumnDef<T, unknown> | undefined,
 ): string[] {
   return refsOf(tree).flatMap((name) => {
     const target = lookup(name);
@@ -243,13 +243,13 @@ export interface CompileColumnsOptions<T> {
   /** The last result, whose columns are kept where nothing they depend on changed. */
   previous?: ReadonlyMap<string, Compiled<T>>;
   /** Told about each formula that can't be read or compiled (the column shows `#ERROR!`). */
-  onBroken?(def: ColumnDef<T>, error: FormulaSyntaxError): void;
+  onBroken?(def: ColumnDef<T, unknown>, error: FormulaSyntaxError): void;
   /** The rows whole columns cover; without it they are `#N/A`. */
   rows?: RowSource<T>;
 }
 
 /** What a column reads, as a key for its whole-column values: the same key, the same values. */
-function readKey<T>(def: ColumnDef<T>, compiled: Compiled<T> | undefined): unknown {
+function readKey<T>(def: ColumnDef<T, unknown>, compiled: Compiled<T> | undefined): unknown {
   if (def.formula !== undefined) return compiled;
   const { accessor } = def;
   return typeof accessor === 'string' ? `path:${accessor}` : (accessor ?? 'none');
@@ -257,7 +257,7 @@ function readKey<T>(def: ColumnDef<T>, compiled: Compiled<T> | undefined): unkno
 
 /** Each formula column of `defs`, compiled in dependency order, by id. */
 export function compileColumns<T>(
-  defs: readonly ColumnDef<T>[],
+  defs: readonly ColumnDef<T, unknown>[],
   options: CompileColumnsOptions<T>,
 ): Map<string, Compiled<T>> {
   const { functions } = options;
@@ -289,7 +289,7 @@ export function compileColumns<T>(
     const old = options.previous?.get(id);
     return old?.formula === formula && sameInputs(old.inputs, inputs) ? old : undefined;
   };
-  const broken = (def: ColumnDef<T>, formula: string, error: FormulaSyntaxError) => {
+  const broken = (def: ColumnDef<T, unknown>, formula: string, error: FormulaSyntaxError) => {
     options.onBroken?.(def, error);
     const value = new FormulaError('#ERROR!', error.message);
     return entry<T>(formula, ['broken'], 'unknown', () => value);
@@ -369,7 +369,7 @@ export function compileColumns<T>(
 }
 
 /** A column's name as formulas use it: its text header, else its id. */
-export const nameOf = <T>(def: ColumnDef<T>): string =>
+export const nameOf = <T>(def: ColumnDef<T, unknown>): string =>
   typeof def.header === 'string' && def.header.trim() ? def.header.trim() : def.id;
 
 /** A result as cell text, the way a spreadsheet shows it. */

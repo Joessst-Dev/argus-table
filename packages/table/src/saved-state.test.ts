@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
-import type { ColumnDef, DataSource, TableState } from './index.js';
+import type { ColumnDef, DataSource, SortItem, TableState } from './index.js';
 import { setMaxElementHeightForTests } from './max-height.js';
 import {
   fixture,
@@ -74,6 +74,7 @@ function topRowText(el: HTMLElement): string | undefined {
 }
 
 const saved: Required<TableState> = {
+  version: 1,
   sorting: [{ id: 'age', desc: true }],
   columnSizing: { name: 200 },
   columnOrder: ['city', 'name', 'age', 'id'],
@@ -82,13 +83,14 @@ const saved: Required<TableState> = {
   columnFilters: { age: { kind: 'number', op: 'ge', value: 10 } },
   selection: ['p12', 'p13'],
   quickFilter: 'Person 1',
-  scroll: { row: 3, left: 0 },
+  scroll: { row: 3, inline: 0 },
 };
 
 describe('getState()', () => {
   test('returns every key, with the defaults on a fresh table', async () => {
     const el = await fixture({ columns, data: people(100) });
     expect(el.getState()).toEqual({
+      version: 1,
       sorting: [],
       columnSizing: {},
       columnOrder: [],
@@ -97,7 +99,7 @@ describe('getState()', () => {
       columnFilters: {},
       selection: [],
       quickFilter: '',
-      scroll: { row: 0, left: 0 },
+      scroll: { row: 0, inline: 0 },
     });
   });
 
@@ -122,18 +124,18 @@ describe('getState()', () => {
     const el = await fixture({ columns, data: people(100), columnSizing: { age: 100 } });
     const state = el.getState();
     state.columnSizing.age = 300;
-    state.sorting.push({ id: 'name', desc: false });
+    (state.sorting as SortItem[]).push({ id: 'name', desc: false });
     expect(el.columnSizing).toEqual({ age: 100 });
     expect(el.sorting).toEqual([]);
   });
 
-  test('reads the row at the top and the horizontal offset', async () => {
+  test('reads the row at the top and the inline offset', async () => {
     const wide = columns.map((c) => ({ ...c, width: 400 }));
     const el = await fixture({ columns: wide, data: people(1000) });
     await scrollTo(el, 40 * 25);
     scroller(el).scrollLeft = 150;
     await settle(el);
-    expect(el.getState().scroll).toEqual({ row: 25, left: 150 });
+    expect(el.getState().scroll).toEqual({ row: 25, inline: 150 });
   });
 
   test('can be saved as JSON', async () => {
@@ -164,6 +166,24 @@ describe('setState()', () => {
     await el.setState({ sorting: [{ id: 'name', desc: true }] });
     expect(el.columnSizing).toEqual({ age: 120 });
     expect(el.sorting).toEqual([{ id: 'name', desc: true }]);
+  });
+
+  test('ignores state of another version as a whole', async () => {
+    const el = await fixture({ columns, data: people(100) });
+    const later = { version: 2, columnSizing: { age: 120 } } as unknown as TableState;
+    await el.setState(later);
+    expect(el.columnSizing).toEqual({});
+  });
+
+  test('takes state without a version, and a scroll without inline, as before', async () => {
+    const el = await fixture({ columns, data: people(100) });
+    const old = {
+      columnSizing: { age: 120 },
+      scroll: { row: 4, left: 30 },
+    } as unknown as TableState;
+    await el.setState(old);
+    expect(el.columnSizing).toEqual({ age: 120 });
+    expect(el.getState().scroll).toEqual({ row: 4, inline: 0 });
   });
 
   test('fires no events', async () => {
@@ -248,25 +268,25 @@ describe('setState()', () => {
   test('scrolls the row to the top and restores the horizontal offset', async () => {
     const wide = columns.map((c) => ({ ...c, width: 400 }));
     const el = await fixture({ columns: wide, data: people(1000) });
-    await el.setState({ scroll: { row: 120, left: 200 } });
+    await el.setState({ scroll: { row: 120, inline: 200 } });
     expect(topRowText(el)).toBe('Person 120');
     expect(scroller(el).scrollLeft).toBe(200);
-    expect(el.getState().scroll).toEqual({ row: 120, left: 200 });
+    expect(el.getState().scroll).toEqual({ row: 120, inline: 200 });
   });
 
   test('restores the horizontal offset in RTL', async () => {
     const wide = columns.map((c) => ({ ...c, width: 400 }));
     const el = await fixture({ columns: wide, data: people(100), dir: 'rtl' });
-    await el.setState({ scroll: { row: 0, left: 200 } });
+    await el.setState({ scroll: { row: 0, inline: 200 } });
     expect(scroller(el).scrollLeft).toBe(-200);
-    expect(el.getState().scroll.left).toBe(200);
+    expect(el.getState().scroll.inline).toBe(200);
   });
 
   test('restores the row at the top of a scaled body', async () => {
     // 10k rows of 40 px (400k px) render at 100k px.
     setMaxElementHeightForTests(100_000);
     const el = await fixture({ columns, data: people(10_000) });
-    await el.setState({ scroll: { row: 6543, left: 0 } });
+    await el.setState({ scroll: { row: 6543, inline: 0 } });
     expect(topRowText(el)).toBe('Person 6543');
     expect(el.getState().scroll.row).toBe(6543);
   });
@@ -292,7 +312,7 @@ describe('setState()', () => {
 
     test('scrolls to a row the first pages bring in, after a restored sort', async () => {
       const el = await fixture({ columns, dataSource: server().source });
-      await el.setState({ sorting: [{ id: 'name', desc: true }], scroll: { row: 200, left: 0 } });
+      await el.setState({ sorting: [{ id: 'name', desc: true }], scroll: { row: 200, inline: 0 } });
       await vi.waitFor(() => {
         expect(el.getState().scroll.row).toBe(200);
         expect(topRowText(el)).toBe('Person 799');
@@ -301,7 +321,7 @@ describe('setState()', () => {
 
     test('without a total, scrolls on as the rows are counted', async () => {
       const el = await fixture({ columns, dataSource: server({ total: false }).source });
-      await el.setState({ scroll: { row: 300, left: 0 } });
+      await el.setState({ scroll: { row: 300, inline: 0 } });
       await vi.waitFor(() => {
         expect(topRowText(el)).toBe('Person 300');
       });
@@ -309,7 +329,7 @@ describe('setState()', () => {
 
     test("the user's own scrolling wins", async () => {
       const el = await fixture({ columns, dataSource: server({ total: false }).source });
-      await el.setState({ scroll: { row: 300, left: 0 } });
+      await el.setState({ scroll: { row: 300, inline: 0 } });
       el.dispatchEvent(new WheelEvent('wheel', { deltaY: 10, bubbles: true }));
       const reached = el.getState().scroll.row;
       await new Promise((resolve) => setTimeout(resolve, 300));

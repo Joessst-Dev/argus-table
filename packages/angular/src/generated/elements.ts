@@ -103,7 +103,7 @@ export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
     setProperty(this.element, 'overscan', 'overscan', value);
   }
 
-  /** Renders only the scrolling columns in view (plus two on each side), for wide tables: a few dozen columns and more. Pinned columns, the checkbox column and the focused cell's column always render. Off by default: then every column renders, as before. Cells are placed in their grid column explicitly, so page CSS that relies on their order in the DOM (`:nth-child` on cells) doesn't apply. `autosizeColumns()` and `width: 'auto'` columns still measure columns out of view: they render for the measurement. */
+  /** Renders only the scrolling columns in view (plus two on each side), for wide tables: a few dozen columns and more. Pinned columns, the checkbox column and the focused cell's column always render. Off by default: then every column renders, as before. Cells are placed in their grid column explicitly, so page CSS that relies on their order in the DOM (`:nth-child` on cells) doesn't apply. `autosizeColumns()` and `width: 'auto'` columns still measure columns out of view: they render for the measurement. As an attribute, `virtualize-columns="false"` is off, like no attribute. */
   @Input() set virtualizeColumns(
     value: ArgusTableElement<T>['virtualizeColumns'] | '' | 'true' | 'false' | null | undefined,
   ) {
@@ -152,7 +152,7 @@ export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
     setProperty(this.element, 'selectionMode', 'selection-mode', value);
   }
 
-  /** Adds a checkbox column, pinned first at the start, while `selectionMode` is `single` or `multi`. A row's checkbox toggles it (Shift+click adds the range from the last row clicked); in `multi` mode the header's checkbox selects every row, or clears the selection when all are selected. Space on a focused checkbox cell does the same. The column isn't part of `columns`, `columnOrder` or `columnSizing`, and it fires no `argus-cell-click`. */
+  /** Adds a checkbox column, pinned first at the start, while `selectionMode` is `single` or `multi`. A row's checkbox toggles it (Shift+click adds the range from the last row clicked); in `multi` mode the header's checkbox selects every row, or clears the selection when all are selected. Space on a focused checkbox cell does the same. The column isn't part of `columns`, `columnOrder` or `columnSizing`, and it fires no `argus-cell-click`. As an attribute, `selection-checkboxes="false"` is off, like no attribute. */
   @Input() set selectionCheckboxes(
     value: ArgusTableElement<T>['selectionCheckboxes'] | '' | 'true' | 'false' | null | undefined,
   ) {

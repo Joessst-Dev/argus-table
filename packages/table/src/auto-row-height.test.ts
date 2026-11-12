@@ -255,7 +255,7 @@ describe('rowHeight: auto', () => {
     await settle(el);
     expect(el.getState().scroll.row).toBe(321);
     const other = await auto();
-    await other.setState({ scroll: { row: 321, left: 0 } });
+    await other.setState({ scroll: { row: 321, inline: 0 } });
     await settle(other);
     expect(indexOf(topRow(other))).toBe(321);
   });

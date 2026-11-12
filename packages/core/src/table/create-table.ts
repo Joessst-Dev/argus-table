@@ -47,6 +47,7 @@ import type {
   FilterValue,
   PinnedRows,
   RowPin,
+  SortItem,
   SortState,
 } from '../types.js';
 
@@ -506,7 +507,8 @@ export function createTableModel<TData, TContent>(
     data: (options.remote ? [] : options.data) as AnyRow[],
     getRowId: (options.getRowId ?? defaultRowId) as (row: AnyRow, index: number) => string,
     state: {
-      sorting: options.sorting,
+      // TanStack's type is mutable; it never changes the array.
+      sorting: options.sorting as SortItem[],
       columnSizing: sizingState(),
     },
     // State is owned by the caller; TanStack's own setters must not change it.

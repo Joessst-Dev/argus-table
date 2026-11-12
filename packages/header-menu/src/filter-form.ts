@@ -79,7 +79,7 @@ const setLabel = (value: FilterValue) => (value === null ? '(Empty)' : String(va
 export function startForm<T>(host: PluginHost<T>, column: ColumnInfo): FilterForm | undefined {
   const kind = column.filter;
   if (kind === undefined) return undefined;
-  const current = column.filterValue?.kind === kind ? column.filterValue : undefined;
+  const current = column.columnFilter?.kind === kind ? column.columnFilter : undefined;
   const form: FilterForm = {
     columnId: column.id,
     kind,
@@ -93,7 +93,7 @@ export function startForm<T>(host: PluginHost<T>, column: ColumnInfo): FilterFor
     timer: undefined,
   };
   if (kind === 'set') {
-    const list = host.filterValues?.(column.id);
+    const list = host.filterValues(column.id);
     if (!list) return undefined;
     form.values = list.values;
     form.truncated = list.truncated;

@@ -1,12 +1,5 @@
 import { html, nothing, type TemplateResult } from 'lit';
-import type {
-  ArgusPlugin,
-  CellContent,
-  ColumnDef,
-  ColumnInfo,
-  ColumnPin,
-  PluginHost,
-} from 'argus-table';
+import type { ArgusPlugin, ColumnDef, ColumnInfo, ColumnPin, PluginHost } from 'argus-table';
 import {
   FILTER_DEBOUNCE_MS,
   filterOf,
@@ -52,7 +45,7 @@ let tables = 0;
 const SORT_ITEMS = [
   { direction: 'asc', label: 'Sort ascending' },
   { direction: 'desc', label: 'Sort descending' },
-  { direction: null, label: 'Unsorted' },
+  { direction: undefined, label: 'Unsorted' },
 ] as const;
 
 const PIN_ITEMS = [
@@ -208,7 +201,12 @@ function contributions<T>(host: PluginHost<T>, columnId: string): HeaderMenuGrou
 }
 
 /** A column's text header, or its id when the header isn't text. */
-function textOf<T>(def: ColumnDef<T>): string {
+/** A column's own header content; plugins see content as `unknown`, so a function header is asserted to return it. */
+function ownHeader<T>(def: ColumnDef<T, unknown>): unknown {
+  return typeof def.header === 'function' ? (def.header as () => unknown)() : def.header;
+}
+
+function textOf<T>(def: ColumnDef<T, unknown>): string {
   const { header } = def;
   return typeof header === 'string' || typeof header === 'number' ? String(header) : def.id;
 }
@@ -217,7 +215,7 @@ const labelOf = <T>(state: TableState<T>, id: string) => state.labels.get(id) ??
 
 /** Whether the menu can pin and unpin this column. */
 const canPin = <T>(state: TableState<T>, column: ColumnInfo) =>
-  state.options.pin && column.pinnable && state.host.setPin !== undefined;
+  state.options.pin && column.pinnable;
 
 /**
  * Whether the menu can filter this column: it allows it, the column has a filter kind,
@@ -227,16 +225,14 @@ const canPin = <T>(state: TableState<T>, column: ColumnInfo) =>
 const canFilter = <T>(state: TableState<T>, column: ColumnInfo) =>
   state.options.filter &&
   column.filter !== undefined &&
-  state.host.setFilter !== undefined &&
   (column.filter !== 'set' ||
-    (state.host.filterValues !== undefined &&
-      (state.host.element.dataSource === undefined ||
-        state.host.filterValues(column.id) !== undefined)));
+    state.host.element.dataSource === undefined ||
+    state.host.filterValues(column.id) !== undefined);
 
 /** The columns shown and hidden, when the menu hides and shows columns. */
 function visibility<T>(state: TableState<T>): { shown: ColumnInfo[]; hidden: ColumnInfo[] } {
   const { host } = state;
-  if (!state.options.hide || !host.setHidden || !host.columns) return { shown: [], hidden: [] };
+  if (!state.options.hide) return { shown: [], hidden: [] };
   const all = host.columns();
   return { shown: all.filter((c) => !c.hidden), hidden: all.filter((c) => c.hidden) };
 }
@@ -261,12 +257,12 @@ function hasMenu<T>(state: TableState<T>, column: ColumnInfo | undefined): colum
 }
 
 /** The column's own header, then the menu button, then the menu while it is open. */
-function header<T>(state: TableState<T>, def: ColumnDef<T>, labelId: string): CellContent {
-  const raw = typeof def.header === 'function' ? def.header() : def.header;
+function header<T>(state: TableState<T>, def: ColumnDef<T, unknown>, labelId: string): unknown {
+  const raw = ownHeader(def);
   const column = state.host.column(def.id);
   if (!hasMenu(state, column)) return raw ?? '';
   // Through the table, so framework content (React, Vue) renders in our template too.
-  const own = state.host.content ? state.host.content(raw) : raw;
+  const own = state.host.content(raw);
   const isOpen = state.open === def.id;
   const menuId = `${labelId}-menu`;
   return html`<span class="argus-header-menu-header"
@@ -343,7 +339,7 @@ function menu<T>(
             close(state, id);
             state.host.setSort(id, item.direction);
           },
-          { checked: (column.sorted ?? null) === item.direction, group: 'sort' },
+          { checked: column.sorted === item.direction, group: 'sort' },
         ),
       )
     : undefined;
@@ -354,7 +350,7 @@ function menu<T>(
           () => {
             close(state, id);
             if ((column.pin ?? false) === item.pin) return;
-            state.host.setPin?.(id, item.pin);
+            state.host.setPin(id, item.pin);
             state.host.announce(`${labelOf(state, id)} ${item.done}`);
           },
           { checked: (column.pin ?? false) === item.pin },
@@ -371,7 +367,7 @@ function menu<T>(
           },
           { dialog: true },
         ),
-        column.filterValue
+        column.columnFilter
           ? menuItem('Clear filter', () => {
               close(state, id);
               clearFilter(state, id);
@@ -388,7 +384,7 @@ function menu<T>(
   const show = (columns: readonly ColumnInfo[], label: string) =>
     menuItem(label, () => {
       close(state, id);
-      for (const c of columns) state.host.setHidden?.(c.id, false);
+      for (const c of columns) state.host.setHidden(c.id, false);
       state.host.announce(
         columns.length === 1
           ? `${labelOf(state, columns[0]?.id ?? '')} shown`
@@ -460,7 +456,7 @@ function filterForm<T>(state: TableState<T>, form: FilterForm, labelId: string):
     form.timer = undefined;
     // A form that was closed meanwhile applied what it had when it closed.
     if (state.form !== form) return;
-    host.setFilter?.(form.columnId, filterOf(form));
+    host.setFilter(form.columnId, filterOf(form));
   };
   return renderForm(form, {
     label: labelOf(state, form.columnId),
@@ -508,7 +504,7 @@ function afterRelease(then: () => void): void {
 
 /** Clears a column's filter. The table announces the rows it leaves. */
 function clearFilter<T>(state: TableState<T>, columnId: string): void {
-  state.host.setFilter?.(columnId, undefined);
+  state.host.setFilter(columnId, undefined);
 }
 
 /** Opens a column's filter form under its menu button and focuses its first field. */
@@ -576,7 +572,7 @@ function hideColumn<T>(state: TableState<T>, columnId: string, shown: readonly C
   const at = shown.findIndex((c) => c.id === columnId);
   const next = shown[at + 1] ?? shown[at - 1];
   close(state, next?.id);
-  state.host.setHidden?.(columnId, true);
+  state.host.setHidden(columnId, true);
   state.host.announce(`${labelOf(state, columnId)} hidden`);
 }
 

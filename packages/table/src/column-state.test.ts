@@ -96,7 +96,7 @@ describe('column visibility', () => {
     const { plugin, host } = grab();
     const el = await fixture({ columns, data: people(2), plugins: [plugin] });
     const seen = record(el, 'argus-column-visibility-change', () => headerIds(el));
-    host().setHidden?.('city', true);
+    host().setHidden('city', true);
     await settle(el);
     expect(headerIds(el)).toEqual(['name', 'age', 'id']);
     expect(el.columnVisibility).toEqual({ city: false });
@@ -106,7 +106,7 @@ describe('column visibility', () => {
         state: ['name', 'age', 'id'],
       },
     ]);
-    host().setHidden?.('city', false);
+    host().setHidden('city', false);
     await settle(el);
     expect(headerIds(el)).toEqual(['name', 'age', 'city', 'id']);
     expect(seen[1]?.detail).toEqual({
@@ -125,7 +125,7 @@ describe('column visibility', () => {
       columnVisibility: { id: false },
     });
     const seen = record(el, 'argus-column-visibility-change', () => headerIds(el));
-    host().setHidden?.('age', true);
+    host().setHidden('age', true);
     await settle(el);
     expect(headerIds(el)).toEqual(['name', 'age', 'city']);
     expect(seen.map((s) => s.detail)).toEqual([
@@ -146,11 +146,11 @@ describe('column visibility', () => {
       columnVisibility: { age: false, city: false },
     });
     const seen = record(el, 'argus-column-visibility-change', () => undefined);
-    host().setHidden?.('name', true);
+    host().setHidden('name', true);
     el.columnVisibility = { age: false, city: false, name: false };
     await settle(el);
     expect(headerIds(el)).toEqual(['id']);
-    host().setHidden?.('id', true);
+    host().setHidden('id', true);
     await settle(el);
     expect(headerIds(el)).toEqual(['id']);
     expect(seen).toEqual([]);
@@ -168,7 +168,7 @@ describe('column visibility', () => {
     expect(host().column('name')).toMatchObject({ hidden: false, pinnable: true });
     expect(
       host()
-        .columns?.()
+        .columns()
         .map((c) => [c.id, c.hidden]),
     ).toEqual([
       ['name', false],
@@ -184,15 +184,15 @@ describe('column visibility', () => {
     const el = await fixture({ columns, data: people(2), plugins: [plugin] });
     headerOf(el, 'age').focus();
     await settle(el);
-    host().setHidden?.('age', true);
+    host().setHidden('age', true);
     await settle(el);
     expect(el.shadowRoot?.activeElement).toBe(headerOf(el, 'city'));
     // The last column gives way to the one before it.
-    host().setHidden?.('id', true);
+    host().setHidden('id', true);
     await settle(el);
     expect(headerIds(el)).toEqual(['name', 'city']);
     headerOf(el, 'city').focus();
-    host().setHidden?.('city', true);
+    host().setHidden('city', true);
     await settle(el);
     expect(el.shadowRoot?.activeElement).toBe(headerOf(el, 'name'));
   });
@@ -272,7 +272,7 @@ describe('column pinning', () => {
     const { plugin, host } = grab();
     const el = await fixture({ columns, data: people(2), plugins: [plugin] });
     const seen = record(el, 'argus-column-pinning-change', () => headerIds(el));
-    host().setPin?.('city', 'start');
+    host().setPin('city', 'start');
     await settle(el);
     expect(el.columnPinning).toEqual({ city: 'start' });
     expect(seen).toEqual([
@@ -282,7 +282,7 @@ describe('column pinning', () => {
       },
     ]);
     expect(host().column('city')?.pin).toBe('start');
-    host().setPin?.('city', false);
+    host().setPin('city', false);
     await settle(el);
     expect(headerIds(el)).toEqual(['name', 'age', 'city', 'id']);
   });
@@ -297,8 +297,8 @@ describe('column pinning', () => {
       columnPinning: {},
     });
     const seen = record(el, 'argus-column-pinning-change', () => headerIds(el));
-    host().setPin?.('age', 'end');
-    host().setPin?.('id', 'start');
+    host().setPin('age', 'end');
+    host().setPin('id', 'start');
     await settle(el);
     expect(headerIds(el)).toEqual(['name', 'age', 'city', 'id']);
     expect(seen.map((s) => s.detail)).toEqual([

@@ -227,8 +227,8 @@ describe('contentRenderer', () => {
         defs.map((d) => ({
           ...d,
           header: () => {
-            const own = typeof d.header === 'function' ? d.header() : d.header;
-            return html`<b class="wrapped">${host.content?.(own)}</b>`;
+            const own = typeof d.header === 'function' ? (d.header as () => unknown)() : d.header;
+            return html`<b class="wrapped">${host.content(own)}</b>`;
           },
         })),
     };

@@ -83,6 +83,7 @@ export type {
   SelectionState,
   SetFilter,
   SortingChangeDetail,
+  SortDirection,
   SortItem,
   SortState,
   TableState,

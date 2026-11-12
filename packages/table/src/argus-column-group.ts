@@ -1,6 +1,7 @@
 import { ReactiveElement } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import { ArgusColumn, flagConverter } from './argus-column.js';
+import { ArgusColumn } from './argus-column.js';
+import { flagConverter } from './attributes.js';
 import { notify, unwatchColumns, watchColumns } from './column-registry.js';
 import type { CellContent, ColumnGroup } from './types.js';
 
@@ -56,7 +57,10 @@ export class ArgusColumnGroup extends ReactiveElement {
     notify(parent);
   }
 
-  /** The group as the table reads it, with its column and group children in document order. */
+  /**
+   * The group as the table reads it, with its column and group children in document order.
+   * @internal
+   */
   toColumnGroup(): ColumnGroup {
     return (this.#group ??= {
       id: this.groupId,

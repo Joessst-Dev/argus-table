@@ -153,6 +153,6 @@ export const SaveAndRestore: Story = {
 
     // Leave the story as it started.
     await userEvent.click(forget);
-    await table.setState({ sorting: [], scroll: { row: 0, left: 0 } });
+    await table.setState({ sorting: [], scroll: { row: 0, inline: 0 } });
   },
 };

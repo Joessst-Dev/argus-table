@@ -124,6 +124,23 @@ describe('virtualizeColumns off', () => {
 });
 
 describe('virtualizeColumns', () => {
+  test('the attribute: present turns it on, "false" turns it off', () => {
+    const el = document.createElement('argus-table');
+    expect(el.virtualizeColumns).toBe(false);
+    el.setAttribute('virtualize-columns', '');
+    expect(el.virtualizeColumns).toBe(true);
+    el.setAttribute('virtualize-columns', 'false');
+    expect(el.virtualizeColumns).toBe(false);
+    el.setAttribute('virtualize-columns', 'true');
+    expect(el.virtualizeColumns).toBe(true);
+    el.removeAttribute('virtualize-columns');
+    expect(el.virtualizeColumns).toBe(false);
+    el.setAttribute('selection-checkboxes', 'FALSE');
+    expect(el.selectionCheckboxes).toBe(false);
+    el.setAttribute('selection-checkboxes', 'selection-checkboxes');
+    expect(el.selectionCheckboxes).toBe(true);
+  });
+
   test('renders the pinned columns and the scrolling ones in view, plus overscan', async () => {
     const el = await fixture({ columns: wide(), data: people(50), virtualizeColumns: true });
     const ids = headerIds(el);

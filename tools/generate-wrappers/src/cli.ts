@@ -3,12 +3,14 @@
 //
 // Reads packages/table/dist/custom-elements.json (build argus-table first) and
 // writes packages/<framework>/src/generated/elements.ts. With --check it only
-// compares, and exits 1 when the committed file is out of date.
+// compares, and exits 1 when the committed file is out of date or the wrapper's
+// index.ts doesn't re-export exactly argus-table's public types.
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { generate, FRAMEWORKS, type Framework } from './generate.ts';
 import type { Manifest } from './manifest.ts';
+import { compareReexports } from './reexports.ts';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const manifestPath = resolve(root, 'packages/table/dist/custom-elements.json');
@@ -40,6 +42,19 @@ if (check) {
   if (current !== source) {
     console.error(
       `${outFile} is out of date with argus-table's manifest. Run: pnpm --filter @argus-table/${framework} generate`,
+    );
+    process.exit(1);
+  }
+  const indexFile = resolve(root, `packages/${framework}/src/index.ts`);
+  const { missing, extra } = compareReexports(
+    await readFile(resolve(root, 'packages/table/src/types.ts'), 'utf8'),
+    await readFile(indexFile, 'utf8'),
+  );
+  if (missing.length || extra.length) {
+    console.error(
+      `${indexFile} should re-export argus-table's public types (export type { … } from 'argus-table').` +
+        (missing.length ? `\n  Missing: ${missing.join(', ')}` : '') +
+        (extra.length ? `\n  Not in argus-table: ${extra.join(', ')}` : ''),
     );
     process.exit(1);
   }
