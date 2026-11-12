@@ -1,5 +1,21 @@
 # argus-table
 
+## 0.5.0
+
+### Minor Changes
+
+- 29fdb31: New plugin host member `header(def)`. It returns a column's or column group's own header as the table shows it, ready to nest in a plugin's template: ``html`<b>${host.header(def)}</b>` ``.
+
+  - It calls a function `header`, and a group without a header shows its id.
+  - It wraps the result like `content()`, so React and Vue content still renders.
+  - Since plugin hooks see content as `unknown`, this replaces the `(def.header as () => unknown)()` assertion that nesting a header used to need.
+
+  The column menu and formula columns now use it.
+
+### Patch Changes
+
+- 22b625b: The user's own scrolling, clicks and key presses now reliably stop a position that `setState()` (or `scrollToRow()`) is still scrolling to. Before, when the next `dataSource` page arrived within a frame or two of the input, the table could finish the restore and move the rows away from where the user had taken over.
+
 ## 0.4.0
 
 ### Minor Changes

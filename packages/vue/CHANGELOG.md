@@ -1,5 +1,13 @@
 # @argus-table/vue
 
+## 0.5.0
+
+### Patch Changes
+
+- Updated dependencies [29fdb31]
+- Updated dependencies [22b625b]
+  - argus-table@0.5.0
+
 ## 0.4.0
 
 ### Minor Changes
