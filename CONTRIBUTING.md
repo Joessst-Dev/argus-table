@@ -2,7 +2,7 @@
 
 Thanks for your interest in helping. This guide explains how to propose changes and what a good pull request looks like.
 
-> **Status:** v0.1. The table has virtualized rows, pinned columns, sorting, resizing, keyboard navigation and the default theme. Bug reports against v0.1 are the most useful contributions right now, along with feedback on the [public API](docs/plan/plan/07-public-api.md) before it freezes at 1.0. The [roadmap](docs/plan/plan/12-roadmap.md) lists what comes next.
+> **Status:** 1.0. The [public API](docs/plan/plan/07-public-api.md) is stable: properties, events, parts, tokens and slots change only in a major release, as [ADR 0004](docs/adr/0004-api-1-0.md) sets out. Bug reports are the most useful contributions right now, along with the additions ADR 0004 lists for after 1.0. The [roadmap](docs/plan/plan/12-roadmap.md) lists what comes next.
 
 ## Ways to help
 
