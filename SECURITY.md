@@ -2,11 +2,11 @@
 
 ## Supported versions
 
-Argus Table has not had a release yet. Once it does, security fixes go into the latest minor version only.
+Security fixes go into the latest minor version only.
 
 | Version            | Supported |
 | ------------------ | --------- |
-| Latest `0.x` minor | Yes       |
+| Latest `1.x` minor | Yes       |
 | Older versions     | No        |
 
 ## Reporting a vulnerability

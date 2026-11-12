@@ -10,7 +10,7 @@ Named after Argus Panoptes, the hundred-eyed giant of Greek myth who never slept
 
 ![Argus Table with a million rows: scrolling down, scrolling sideways past the pinned columns, sorting by amount, dragging a column header to a new place and resizing a column](brand/demo.gif)
 
-> **Status:** v0.3 is on npm. It adds row selection, filtering and a quick search, column virtualization, columns pinned and hidden as state, saved layouts (`getState()` / `setState()`), wrapped text and rows that fit their content, framework content in cells, the Fluent-inspired, Bootstrap-inspired and minimal themes, and the first add-ons: the column menu and formula columns. Next: column groups ([roadmap](docs/plan/plan/12-roadmap.md)).
+> **Status:** 1.0 is on npm. Part names, CSS tokens, events and properties are stable: they change only in a major release ([compatibility policy](docs/adr/0004-api-1-0.md#compatibility-policy-from-10)). 1.0 has row selection, filtering and a quick search, column groups, column virtualization, columns pinned and hidden as state, saved layouts (`getState()` / `setState()`), wrapped text and rows that fit their content, framework content in cells, five themes, and the add-ons: the column menu and formula columns. Next: the additions listed in [ADR 0004](docs/adr/0004-api-1-0.md#after-10-additions-in-no-order).
 
 **[Docs and live examples](https://joessst-dev.github.io/argus-table/)**
 
@@ -65,13 +65,13 @@ table.plugins = [formulas(), headerMenu()];
 
 | Package                                                      | Purpose                                                                      | Status |
 | ------------------------------------------------------------ | ---------------------------------------------------------------------------- | ------ |
-| [`argus-table`](packages/table/README.md)                    | The `<argus-table>` element                                                  | v0.3   |
-| [`@argus-table/themes`](packages/themes/README.md)           | Optional themes: default, Material-, Fluent- and Bootstrap-inspired, minimal | v0.3   |
-| [`@argus-table/react`](packages/react/README.md)             | React components with typed props and events                                 | v0.3   |
-| [`@argus-table/vue`](packages/vue/README.md)                 | Vue components with typed props, events, v-model                             | v0.3   |
-| [`@argus-table/angular`](packages/angular/README.md)         | Angular components with typed inputs and outputs                             | v0.3   |
-| [`@argus-table/header-menu`](packages/header-menu/README.md) | Optional column menu: sort, filter, pin, hide and fit from the header        | v0.3   |
-| [`@argus-table/formulas`](packages/formulas/README.md)       | Optional formula columns with an editor, spreadsheet style                   | v0.3   |
+| [`argus-table`](packages/table/README.md)                    | The `<argus-table>` element                                                  | v1.0   |
+| [`@argus-table/themes`](packages/themes/README.md)           | Optional themes: default, Material-, Fluent- and Bootstrap-inspired, minimal | v1.0   |
+| [`@argus-table/react`](packages/react/README.md)             | React components with typed props and events                                 | v1.0   |
+| [`@argus-table/vue`](packages/vue/README.md)                 | Vue components with typed props, events, v-model                             | v1.0   |
+| [`@argus-table/angular`](packages/angular/README.md)         | Angular components with typed inputs and outputs                             | v1.0   |
+| [`@argus-table/header-menu`](packages/header-menu/README.md) | Optional column menu: sort, filter, pin, hide and fit from the header        | v1.0   |
+| [`@argus-table/formulas`](packages/formulas/README.md)       | Optional formula columns with an editor, spreadsheet style                   | v1.0   |
 
 ## Project plan
 

@@ -29,6 +29,6 @@ One public GitHub monorepo, MIT license, and a CI pipeline that blocks merges on
 ## Releases
 
 - Changesets; every pull request that changes behaviour carries a changeset.
-- `0.x` until the API is stable; 1.0 freezes part names, tokens, events and properties.
+- `0.x` until the API was stable; 1.0 (12 November 2026) froze part names, tokens, events and properties. From then on, [ADR 0004](../../adr/0004-api-1-0.md)'s compatibility policy decides what needs a major release.
 - npm provenance enabled; GitHub Actions publishes on merge to `main`.
 - Browser support: last 2 versions of Chrome, Edge, Firefox, Safari.
