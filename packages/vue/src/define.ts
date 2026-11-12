@@ -15,9 +15,9 @@ import {
 import { slotKey, slotPlugin, vueRenderer } from './content.js';
 
 export interface WrapperEvent {
-  /** The DOM event, e.g. `argus-sort-change`. */
+  /** The DOM event, e.g. `argus-sorting-change`. */
   name: string;
-  /** The Vue event, e.g. `sort-change`. */
+  /** The Vue event, e.g. `sorting-change`. */
   emit: string;
   /** For two-way binding: the property, and the detail field holding its new value. */
   model?: { property: string; detailKey: string };
@@ -43,7 +43,7 @@ export interface WrapperSpec {
 
 type ElementRecord = HTMLElement & Record<string, unknown>;
 
-/** `argus-sort-change` → `onArgusSortChange`, which Vue listens to as `argus-sort-change`. */
+/** `argus-sorting-change` → `onArgusSortingChange`, which Vue listens to as `argus-sorting-change`. */
 function listenerKey(event: string): string {
   return `on${event
     .split('-')

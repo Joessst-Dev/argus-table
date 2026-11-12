@@ -299,62 +299,66 @@ export interface TableState {
   scroll?: ScrollState;
 }
 
-/** `detail` of `argus-row-select`. */
-export interface RowSelectDetail {
+/** `detail` of `argus-selection-change`. */
+export interface SelectionChangeDetail {
   /** The selected row ids: the new ones, or the proposed ones when `selection` is controlled. */
   selection: SelectionState;
 }
 
-/** `detail` of `argus-sort-change`. */
-export interface SortChangeDetail {
+/** `detail` of `argus-sorting-change`. */
+export interface SortingChangeDetail {
+  /** The sort order: the new one, or the proposed one when `sorting` is controlled. */
   sorting: SortState;
 }
 
-/** `detail` of `argus-column-resize`. */
-export interface ColumnResizeDetail {
+/** `detail` of `argus-column-sizing-change`: fires once per column that changed width. */
+export interface ColumnSizingChangeDetail {
+  /** The whole new sizing state, or the proposed one when `columnSizing` is controlled. */
+  columnSizing: ColumnSizingState;
+  /** The column resized. */
   columnId: string;
+  /** Its new width in px. */
   width: number;
-  sizing: ColumnSizingState;
 }
 
-/** `detail` of `argus-column-reorder`. */
-export interface ColumnReorderDetail {
+/** `detail` of `argus-column-order-change`. */
+export interface ColumnOrderChangeDetail {
+  /** The whole new order, or the proposed one when `columnOrder` is controlled. */
+  columnOrder: ColumnOrderState;
   /** The column that moved; for a group, its first column that moved. */
   columnId: string;
   /** The group that moved, when a group header was moved rather than a column. */
   groupId?: string;
-  /** The whole new order. */
-  order: ColumnOrderState;
 }
 
-/** `detail` of `argus-column-pin`. */
-export interface ColumnPinDetail {
+/** `detail` of `argus-column-pinning-change`: fires when a column is pinned and when it is unpinned. */
+export interface ColumnPinningChangeDetail {
+  /** The whole new pinning state, or the proposed one when `columnPinning` is controlled. */
+  columnPinning: ColumnPinningState;
   /** The column pinned or unpinned. */
   columnId: string;
   /** Its new pin, or `false` when it no longer is pinned. */
   pin: ColumnPin | false;
-  /** The whole new pinning state. */
-  pinning: ColumnPinningState;
 }
 
-/** `detail` of `argus-column-hide`: fires when a column is hidden and when it is shown. */
-export interface ColumnHideDetail {
+/** `detail` of `argus-column-visibility-change`: fires when a column is hidden and when it is shown. */
+export interface ColumnVisibilityChangeDetail {
+  /** The whole new visibility state, or the proposed one when `columnVisibility` is controlled. */
+  columnVisibility: ColumnVisibilityState;
   /** The column hidden or shown. */
   columnId: string;
-  /** `true` when the column was hidden, `false` when it was shown. */
-  hidden: boolean;
-  /** The whole new visibility state. */
-  visibility: ColumnVisibilityState;
+  /** `true` when the column was shown, `false` when it was hidden: as in `columnVisibility`. */
+  visible: boolean;
 }
 
-/** `detail` of `argus-column-filter`: fires when a column's filter is set, changed or cleared. */
-export interface ColumnFilterDetail {
+/** `detail` of `argus-column-filters-change`: fires when a column's filter is set, changed or cleared. */
+export interface ColumnFiltersChangeDetail {
+  /** The whole new filter state, or the proposed one when `columnFilters` is controlled. */
+  columnFilters: ColumnFilterState;
   /** The column filtered. */
   columnId: string;
   /** Its new filter, or `undefined` when it was cleared. */
-  filter: ColumnFilter | undefined;
-  /** The whole new filter state. */
-  filters: ColumnFilterState;
+  columnFilter: ColumnFilter | undefined;
 }
 
 /** `detail` of `argus-row-click`. */
@@ -370,6 +374,9 @@ export interface RowClickDetail<TData> {
 /** `detail` of `argus-cell-click`. */
 export interface CellClickDetail<TData> {
   row: TData;
+  rowId: string;
+  /** Index of the row in the current row order; for a pinned row, its index in its list. */
+  index: number;
   columnId: string;
   value: unknown;
   /** Set when the row is from `pinnedRows`: the side it is pinned to. */
@@ -378,11 +385,13 @@ export interface CellClickDetail<TData> {
 
 /**
  * `detail` of `argus-range-change`: the first and last row in view, as indexes in the
- * current order (inclusive). Rows rendered ahead of the scroll position don't count.
+ * current order (both inclusive). Rows rendered ahead of the scroll position don't count.
  */
 export interface RangeChangeDetail {
-  start: number;
-  end: number;
+  /** Index of the first row in view. */
+  first: number;
+  /** Index of the last row in view, inclusive. */
+  last: number;
 }
 
 /** What `getRows()` receives: a range of rows, the sort order, the filters and an abort signal. */

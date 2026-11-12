@@ -8,7 +8,6 @@ import {
   type ArgusTableElement,
   type CellClickDetail,
   type ColumnDef,
-  type SortChangeDetail,
   type SortState,
 } from './index.js';
 import { columns, orders, type Order } from './test/data.js';
@@ -99,7 +98,7 @@ describe('<argus-table> component', () => {
     expect(headerText(el)).toEqual(['Order', 'Customer', 'Total']);
   });
 
-  test('emits the element events as outputs', async () => {
+  test('emits the element events as outputs, and the new value for two-way properties', async () => {
     @Component({
       imports: [ArgusTableComponent],
       template: `<argus-table
@@ -108,7 +107,7 @@ describe('<argus-table> component', () => {
         [data]="orders"
         (cellClick)="cells.push($event)"
         (rowClick)="rows = rows + 1"
-        (sortChange)="sorts.push($event)"
+        (sortingChange)="sorts.push($event)"
       />`,
     })
     class Host {
@@ -117,7 +116,7 @@ describe('<argus-table> component', () => {
       orders = orders;
       cells: CustomEvent<CellClickDetail<Order>>[] = [];
       rows = 0;
-      sorts: CustomEvent<SortChangeDetail>[] = [];
+      sorts: SortState[] = [];
     }
 
     const { el, host, fixture } = await mount(Host);
@@ -129,7 +128,7 @@ describe('<argus-table> component', () => {
 
     headers(el)[2]?.click();
     await settle(fixture, el);
-    expect(host.sorts.map((e) => e.detail.sorting)).toEqual([[{ id: 'total', desc: false }]]);
+    expect(host.sorts).toEqual([[{ id: 'total', desc: false }]]);
   });
 
   test('ignores the events of a table nested in a cell', async () => {

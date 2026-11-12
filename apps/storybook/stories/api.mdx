@@ -11,20 +11,25 @@ Generated from the element's JSDoc through the Custom Elements Manifest, so it m
 
 ## Events
 
-| Event                  | Constant         | `detail`                            | Fires                                                                                                                                                                                    |
-| ---------------------- | ---------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `argus-range-change`   | `RANGE_CHANGE`   | `{ start, end }`                    | After an update that changed the visible rows                                                                                                                                            |
-| `argus-sort-change`    | `SORT_CHANGE`    | `{ sorting }`                       | After the sort changed (uncontrolled), or with the proposed sort (controlled)                                                                                                            |
-| `argus-column-resize`  | `COLUMN_RESIZE`  | `{ columnId, width, sizing }`       | After a resize (uncontrolled), or with the proposed widths (controlled). A drag, Alt+Arrow, a double-click on the handle or `autosizeColumns()` (one per column)                         |
-| `argus-column-reorder` | `COLUMN_REORDER` | `{ columnId, groupId?, order }`     | After a column or column group moved (uncontrolled), or with the proposed order (controlled). A header drag (on drop) or Alt+Shift+Arrow on a focused header; `groupId` for a group      |
-| `argus-cell-click`     | `CELL_CLICK`     | `{ row, columnId, value, pinned? }` | On a click in a body or pinned-row cell; `pinned` is set for a pinned row                                                                                                                |
-| `argus-row-click`      | `ROW_CLICK`      | `{ row, rowId, index, pinned? }`    | On a click in a body or pinned row, after `argus-cell-click`                                                                                                                             |
-| `argus-load-error`     | `LOAD_ERROR`     | `{ error, start, end }`             | After a `dataSource` page failed to load (`end` exclusive)                                                                                                                               |
-| `argus-row-select`     | `ROW_SELECT`     | `{ selection }`                     | After the selected rows changed (uncontrolled), or with the proposed ids (controlled). A click on a row, Space, Shift+Arrow, Shift+PageUp/PageDown or Ctrl/Cmd+A, with a `selectionMode` |
+A change of state fires `argus-<property>-change`, with the new value under the property's name in `detail`, then what caused it. The wrappers bind these two ways (`v-model:sorting`, `[(sorting)]`).
+
+| Event                            | Constant                   | `detail`                                          | Fires                                                                                                           |
+| -------------------------------- | -------------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `argus-sorting-change`           | `SORTING_CHANGE`           | `{ sorting }`                                     | A sortable header was clicked, or Enter or Space pressed on it                                                  |
+| `argus-column-sizing-change`     | `COLUMN_SIZING_CHANGE`     | `{ columnSizing, columnId, width }`               | A resize: a drag (every frame), Alt+Arrow, a double-click on the handle or `autosizeColumns()`; once per column |
+| `argus-column-order-change`      | `COLUMN_ORDER_CHANGE`      | `{ columnOrder, columnId, groupId? }`             | A column or group moved: a header drag (on drop) or Alt+Shift+Arrow; `groupId` for a group                      |
+| `argus-column-pinning-change`    | `COLUMN_PINNING_CHANGE`    | `{ columnPinning, columnId, pin }`                | A column was pinned or unpinned (`pin: false`) through a plugin such as the column menu                         |
+| `argus-column-visibility-change` | `COLUMN_VISIBILITY_CHANGE` | `{ columnVisibility, columnId, visible }`         | A column was hidden or shown through a plugin                                                                   |
+| `argus-column-filters-change`    | `COLUMN_FILTERS_CHANGE`    | `{ columnFilters, columnId, columnFilter }`       | A column's filter was set, changed or cleared (`columnFilter: undefined`) through a plugin                      |
+| `argus-selection-change`         | `SELECTION_CHANGE`         | `{ selection }`                                   | A click on a row, Space, Shift+Arrow, Shift+PageUp/PageDown or Ctrl/Cmd+A, with a `selectionMode`               |
+| `argus-cell-click`               | `CELL_CLICK`               | `{ row, rowId, index, columnId, value, pinned? }` | A click in a body or pinned-row cell, or Enter on it; `pinned` is set for a pinned row                          |
+| `argus-row-click`                | `ROW_CLICK`                | `{ row, rowId, index, pinned? }`                  | A click in a body or pinned row, after `argus-cell-click`                                                       |
+| `argus-range-change`             | `RANGE_CHANGE`             | `{ first, last }`                                 | After an update that changed the rows in view (both inclusive)                                                  |
+| `argus-load-error`               | `LOAD_ERROR`               | `{ error, start, end }`                           | After a `dataSource` page failed to load (`end` exclusive)                                                      |
 
 ## Controlled and uncontrolled state
 
-`sorting`, `columnSizing`, `columnOrder`, `columnPinning`, `columnVisibility`, `columnFilters` and `selection` work either way. Leave them unset and the table keeps its own state, then fires the event. Set them and the table only proposes: it fires the event with the new state and waits for you to set the property. Set them back to `undefined` to hand control back to the table.
+`sorting`, `columnSizing`, `columnOrder`, `columnPinning`, `columnVisibility`, `columnFilters` and `selection` work either way. Leave them unset and the table keeps its own state, then fires the event. Set them and the table only proposes: it fires the event right away with the proposed state and waits for you to set the property. Uncontrolled, the event fires after the update that applied the change. Set them back to `undefined` to hand control back to the table.
 
 ## Saving a layout
 

@@ -22,11 +22,11 @@ import {
   selectRange,
   SELECTION_COLUMN_ID,
   toggleRow,
-  type ColumnFilterDetail,
-  type ColumnHideDetail,
-  type ColumnPinDetail,
-  type ColumnReorderDetail,
-  type ColumnResizeDetail,
+  type ColumnFiltersChangeDetail,
+  type ColumnVisibilityChangeDetail,
+  type ColumnPinningChangeDetail,
+  type ColumnOrderChangeDetail,
+  type ColumnSizingChangeDetail,
   type ColumnView,
   type Controllable,
   type GridRow,
@@ -54,17 +54,17 @@ import { TableController } from './controllers/table-controller.js';
 import { VirtualController, type VirtualWindow } from './controllers/virtual-controller.js';
 import {
   CELL_CLICK,
-  COLUMN_FILTER,
-  COLUMN_HIDE,
-  COLUMN_PIN,
-  COLUMN_REORDER,
-  COLUMN_RESIZE,
+  COLUMN_FILTERS_CHANGE,
+  COLUMN_ORDER_CHANGE,
+  COLUMN_PINNING_CHANGE,
+  COLUMN_SIZING_CHANGE,
+  COLUMN_VISIBILITY_CHANGE,
   fire,
   LOAD_ERROR,
   RANGE_CHANGE,
   ROW_CLICK,
-  ROW_SELECT,
-  SORT_CHANGE,
+  SELECTION_CHANGE,
+  SORTING_CHANGE,
 } from './events.js';
 import { fromInteractive, INTERACTIVE } from './interactive.js';
 import { bodyCap, watchMaxElementHeight } from './max-height.js';
@@ -239,16 +239,16 @@ function pinnedWidth<T>(
  *
  * @summary Data table with pinned rows and columns and infinite loading.
  *
- * @fires {CustomEvent<SortChangeDetail>} argus-sort-change - A sortable header was clicked, or activated with Enter or Space. `detail: { sorting }`: the new order, or the proposed one when `sorting` is controlled.
- * @fires {CustomEvent<ColumnResizeDetail>} argus-column-resize - A column was resized: by dragging its handle, with Alt+Arrow on its header, by a double-click on its handle (fit to content) or by `autosizeColumns()`. `detail: { columnId, width, sizing }`: the new widths, or the proposed ones when `columnSizing` is controlled. Fires on every frame of a drag, and once per column that `autosizeColumns()` changes.
- * @fires {CustomEvent<ColumnReorderDetail>} argus-column-reorder - A column or column group was moved: by dragging its header, or with Alt+Shift+Arrow on its focused header. Columns move within their pin side (start-pinned, scrolling, end-pinned) and their column group; groups move as a whole. `detail: { columnId, groupId?, order }`: `groupId` is set when a group moved, and `columnId` is then its first column; `order` is the new order, or the proposed one when `columnOrder` is controlled. Fires once per move, on drop.
- * @fires {CustomEvent<ColumnPinDetail>} argus-column-pin - A column was pinned to a side or unpinned, through a plugin such as the column menu. `detail: { columnId, pin, pinning }`: `pin` is `'start'`, `'end'` or `false`; `pinning` is the new state, or the proposed one when `columnPinning` is controlled.
- * @fires {CustomEvent<ColumnHideDetail>} argus-column-hide - A column was hidden or shown, through a plugin such as the column menu. `detail: { columnId, hidden, visibility }`: `hidden` is `true` when it was hidden; `visibility` is the new state, or the proposed one when `columnVisibility` is controlled.
- * @fires {CustomEvent<ColumnFilterDetail>} argus-column-filter - A column's filter was set, changed or cleared, through a plugin such as the column menu. `detail: { columnId, filter, filters }`: `filter` is the column's new filter, or `undefined` when it was cleared; `filters` is the new state, or the proposed one when `columnFilters` is controlled.
- * @fires {CustomEvent<CellClickDetail<T>>} argus-cell-click - A body or pinned-row cell was clicked, or Enter was pressed on it. `detail: { row, columnId, value, pinned? }`; `pinned` is `'top'` or `'bottom'` for a pinned row. Fires before `argus-row-click`.
+ * @fires {CustomEvent<SortingChangeDetail>} argus-sorting-change - `sorting` changed: a sortable header was clicked, or activated with Enter or Space. `detail: { sorting }`. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it.
+ * @fires {CustomEvent<ColumnSizingChangeDetail>} argus-column-sizing-change - `columnSizing` changed: a column was resized by dragging its handle, with Alt+Arrow on its header, by a double-click on its handle (fit to content) or by `autosizeColumns()`. `detail: { columnSizing, columnId, width }`. Fires on every frame of a drag, and once per column that changes (a group resize, `autosizeColumns()`). The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it.
+ * @fires {CustomEvent<ColumnOrderChangeDetail>} argus-column-order-change - `columnOrder` changed: a column or column group was moved by dragging its header, or with Alt+Shift+Arrow on its focused header. Columns move within their pin side (start-pinned, scrolling, end-pinned) and their column group; groups move as a whole. `detail: { columnOrder, columnId, groupId? }`: `groupId` is set when a group moved, and `columnId` is then its first column. Fires once per move, on drop. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it.
+ * @fires {CustomEvent<ColumnPinningChangeDetail>} argus-column-pinning-change - `columnPinning` changed: a column was pinned to a side or unpinned, through a plugin such as the column menu. `detail: { columnPinning, columnId, pin }`: `pin` is `'start'`, `'end'` or `false`. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it.
+ * @fires {CustomEvent<ColumnVisibilityChangeDetail>} argus-column-visibility-change - `columnVisibility` changed: a column was hidden or shown, through a plugin such as the column menu. `detail: { columnVisibility, columnId, visible }`: `visible` is `false` when it was hidden. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it.
+ * @fires {CustomEvent<ColumnFiltersChangeDetail>} argus-column-filters-change - `columnFilters` changed: a column's filter was set, changed or cleared, through a plugin such as the column menu. `detail: { columnFilters, columnId, columnFilter }`: `columnFilter` is the column's new filter, or `undefined` when it was cleared. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it.
+ * @fires {CustomEvent<SelectionChangeDetail>} argus-selection-change - `selection` changed: by a click on a row (Ctrl/Cmd toggles, Shift selects a range), with Space, Shift+Arrow or Shift+PageUp/PageDown on a body cell, or with Ctrl/Cmd+A. Only with a `selectionMode`. `detail: { selection }`. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it.
+ * @fires {CustomEvent<CellClickDetail<T>>} argus-cell-click - A body or pinned-row cell was clicked, or Enter was pressed on it. `detail: { row, rowId, index, columnId, value, pinned? }`; `pinned` is `'top'` or `'bottom'` for a pinned row, and `index` is then its index in its list. Fires before `argus-row-click`.
  * @fires {CustomEvent<RowClickDetail<T>>} argus-row-click - A body or pinned row was clicked, or Enter was pressed on one of its cells. `detail: { row, rowId, index, pinned? }`; for a pinned row, `index` is its index in its list.
- * @fires {CustomEvent<RangeChangeDetail>} argus-range-change - The rows in view changed (rows rendered ahead of the scroll position not counted). `detail: { start, end }` (row indices in the current order, inclusive).
- * @fires {CustomEvent<RowSelectDetail>} argus-row-select - The selected rows changed: by a click on a row (Ctrl/Cmd toggles, Shift selects a range), with Space, Shift+Arrow or Shift+PageUp/PageDown on a body cell, or with Ctrl/Cmd+A. Only with a `selectionMode`. `detail: { selection }`: the new row ids, or the proposed ones when `selection` is controlled.
+ * @fires {CustomEvent<RangeChangeDetail>} argus-range-change - The rows in view changed (rows rendered ahead of the scroll position not counted). `detail: { first, last }` (row indices in the current order, both inclusive).
  * @fires {CustomEvent<LoadErrorDetail>} argus-load-error - A `dataSource` page failed to load: `getRows()` rejected or threw. `detail: { error, start, end }` (`end` exclusive). The rows show a Retry button.
  *
  * @slot empty - Shown instead of the body when there are no rows. Default: "No rows".
@@ -425,7 +425,7 @@ export class ArgusTable<T = unknown> extends LitElement {
   /**
    * The sort order, e.g. `[{ id: 'total', desc: true }]`; `[]` when unsorted. Unset,
    * the table keeps it itself and header clicks change it. Once set, it is
-   * controlled: a click only fires `argus-sort-change` with the proposed order,
+   * controlled: a click only fires `argus-sorting-change` with the proposed order,
    * and nothing changes until you set the property. Set `undefined` to hand it back.
    */
   @property({ attribute: false })
@@ -440,7 +440,7 @@ export class ArgusTable<T = unknown> extends LitElement {
   /**
    * Resized widths in px by column id, e.g. `{ name: 240 }`. A resized flex column
    * becomes fixed. Uncontrolled until set, like `sorting`: once set, a resize only
-   * fires `argus-column-resize` with the proposed widths. `undefined` hands it back.
+   * fires `argus-column-sizing-change` with the proposed widths. `undefined` hands it back.
    */
   @property({ attribute: false })
   get columnSizing(): ColumnSizingState {
@@ -456,7 +456,7 @@ export class ArgusTable<T = unknown> extends LitElement {
    * Each pin group (start-pinned, scrolling, end-pinned) takes its columns in this
    * order; unknown ids are ignored and columns it doesn't list follow the listed
    * ones of their group. After a move it holds every column id. Uncontrolled
-   * until set, like `sorting`: once set, a move only fires `argus-column-reorder`
+   * until set, like `sorting`: once set, a move only fires `argus-column-order-change`
    * with the proposed order. `undefined` hands it back.
    */
   @property({ attribute: false })
@@ -473,7 +473,7 @@ export class ArgusTable<T = unknown> extends LitElement {
    * `{ total: 'end', id: false }`. Columns it doesn't list keep their `pin`. A pinned
    * column joins the edge of its group nearest its place in `columnOrder`, and stops
    * flexing. Uncontrolled until set, like `sorting`: once set, pinning from a plugin
-   * only fires `argus-column-pin` with the proposed pins. `undefined` hands it back.
+   * only fires `argus-column-pinning-change` with the proposed pins. `undefined` hands it back.
    */
   @property({ attribute: false })
   get columnPinning(): ColumnPinningState {
@@ -489,7 +489,7 @@ export class ArgusTable<T = unknown> extends LitElement {
    * doesn't list keep their `hidden`. A hidden column isn't rendered, but sorting by
    * it still works and it keeps its place in `columnOrder`. Uncontrolled until set,
    * like `sorting`: once set, hiding or showing from a plugin only fires
-   * `argus-column-hide` with the proposed visibility. `undefined` hands it back.
+   * `argus-column-visibility-change` with the proposed visibility. `undefined` hands it back.
    */
   @property({ attribute: false })
   get columnVisibility(): ColumnVisibilityState {
@@ -507,7 +507,7 @@ export class ArgusTable<T = unknown> extends LitElement {
    * `dataSource`, the filters go to `getRows()` and the server filters. Users set
    * filters through plugins (the column menu) on columns with a `filter` kind.
    * Uncontrolled until set, like `sorting`: once set, a change from a plugin only
-   * fires `argus-column-filter` with the proposed filters. `undefined` hands it back.
+   * fires `argus-column-filters-change` with the proposed filters. `undefined` hands it back.
    */
   @property({ attribute: false })
   get columnFilters(): ColumnFilterState {
@@ -556,7 +556,7 @@ export class ArgusTable<T = unknown> extends LitElement {
   /**
    * The selected rows, as row ids (from `getRowId`, or the row's index as a
    * string), e.g. `['p4', 'p7']`. Uncontrolled until set, like `sorting`: once
-   * set, a click only fires `argus-row-select` with the proposed ids.
+   * set, a click only fires `argus-selection-change` with the proposed ids.
    * `undefined` hands it back. The table never drops ids on its own: they stay
    * through sorting, a new `data` or reloaded pages. With a `dataSource`,
    * Ctrl/Cmd+A selects the loaded rows only.
@@ -613,13 +613,13 @@ export class ArgusTable<T = unknown> extends LitElement {
   readonly #filters = controllable<ColumnFilterState>({});
   #quickFilter = '';
   /** Filters the table applied itself, by column; their events fire once the update is done. */
-  readonly #appliedFilters = new Map<string, ColumnFilterDetail>();
+  readonly #appliedFilters = new Map<string, ColumnFiltersChangeDetail>();
   /** Announce the row count after the update: the filters changed. */
   #announceRows = false;
   /** Pins the table applied itself, by column; their events fire once the update is done. */
-  readonly #appliedPins = new Map<string, ColumnPinDetail>();
+  readonly #appliedPins = new Map<string, ColumnPinningChangeDetail>();
   /** Hidden or shown columns the table applied itself; their events fire once the update is done. */
-  readonly #appliedHides = new Map<string, ColumnHideDetail>();
+  readonly #appliedHides = new Map<string, ColumnVisibilityChangeDetail>();
   readonly #selection = controllable<SelectionState>([]);
   /** `selection` as a set, for the rows rendered; rebuilt when `selection` changes. */
   #selectedIds: { of: SelectionState; ids: ReadonlySet<string> } | undefined;
@@ -633,13 +633,13 @@ export class ArgusTable<T = unknown> extends LitElement {
   /** The select-all checkbox's state, kept until the selection or the shown rows change. */
   #checkAll: { key: readonly unknown[]; state: CheckAll['state'] } | undefined;
   /** Moves the table applied itself, by column or group; their events fire once the update is done. */
-  readonly #appliedReorders = new Map<string, ColumnReorderDetail>();
+  readonly #appliedReorders = new Map<string, ColumnOrderChangeDetail>();
   /** The header being dragged to a new position, if any. */
   #drag: HeaderDrag | undefined;
   /** A move from the keyboard, announced once it has rendered: what moved and its old position. */
   #announceMove: { unit: OrderUnit; from: number } | undefined;
   /** Resizes the table applied itself, by column; their events fire once the update is done. */
-  readonly #appliedResizes = new Map<string, ColumnResizeDetail>();
+  readonly #appliedResizes = new Map<string, ColumnSizingChangeDetail>();
   /** Columns `autosizeColumns()` renders out of view for its measurement. */
   #measureKeep: readonly string[] = [];
   /** Measured widths of `width: 'auto'` columns. */
@@ -848,7 +848,7 @@ export class ArgusTable<T = unknown> extends LitElement {
   /**
    * Fits columns to their content: the header, the pinned rows and the body rows
    * rendered now (rows out of view aren't measured). It resizes them like a drag
-   * would, so `argus-column-resize` fires for each column that changes, and with a
+   * would, so `argus-column-sizing-change` fires for each column that changes, and with a
    * controlled `columnSizing` nothing changes until you set it. Without `ids`, fits
    * every resizable column; columns with `resizable: false` keep their width.
    * With `virtualizeColumns`, columns out of view render for the measurement.
@@ -1210,15 +1210,15 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.#focusActive();
     }
     if (changed.has('density') || changed.has('rowHeight')) this.#measureRowHeight();
-    this.#fireApplied(this.#appliedResizes, COLUMN_RESIZE);
+    this.#fireApplied(this.#appliedResizes, COLUMN_SIZING_CHANGE);
     if (this.#announceMove) {
       this.#announceMoved(model, this.#announceMove);
       this.#announceMove = undefined;
     }
-    this.#fireApplied(this.#appliedReorders, COLUMN_REORDER);
-    this.#fireApplied(this.#appliedPins, COLUMN_PIN);
-    this.#fireApplied(this.#appliedHides, COLUMN_HIDE);
-    this.#fireApplied(this.#appliedFilters, COLUMN_FILTER);
+    this.#fireApplied(this.#appliedReorders, COLUMN_ORDER_CHANGE);
+    this.#fireApplied(this.#appliedPins, COLUMN_PINNING_CHANGE);
+    this.#fireApplied(this.#appliedHides, COLUMN_VISIBILITY_CHANGE);
+    this.#fireApplied(this.#appliedFilters, COLUMN_FILTERS_CHANGE);
     if (this.#announceRows) {
       this.#announceRows = false;
       this.#announceRowCount(model);
@@ -1226,18 +1226,18 @@ export class ArgusTable<T = unknown> extends LitElement {
     if (this.#appliedSort) {
       const sorting = this.#appliedSort;
       this.#appliedSort = undefined;
-      fire(this, SORT_CHANGE, { sorting });
+      fire(this, SORTING_CHANGE, { sorting });
     }
     if (this.#appliedSelection) {
       const selection = this.#appliedSelection;
       this.#appliedSelection = undefined;
-      fire(this, ROW_SELECT, { selection });
+      fire(this, SELECTION_CHANGE, { selection });
     }
     const { range } = this.#window;
     const key = range ? `${String(range.start)}:${String(range.end)}` : '';
     if (range && key !== this.#lastRange) {
       this.#lastRange = key;
-      fire(this, RANGE_CHANGE, { start: range.start, end: range.end });
+      fire(this, RANGE_CHANGE, { first: range.start, last: range.end });
     }
     if (range) {
       // The rendered rows: visible plus overscan, end exclusive.
@@ -2011,7 +2011,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.#appliedSelection = value;
       this.requestUpdate('selection', old);
     } else {
-      fire(this, ROW_SELECT, { selection: value });
+      fire(this, SELECTION_CHANGE, { selection: value });
     }
   }
 
@@ -2038,6 +2038,8 @@ export class ArgusTable<T = unknown> extends LitElement {
         if (columnId !== undefined) {
           fire(this, CELL_CLICK, {
             row: row.original,
+            rowId: row.id,
+            index,
             columnId,
             value: model.valueAt(index, columnId),
           });
@@ -2051,6 +2053,8 @@ export class ArgusTable<T = unknown> extends LitElement {
       if (columnId !== undefined) {
         fire(this, CELL_CLICK, {
           row: row.original,
+          rowId: row.id,
+          index,
           columnId,
           value: model.pinnedValueAt(pinned, index, columnId),
           pinned,
@@ -2239,7 +2243,7 @@ export class ArgusTable<T = unknown> extends LitElement {
 
   /**
    * Resizes a group to `total` px: the change is spread over its resizable columns
-   * in proportion to their widths, within their bounds (one `argus-column-resize`
+   * in proportion to their widths, within their bounds (one `argus-column-sizing-change`
    * per column that changes). The other columns keep their width.
    */
   #requestGroupResize(
@@ -2274,8 +2278,8 @@ export class ArgusTable<T = unknown> extends LitElement {
 
   /**
    * Sets column widths (clamped by core) in one change, through the
-   * controlled/uncontrolled rules. One `argus-column-resize` per column that
-   * changes, each with the whole new sizing.
+   * controlled/uncontrolled rules. One `argus-column-sizing-change` per column
+   * that changes, each with the whole new sizing.
    */
   #requestResizes(widths: ReadonlyMap<string, number>): void {
     const model = this.#table.model;
@@ -2287,14 +2291,14 @@ export class ArgusTable<T = unknown> extends LitElement {
     }
     if (targets.length === 0) return;
     const { value, applied } = this.#sizing.request({ ...old, ...Object.fromEntries(targets) });
-    const details = targets.map(([columnId, width]) => ({ columnId, width, sizing: value }));
+    const details = targets.map(([columnId, width]) => ({ columnSizing: value, columnId, width }));
     if (applied) {
       // Only the latest width per column fires, all with the latest sizing.
-      for (const detail of this.#appliedResizes.values()) detail.sizing = value;
+      for (const detail of this.#appliedResizes.values()) detail.columnSizing = value;
       for (const detail of details) this.#appliedResizes.set(detail.columnId, detail);
       this.requestUpdate('columnSizing', old);
     } else {
-      for (const detail of details) fire(this, COLUMN_RESIZE, detail);
+      for (const detail of details) fire(this, COLUMN_SIZING_CHANGE, detail);
     }
   }
 
@@ -2308,11 +2312,11 @@ export class ArgusTable<T = unknown> extends LitElement {
     if (!next) return;
     const { value, applied } = this.#pinning.request(next);
     if (applied) {
-      for (const detail of this.#appliedPins.values()) detail.pinning = value;
-      this.#appliedPins.set(columnId, { columnId, pin, pinning: value });
+      for (const detail of this.#appliedPins.values()) detail.columnPinning = value;
+      this.#appliedPins.set(columnId, { columnPinning: value, columnId, pin });
       this.requestUpdate('columnPinning', old);
     } else {
-      fire(this, COLUMN_PIN, { columnId, pin, pinning: value });
+      fire(this, COLUMN_PINNING_CHANGE, { columnPinning: value, columnId, pin });
     }
   }
 
@@ -2323,11 +2327,11 @@ export class ArgusTable<T = unknown> extends LitElement {
     if (!next) return;
     const { value, applied } = this.#visibility.request(next);
     if (applied) {
-      for (const detail of this.#appliedHides.values()) detail.visibility = value;
-      this.#appliedHides.set(columnId, { columnId, hidden, visibility: value });
+      for (const detail of this.#appliedHides.values()) detail.columnVisibility = value;
+      this.#appliedHides.set(columnId, { columnVisibility: value, columnId, visible: !hidden });
       this.requestUpdate('columnVisibility', old);
     } else {
-      fire(this, COLUMN_HIDE, { columnId, hidden, visibility: value });
+      fire(this, COLUMN_VISIBILITY_CHANGE, { columnVisibility: value, columnId, visible: !hidden });
     }
   }
 
@@ -2338,11 +2342,15 @@ export class ArgusTable<T = unknown> extends LitElement {
     if (!next) return;
     const { value, applied } = this.#filters.request(next);
     if (applied) {
-      for (const detail of this.#appliedFilters.values()) detail.filters = value;
-      this.#appliedFilters.set(columnId, { columnId, filter, filters: value });
+      for (const detail of this.#appliedFilters.values()) detail.columnFilters = value;
+      this.#appliedFilters.set(columnId, { columnFilters: value, columnId, columnFilter: filter });
       this.requestUpdate('columnFilters', old);
     } else {
-      fire(this, COLUMN_FILTER, { columnId, filter, filters: value });
+      fire(this, COLUMN_FILTERS_CHANGE, {
+        columnFilters: value,
+        columnId,
+        columnFilter: filter,
+      });
     }
   }
 
@@ -2369,15 +2377,17 @@ export class ArgusTable<T = unknown> extends LitElement {
     const next = model.nextMove(unit, to, old);
     const columnId = moving?.columns[0];
     if (!next || columnId === undefined) return false;
-    const detail = (order: ColumnOrderState): ColumnReorderDetail =>
-      unit.kind === 'group' ? { columnId, groupId: unit.id, order } : { columnId, order };
+    const detail = (columnOrder: ColumnOrderState): ColumnOrderChangeDetail =>
+      unit.kind === 'group'
+        ? { columnOrder, columnId, groupId: unit.id }
+        : { columnOrder, columnId };
     const { value, applied } = this.#order.request(next);
     if (applied) {
-      for (const pending of this.#appliedReorders.values()) pending.order = value;
+      for (const pending of this.#appliedReorders.values()) pending.columnOrder = value;
       this.#appliedReorders.set(unitKey(unit), detail(value));
       this.requestUpdate('columnOrder', old);
     } else {
-      fire(this, COLUMN_REORDER, detail(value));
+      fire(this, COLUMN_ORDER_CHANGE, detail(value));
     }
     return true;
   }
@@ -2555,7 +2565,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.#appliedSort = value;
       this.requestUpdate('sorting', old);
     } else {
-      fire(this, SORT_CHANGE, { sorting: value });
+      fire(this, SORTING_CHANGE, { sorting: value });
     }
   }
 

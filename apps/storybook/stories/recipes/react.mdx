@@ -37,16 +37,19 @@ export function Orders({ orders }: { orders: Order[] }) {
 
 Props set the element's properties. Each `argus-*` event is an `on*` prop that gets the element's `CustomEvent`:
 
-| Event                  | Prop              |
-| ---------------------- | ----------------- |
-| `argus-sort-change`    | `onSortChange`    |
-| `argus-column-resize`  | `onColumnResize`  |
-| `argus-column-reorder` | `onColumnReorder` |
-| `argus-cell-click`     | `onCellClick`     |
-| `argus-row-click`      | `onRowClick`      |
-| `argus-range-change`   | `onRangeChange`   |
-| `argus-load-error`     | `onLoadError`     |
-| `argus-row-select`     | `onRowSelect`     |
+| Event                            | Prop                       |
+| -------------------------------- | -------------------------- |
+| `argus-sorting-change`           | `onSortingChange`          |
+| `argus-column-sizing-change`     | `onColumnSizingChange`     |
+| `argus-column-order-change`      | `onColumnOrderChange`      |
+| `argus-column-pinning-change`    | `onColumnPinningChange`    |
+| `argus-column-visibility-change` | `onColumnVisibilityChange` |
+| `argus-column-filters-change`    | `onColumnFiltersChange`    |
+| `argus-selection-change`         | `onSelectionChange`        |
+| `argus-cell-click`               | `onCellClick`              |
+| `argus-row-click`                | `onRowClick`               |
+| `argus-range-change`             | `onRangeChange`            |
+| `argus-load-error`               | `onLoadError`              |
 
 A column's `cell` and `header` can return JSX, as well as a string, a number, a DOM node or a Lit template. The JSX renders through portals in your component tree (it sees your providers), and pooled cells update their components with the next row's props as the table scrolls rather than remounting them:
 
@@ -67,11 +70,11 @@ const [sorting, setSorting] = useState<SortState>([]);
   columns={columns}
   data={orders}
   sorting={sorting}
-  onSortChange={(e) => setSorting(e.detail.sorting)}
+  onSortingChange={(e) => setSorting(e.detail.sorting)}
 />;
 ```
 
-`columnSizing` with `onColumnResize` (`e.detail.sizing`), `columnOrder` with `onColumnReorder` (`e.detail.order`) and `selection` with `onRowSelect` (`e.detail.selection`) work the same way.
+Every controllable property works the same way: `columnSizing` with `onColumnSizingChange` (`e.detail.columnSizing`), `columnOrder` with `onColumnOrderChange`, `columnPinning`, `columnVisibility`, `columnFilters` and `selection` with `onSelectionChange` (`e.detail.selection`). The value is always in `e.detail` under the property's name.
 
 ## Methods
 

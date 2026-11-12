@@ -1,37 +1,45 @@
 import type {
   CellClickDetail,
-  ColumnFilterDetail,
-  ColumnHideDetail,
-  ColumnPinDetail,
-  ColumnReorderDetail,
-  ColumnResizeDetail,
+  ColumnFiltersChangeDetail,
+  ColumnOrderChangeDetail,
+  ColumnPinningChangeDetail,
+  ColumnSizingChangeDetail,
+  ColumnVisibilityChangeDetail,
   LoadErrorDetail,
   RangeChangeDetail,
   RowClickDetail,
-  RowSelectDetail,
-  SortChangeDetail,
+  SelectionChangeDetail,
+  SortingChangeDetail,
 } from '@argus-table/core';
 
-/** Fired after an update when the visible row range changed. */
+// A change of controllable state fires `argus-<property>-change`, with the value
+// under the property's name in `detail` (ADR 0004): after the update when the table
+// applied it (uncontrolled), right away with the proposed value when it is controlled.
+// The wrappers derive two-way binding from that naming.
+
+/** Fired after an update when the rows in view changed. */
 export const RANGE_CHANGE = 'argus-range-change';
 
-/** Fired after the sort order changed (uncontrolled), or with the proposed order (controlled). */
-export const SORT_CHANGE = 'argus-sort-change';
+/** `sorting` changed (uncontrolled), or the proposed order (controlled). */
+export const SORTING_CHANGE = 'argus-sorting-change';
 
-/** Fired when a column was resized (uncontrolled), or with the proposed widths (controlled). */
-export const COLUMN_RESIZE = 'argus-column-resize';
+/** `columnSizing` changed (uncontrolled), or the proposed widths (controlled). Once per column. */
+export const COLUMN_SIZING_CHANGE = 'argus-column-sizing-change';
 
-/** Fired when a column was moved (uncontrolled), or with the proposed order (controlled). */
-export const COLUMN_REORDER = 'argus-column-reorder';
+/** `columnOrder` changed (uncontrolled), or the proposed order (controlled). */
+export const COLUMN_ORDER_CHANGE = 'argus-column-order-change';
 
-/** Fired when a column was pinned or unpinned (uncontrolled), or with the proposed pins (controlled). */
-export const COLUMN_PIN = 'argus-column-pin';
+/** `columnPinning` changed (uncontrolled), or the proposed pins (controlled). */
+export const COLUMN_PINNING_CHANGE = 'argus-column-pinning-change';
 
-/** Fired when a column was hidden or shown (uncontrolled), or with the proposed visibility (controlled). */
-export const COLUMN_HIDE = 'argus-column-hide';
+/** `columnVisibility` changed (uncontrolled), or the proposed visibility (controlled). */
+export const COLUMN_VISIBILITY_CHANGE = 'argus-column-visibility-change';
 
-/** Fired when a column's filter was set, changed or cleared (uncontrolled), or with the proposed filters (controlled). */
-export const COLUMN_FILTER = 'argus-column-filter';
+/** `columnFilters` changed (uncontrolled), or the proposed filters (controlled). */
+export const COLUMN_FILTERS_CHANGE = 'argus-column-filters-change';
+
+/** `selection` changed (uncontrolled), or the proposed ids (controlled). */
+export const SELECTION_CHANGE = 'argus-selection-change';
 
 /** Fired when a body row was clicked, after `argus-cell-click`. */
 export const ROW_CLICK = 'argus-row-click';
@@ -39,25 +47,22 @@ export const ROW_CLICK = 'argus-row-click';
 /** Fired when a body cell was clicked, before `argus-row-click`. */
 export const CELL_CLICK = 'argus-cell-click';
 
-/** Fired when the selected rows changed (uncontrolled), or with the proposed ids (controlled). */
-export const ROW_SELECT = 'argus-row-select';
-
 /** Fired after the update when a `dataSource` page failed to load. */
 export const LOAD_ERROR = 'argus-load-error';
 
 declare global {
   interface HTMLElementEventMap {
     'argus-range-change': CustomEvent<RangeChangeDetail>;
-    'argus-sort-change': CustomEvent<SortChangeDetail>;
-    'argus-column-resize': CustomEvent<ColumnResizeDetail>;
-    'argus-column-reorder': CustomEvent<ColumnReorderDetail>;
-    'argus-column-pin': CustomEvent<ColumnPinDetail>;
-    'argus-column-hide': CustomEvent<ColumnHideDetail>;
-    'argus-column-filter': CustomEvent<ColumnFilterDetail>;
+    'argus-sorting-change': CustomEvent<SortingChangeDetail>;
+    'argus-column-sizing-change': CustomEvent<ColumnSizingChangeDetail>;
+    'argus-column-order-change': CustomEvent<ColumnOrderChangeDetail>;
+    'argus-column-pinning-change': CustomEvent<ColumnPinningChangeDetail>;
+    'argus-column-visibility-change': CustomEvent<ColumnVisibilityChangeDetail>;
+    'argus-column-filters-change': CustomEvent<ColumnFiltersChangeDetail>;
+    'argus-selection-change': CustomEvent<SelectionChangeDetail>;
     'argus-row-click': CustomEvent<RowClickDetail<unknown>>;
     'argus-cell-click': CustomEvent<CellClickDetail<unknown>>;
     'argus-load-error': CustomEvent<LoadErrorDetail>;
-    'argus-row-select': CustomEvent<RowSelectDetail>;
   }
 }
 

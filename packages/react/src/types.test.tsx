@@ -30,13 +30,13 @@ export const inferred = (
       return [row, detail];
     }}
     onCellClick={(e) => e.detail.row.total.toFixed()}
-    onSortChange={(e) => e.detail.sorting.map((s) => s.id)}
-    onColumnResize={(e) => e.detail.sizing}
-    onColumnReorder={(e) => e.detail.order}
+    onSortingChange={(e) => e.detail.sorting.map((s) => s.id)}
+    onColumnSizingChange={(e) => e.detail.columnSizing}
+    onColumnOrderChange={(e) => e.detail.columnOrder}
     selectionMode="multi"
     selectionCheckboxes
-    onRowSelect={(e) => e.detail.selection.join()}
-    onRangeChange={(e) => e.detail.start + e.detail.end}
+    onSelectionChange={(e) => e.detail.selection.join()}
+    onRangeChange={(e) => e.detail.first + e.detail.last}
     onLoadError={(e) => e.detail.error}
   />
 );

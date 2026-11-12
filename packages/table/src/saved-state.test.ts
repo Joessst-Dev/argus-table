@@ -27,13 +27,13 @@ const columns: ColumnDef<Person>[] = [
 const getRowId = (p: Person) => p.id;
 
 const EVENTS = [
-  'argus-sort-change',
-  'argus-column-resize',
-  'argus-column-reorder',
-  'argus-column-pin',
-  'argus-column-hide',
-  'argus-column-filter',
-  'argus-row-select',
+  'argus-sorting-change',
+  'argus-column-sizing-change',
+  'argus-column-order-change',
+  'argus-column-pinning-change',
+  'argus-column-visibility-change',
+  'argus-column-filters-change',
+  'argus-selection-change',
 ] as const;
 
 /** Records every state event the table fires. */
@@ -186,7 +186,7 @@ describe('setState()', () => {
 
     // Still controlled: a click only proposes.
     const proposed: unknown[] = [];
-    el.addEventListener('argus-sort-change', (e) => {
+    el.addEventListener('argus-sorting-change', (e) => {
       proposed.push(e.detail.sorting);
     });
     shadow(el).querySelector<HTMLElement>('[data-sort-col="age"]')?.click();

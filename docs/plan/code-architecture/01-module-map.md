@@ -24,7 +24,7 @@ flowchart TD
     end
 
     dom["DOM<br/>shadow DOM + slotted cell content"]
-    events["Events<br/>argus-sort-change, …"]
+    events["Events<br/>argus-sorting-change, …"]
 
     children --> col
     props --> col

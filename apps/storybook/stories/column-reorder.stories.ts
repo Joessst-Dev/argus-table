@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { html } from 'lit';
 import { expect, userEvent, waitFor } from 'storybook/test';
-import type { ArgusTable, ColumnDef, ColumnOrderState, ColumnReorderDetail } from 'argus-table';
+import type { ArgusTable, ColumnDef, ColumnOrderState, ColumnOrderChangeDetail } from 'argus-table';
 import 'argus-table';
 
 interface Task {
@@ -88,15 +88,15 @@ function savedOrder(): ColumnOrderState {
 
 /**
  * Controlled: the host owns `columnOrder`, applies each proposal from
- * `argus-column-reorder` and saves it, so the order survives a reload.
+ * `argus-column-order-change` and saves it, so the order survives a reload.
  */
 export const ControlledAndSaved: Story = {
   render: () => {
-    const onReorder = (event: CustomEvent<ColumnReorderDetail>) => {
+    const onReorder = (event: CustomEvent<ColumnOrderChangeDetail>) => {
       const table = event.target as ArgusTable<Task>;
-      table.columnOrder = event.detail.order;
+      table.columnOrder = event.detail.columnOrder;
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(event.detail.order));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(event.detail.columnOrder));
       } catch {
         // Storage can be unavailable (private mode); the table still works.
       }
@@ -106,7 +106,7 @@ export const ControlledAndSaved: Story = {
       .columns=${columns}
       .data=${data}
       .columnOrder=${savedOrder()}
-      @argus-column-reorder=${onReorder}
+      @argus-column-order-change=${onReorder}
     ></argus-table>`;
   },
 };

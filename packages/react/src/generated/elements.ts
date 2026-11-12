@@ -10,16 +10,16 @@ import {
 import type {
   CellClickDetail,
   CellContext,
-  ColumnFilterDetail,
-  ColumnHideDetail,
-  ColumnPinDetail,
-  ColumnReorderDetail,
-  ColumnResizeDetail,
+  ColumnFiltersChangeDetail,
+  ColumnOrderChangeDetail,
+  ColumnPinningChangeDetail,
+  ColumnSizingChangeDetail,
+  ColumnVisibilityChangeDetail,
   LoadErrorDetail,
   RangeChangeDetail,
   RowClickDetail,
-  RowSelectDetail,
-  SortChangeDetail,
+  SelectionChangeDetail,
+  SortingChangeDetail,
 } from 'argus-table';
 import {
   withContent,
@@ -60,26 +60,26 @@ export type ArgusTableElementProps<T = unknown> = Partial<
 
 /** The event props of `<ArgusTable>`: each gets the element's `CustomEvent`. */
 export interface ArgusTableEventProps<T = unknown> {
-  /** `argus-sort-change`: A sortable header was clicked, or activated with Enter or Space. `detail: { sorting }`: the new order, or the proposed one when `sorting` is controlled. */
-  onSortChange?: (event: CustomEvent<SortChangeDetail>) => void;
-  /** `argus-column-resize`: A column was resized: by dragging its handle, with Alt+Arrow on its header, by a double-click on its handle (fit to content) or by `autosizeColumns()`. `detail: { columnId, width, sizing }`: the new widths, or the proposed ones when `columnSizing` is controlled. Fires on every frame of a drag, and once per column that `autosizeColumns()` changes. */
-  onColumnResize?: (event: CustomEvent<ColumnResizeDetail>) => void;
-  /** `argus-column-reorder`: A column or column group was moved: by dragging its header, or with Alt+Shift+Arrow on its focused header. Columns move within their pin side (start-pinned, scrolling, end-pinned) and their column group; groups move as a whole. `detail: { columnId, groupId?, order }`: `groupId` is set when a group moved, and `columnId` is then its first column; `order` is the new order, or the proposed one when `columnOrder` is controlled. Fires once per move, on drop. */
-  onColumnReorder?: (event: CustomEvent<ColumnReorderDetail>) => void;
-  /** `argus-column-pin`: A column was pinned to a side or unpinned, through a plugin such as the column menu. `detail: { columnId, pin, pinning }`: `pin` is `'start'`, `'end'` or `false`; `pinning` is the new state, or the proposed one when `columnPinning` is controlled. */
-  onColumnPin?: (event: CustomEvent<ColumnPinDetail>) => void;
-  /** `argus-column-hide`: A column was hidden or shown, through a plugin such as the column menu. `detail: { columnId, hidden, visibility }`: `hidden` is `true` when it was hidden; `visibility` is the new state, or the proposed one when `columnVisibility` is controlled. */
-  onColumnHide?: (event: CustomEvent<ColumnHideDetail>) => void;
-  /** `argus-column-filter`: A column's filter was set, changed or cleared, through a plugin such as the column menu. `detail: { columnId, filter, filters }`: `filter` is the column's new filter, or `undefined` when it was cleared; `filters` is the new state, or the proposed one when `columnFilters` is controlled. */
-  onColumnFilter?: (event: CustomEvent<ColumnFilterDetail>) => void;
-  /** `argus-cell-click`: A body or pinned-row cell was clicked, or Enter was pressed on it. `detail: { row, columnId, value, pinned? }`; `pinned` is `'top'` or `'bottom'` for a pinned row. Fires before `argus-row-click`. */
+  /** `argus-sorting-change`: `sorting` changed: a sortable header was clicked, or activated with Enter or Space. `detail: { sorting }`. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
+  onSortingChange?: (event: CustomEvent<SortingChangeDetail>) => void;
+  /** `argus-column-sizing-change`: `columnSizing` changed: a column was resized by dragging its handle, with Alt+Arrow on its header, by a double-click on its handle (fit to content) or by `autosizeColumns()`. `detail: { columnSizing, columnId, width }`. Fires on every frame of a drag, and once per column that changes (a group resize, `autosizeColumns()`). The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
+  onColumnSizingChange?: (event: CustomEvent<ColumnSizingChangeDetail>) => void;
+  /** `argus-column-order-change`: `columnOrder` changed: a column or column group was moved by dragging its header, or with Alt+Shift+Arrow on its focused header. Columns move within their pin side (start-pinned, scrolling, end-pinned) and their column group; groups move as a whole. `detail: { columnOrder, columnId, groupId? }`: `groupId` is set when a group moved, and `columnId` is then its first column. Fires once per move, on drop. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
+  onColumnOrderChange?: (event: CustomEvent<ColumnOrderChangeDetail>) => void;
+  /** `argus-column-pinning-change`: `columnPinning` changed: a column was pinned to a side or unpinned, through a plugin such as the column menu. `detail: { columnPinning, columnId, pin }`: `pin` is `'start'`, `'end'` or `false`. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
+  onColumnPinningChange?: (event: CustomEvent<ColumnPinningChangeDetail>) => void;
+  /** `argus-column-visibility-change`: `columnVisibility` changed: a column was hidden or shown, through a plugin such as the column menu. `detail: { columnVisibility, columnId, visible }`: `visible` is `false` when it was hidden. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
+  onColumnVisibilityChange?: (event: CustomEvent<ColumnVisibilityChangeDetail>) => void;
+  /** `argus-column-filters-change`: `columnFilters` changed: a column's filter was set, changed or cleared, through a plugin such as the column menu. `detail: { columnFilters, columnId, columnFilter }`: `columnFilter` is the column's new filter, or `undefined` when it was cleared. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
+  onColumnFiltersChange?: (event: CustomEvent<ColumnFiltersChangeDetail>) => void;
+  /** `argus-selection-change`: `selection` changed: by a click on a row (Ctrl/Cmd toggles, Shift selects a range), with Space, Shift+Arrow or Shift+PageUp/PageDown on a body cell, or with Ctrl/Cmd+A. Only with a `selectionMode`. `detail: { selection }`. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
+  onSelectionChange?: (event: CustomEvent<SelectionChangeDetail>) => void;
+  /** `argus-cell-click`: A body or pinned-row cell was clicked, or Enter was pressed on it. `detail: { row, rowId, index, columnId, value, pinned? }`; `pinned` is `'top'` or `'bottom'` for a pinned row, and `index` is then its index in its list. Fires before `argus-row-click`. */
   onCellClick?: (event: CustomEvent<CellClickDetail<T>>) => void;
   /** `argus-row-click`: A body or pinned row was clicked, or Enter was pressed on one of its cells. `detail: { row, rowId, index, pinned? }`; for a pinned row, `index` is its index in its list. */
   onRowClick?: (event: CustomEvent<RowClickDetail<T>>) => void;
-  /** `argus-range-change`: The rows in view changed (rows rendered ahead of the scroll position not counted). `detail: { start, end }` (row indices in the current order, inclusive). */
+  /** `argus-range-change`: The rows in view changed (rows rendered ahead of the scroll position not counted). `detail: { first, last }` (row indices in the current order, both inclusive). */
   onRangeChange?: (event: CustomEvent<RangeChangeDetail>) => void;
-  /** `argus-row-select`: The selected rows changed: by a click on a row (Ctrl/Cmd toggles, Shift selects a range), with Space, Shift+Arrow or Shift+PageUp/PageDown on a body cell, or with Ctrl/Cmd+A. Only with a `selectionMode`. `detail: { selection }`: the new row ids, or the proposed ones when `selection` is controlled. */
-  onRowSelect?: (event: CustomEvent<RowSelectDetail>) => void;
   /** `argus-load-error`: A `dataSource` page failed to load: `getRows()` rejected or threw. `detail: { error, start, end }` (`end` exclusive). The rows show a Retry button. */
   onLoadError?: (event: CustomEvent<LoadErrorDetail>) => void;
 }
@@ -103,31 +103,31 @@ export const ArgusTable = withContent(
       elementClass: ArgusTableElement,
       react: React,
       events: {
-        onSortChange: 'argus-sort-change',
-        onColumnResize: 'argus-column-resize',
-        onColumnReorder: 'argus-column-reorder',
-        onColumnPin: 'argus-column-pin',
-        onColumnHide: 'argus-column-hide',
-        onColumnFilter: 'argus-column-filter',
+        onSortingChange: 'argus-sorting-change',
+        onColumnSizingChange: 'argus-column-sizing-change',
+        onColumnOrderChange: 'argus-column-order-change',
+        onColumnPinningChange: 'argus-column-pinning-change',
+        onColumnVisibilityChange: 'argus-column-visibility-change',
+        onColumnFiltersChange: 'argus-column-filters-change',
+        onSelectionChange: 'argus-selection-change',
         onCellClick: 'argus-cell-click',
         onRowClick: 'argus-row-click',
         onRangeChange: 'argus-range-change',
-        onRowSelect: 'argus-row-select',
         onLoadError: 'argus-load-error',
       },
       displayName: 'ArgusTable',
     }),
     [
-      'onSortChange',
-      'onColumnResize',
-      'onColumnReorder',
-      'onColumnPin',
-      'onColumnHide',
-      'onColumnFilter',
+      'onSortingChange',
+      'onColumnSizingChange',
+      'onColumnOrderChange',
+      'onColumnPinningChange',
+      'onColumnVisibilityChange',
+      'onColumnFiltersChange',
+      'onSelectionChange',
       'onCellClick',
       'onRowClick',
       'onRangeChange',
-      'onRowSelect',
       'onLoadError',
     ],
     'ArgusTable',

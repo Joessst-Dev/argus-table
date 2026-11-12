@@ -191,11 +191,11 @@ describe('quickFilter', () => {
 });
 
 describe('filters from plugins', () => {
-  test('uncontrolled: setFilter applies, then fires argus-column-filter after the update', async () => {
+  test('uncontrolled: setFilter applies, then fires argus-column-filters-change after the update', async () => {
     const { plugin, host } = grab();
     const el = await fixture({ columns, data: people(20), plugins: [plugin] });
     const seen: { detail: unknown; rows: number }[] = [];
-    el.addEventListener('argus-column-filter', (e) => {
+    el.addEventListener('argus-column-filters-change', (e) => {
       seen.push({ detail: e.detail, rows: rowsInOrder(el).length });
     });
     const filter = { kind: 'text', op: 'contains', value: 'person 1' } as const;
@@ -203,24 +203,33 @@ describe('filters from plugins', () => {
     await settle(el);
     expect(el.columnFilters).toEqual({ name: filter });
     expect(seen).toEqual([
-      { detail: { columnId: 'name', filter, filters: { name: filter } }, rows: 11 },
+      {
+        detail: { columnId: 'name', columnFilter: filter, columnFilters: { name: filter } },
+        rows: 11,
+      },
     ]);
 
     host().setFilter?.('name', undefined);
     await settle(el);
     expect(el.columnFilters).toEqual({});
-    expect(seen[1]?.detail).toEqual({ columnId: 'name', filter: undefined, filters: {} });
+    expect(seen[1]?.detail).toEqual({
+      columnId: 'name',
+      columnFilter: undefined,
+      columnFilters: {},
+    });
   });
 
   test('controlled: setFilter only proposes', async () => {
     const { plugin, host } = grab();
     const el = await fixture({ columns, data: people(5), plugins: [plugin], columnFilters: {} });
     const seen: unknown[] = [];
-    el.addEventListener('argus-column-filter', (e) => seen.push(e.detail));
+    el.addEventListener('argus-column-filters-change', (e) => seen.push(e.detail));
     const filter = { kind: 'number', op: 'gt', value: 2 } as const;
     host().setFilter?.('age', filter);
     await settle(el);
-    expect(seen).toEqual([{ columnId: 'age', filter, filters: { age: filter } }]);
+    expect(seen).toEqual([
+      { columnId: 'age', columnFilter: filter, columnFilters: { age: filter } },
+    ]);
     expect(el.columnFilters).toEqual({});
     expect(rowsInOrder(el)).toHaveLength(5);
 
@@ -235,7 +244,7 @@ describe('filters from plugins', () => {
     const { plugin, host } = grab();
     const el = await fixture({ columns, data: people(5), plugins: [plugin] });
     const seen: unknown[] = [];
-    el.addEventListener('argus-column-filter', (e) => seen.push(e.detail));
+    el.addEventListener('argus-column-filters-change', (e) => seen.push(e.detail));
     host().setFilter?.('id', { kind: 'text', op: 'empty' });
     host().setFilter?.('name', undefined);
     await settle(el);

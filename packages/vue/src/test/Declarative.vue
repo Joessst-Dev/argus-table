@@ -64,13 +64,13 @@ defineExpose({ sorting, clicked, table, refresh });
     <ArgusTable
       @update:column-pinning="(p) => p['total'] === 'start'"
       @update:column-visibility="(v) => v['total'] === true"
-      @column-pin="(e) => e.detail.pin"
-      @column-hide="(e) => e.detail.hidden"
+      @column-pinning-change="(e) => e.detail.pin"
+      @column-visibility-change="(e) => e.detail.visible"
     />
     <ArgusTable
       quick-filter="berlin"
       @update:column-filters="(f) => f['total']?.kind"
-      @column-filter="(e) => e.detail.filter?.kind"
+      @column-filters-change="(e) => e.detail.columnFilter?.kind"
     />
     <ArgusColumn column-id="x" filter="set" :filter-options="['a', 1, null]" />
     <!-- @vue-expect-error filter is 'text', 'number', 'date' or 'set' -->

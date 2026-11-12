@@ -41,7 +41,7 @@ The table renders as a div-based CSS grid with ARIA grid roles, not a native `<t
 - Width modes per column: fixed px, `min`/`max` bounds, `flex` share of remaining space, `auto`.
 - Cells are one line (`nowrap`), cut off at the edge. A column with `wrap: true` wraps its text instead (a private `data-wrap` on its body and pinned-row cells); in a fixed-height row text that fits stays centred and longer text starts at the top (`align-items: safe center`) and is clipped. `auto` widths measure a wrapped column's text unwrapped (`max-content`), up to `maxWidth`.
 - `auto` measures the header, the pinned rows and the rendered body rows (visible plus overscan), once the first loaded rows render, then keeps the width. Each cell is set to `inline-size: max-content` for one synchronous layout read (a private `data-measure` attribute), so every kind of content is measured the same way and nothing is painted in between. A canvas path for text-only columns was dropped: it would need a second code path and can disagree with the DOM (font features, letter-spacing).
-- Double-click on a resize handle = fit to the currently rendered rows; `autosizeColumns(ids?)` does it for several. Both are resizes (`columnSizing`, `argus-column-resize`); the `'auto'` width itself is not state.
+- Double-click on a resize handle = fit to the currently rendered rows; `autosizeColumns(ids?)` does it for several. Both are resizes (`columnSizing`, `argus-column-sizing-change`); the `'auto'` width itself is not state.
 - Resizing uses TanStack `onChange` mode with `requestAnimationFrame` batching; widths can be persisted by the host via an event.
 
 ## Infinite loading

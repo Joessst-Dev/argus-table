@@ -63,7 +63,7 @@ search.addEventListener('input', () => {
 });
 
 // A click selects a row; Ctrl/Cmd+click adds one, Shift+click a range.
-table.addEventListener('argus-row-select', (e) => {
+table.addEventListener('argus-selection-change', (e) => {
   const count = e.detail.selection.length;
   if (count === 0) selected.textContent = 'Click a row or its checkbox to select it.';
   else selected.textContent = `${String(count)} ${count === 1 ? 'order' : 'orders'} selected`;

@@ -255,9 +255,9 @@ describe('virtualizeColumns', () => {
     all.remove();
     const el = await fixture({ columns: wide(), data: people(20), virtualizeColumns: true });
     const seen: { columnId: string; width: number }[] = [];
-    el.addEventListener('argus-column-resize', (e) => seen.push(e.detail));
+    el.addEventListener('argus-column-sizing-change', (e) => seen.push(e.detail));
     await el.autosizeColumns(['c70']);
-    expect(seen).toEqual([{ columnId: 'c70', width: fitted, sizing: { c70: fitted } }]);
+    expect(seen).toEqual([{ columnId: 'c70', width: fitted, columnSizing: { c70: fitted } }]);
     expect(el.columnSizing.c70).toBe(fitted);
     // Rendered for the measurement only.
     await settle(el);

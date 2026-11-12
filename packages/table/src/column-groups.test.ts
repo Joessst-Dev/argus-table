@@ -4,7 +4,7 @@ import './argus-column-group.js';
 import './argus-column.js';
 import type { ArgusTable } from './argus-table.js';
 import type { ArgusPlugin, CellTarget } from './plugins.js';
-import type { ColumnDef, ColumnGroup, ColumnReorderDetail } from './types.js';
+import type { ColumnDef, ColumnGroup, ColumnOrderChangeDetail } from './types.js';
 import { fixture, people, settle, shadow, slotted, type Person } from './test-utils.js';
 
 afterEach(() => {
@@ -365,15 +365,15 @@ describe('column groups: moving', () => {
 
   test('Alt+Shift+Arrow moves a group as a block, with groupId in the event', async () => {
     const el = await fixture({ columns, columnGroups: groups, data: people(3) });
-    const seen: ColumnReorderDetail[] = [];
-    el.addEventListener('argus-column-reorder', (e) => seen.push(e.detail));
+    const seen: ColumnOrderChangeDetail[] = [];
+    el.addEventListener('argus-column-order-change', (e) => seen.push(e.detail));
     groupCell(el, 'more').focus();
     const left = altShift('ArrowLeft');
     press(groupCell(el, 'more'), left.key, left);
     await settle(el);
     expect(order(el)).toEqual(['id', 'age', 'note', 'name', 'city']);
     expect(seen).toEqual([
-      { columnId: 'age', groupId: 'more', order: ['id', 'age', 'note', 'name', 'city'] },
+      { columnId: 'age', groupId: 'more', columnOrder: ['id', 'age', 'note', 'name', 'city'] },
     ]);
     // Focus follows the group.
     expect(focus(el)).toBe('g:center:more');
@@ -578,7 +578,7 @@ describe('column groups: follow-ups', () => {
     if (!handle) throw new Error('no handle');
     expect(handle.getAttribute('aria-label')).toBe('Resize group');
     const resized: string[] = [];
-    el.addEventListener('argus-column-resize', (e) => resized.push(e.detail.columnId));
+    el.addEventListener('argus-column-sizing-change', (e) => resized.push(e.detail.columnId));
     const x = handle.getBoundingClientRect().left + 2;
     handle.dispatchEvent(new PointerEvent('pointerdown', { ...opts, clientX: x }));
     handle.dispatchEvent(new PointerEvent('pointermove', { ...opts, clientX: x + 170 }));

@@ -43,25 +43,34 @@ function manifest(
             ],
             events: overrides.tableEvents ?? [
               {
-                name: 'argus-sort-change',
-                type: { text: 'CustomEvent<SortChangeDetail>' },
+                name: 'argus-sorting-change',
+                type: { text: 'CustomEvent<SortingChangeDetail>' },
                 description: 'Sorted.',
               },
-              { name: 'argus-column-resize', type: { text: 'CustomEvent<ColumnResizeDetail>' } },
               {
-                name: 'argus-column-reorder',
-                type: { text: 'CustomEvent<ColumnReorderDetail>' },
+                name: 'argus-column-sizing-change',
+                type: { text: 'CustomEvent<ColumnSizingChangeDetail>' },
               },
-              { name: 'argus-column-pin', type: { text: 'CustomEvent<ColumnPinDetail>' } },
-              { name: 'argus-column-hide', type: { text: 'CustomEvent<ColumnHideDetail>' } },
               {
-                name: 'argus-column-filter',
-                type: { text: 'CustomEvent<ColumnFilterDetail>' },
+                name: 'argus-column-order-change',
+                type: { text: 'CustomEvent<ColumnOrderChangeDetail>' },
+              },
+              {
+                name: 'argus-column-pinning-change',
+                type: { text: 'CustomEvent<ColumnPinningChangeDetail>' },
+              },
+              {
+                name: 'argus-column-visibility-change',
+                type: { text: 'CustomEvent<ColumnVisibilityChangeDetail>' },
+              },
+              {
+                name: 'argus-column-filters-change',
+                type: { text: 'CustomEvent<ColumnFiltersChangeDetail>' },
               },
               { name: 'argus-row-click', type: { text: 'CustomEvent<RowClickDetail<T>>' } },
               {
-                name: 'argus-row-select',
-                type: { text: 'CustomEvent<RowSelectDetail>' },
+                name: 'argus-selection-change',
+                type: { text: 'CustomEvent<SelectionChangeDetail>' },
               },
             ],
           },
@@ -100,10 +109,10 @@ function manifest(
 
 describe('eventNames', () => {
   test('drops the prefix and follows each framework’s style', () => {
-    expect(eventNames('argus-column-resize')).toEqual({
-      react: 'onColumnResize',
-      vue: 'column-resize',
-      angular: 'columnResize',
+    expect(eventNames('argus-column-sizing-change')).toEqual({
+      react: 'onColumnSizingChange',
+      vue: 'column-sizing-change',
+      angular: 'columnSizingChange',
     });
   });
 
@@ -130,21 +139,21 @@ describe('readElement', () => {
     ]);
     expect(table.methods).toEqual(['refresh']);
     expect(table.events[0]).toEqual({
-      name: 'argus-sort-change',
-      type: 'CustomEvent<SortChangeDetail>',
+      name: 'argus-sorting-change',
+      type: 'CustomEvent<SortingChangeDetail>',
       description: 'Sorted.',
-      react: 'onSortChange',
-      vue: 'sort-change',
-      angular: 'sortChange',
+      react: 'onSortingChange',
+      vue: 'sorting-change',
+      angular: 'sortingChange',
     });
     expect(table.models.map((m) => [m.property, m.event, m.detailKey])).toEqual([
-      ['sorting', 'argus-sort-change', 'sorting'],
-      ['columnSizing', 'argus-column-resize', 'sizing'],
-      ['columnOrder', 'argus-column-reorder', 'order'],
-      ['columnPinning', 'argus-column-pin', 'pinning'],
-      ['columnVisibility', 'argus-column-hide', 'visibility'],
-      ['columnFilters', 'argus-column-filter', 'filters'],
-      ['selection', 'argus-row-select', 'selection'],
+      ['sorting', 'argus-sorting-change', 'sorting'],
+      ['columnSizing', 'argus-column-sizing-change', 'columnSizing'],
+      ['columnOrder', 'argus-column-order-change', 'columnOrder'],
+      ['columnPinning', 'argus-column-pinning-change', 'columnPinning'],
+      ['columnVisibility', 'argus-column-visibility-change', 'columnVisibility'],
+      ['columnFilters', 'argus-column-filters-change', 'columnFilters'],
+      ['selection', 'argus-selection-change', 'selection'],
     ]);
   });
 
@@ -154,34 +163,30 @@ describe('readElement', () => {
     expect(column.generic).toBe(false);
   });
 
-  test('fails when a model’s event was renamed', () => {
+  test('binds only properties with an argus-<property>-change event', () => {
     const m = manifest({
       tableEvents: [
-        { name: 'argus-sort', type: { text: 'CustomEvent<SortChangeDetail>' } },
-        { name: 'argus-column-resize', type: { text: 'CustomEvent<ColumnResizeDetail>' } },
-        { name: 'argus-column-reorder', type: { text: 'CustomEvent<ColumnReorderDetail>' } },
+        { name: 'argus-sort', type: { text: 'CustomEvent<SortingChangeDetail>' } },
+        {
+          name: 'argus-column-sizing-change',
+          type: { text: 'CustomEvent<ColumnSizingChangeDetail>' },
+        },
       ],
     });
-    expect(() => readElement(m, 'argus-table')).toThrow(/no event "argus-sort-change"/);
+    expect(readElement(m, 'argus-table').models.map((x) => x.property)).toEqual(['columnSizing']);
   });
 
-  test('fails when a model’s property is missing', () => {
-    const m = manifest({ tableMembers: [{ kind: 'field', name: 'sorting', type: { text: 'x' } }] });
-    expect(() => readElement(m, 'argus-table')).toThrow(/no property "columnSizing"/);
-  });
-
-  test('fails when an event takes the name of a two-way output', () => {
+  test('fails on a change event that matches no property', () => {
     const m = manifest({
       tableEvents: [
-        { name: 'argus-sort-change', type: { text: 'CustomEvent<SortChangeDetail>' } },
-        { name: 'argus-sorting-change', type: { text: 'CustomEvent<SortChangeDetail>' } },
+        { name: 'argus-sort-change', type: { text: 'CustomEvent<SortingChangeDetail>' } },
       ],
     });
-    expect(() => readElement(m, 'argus-table')).toThrow(/collides with the Angular output/);
+    expect(() => readElement(m, 'argus-table')).toThrow(/argus-sort-change.*matches no property/);
   });
 
   test('fails when an event has no type', () => {
-    const m = manifest({ tableEvents: [{ name: 'argus-sort-change' }] });
+    const m = manifest({ tableEvents: [{ name: 'argus-sorting-change' }] });
     expect(() => readElement(m, 'argus-table')).toThrow(/@fires \{CustomEvent<…>\}/);
   });
 
@@ -208,18 +213,18 @@ describe('emitReact', () => {
       "import { ArgusTable as ArgusTableElement, ArgusColumn as ArgusColumnElement } from 'argus-table';",
     );
     expect(source).toContain(
-      "import type { ColumnFilterDetail, ColumnHideDetail, ColumnPinDetail, ColumnReorderDetail, ColumnResizeDetail, RowClickDetail, RowSelectDetail, SortChangeDetail } from 'argus-table';",
+      "import type { ColumnFiltersChangeDetail, ColumnOrderChangeDetail, ColumnPinningChangeDetail, ColumnSizingChangeDetail, ColumnVisibilityChangeDetail, RowClickDetail, SelectionChangeDetail, SortingChangeDetail } from 'argus-table';",
     );
     expect(source).toContain(
       "export type ArgusTableElementProps<T = unknown> = Partial<Pick<ArgusTableElement<T>, 'data' | 'rowHeight' | 'sorting' | 'columnSizing' | 'columnOrder' | 'columnPinning' | 'columnVisibility' | 'columnFilters' | 'selection'>>;",
     );
     expect(source).toContain('onRowClick?: (event: CustomEvent<RowClickDetail<T>>) => void;');
-    expect(source).toContain("onSortChange: 'argus-sort-change',");
+    expect(source).toContain("onSortingChange: 'argus-sorting-change',");
     // Elements with events only pass their own events on (a nested table's bubble too).
     expect(source).toContain("import { ownEvents } from '../own-events.js';");
     expect(source).toContain('export const ArgusTable = ownEvents(createComponent({');
     expect(source).toContain(
-      "}), ['onSortChange', 'onColumnResize', 'onColumnReorder', 'onColumnPin', 'onColumnHide', 'onColumnFilter', 'onRowClick', 'onRowSelect'], 'ArgusTable') as unknown as <T = unknown>(props: ArgusTableProps<T>) => React.ReactElement | null;",
+      "}), ['onSortingChange', 'onColumnSizingChange', 'onColumnOrderChange', 'onColumnPinningChange', 'onColumnVisibilityChange', 'onColumnFiltersChange', 'onRowClick', 'onSelectionChange'], 'ArgusTable') as unknown as <T = unknown>(props: ArgusTableProps<T>) => React.ReactElement | null;",
     );
     // No events: no event props interface, and no type parameter when nothing uses T.
     expect(source).not.toContain('ArgusColumnEventProps');
@@ -331,7 +336,7 @@ describe('emitVue', () => {
   test('describes each element for defineWrapper, with models and booleans', () => {
     expect(source).toContain("import { defineWrapper } from '../define.js';");
     expect(source).toContain(
-      '{"name":"argus-sort-change","emit":"sort-change","model":{"property":"sorting","detailKey":"sorting"}}',
+      '{"name":"argus-sorting-change","emit":"sorting-change","model":{"property":"sorting","detailKey":"sorting"}}',
     );
     expect(source).toContain('{"name":"argus-row-click","emit":"row-click"}');
     expect(source).toContain('"methods":["refresh"]');
@@ -339,7 +344,9 @@ describe('emitVue', () => {
   });
 
   test('types handlers, v-model updates, emits and exposed methods', () => {
-    expect(source).toContain("'onSort-change'?: (event: CustomEvent<SortChangeDetail>) => void;");
+    expect(source).toContain(
+      "'onSorting-change'?: (event: CustomEvent<SortingChangeDetail>) => void;",
+    );
     expect(source).toContain(
       "'onUpdate:sorting'?: (value: ArgusTableElement<T>['sorting']) => void;",
     );
@@ -366,7 +373,7 @@ describe('emitAngular', () => {
     expect(source).toContain("selector: 'argus-column',");
     expect(source).toContain('export class ArgusTableComponent<T = unknown> {');
     expect(source).toContain('export class ArgusColumnComponent {');
-    expect(source).toContain("'(argus-sort-change)': 'handleSortChange($event)',");
+    expect(source).toContain("'(argus-sorting-change)': 'handleSortingChange($event)',");
   });
 
   test('types inputs, and lets attribute-backed ones take their HTML strings', () => {
@@ -387,14 +394,17 @@ describe('emitAngular', () => {
     expect(source).toContain('/** Sortable. */');
   });
 
-  test('emits outputs, two-way …Change outputs and method proxies', () => {
-    expect(source).toContain(
-      '@Output() readonly sortChange = new EventEmitter<CustomEvent<SortChangeDetail>>();',
-    );
+  test('emits outputs, the value for two-way properties, and method proxies', () => {
     expect(source).toContain(
       "@Output() readonly sortingChange = new EventEmitter<ArgusTableElement<T>['sorting']>();",
     );
-    expect(source).toContain('this.sortingChange.emit(e.detail.sorting);');
+    expect(source).not.toContain('readonly sortChange');
+    expect(source).toContain(
+      'this.sortingChange.emit((event as CustomEvent<SortingChangeDetail>).detail.sorting);',
+    );
+    expect(source).toContain(
+      '@Output() readonly rowClick = new EventEmitter<CustomEvent<RowClickDetail<T>>>();',
+    );
     expect(source).toContain('if (event.target !== this.element) return;');
     expect(source).toContain(
       "refresh(...args: Parameters<ArgusTableElement<T>['refresh']>): ReturnType<ArgusTableElement<T>['refresh']> {",

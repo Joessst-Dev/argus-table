@@ -74,7 +74,7 @@ export function App() {
         selectionMode="multi"
         selectionCheckboxes
         selection={selection}
-        onRowSelect={(e) => setSelection(e.detail.selection)}
+        onSelectionChange={(e) => setSelection(e.detail.selection)}
       />
       <p role="status">
         {selection.length === 0

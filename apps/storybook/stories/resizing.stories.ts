@@ -1,7 +1,12 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { html } from 'lit';
 import { expect } from 'storybook/test';
-import type { ArgusTable, ColumnDef, ColumnResizeDetail, ColumnSizingState } from 'argus-table';
+import type {
+  ArgusTable,
+  ColumnDef,
+  ColumnSizingChangeDetail,
+  ColumnSizingState,
+} from 'argus-table';
 import 'argus-table';
 
 interface Task {
@@ -64,15 +69,15 @@ function savedWidths(): ColumnSizingState {
 
 /**
  * Controlled: the host owns `columnSizing`, applies each proposal from
- * `argus-column-resize` and saves it, so widths survive a reload.
+ * `argus-column-sizing-change` and saves it, so widths survive a reload.
  */
 export const ControlledAndSaved: Story = {
   render: () => {
-    const onResize = (event: CustomEvent<ColumnResizeDetail>) => {
+    const onResize = (event: CustomEvent<ColumnSizingChangeDetail>) => {
       const table = event.target as ArgusTable<Task>;
-      table.columnSizing = event.detail.sizing;
+      table.columnSizing = event.detail.columnSizing;
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(event.detail.sizing));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(event.detail.columnSizing));
       } catch {
         // Storage can be unavailable (private mode); the table still works.
       }
@@ -82,7 +87,7 @@ export const ControlledAndSaved: Story = {
       .columns=${columns}
       .data=${data}
       .columnSizing=${savedWidths()}
-      @argus-column-resize=${onResize}
+      @argus-column-sizing-change=${onResize}
     ></argus-table>`;
   },
 };

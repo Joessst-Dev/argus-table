@@ -7,7 +7,7 @@ import {
   type ArgusTableElement,
   type ColumnDef,
   type SelectionState,
-  type SortChangeDetail,
+  type SortingChangeDetail,
   type SortState,
 } from './index.js';
 
@@ -127,7 +127,7 @@ describe('<ArgusTable>', () => {
   test('calls the on* props with the element events', async () => {
     const onCellClick = vi.fn();
     const onRowClick = vi.fn();
-    const onSortChange = vi.fn();
+    const onSortingChange = vi.fn();
     const el = await mount(
       <ArgusTable<Order>
         style={size}
@@ -135,7 +135,7 @@ describe('<ArgusTable>', () => {
         data={orders}
         onCellClick={onCellClick}
         onRowClick={onRowClick}
-        onSortChange={onSortChange}
+        onSortingChange={onSortingChange}
       />,
     );
 
@@ -148,8 +148,8 @@ describe('<ArgusTable>', () => {
 
     headers(el)[2]?.click();
     await settle(el);
-    expect(onSortChange).toHaveBeenCalledOnce();
-    expect(onSortChange.mock.calls[0]?.[0]).toMatchObject({
+    expect(onSortingChange).toHaveBeenCalledOnce();
+    expect(onSortingChange.mock.calls[0]?.[0]).toMatchObject({
       detail: { sorting: [{ id: 'total', desc: false }] },
     });
   });
@@ -206,7 +206,7 @@ describe('<ArgusTable>', () => {
     expect(el.sorting).toEqual([{ id: 'total', desc: false }]);
   });
 
-  test('controls sorting with the sorting and onSortChange props', async () => {
+  test('controls sorting with the sorting and onSortingChange props', async () => {
     const proposals: SortState[] = [];
     let accept = false;
 
@@ -218,7 +218,7 @@ describe('<ArgusTable>', () => {
           columns={columns}
           data={orders}
           sorting={sorting}
-          onSortChange={(e: CustomEvent<SortChangeDetail>) => {
+          onSortingChange={(e: CustomEvent<SortingChangeDetail>) => {
             proposals.push(e.detail.sorting);
             if (accept) setSorting(e.detail.sorting);
           }}
@@ -242,7 +242,7 @@ describe('<ArgusTable>', () => {
     expect(headers(el)[2]?.getAttribute('aria-sort')).toBe('ascending');
   });
 
-  test('controls selection with the selection and onRowSelect props', async () => {
+  test('controls selection with the selection and onSelectionChange props', async () => {
     const proposals: SelectionState[] = [];
 
     function Orders() {
@@ -255,7 +255,7 @@ describe('<ArgusTable>', () => {
           getRowId={(o) => o.id}
           selectionMode="multi"
           selection={selection}
-          onRowSelect={(e) => {
+          onSelectionChange={(e) => {
             proposals.push(e.detail.selection);
             setSelection(e.detail.selection);
           }}

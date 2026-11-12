@@ -39,17 +39,17 @@ export interface ElementProperty {
 }
 
 export interface ElementEvent {
-  /** The DOM event name, e.g. `argus-sort-change`. */
+  /** The DOM event name, e.g. `argus-sorting-change`. */
   name: string;
-  /** The event type as documented with `@fires {…}`, e.g. `CustomEvent<SortChangeDetail>`. */
+  /** The event type as documented with `@fires {…}`, e.g. `CustomEvent<SortingChangeDetail>`. */
   type: string;
   /** The `@fires` description. */
   description: string;
-  /** React prop: `onSortChange`. */
+  /** React prop: `onSortingChange`. */
   react: string;
-  /** Vue emit: `sort-change`. */
+  /** Vue emit: `sorting-change`. */
   vue: string;
-  /** Angular output: `sortChange`. */
+  /** Angular output: `sortingChange`. */
   angular: string;
 }
 
@@ -78,21 +78,6 @@ export interface ElementInfo {
 const TAGS = ['argus-table', 'argus-column', 'argus-column-group'] as const;
 export type Tag = (typeof TAGS)[number];
 
-/** Properties with two-way binding, by element: the property, its event and the detail field. */
-const MODELS: Readonly<Record<Tag, readonly ElementModel[]>> = {
-  'argus-table': [
-    { property: 'sorting', event: 'argus-sort-change', detailKey: 'sorting' },
-    { property: 'columnSizing', event: 'argus-column-resize', detailKey: 'sizing' },
-    { property: 'columnOrder', event: 'argus-column-reorder', detailKey: 'order' },
-    { property: 'columnPinning', event: 'argus-column-pin', detailKey: 'pinning' },
-    { property: 'columnVisibility', event: 'argus-column-hide', detailKey: 'visibility' },
-    { property: 'columnFilters', event: 'argus-column-filter', detailKey: 'filters' },
-    { property: 'selection', event: 'argus-row-select', detailKey: 'selection' },
-  ],
-  'argus-column': [],
-  'argus-column-group': [],
-};
-
 /** Public methods that aren't API for wrapper users (they serve the table itself). */
 const INTERNAL_METHODS: Readonly<Record<Tag, readonly string[]>> = {
   'argus-table': [],
@@ -102,7 +87,7 @@ const INTERNAL_METHODS: Readonly<Record<Tag, readonly string[]>> = {
 
 const EVENT_PREFIX = 'argus-';
 
-/** `sort-change` → `SortChange`. */
+/** `sorting-change` → `SortingChange`. */
 function pascal(kebab: string): string {
   return kebab
     .split('-')
@@ -110,7 +95,7 @@ function pascal(kebab: string): string {
     .join('');
 }
 
-/** `sort-change` → `sortChange`. */
+/** `sorting-change` → `sortingChange`. */
 function camel(kebab: string): string {
   const p = pascal(kebab);
   return p.charAt(0).toLowerCase() + p.slice(1);
@@ -123,6 +108,19 @@ export function eventNames(name: string): Pick<ElementEvent, 'react' | 'vue' | '
   }
   const short = name.slice(EVENT_PREFIX.length);
   return { react: `on${pascal(short)}`, vue: short, angular: camel(short) };
+}
+
+/** `columnSizing` → `column-sizing`. */
+function kebab(camelCase: string): string {
+  return camelCase.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
+}
+
+/**
+ * The event that reports a change of a property, by the naming rule of ADR 0004:
+ * `columnSizing` → `argus-column-sizing-change`, with the value in `detail.columnSizing`.
+ */
+export function changeEventOf(property: string): string {
+  return `${EVENT_PREFIX}${kebab(property)}-change`;
 }
 
 function findElement(manifest: Manifest, tag: Tag): ManifestDeclaration {
@@ -167,22 +165,22 @@ export function readElement(manifest: Manifest, tag: Tag): ElementInfo {
     .filter((m) => m.kind === 'method' && !INTERNAL_METHODS[tag].includes(m.name))
     .map((m) => m.name);
 
-  const models = MODELS[tag];
-  for (const model of models) {
-    if (!properties.some((p) => p.name === model.property)) {
-      throw new Error(`<${tag}> has no property "${model.property}" to bind two-way.`);
-    }
-    if (!events.some((e) => e.name === model.event)) {
-      throw new Error(`<${tag}> has no event "${model.event}" for "${model.property}".`);
-    }
-    // Angular's two-way binding needs an output named `…Change`; an event's own
-    // output can't take that name too.
-    const output = `${model.property}Change`;
-    const taken = events.find((e) => e.angular === output);
-    if (taken) {
-      throw new Error(
-        `<${tag}> event "${taken.name}" collides with the Angular output "${output}" of [(${model.property})].`,
-      );
+  // Two-way binding follows the naming rule: a property with an
+  // `argus-<property>-change` event, whose detail holds the value under the
+  // property's name. Its Angular output is `<property>Change`, which `[(…)]` needs.
+  const models = properties.flatMap((p) => {
+    const event = changeEventOf(p.name);
+    return events.some((e) => e.name === event)
+      ? [{ property: p.name, event, detailKey: p.name }]
+      : [];
+  });
+  for (const e of events) {
+    if (e.name.endsWith('-change') && e.name !== 'argus-range-change') {
+      if (!models.some((m) => m.event === e.name)) {
+        throw new Error(
+          `<${tag}> event "${e.name}" looks like a state change but matches no property: name it argus-<property>-change.`,
+        );
+      }
     }
   }
 

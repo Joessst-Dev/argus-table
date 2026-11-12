@@ -40,20 +40,23 @@ const columns: ColumnDef<Order>[] = [
 </template>
 ```
 
-Props set the element's properties. Each `argus-*` event is emitted without its prefix, with the element's `CustomEvent`:
+Props set the element's properties. Each `argus-*` event is emitted without its prefix, with the element's `CustomEvent`; an `argus-<property>-change` event also emits `update:<property>` with the new value, for `v-model`:
 
-| Event                  | Vue event        |
-| ---------------------- | ---------------- |
-| `argus-sort-change`    | `sort-change`    |
-| `argus-column-resize`  | `column-resize`  |
-| `argus-column-reorder` | `column-reorder` |
-| `argus-cell-click`     | `cell-click`     |
-| `argus-row-click`      | `row-click`      |
-| `argus-range-change`   | `range-change`   |
-| `argus-load-error`     | `load-error`     |
-| `argus-row-select`     | `row-select`     |
+| Event                            | Vue event                  | Two-way                     |
+| -------------------------------- | -------------------------- | --------------------------- |
+| `argus-sorting-change`           | `sorting-change`           | `v-model:sorting`           |
+| `argus-column-sizing-change`     | `column-sizing-change`     | `v-model:column-sizing`     |
+| `argus-column-order-change`      | `column-order-change`      | `v-model:column-order`      |
+| `argus-column-pinning-change`    | `column-pinning-change`    | `v-model:column-pinning`    |
+| `argus-column-visibility-change` | `column-visibility-change` | `v-model:column-visibility` |
+| `argus-column-filters-change`    | `column-filters-change`    | `v-model:column-filters`    |
+| `argus-selection-change`         | `selection-change`         | `v-model:selection`         |
+| `argus-cell-click`               | `cell-click`               |                             |
+| `argus-row-click`                | `row-click`                |                             |
+| `argus-range-change`             | `range-change`             |                             |
+| `argus-load-error`               | `load-error`               |                             |
 
-`v-model:sorting`, `v-model:column-sizing`, `v-model:column-order` and `v-model:selection` bind the four properties the table can change. Unbound, the table keeps that state itself.
+Unbound, the table keeps that state itself; a one-way `:sorting` is controlled.
 
 Cells and headers take Vue content: a `#cell-<column id>` slot gets the row (`{ row, value, rowId, index }`, typed from `data`), `#header-<column id>` gives a header, and `#group-<group id>` a column group's header (`{ groupId }`). `cell` and `header` in `columns` can also return VNodes from `h()`. Pooled cells update their components with the next row's props as the table scrolls, rather than remounting them:
 
