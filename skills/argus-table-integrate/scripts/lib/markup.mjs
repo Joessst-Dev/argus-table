@@ -279,11 +279,11 @@ export function findDeclaration(src, name) {
   const escaped = name.replace(/[$]/g, '\\$');
   const patterns = [
     new RegExp(
-      `(^|\\n)([ \\t]*)(?:export\\s+)?(?:const|let|var)\\s+${escaped}\\b[^=;\\n]*?=(?!=|>)`,
+      `(^|\\n)([ \\t]*)(?:export\\s+)?(?:const|let|var)\\s+${escaped}\\b[^=\\n]*?=(?!=|>)`,
       'g',
     ),
     new RegExp(
-      `(^|\\n)([ \\t]*)(?:(?:public|private|protected|readonly|static)\\s+)*${escaped}\\s*(?::[^=;\\n]+)?=(?!=|>)`,
+      `(^|\\n)([ \\t]*)(?:(?:public|private|protected|readonly|static)\\s+)*${escaped}\\s*(?::[^=\\n]+?)?=(?!=|>)`,
       'g',
     ),
     new RegExp(`(^|\\n)([ \\t]*)(?:export\\s+)?(?:async\\s+)?function\\s+${escaped}\\b`, 'g'),

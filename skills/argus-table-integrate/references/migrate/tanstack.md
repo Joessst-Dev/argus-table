@@ -86,8 +86,17 @@ export function DataTable<TData, TValue>({ columns, data }: DataTableProps<TData
 // After
 import { ArgusTable, type ReactColumnDef } from '@argus-table/react';
 
-export function DataTable<T>({ columns, data, label }: { columns: ReactColumnDef<T>[]; data: T[]; label: string }) {
-  return <ArgusTable<T> aria-label={label} style={{ height: 560 }} columns={columns} data={data} />;
+interface DataTableProps<T> {
+  label: string; // the grid's accessible name
+  columns: ReactColumnDef<T>[]; // stable: module scope or useMemo in the caller
+  data: T[];
+  getRowId: (row: T) => string; // stable too; needed for selection
+}
+
+export function DataTable<T>({ label, columns, data, getRowId }: DataTableProps<T>) {
+  return (
+    <ArgusTable<T> aria-label={label} style={{ height: 560 }} columns={columns} data={data} getRowId={getRowId} />
+  );
 }
 
 // columns.tsx: before

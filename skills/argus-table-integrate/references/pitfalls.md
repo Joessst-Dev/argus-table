@@ -195,7 +195,7 @@ For a starting value only (a default sort), leave the property out and call `set
 
 ## sortable-never-set
 
-Columns sort only with `sortable: true`. AG Grid, MUI X and Vuetify sort every column by default, so a migrated table loses sorting unless the columns opt in. Add `sortable: true` to each column users sorted before.
+Columns sort only with `sortable: true`. AG Grid, MUI X and Vuetify sort every column by default, so a migrated table loses sorting unless the columns opt in. Add `sortable: true` to each column users sorted before. With `--scan` or `--from` such a grid, the check also names the data columns that don't sort yet; leave one out on purpose when the old column had `sortable: false`.
 
 ## leftover-library
 

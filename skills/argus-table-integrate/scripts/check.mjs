@@ -454,10 +454,9 @@ export function check(options) {
         );
       }
       if (sites) {
+        // A call, or any other use of the factory (an alias a template calls).
         const called = projectFiles.some((f) =>
-          new RegExp(`\\b${info.factory}\\s*(?:<[^>]*>)?\\s*\\(`).test(
-            f.text.replace(/import[^;]*;/g, ''),
-          ),
+          new RegExp(`\\b${info.factory}\\b`).test(f.text.replace(/import[^;]*;/g, '')),
         );
         if (!called) {
           const { file, index } = sites[0];
@@ -1074,8 +1073,29 @@ function checkColumns(cols, tableFile, { report, fromLibraries, hasDataSource, c
       );
     }
   }
+  const sortsByDefault = LIBRARIES.filter((l) => fromLibraries.has(l.id) && l.sortsByDefault);
+  // From a grid that sorted every column: name the data columns that no longer sort.
+  if (sortable && sortsByDefault.length) {
+    const unsorted = objects
+      .filter(
+        (o) =>
+          objectValue(o.text, 'accessor') !== undefined ||
+          objectValue(o.text, 'formula') !== undefined,
+      )
+      .filter((o) => !/^true$/.test(objectValue(o.text, 'sortable') ?? ''))
+      .map((o) => (objectValue(o.text, 'id') ?? '?').replace(/['"`]/g, ''));
+    if (unsorted.length) {
+      report(
+        'sortable-never-set',
+        file,
+        cols.index,
+        `${unsorted.join(', ')} ${unsorted.length === 1 ? "doesn't" : "don't"} sort: ${sortsByDefault.map((l) => l.name).join(', ')} sorted every column by default, argus-table only those with sortable: true.`,
+        "Add sortable: true where users sorted before, or leave it out on purpose (the old grid's sortable: false).",
+        'warn',
+      );
+    }
+  }
   if ((objects.length || childColumns) && !sortable) {
-    const sortsByDefault = LIBRARIES.filter((l) => fromLibraries.has(l.id) && l.sortsByDefault);
     report(
       'sortable-never-set',
       file,

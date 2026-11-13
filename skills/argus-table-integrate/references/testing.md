@@ -30,5 +30,6 @@ await expect(grid.getByRole('gridcell', { name: 'Ada Lovelace' })).toBeVisible()
 - Give the table a height in tests too (the default 400px is fine), and a viewport wide enough for the columns.
 - A `dataSource`: mock `getRows` (or the network) and wait for the first rows.
 - **Cell text and Playwright:** a gridcell's content is slotted from the light DOM, so `innerText()` / `allInnerTexts()` on a gridcell or columnheader return empty strings, and `filter({ hasText })` on gridcells finds nothing. Use the accessible name (`getByRole('gridcell', { name: 'Ada Lovelace' })`), `expect(grid).toMatchAriaSnapshot(…)` / `grid.ariaSnapshot()`, or read the slotted nodes: `cell.evaluate((c) => c.querySelector('slot')?.assignedElements({ flatten: true }).map((n) => n.textContent).join(''))`.
+- **Header buttons:** the column menu's button is header content too, so `columnheader.getByRole('button')` doesn't find it. Query it from the grid: `grid.getByRole('button', { name: 'Column menu' }).nth(2)` (one per header, in column order).
 - **Row count:** `aria-rowcount` isn't an attribute on the element, so tests can't read it. Count from your data, or call `scrollToRow()` with an index past the last row (it scrolls to the end) and read the highest `aria-rowindex`.
 - **Sorting:** a sortable header cycles `aria-sort` ascending → descending → none.

@@ -227,7 +227,7 @@ export const LIBRARIES = [
     features: [
       f(
         'sorting',
-        /\bsortable\s*:|\bdefaultColDef\b|\bsort\s*:\s*['"](?:asc|desc)|\bonSortChanged\b/,
+        /\bsortable\s*:\s*(?!false\b)|\bdefaultColDef\b|\bsort\s*:\s*['"](?:asc|desc)|\bonSortChanged\b/,
         'maps',
         {
           column: ['sortable'],
@@ -417,7 +417,7 @@ export const LIBRARIES = [
     features: [
       f(
         'sorting',
-        /\bsortModel\b|\bonSortModelChange\b|\bsortable\s*[:=]|\bsortingOrder\b/,
+        /\bsortModel\b|\bonSortModelChange\b|\bsortable\s*[:=]\s*(?!\{?\s*false\b)|\bsortingOrder\b/,
         'maps',
         {
           column: ['sortable'],

@@ -288,6 +288,48 @@ describe('check.mjs', () => {
     ]);
   });
 
+  it('names columns that stopped sorting, and accepts add-ons used through an alias', async () => {
+    const dir = project(undefined, {
+      'package.json': {
+        dependencies: {
+          '@angular/core': '^20.1.0',
+          '@argus-table/angular': '^1.1.0',
+          '@argus-table/header-menu': '^1.1.0',
+          '@argus-table/themes': '^1.1.0',
+        },
+      },
+      'src/styles.css': "@import '@argus-table/themes/default.css';\n",
+      'src/app/orders.component.ts': [
+        "import { Component } from '@angular/core';",
+        "import { ARGUS_TABLE, type ColumnDef } from '@argus-table/angular';",
+        "import { headerMenu } from '@argus-table/header-menu';",
+        '@Component({',
+        "  selector: 'app-orders',",
+        '  imports: [ARGUS_TABLE],',
+        '  template: `<argus-table aria-label="Orders" [columns]="columns" [data]="rows" [plugins]="plugins" />`,',
+        '})',
+        'export class OrdersComponent {',
+        '  readonly rows = [];',
+        '  readonly menu = headerMenu;',
+        '  readonly plugins = [this.menu()];',
+        '  readonly columns: ColumnDef<{ id: string; total: number }>[] = [',
+        "    { id: 'id', header: 'Order', accessor: 'id', sortable: true },",
+        "    { id: 'total', header: 'Total', accessor: 'total' },",
+        "    { id: 'actions', header: '' },",
+        '  ];',
+        '}',
+        '',
+      ].join('\n'),
+    });
+    assert.deepEqual(ids(await findings(dir)), []);
+    const migrated = await findings(dir, '--from', 'ag-grid');
+    assert.deepEqual(ids(migrated), ['sortable-never-set@src/app/orders.component.ts:13']);
+    assert.match(
+      migrated[0].message,
+      /^total doesn't sort: AG Grid sorted every column by default/,
+    );
+  });
+
   it('reports the old library left in the files of a migrated usage', async () => {
     const dir = project('next-app-aggrid');
     const scan = await nodeJson('scan.mjs', [dir]);
