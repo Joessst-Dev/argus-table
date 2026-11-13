@@ -1,4 +1,5 @@
 export { formulas } from './plugin.js';
+export type { FormulasEditorLabels, FormulasLabels, FormulasPluginLabels } from './labels.js';
 export type {
   FormulaFunction,
   FormulaMenuGroup,

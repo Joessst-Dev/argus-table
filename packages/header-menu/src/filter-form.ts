@@ -9,6 +9,7 @@ import type {
   RangeFilterOp,
   TextFilterOp,
 } from 'argus-table';
+import type { HeaderMenuLabels } from './labels.js';
 
 /** Debounce for typed values: the table filters once typing pauses. */
 export const FILTER_DEBOUNCE_MS = 250;
@@ -31,46 +32,33 @@ export interface FilterForm {
   timer: ReturnType<typeof setTimeout> | undefined;
 }
 
-const TEXT_OPS: readonly { op: TextFilterOp; label: string }[] = [
-  { op: 'contains', label: 'Contains' },
-  { op: 'equals', label: 'Equals' },
-  { op: 'startsWith', label: 'Starts with' },
-  { op: 'empty', label: 'Is empty' },
-  { op: 'notEmpty', label: 'Is not empty' },
+const TEXT_OPS: readonly TextFilterOp[] = ['contains', 'equals', 'startsWith', 'empty', 'notEmpty'];
+
+const RANGE_OPS: readonly RangeFilterOp[] = [
+  'eq',
+  'ne',
+  'gt',
+  'ge',
+  'lt',
+  'le',
+  'between',
+  'empty',
+  'notEmpty',
 ];
 
-const NUMBER_OPS: readonly { op: RangeFilterOp; label: string }[] = [
-  { op: 'eq', label: 'Equals' },
-  { op: 'ne', label: 'Does not equal' },
-  { op: 'gt', label: 'Greater than' },
-  { op: 'ge', label: 'At least' },
-  { op: 'lt', label: 'Less than' },
-  { op: 'le', label: 'At most' },
-  { op: 'between', label: 'Between' },
-  { op: 'empty', label: 'Is empty' },
-  { op: 'notEmpty', label: 'Is not empty' },
-];
-
-const DATE_OPS: readonly { op: RangeFilterOp; label: string }[] = [
-  { op: 'eq', label: 'On' },
-  { op: 'ne', label: 'Not on' },
-  { op: 'gt', label: 'After' },
-  { op: 'ge', label: 'On or after' },
-  { op: 'lt', label: 'Before' },
-  { op: 'le', label: 'On or before' },
-  { op: 'between', label: 'Between' },
-  { op: 'empty', label: 'Is empty' },
-  { op: 'notEmpty', label: 'Is not empty' },
-];
-
-const opsOf = (kind: FilterKind) =>
-  kind === 'text' ? TEXT_OPS : kind === 'number' ? NUMBER_OPS : DATE_OPS;
+/** A kind's operators, with their labels. */
+const opsOf = (kind: FilterKind, labels: HeaderMenuLabels) => {
+  if (kind === 'text') return TEXT_OPS.map((op) => ({ op, label: labels.textOperators[op] }));
+  const names = kind === 'number' ? labels.numberOperators : labels.dateOperators;
+  return RANGE_OPS.map((op) => ({ op, label: names[op] }));
+};
 
 /** Whether an operator takes no value. */
 const valueless = (op: string) => op === 'empty' || op === 'notEmpty';
 
 /** A set value as the list shows it. */
-const setLabel = (value: FilterValue) => (value === null ? '(Empty)' : String(value));
+const setLabel = (value: FilterValue, labels: HeaderMenuLabels) =>
+  value === null ? labels.emptyValue : String(value);
 
 /**
  * A form for a column's filter, filled from the filter it has. `undefined` when the
@@ -145,6 +133,8 @@ function numberOf(text: string): number | undefined {
 export interface FormContext {
   /** The column's label, for the form's name. */
   label: string;
+  /** The menu's text. */
+  labels: HeaderMenuLabels;
   /** A prefix for the ids of the form's fields. */
   id: string;
   /** Applies the form now (a change that shouldn't wait). */
@@ -178,7 +168,7 @@ export function renderForm(form: FilterForm, ctx: FormContext): TemplateResult {
     class="argus-header-filter"
     popover="auto"
     role="dialog"
-    aria-label=${`Filter ${ctx.label}`}
+    aria-label=${ctx.labels.filterDialog({ column: ctx.label })}
     data-column=${form.columnId}
     @keydown=${onKeydown}
     @toggle=${(event: Event) => {
@@ -195,7 +185,7 @@ export function renderForm(form: FilterForm, ctx: FormContext): TemplateResult {
           ctx.clear();
         }}
       >
-        Clear
+        ${ctx.labels.clear}
       </button>
       <button
         type="button"
@@ -205,7 +195,7 @@ export function renderForm(form: FilterForm, ctx: FormContext): TemplateResult {
           ctx.close(true);
         }}
       >
-        Done
+        ${ctx.labels.done}
       </button>
     </div>
   </div>`;
@@ -214,6 +204,7 @@ export function renderForm(form: FilterForm, ctx: FormContext): TemplateResult {
 /** An operator and one or two values: text, number and date filters. */
 function conditionFields(form: FilterForm, ctx: FormContext): TemplateResult {
   const type = form.kind === 'number' ? 'number' : form.kind === 'date' ? 'date' : 'text';
+  const { labels } = ctx;
   const input = (key: 'value' | 'to', label: string) =>
     html`<label class="argus-header-filter-field"
       >${label}
@@ -229,7 +220,7 @@ function conditionFields(form: FilterForm, ctx: FormContext): TemplateResult {
         }}
     /></label>`;
   return html`<label class="argus-header-filter-field"
-      >Condition
+      >${labels.condition}
       <select
         .value=${live(form.op)}
         @change=${(event: Event) => {
@@ -238,7 +229,7 @@ function conditionFields(form: FilterForm, ctx: FormContext): TemplateResult {
           ctx.rerender();
         }}
       >
-        ${opsOf(form.kind).map(
+        ${opsOf(form.kind, labels).map(
           ({ op, label }) =>
             html`<option value=${op} ?selected=${op === form.op}>${label}</option>`,
         )}
@@ -248,21 +239,22 @@ function conditionFields(form: FilterForm, ctx: FormContext): TemplateResult {
       valueless(form.op)
         ? nothing
         : form.op === 'between'
-          ? html`${input('value', 'From')}${input('to', 'To')}`
-          : input('value', 'Value')
+          ? html`${input('value', labels.from)}${input('to', labels.to)}`
+          : input('value', labels.value)
     }`;
 }
 
 /** A searchable list of checkboxes: set filters. */
 function setFields(form: FilterForm, ctx: FormContext): TemplateResult {
+  const { labels } = ctx;
   const needle = form.search.toLowerCase();
   const shown = needle
-    ? form.values.filter((v) => setLabel(v).toLowerCase().includes(needle))
+    ? form.values.filter((v) => setLabel(v, labels).toLowerCase().includes(needle))
     : form.values;
   const checkedCount = shown.filter((v) => form.checked.has(v)).length;
   const listId = `${ctx.id}-values`;
   return html`<label class="argus-header-filter-field"
-      >Search values
+      >${labels.searchValues}
       <input
         type="search"
         .value=${live(form.search)}
@@ -286,9 +278,9 @@ function setFields(form: FilterForm, ctx: FormContext): TemplateResult {
           ctx.apply();
           ctx.rerender();
         }}
-      />${needle ? 'Select all shown' : 'Select all'}</label
+      />${needle ? labels.selectAllShown : labels.selectAll}</label
     >
-    <div class="argus-header-filter-values" id=${listId} role="group" aria-label="Values">
+    <div class="argus-header-filter-values" id=${listId} role="group" aria-label=${labels.values}>
       ${shown.map(
         (v) =>
           html`<label class="argus-header-filter-check"
@@ -301,15 +293,19 @@ function setFields(form: FilterForm, ctx: FormContext): TemplateResult {
                 ctx.apply();
                 ctx.rerender();
               }}
-            />${setLabel(v)}</label
+            />${setLabel(v, labels)}</label
           >`,
       )}
-      ${shown.length === 0 ? html`<p class="argus-header-filter-note">No values</p>` : nothing}
+      ${
+        shown.length === 0
+          ? html`<p class="argus-header-filter-note">${labels.noValues}</p>`
+          : nothing
+      }
     </div>
     ${
       form.truncated
         ? html`<p class="argus-header-filter-note">
-            Showing the first ${String(form.values.length)} values
+            ${labels.valuesLimited({ count: form.values.length })}
           </p>`
         : nothing
     }`;

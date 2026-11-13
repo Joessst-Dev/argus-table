@@ -169,6 +169,11 @@ export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
     this.setPlugins(value);
   }
 
+  /** The table's built-in text, for another language: labels screen readers read (`selectRow`, `resizeColumn`, …), the Retry button, the empty state (`noRows`) and announcements (`rowCount`, `columnMoved`, …). Text with values in it is a function: `rowCount: ({ count }) => …`. Keys left out stay English. Property only. Plugins such as `headerMenu()` take their own `labels` option. `null` or `undefined` means `{}`. */
+  @Input() set labels(value: ArgusTableElement<T>['labels'] | null | undefined) {
+    setProperty(this.element, 'labels', undefined, value);
+  }
+
   /** `argus-sorting-change`, for `[(sorting)]`: the new `sorting`. Bind `(argus-sorting-change)` for the whole event. `sorting` changed: a sortable header was clicked, or activated with Enter or Space. `detail: { sorting }`. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
   @Output() readonly sortingChange = new EventEmitter<ArgusTableElement<T>['sorting']>();
 

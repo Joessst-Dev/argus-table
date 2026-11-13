@@ -4,6 +4,7 @@ import { live } from 'lit/directives/live.js';
 import { repeat } from 'lit/directives/repeat.js';
 import type { RenderedColumn } from '../controllers/column-window.js';
 import type { DropTarget } from '../controllers/reorder-drag.js';
+import type { TableLabels } from '../labels.js';
 import type { CellContent } from '../types.js';
 import {
   ariaSort,
@@ -37,6 +38,7 @@ export interface HeaderOptions<T> {
   active: { index: number; col: string } | undefined;
   drag?: HeaderDrag | undefined;
   checkAll?: CheckAll | undefined;
+  labels: TableLabels;
 }
 
 export interface HeaderHandlers {
@@ -78,6 +80,7 @@ export function renderHeader<T>({
   active,
   drag,
   checkAll,
+  labels,
 }: HeaderOptions<T>) {
   const leaf = groups.length;
   const activeCol = active?.index === leaf ? active.col : undefined;
@@ -88,7 +91,7 @@ export function renderHeader<T>({
     @pointerdown=${handlers.pointerdown}
     @dblclick=${handlers.dblclick}
   >
-    ${groups.map((cells, level) => groupRow(cells, level, active, drag))}
+    ${groups.map((cells, level) => groupRow(cells, level, active, drag, labels.resizeGroup))}
     <div part="header-row" class="row" role="row" aria-rowindex=${leaf + 1}>
       ${repeat(
         columns,
@@ -99,7 +102,7 @@ export function renderHeader<T>({
             role="columnheader"
             aria-colindex=${c.colIndex}
             aria-sort=${ariaSort(c.sorted) ?? nothing}
-            aria-description=${c.filtered ? 'Filtered' : nothing}
+            aria-description=${c.filtered ? labels.filtered : nothing}
             data-col=${c.id}
             data-sort-col=${c.sortable ? c.id : nothing}
             data-move-col=${c.reorderable ? c.id : nothing}
@@ -110,7 +113,7 @@ export function renderHeader<T>({
           >
             ${
               c.kind === 'selection'
-                ? selectAllCheckbox(checkAll)
+                ? selectAllCheckbox(checkAll, labels.selectAllRows)
                 : html`<slot name=${headerSlot(c.slot)}></slot>`
             }
             ${
@@ -123,7 +126,7 @@ export function renderHeader<T>({
                 : nothing
             }
             ${c.filtered ? html`<span part="filter-indicator" aria-hidden="true"></span>` : nothing}
-            ${c.resizable ? resizeHandle(c) : nothing}
+            ${c.resizable ? resizeHandle(c, labels.resizeColumn) : nothing}
             ${
               drag?.target?.id === columnKey(c.id)
                 ? html`<span
@@ -165,6 +168,7 @@ function groupRow(
   level: number,
   active: { index: number; col: string } | undefined,
   drag: HeaderDrag | undefined,
+  resizeLabel: string,
 ) {
   const activeCol = active?.index === level ? active.col : undefined;
   return html`<div part="header-group-row" class="row" role="row" aria-rowindex=${level + 1}>
@@ -197,7 +201,7 @@ function groupRow(
               style=${groupStyle(c)}
             >
               <span class="group-label"><slot name=${groupSlot(c.slot)}></slot></span>
-              ${c.resizable ? groupResizeHandle(c.key) : nothing}
+              ${c.resizable ? groupResizeHandle(c.key, resizeLabel) : nothing}
               ${
                 drag?.target?.id === c.key
                   ? html`<span
@@ -213,13 +217,13 @@ function groupRow(
 }
 
 /** The header's select-all checkbox: not focusable, like the rows' (the header cell holds focus). */
-function selectAllCheckbox(checkAll: CheckAll | undefined) {
+function selectAllCheckbox(checkAll: CheckAll | undefined, label: string) {
   if (!checkAll) return nothing;
   return html`<input
     type="checkbox"
     part="selection-checkbox"
     tabindex="-1"
-    aria-label="Select all rows"
+    aria-label=${label}
     .checked=${live(checkAll.state === 'all')}
     .indeterminate=${live(checkAll.state === 'some')}
     @click=${checkAll.handlers.all}
@@ -231,12 +235,12 @@ function selectAllCheckbox(checkAll: CheckAll | undefined) {
  * A group's resize handle: dragging it resizes the group's resizable columns,
  * each in proportion to its width; a double-click fits them to their content.
  */
-function groupResizeHandle(key: string) {
+function groupResizeHandle(key: string, label: string) {
   return html`<div
     part="resize-handle"
     role="separator"
     aria-orientation="vertical"
-    aria-label="Resize group"
+    aria-label=${label}
     data-resize-group=${key}
   ></div>`;
 }
@@ -245,12 +249,12 @@ function groupResizeHandle(key: string) {
  * A vertical separator with the column's width as its value. A flex column has no
  * fixed width until it is resized, so it reports none.
  */
-function resizeHandle<T>(c: RenderedColumn<T>) {
+function resizeHandle<T>(c: RenderedColumn<T>, label: string) {
   return html`<div
     part="resize-handle"
     role="separator"
     aria-orientation="vertical"
-    aria-label="Resize column"
+    aria-label=${label}
     aria-valuenow=${c.flex === undefined ? Math.round(c.width) : nothing}
     aria-valuemin=${c.minWidth}
     aria-valuemax=${Number.isFinite(c.maxWidth) ? c.maxWidth : nothing}

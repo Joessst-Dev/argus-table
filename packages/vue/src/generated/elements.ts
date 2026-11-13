@@ -50,6 +50,7 @@ export type ArgusTableElementProps<T = unknown> = Partial<
     | 'selectionCheckboxes'
     | 'selection'
     | 'plugins'
+    | 'labels'
   >
 > & {
   columns?: readonly VueColumnDef<T>[] | null;
@@ -178,6 +179,7 @@ export const ArgusTable = defineWrapper({
     'selectionCheckboxes',
     'selection',
     'plugins',
+    'labels',
   ],
   booleans: ['virtualizeColumns', 'selectionCheckboxes'],
   events: [

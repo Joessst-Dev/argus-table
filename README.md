@@ -10,7 +10,7 @@ Named after Argus Panoptes, the hundred-eyed giant of Greek myth who never slept
 
 ![Argus Table with a million rows: scrolling down, scrolling sideways past the pinned columns, sorting by amount, dragging a column header to a new place and resizing a column](brand/demo.gif)
 
-> **Status:** 1.0 is on npm. Part names, CSS tokens, events and properties are stable: they change only in a major release ([compatibility policy](docs/adr/0004-api-1-0.md#compatibility-policy-from-10)). 1.0 has row selection, filtering and a quick search, column groups, column virtualization, columns pinned and hidden as state, saved layouts (`getState()` / `setState()`), wrapped text and rows that fit their content, framework content in cells, five themes, and the add-ons: the column menu and formula columns. Next: the additions listed in [ADR 0004](docs/adr/0004-api-1-0.md#after-10-additions-in-no-order).
+> **Status:** 1.0 is on npm. Part names, CSS tokens, events and properties are stable: they change only in a major release ([compatibility policy](docs/adr/0004-api-1-0.md#compatibility-policy-from-10)). 1.0 has row selection, filtering and a quick search, column groups, column virtualization, columns pinned and hidden as state, saved layouts (`getState()` / `setState()`), wrapped text and rows that fit their content, framework content in cells, five themes, and the add-ons: the column menu and formula columns. Since 1.0, the built-in text can be translated (`labels`). Next: the other additions listed in [ADR 0004](docs/adr/0004-api-1-0.md#after-10-additions-in-no-order).
 
 **[Docs and live examples](https://joessst-dev.github.io/argus-table/)**
 
