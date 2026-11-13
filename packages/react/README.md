@@ -84,7 +84,25 @@ const [sorting, setSorting] = useState<SortState>([]);
 />;
 ```
 
-Every controllable property works the same way, for example selected rows with `selectionMode="multi"`, `selection` and `onSelectionChange` (`e.detail.selection`, row ids).
+Every controllable property works the same way, for example selected rows with `selectionMode="multi"`, `selection` and `onSelectionChange` (`e.detail.selection`, row ids). To save column widths once a resize is done, rather than on every frame of a drag, use `onColumnResizeEnd` (`e.detail.columnSizing`).
+
+## Formula columns
+
+With `formulas()` from [`@argus-table/formulas`](https://www.npmjs.com/package/@argus-table/formulas) in `plugins`, the formula editor proposes column changes through `onFormulaColumnAdd`, `onFormulaColumnChange` and `onFormulaColumnRemove`. The table doesn't change its columns: apply `e.detail.columns`, which holds your React columns.
+
+```tsx
+const [columns, setColumns] = useState<readonly ReactColumnDef<Order>[]>(initialColumns);
+const apply = (e: CustomEvent<FormulaColumnDetail<Order>>) => setColumns(e.detail.columns);
+
+<ArgusTable
+  columns={columns}
+  data={orders}
+  plugins={plugins}
+  onFormulaColumnAdd={apply}
+  onFormulaColumnChange={apply}
+  onFormulaColumnRemove={apply}
+/>;
+```
 
 ## Methods
 

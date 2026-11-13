@@ -94,7 +94,31 @@ Give a column its cells or header with a template inside the table, named by col
 
 ## Two-way binding
 
-`[(sorting)]`, `[(columnSizing)]`, `[(columnOrder)]`, `[(columnPinning)]`, `[(columnVisibility)]`, `[(columnFilters)]` and `[(selection)]` keep a value in sync with the table; their outputs (`sortingChange` and so on) emit the new value. Leave one unbound and the table keeps that state itself. A one-way `[sorting]` is controlled: a header click only emits the proposed order, and nothing changes until you set it.
+`[(sorting)]`, `[(columnSizing)]`, `[(columnOrder)]`, `[(columnPinning)]`, `[(columnVisibility)]`, `[(columnFilters)]` and `[(selection)]` keep a value in sync with the table; their outputs (`sortingChange` and so on) emit the new value. Leave one unbound and the table keeps that state itself. A one-way `[sorting]` is controlled: a header click only emits the proposed order, and nothing changes until you set it. To save column widths once a resize is done, rather than on every frame of a drag, use `(columnResizeEnd)` (`$event.detail.columnSizing`).
+
+## Formula columns
+
+With `formulas()` from [`@argus-table/formulas`](https://www.npmjs.com/package/@argus-table/formulas) in `plugins`, the formula editor proposes column changes through the `formulaColumnAdd`, `formulaColumnChange` and `formulaColumnRemove` outputs. The table doesn't change its columns: apply `$event.detail.columns`, which holds your columns, templates included.
+
+```ts
+@Component({
+  imports: [ARGUS_TABLE],
+  template: `<argus-table
+    [columns]="columns()"
+    [data]="orders"
+    [plugins]="plugins"
+    (formulaColumnAdd)="apply($event)"
+    (formulaColumnChange)="apply($event)"
+    (formulaColumnRemove)="apply($event)"
+  />`,
+})
+export class OrdersTable {
+  readonly columns = signal<readonly AngularColumnDef<Order>[]>(initialColumns);
+  apply(event: CustomEvent<FormulaColumnDetail<Order>>) {
+    this.columns.set(event.detail.columns);
+  }
+}
+```
 
 ## Methods
 

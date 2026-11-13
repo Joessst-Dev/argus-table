@@ -28,6 +28,7 @@ import type {
   SelectionChangeDetail,
   SortingChangeDetail,
 } from 'argus-table';
+import type { FormulaColumnChangeDetail, FormulaColumnDetail } from '../formula-events.js';
 import {
   ArgusTableBase,
   type AngularCellContent,
@@ -55,6 +56,9 @@ import { setProperty } from '../set-property.js';
     '(argus-row-click)': 'handleRowClick($event)',
     '(argus-range-change)': 'handleRangeChange($event)',
     '(argus-load-error)': 'handleLoadError($event)',
+    '(argus-formula-column-add)': 'handleFormulaColumnAdd($event)',
+    '(argus-formula-column-change)': 'handleFormulaColumnChange($event)',
+    '(argus-formula-column-remove)': 'handleFormulaColumnRemove($event)',
   },
 })
 export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
@@ -218,6 +222,17 @@ export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
   /** `argus-load-error`: A `dataSource` page failed to load: `getRows()` rejected or threw. `detail: { error, start, end }` (`end` exclusive). The rows show a Retry button. */
   @Output() readonly loadError = new EventEmitter<CustomEvent<LoadErrorDetail>>();
 
+  /** `argus-formula-column-add`: From `formulas()` (`@argus-table/formulas`): the formula editor proposes a new formula column. The table doesn't change its columns: set `columns` to `detail.columns` to apply it. `detail: { column, columns }`. */
+  @Output() readonly formulaColumnAdd = new EventEmitter<CustomEvent<FormulaColumnDetail<T>>>();
+
+  /** `argus-formula-column-change`: From `formulas()` (`@argus-table/formulas`): the formula editor proposes a changed formula column (its formula, or a rename). The table doesn't change its columns: set `columns` to `detail.columns` to apply it. `detail: { column, columns }`, and `previous`, the column as it was. */
+  @Output() readonly formulaColumnChange = new EventEmitter<
+    CustomEvent<FormulaColumnChangeDetail<T>>
+  >();
+
+  /** `argus-formula-column-remove`: From `formulas()` (`@argus-table/formulas`): the formula editor proposes removing a formula column. The table doesn't change its columns: set `columns` to `detail.columns` to apply it. `detail: { column, columns }`. */
+  @Output() readonly formulaColumnRemove = new EventEmitter<CustomEvent<FormulaColumnDetail<T>>>();
+
   /** Calls the element's `refresh()`. */
   refresh(
     ...args: Parameters<ArgusTableElement<T>['refresh']>
@@ -338,6 +353,24 @@ export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
     // Events bubble: skip those of a table nested in a cell.
     if (event.target !== this.element) return;
     this.loadError.emit(event as CustomEvent<LoadErrorDetail>);
+  }
+
+  protected handleFormulaColumnAdd(event: Event): void {
+    // Events bubble: skip those of a table nested in a cell.
+    if (event.target !== this.element) return;
+    this.formulaColumnAdd.emit(event as CustomEvent<FormulaColumnDetail<T>>);
+  }
+
+  protected handleFormulaColumnChange(event: Event): void {
+    // Events bubble: skip those of a table nested in a cell.
+    if (event.target !== this.element) return;
+    this.formulaColumnChange.emit(event as CustomEvent<FormulaColumnChangeDetail<T>>);
+  }
+
+  protected handleFormulaColumnRemove(event: Event): void {
+    // Events bubble: skip those of a table nested in a cell.
+    if (event.target !== this.element) return;
+    this.formulaColumnRemove.emit(event as CustomEvent<FormulaColumnDetail<T>>);
   }
 }
 

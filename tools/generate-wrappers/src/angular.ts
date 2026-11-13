@@ -4,6 +4,7 @@
 // (`argus-<property>-change`), `<property>Change` with the new value, for `[(…)]`.
 import type { ElementInfo, ElementProperty } from './manifest.ts';
 import {
+  addonTypeImports,
   argusTypes,
   contentType,
   doc,
@@ -166,6 +167,6 @@ export function emitAngular(elements: readonly ElementInfo[]): string {
   return `${header('angular')}
 import { ${core} } from '@angular/core';
 import type { ${types} } from 'argus-table';
-${contentImport}import { setProperty } from '../set-property.js';
+${addonTypeImports(elements)}${contentImport}import { setProperty } from '../set-property.js';
 ${elements.map(component).join('')}`;
 }

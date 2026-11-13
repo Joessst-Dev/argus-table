@@ -85,7 +85,29 @@ const sorting = ref<SortState>([]);
 </template>
 ```
 
-With `selection-mode="multi"`, `v-model:selection` holds the selected row ids. Leave one unbound and the table keeps that state itself. A one-way `:sorting` is controlled: a header click only emits `update:sorting` and `sorting-change` with the proposed order, and nothing changes until you set it.
+With `selection-mode="multi"`, `v-model:selection` holds the selected row ids. Leave one unbound and the table keeps that state itself. A one-way `:sorting` is controlled: a header click only emits `update:sorting` and `sorting-change` with the proposed order, and nothing changes until you set it. To save column widths once a resize is done, rather than on every frame of a drag, use `@column-resize-end` (`e.detail.columnSizing`).
+
+## Formula columns
+
+With `formulas()` from [`@argus-table/formulas`](https://www.npmjs.com/package/@argus-table/formulas) in `plugins`, the formula editor proposes column changes through `@formula-column-add`, `@formula-column-change` and `@formula-column-remove`. The table doesn't change its columns: apply `e.detail.columns`, which holds your columns, slots included.
+
+```vue
+<script setup lang="ts">
+const columns = shallowRef<readonly VueColumnDef<Order>[]>(initialColumns);
+const apply = (e: CustomEvent<FormulaColumnDetail<Order>>) => (columns.value = e.detail.columns);
+</script>
+
+<template>
+  <ArgusTable
+    :columns="columns"
+    :data="orders"
+    :plugins="plugins"
+    @formula-column-add="apply"
+    @formula-column-change="apply"
+    @formula-column-remove="apply"
+  />
+</template>
+```
 
 ## Methods
 

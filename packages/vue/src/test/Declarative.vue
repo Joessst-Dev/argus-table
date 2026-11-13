@@ -58,6 +58,15 @@ defineExpose({ sorting, clicked, table, refresh });
     <ArgusTable :data="orders" @row-click="(e) => e.detail.row.total.toFixed()" />
     <!-- @vue-expect-error the row is an Order, which has no `name` -->
     <ArgusTable :data="orders" @row-click="(e) => e.detail.row.name" />
+    <ArgusTable :data="orders" @column-resize-end="(e) => e.detail.columnIds.join()" />
+    <ArgusTable
+      :data="orders"
+      @formula-column-add="(e) => e.detail.columns.map((c) => c.id)"
+      @formula-column-change="(e) => e.detail.previous.id"
+      @formula-column-remove="(e) => e.detail.column.id"
+    />
+    <!-- @vue-expect-error a proposal has no `rows` -->
+    <ArgusTable :data="orders" @formula-column-add="(e) => e.detail.rows" />
     <ArgusTable :data="orders" @update:sorting="(s) => s.map((i) => i.id)" />
     <ArgusTable @update:column-sizing="(s) => s['total']" @update:column-order="(o) => o.join()" />
     <ArgusTable selection-mode="multi" selection-checkboxes @update:selection="(s) => s.join()" />

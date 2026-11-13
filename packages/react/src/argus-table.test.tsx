@@ -160,6 +160,30 @@ describe('<ArgusTable>', () => {
     expect(onColumnResizeEnd.mock.calls[0]?.[0]).toMatchObject({ detail: { columnIds: ['id'] } });
   });
 
+  test('calls the formula editor’s event props', async () => {
+    const onFormulaColumnAdd = vi.fn();
+    const onFormulaColumnChange = vi.fn();
+    const onFormulaColumnRemove = vi.fn();
+    const el = await mount(
+      <ArgusTable<Order>
+        style={size}
+        columns={columns}
+        data={orders}
+        onFormulaColumnAdd={onFormulaColumnAdd}
+        onFormulaColumnChange={onFormulaColumnChange}
+        onFormulaColumnRemove={onFormulaColumnRemove}
+      />,
+    );
+    const detail = { column: columns[0], columns };
+    for (const name of ['add', 'change', 'remove']) {
+      el.dispatchEvent(new CustomEvent(`argus-formula-column-${name}`, { detail, bubbles: true }));
+    }
+    for (const handler of [onFormulaColumnAdd, onFormulaColumnChange, onFormulaColumnRemove]) {
+      expect(handler).toHaveBeenCalledOnce();
+      expect((handler.mock.calls[0]?.[0] as CustomEvent).detail).toBe(detail);
+    }
+  });
+
   test('replaces and removes handlers between renders', async () => {
     const first = vi.fn();
     const second = vi.fn();

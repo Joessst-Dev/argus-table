@@ -2,6 +2,7 @@
 // element, with props typed from the element class and one `on*` prop per event.
 import type { ElementInfo } from './manifest.ts';
 import {
+  addonTypeImports,
   argusTypes,
   contentType,
   doc,
@@ -112,6 +113,6 @@ export function emitReact(elements: readonly ElementInfo[]): string {
 import * as React from 'react';
 import { createComponent } from '@lit/react';
 import { ${classes} } from 'argus-table';
-${typeImport}${contentImport}${elements.some((el) => el.events.length > 0) ? "import { ownEvents } from '../own-events.js';\n" : ''}
+${typeImport}${addonTypeImports(elements)}${contentImport}${elements.some((el) => el.events.length > 0) ? "import { ownEvents } from '../own-events.js';\n" : ''}
 ${elements.map(component).join('')}`;
 }

@@ -4,6 +4,7 @@
 // `v-model` and exposed methods against the row type.
 import type { ElementInfo } from './manifest.ts';
 import {
+  addonTypeImports,
   argusTypes,
   contentType,
   doc,
@@ -70,8 +71,16 @@ function component(el: ElementInfo): string {
     return lines;
   });
 
+  // Events with the same payload type share one signature (a union of names),
+  // where the first of them is: overloads that differ only in the name are one.
+  const namesByType = new Map<string, string[]>();
+  for (const e of el.events) namesByType.set(e.type, [...(namesByType.get(e.type) ?? []), e.vue]);
   const emitSignatures = el.events.flatMap((e) => {
-    const lines = [`  (event: '${e.vue}', payload: ${e.type}): void;`];
+    const names = namesByType.get(e.type) ?? [e.vue];
+    const lines =
+      names[0] === e.vue
+        ? [`  (event: ${names.map((n) => `'${n}'`).join(' | ')}, payload: ${e.type}): void;`]
+        : [];
     const model = modelOf(e.name);
     if (model) {
       lines.push(
@@ -176,6 +185,6 @@ export function emitVue(elements: readonly ElementInfo[]): string {
   return `${header('vue')}
 import type { ${vue} } from 'vue';
 import type { ${types} } from 'argus-table';
-${contentImport}import { defineWrapper } from '../define.js';
+${addonTypeImports(elements)}${contentImport}import { defineWrapper } from '../define.js';
 ${elements.map(component).join('')}`;
 }

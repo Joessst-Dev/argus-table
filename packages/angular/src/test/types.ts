@@ -6,6 +6,7 @@ import {
   ARGUS_TABLE,
   ArgusColumnComponent,
   ArgusTableComponent,
+  type AngularColumnDef,
   type ArgusPlugin,
   type ColumnDef,
   type ColumnFilter,
@@ -47,6 +48,10 @@ import { orders, type Order } from './data.js';
       (argus-sorting-change)="takeSorting($event.detail.sorting)"
       (rangeChange)="takeNumber($event.detail.first)"
       (loadError)="takeUnknown($event.detail.error)"
+      (columnResizeEnd)="takeIds($event.detail.columnIds)"
+      (formulaColumnAdd)="takeColumns($event.detail.columns)"
+      (formulaColumnChange)="takeColumns([$event.detail.previous])"
+      (formulaColumnRemove)="takeColumns($event.detail.columns)"
     >
       <argus-column column-id="id" header="Order" accessor="id" width="90" pin="start" sortable />
       <argus-column columnId="total" width="2fr" minWidth="40" resizable="false" align="end" />
@@ -112,5 +117,8 @@ export class TypesComponent {
   }
   takeUnknown(error: unknown): unknown {
     return error;
+  }
+  takeColumns(columns: readonly AngularColumnDef<Order>[]): number {
+    return columns.length;
   }
 }

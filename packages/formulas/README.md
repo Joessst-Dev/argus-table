@@ -126,7 +126,7 @@ table.addEventListener('argus-formula-column-change', apply);
 table.addEventListener('argus-formula-column-remove', apply);
 ```
 
-**Your app owns the columns.** The plugin doesn't change them: it fires an event with the change, and you apply it. Each event's `detail` has the `column` added, changed or removed, and `columns`: the table's columns with the change applied. `argus-formula-column-change` also has the `previous` column. Renaming a column also renames it in the formulas that use its header. With `<argus-column>` children, change your markup instead (`detail.column` has what to add or change). A new column gets an id from its name (`gross`, `gross-2`…) and is sortable.
+**Your app owns the columns.** The plugin doesn't change them: it fires an event with the change, and you apply it. Each event's `detail` has the `column` added, changed or removed, and `columns`: the table's columns with the change applied. `argus-formula-column-change` also has the `previous` column. Renaming a column also renames it in the formulas that use its header. With `<argus-column>` children, change your markup instead (`detail.column` has what to add or change). The React, Vue and Angular wrappers bind these events like the table's own: `onFormulaColumnAdd`, `@formula-column-add`, `(formulaColumnAdd)` and so on, with their `FormulaColumnDetail` types holding the wrapper's columns. A new column gets an id from its name (`gross`, `gross-2`…) and is sortable.
 
 The editor is a modal dialog, loaded the first time it opens (about 7 kB). It has:
 

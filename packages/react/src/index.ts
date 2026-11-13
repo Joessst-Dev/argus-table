@@ -1,5 +1,8 @@
 export { ArgusColumn, ArgusColumnGroup, ArgusTable } from './generated/elements.js';
 export type { ReactCellContent, ReactColumnDef, ReactColumnGroup } from './content.js';
+
+// The formula editor's events (`formulas()` from `@argus-table/formulas`), with this wrapper's content.
+export type { FormulaColumnChangeDetail, FormulaColumnDetail } from './formula-events.js';
 export type {
   ArgusColumnElementProps,
   ArgusColumnGroupElementProps,

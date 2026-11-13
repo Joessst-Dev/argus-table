@@ -22,6 +22,7 @@ import type {
   SelectionChangeDetail,
   SortingChangeDetail,
 } from 'argus-table';
+import type { FormulaColumnChangeDetail, FormulaColumnDetail } from '../formula-events.js';
 import {
   withContent,
   type ReactCellContent,
@@ -86,6 +87,12 @@ export interface ArgusTableEventProps<T = unknown> {
   onRangeChange?: (event: CustomEvent<RangeChangeDetail>) => void;
   /** `argus-load-error`: A `dataSource` page failed to load: `getRows()` rejected or threw. `detail: { error, start, end }` (`end` exclusive). The rows show a Retry button. */
   onLoadError?: (event: CustomEvent<LoadErrorDetail>) => void;
+  /** `argus-formula-column-add`: From `formulas()` (`@argus-table/formulas`): the formula editor proposes a new formula column. The table doesn't change its columns: set `columns` to `detail.columns` to apply it. `detail: { column, columns }`. */
+  onFormulaColumnAdd?: (event: CustomEvent<FormulaColumnDetail<T>>) => void;
+  /** `argus-formula-column-change`: From `formulas()` (`@argus-table/formulas`): the formula editor proposes a changed formula column (its formula, or a rename). The table doesn't change its columns: set `columns` to `detail.columns` to apply it. `detail: { column, columns }`, and `previous`, the column as it was. */
+  onFormulaColumnChange?: (event: CustomEvent<FormulaColumnChangeDetail<T>>) => void;
+  /** `argus-formula-column-remove`: From `formulas()` (`@argus-table/formulas`): the formula editor proposes removing a formula column. The table doesn't change its columns: set `columns` to `detail.columns` to apply it. `detail: { column, columns }`. */
+  onFormulaColumnRemove?: (event: CustomEvent<FormulaColumnDetail<T>>) => void;
 }
 
 /** Props of `<ArgusTable>`: element properties, event handlers and the usual HTML attributes. */
@@ -119,6 +126,9 @@ export const ArgusTable = withContent(
         onRowClick: 'argus-row-click',
         onRangeChange: 'argus-range-change',
         onLoadError: 'argus-load-error',
+        onFormulaColumnAdd: 'argus-formula-column-add',
+        onFormulaColumnChange: 'argus-formula-column-change',
+        onFormulaColumnRemove: 'argus-formula-column-remove',
       },
       displayName: 'ArgusTable',
     }),
@@ -135,6 +145,9 @@ export const ArgusTable = withContent(
       'onRowClick',
       'onRangeChange',
       'onLoadError',
+      'onFormulaColumnAdd',
+      'onFormulaColumnChange',
+      'onFormulaColumnRemove',
     ],
     'ArgusTable',
   ),

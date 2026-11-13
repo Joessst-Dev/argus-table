@@ -138,6 +138,37 @@ describe('<argus-table> component', () => {
     expect(host.resizes[0]?.detail.columnIds).toEqual(['id']);
   });
 
+  test('emits the formula editor’s events as outputs', async () => {
+    @Component({
+      imports: [ArgusTableComponent],
+      template: `<argus-table
+        [style]="size"
+        [columns]="columns"
+        [data]="orders"
+        (formulaColumnAdd)="seen.push(['add', $event.detail])"
+        (formulaColumnChange)="seen.push(['change', $event.detail])"
+        (formulaColumnRemove)="seen.push(['remove', $event.detail])"
+      />`,
+    })
+    class Host {
+      size = SIZE;
+      columns = columns;
+      orders = orders;
+      seen: [string, unknown][] = [];
+    }
+
+    const { el, host } = await mount(Host);
+    const detail = { column: columns[0], columns };
+    for (const name of ['add', 'change', 'remove']) {
+      el.dispatchEvent(new CustomEvent(`argus-formula-column-${name}`, { detail, bubbles: true }));
+    }
+    expect(host.seen).toEqual([
+      ['add', detail],
+      ['change', detail],
+      ['remove', detail],
+    ]);
+  });
+
   test('ignores the events of a table nested in a cell', async () => {
     const nested = document.createElement('argus-table');
     nested.columns = [{ id: 'x', header: 'X', accessor: () => 'inner' }];

@@ -19,6 +19,7 @@ import type {
   SelectionChangeDetail,
   SortingChangeDetail,
 } from 'argus-table';
+import type { FormulaColumnChangeDetail, FormulaColumnDetail } from '../formula-events.js';
 import type {
   GroupSlotProps,
   HeaderSlotProps,
@@ -98,6 +99,12 @@ export interface ArgusTableEventProps<T = unknown> {
   'onRange-change'?: (event: CustomEvent<RangeChangeDetail>) => void;
   /** `argus-load-error`: A `dataSource` page failed to load: `getRows()` rejected or threw. `detail: { error, start, end }` (`end` exclusive). The rows show a Retry button. */
   'onLoad-error'?: (event: CustomEvent<LoadErrorDetail>) => void;
+  /** `argus-formula-column-add`: From `formulas()` (`@argus-table/formulas`): the formula editor proposes a new formula column. The table doesn't change its columns: set `columns` to `detail.columns` to apply it. `detail: { column, columns }`. */
+  'onFormula-column-add'?: (event: CustomEvent<FormulaColumnDetail<T>>) => void;
+  /** `argus-formula-column-change`: From `formulas()` (`@argus-table/formulas`): the formula editor proposes a changed formula column (its formula, or a rename). The table doesn't change its columns: set `columns` to `detail.columns` to apply it. `detail: { column, columns }`, and `previous`, the column as it was. */
+  'onFormula-column-change'?: (event: CustomEvent<FormulaColumnChangeDetail<T>>) => void;
+  /** `argus-formula-column-remove`: From `formulas()` (`@argus-table/formulas`): the formula editor proposes removing a formula column. The table doesn't change its columns: set `columns` to `detail.columns` to apply it. `detail: { column, columns }`. */
+  'onFormula-column-remove'?: (event: CustomEvent<FormulaColumnDetail<T>>) => void;
 }
 
 /** Props of `<ArgusTable>`: element properties and event handlers. Other attributes go to the element. */
@@ -124,6 +131,11 @@ export interface ArgusTableEmit<T = unknown> {
   (event: 'row-click', payload: CustomEvent<RowClickDetail<T>>): void;
   (event: 'range-change', payload: CustomEvent<RangeChangeDetail>): void;
   (event: 'load-error', payload: CustomEvent<LoadErrorDetail>): void;
+  (
+    event: 'formula-column-add' | 'formula-column-remove',
+    payload: CustomEvent<FormulaColumnDetail<T>>,
+  ): void;
+  (event: 'formula-column-change', payload: CustomEvent<FormulaColumnChangeDetail<T>>): void;
 }
 
 /** What a template ref to `<ArgusTable>` gives. */
@@ -228,6 +240,9 @@ export const ArgusTable = defineWrapper({
     { name: 'argus-row-click', emit: 'row-click' },
     { name: 'argus-range-change', emit: 'range-change' },
     { name: 'argus-load-error', emit: 'load-error' },
+    { name: 'argus-formula-column-add', emit: 'formula-column-add' },
+    { name: 'argus-formula-column-change', emit: 'formula-column-change' },
+    { name: 'argus-formula-column-remove', emit: 'formula-column-remove' },
   ],
   methods: ['refresh', 'autosizeColumns', 'scrollToRow', 'scrollToColumn', 'getState', 'setState'],
   content: true,
