@@ -60,7 +60,8 @@ const item = (menu: HTMLElement, label: string) => {
  * `@argus-table/header-menu` is a plugin: `table.plugins = [headerMenu()]`. Each
  * column gets a button in its header, which opens a menu to sort the column,
  * clear its sort, pin it, fit its width to its content, or hide it. A
- * right-click on a header opens it too.
+ * right-click on a header opens it too. `headerMenu({ sort: false, fitWidth: false })`
+ * leaves out the sort and Fit width items.
  */
 export const Default: Story = {
   render: () =>
