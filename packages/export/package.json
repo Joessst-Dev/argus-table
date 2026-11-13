@@ -1,0 +1,56 @@
+{
+  "name": "@argus-table/export",
+  "version": "1.0.0",
+  "description": "Export for argus-table: the rows and columns shown, as CSV, Excel (.xlsx) or PDF, with no dependencies.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Joessst-Dev/argus-table.git",
+    "directory": "packages/export"
+  },
+  "type": "module",
+  "nx": {
+    "name": "export"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "vite build && tsc -p tsconfig.build.json && publint --strict && attw --pack . --profile esm-only",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "size": "size-limit"
+  },
+  "peerDependencies": {
+    "argus-table": "workspace:^"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
+    "@argus-table/header-menu": "workspace:^",
+    "@size-limit/esbuild": "^14.3.0",
+    "@size-limit/file": "^14.3.0",
+    "@vitest/browser-playwright": "^5.1.0",
+    "argus-table": "workspace:^",
+    "lit": "^3.3.3",
+    "playwright": "1.63.0",
+    "publint": "^0.3.25",
+    "size-limit": "^14.3.0",
+    "vite": "^8.3.5",
+    "vitest": "^5.1.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

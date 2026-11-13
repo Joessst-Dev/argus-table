@@ -35,6 +35,7 @@ Please give us a reasonable amount of time to release a fix before disclosing th
 Particularly relevant for this project:
 
 - **Formula columns** (`@argus-table/formulas`): any way for a user-entered formula to run arbitrary JavaScript, read properties outside its row, or escape the function allowlist.
+- **Export** (`@argus-table/export`): any way for exported data to run as a formula or script in the program that opens the file, beyond what its `escapeFormulas` option documents.
 - **Cell rendering**: any way for row data to be rendered as HTML or script without the host app explicitly opting in.
 - **Supply chain**: problems with how packages are built or published.
 

@@ -28,6 +28,13 @@ packages/formulas/src/   (added in Phase 3)
 ├─ engine/               DOM-free, tested in Node: tokenize.ts · parse.ts · coerce.ts · compile.ts · infer.ts · graph.ts · errors.ts
 │  └─ functions/         math.ts · logic.ts · text.ts · date.ts
 └─ editor/               the formula editor element (planned)
+
+packages/export/src/     (added after 1.0, ADR 0006)
+├─ plugin.ts             tableExport(), exportTable(), downloadTable(); per-table state in a WeakMap
+├─ collect.ts            reads the table through PluginHost into an ExportSheet (sheet.ts)
+├─ csv.ts                RFC 4180, formula-injection escaping
+├─ xlsx/                 zip.ts (CRC-32, deflate-raw) · xlsx.ts (SpreadsheetML), loaded on first use
+└─ pdf/                  pdf.ts (PDF 1.4, base-14 Helvetica) · metrics.ts, loaded on first use
 ```
 
 Each controller gets its own test file next to it; `core` tests run in plain Vitest, `table` tests in Vitest browser mode.

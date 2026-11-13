@@ -21,6 +21,6 @@ v1 is a fast, styleable read-only table; editing and spreadsheet features wait.
 
 - Cell editing, range selection, copy/paste
 - Grouping, tree rows, aggregation (formula columns come post-launch as an add-on, see [Formula columns](09-formula-columns.md))
-- Excel/CSV/PDF export
+- Excel/CSV/PDF export (shipped after 1.0 as the add-on `@argus-table/export`, see [ADR 0006](../../adr/0006-export.md))
 - Canvas rendering (dropped for good: it would break CSS styling, slotted cells and accessibility)
 - Legacy browsers or polyfills

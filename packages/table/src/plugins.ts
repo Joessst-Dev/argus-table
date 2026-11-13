@@ -1,5 +1,6 @@
 import type { ArgusTable } from './argus-table.js';
 import type {
+  ColumnAlign,
   ColumnDef,
   ColumnFilter,
   ColumnGroup,
@@ -100,6 +101,19 @@ export interface ColumnInfo {
   filter: FilterKind | undefined;
   /** The column's filter in `columnFilters`, if it has one. */
   columnFilter: ColumnFilter | undefined;
+  /** How the column aligns its content (`align`, default `'start'`). */
+  align: ColumnAlign;
+}
+
+/** Where a row is: the rows pinned to the top, the body, or the rows pinned to the bottom. */
+export type RowSection = 'top' | 'body' | 'bottom';
+
+/** A cell of a group header row (`PluginHost.headerGroups()`). */
+export interface HeaderGroupInfo {
+  /** The group's id; `undefined` for a filler over columns without a group at this level. */
+  groupId: string | undefined;
+  /** The shown columns under the cell, in visual order. */
+  columns: readonly string[];
 }
 
 /**
@@ -179,9 +193,32 @@ export interface PluginHost<T = unknown> {
   requestUpdate(): void;
   /**
    * The body row at `index` in the current order (sorted, as shown), or
-   * `undefined` past the end and for a `dataSource` row that isn't loaded.
+   * `undefined` past the end and for a `dataSource` row that isn't loaded. With
+   * `section`, a pinned row, `index` counted within its side.
    */
-  row(index: number): T | undefined;
+  row(index: number, section?: RowSection): T | undefined;
+  /**
+   * The number of rows in a section (default the body): after the filters, or
+   * with a `dataSource` the row count the table knows (rows not loaded included).
+   */
+  rowCount(section?: RowSection): number;
+  /** The id of the row at `index` in a section (default the body), or `undefined` as for `row()`. */
+  rowId(index: number, section?: RowSection): string | undefined;
+  /**
+   * The value a column reads (its `accessor`'s result) from the row at `index`
+   * in a section (default the body), hidden columns too; `undefined` as for `row()`.
+   */
+  value(index: number, columnId: string, section?: RowSection): unknown;
+  /**
+   * The value a column reads from a row object the plugin has, such as a row
+   * it fetched from the `dataSource` itself; `index` is what the `accessor` gets.
+   */
+  readValue(row: T, columnId: string, index: number): unknown;
+  /**
+   * The group header rows over the shown columns, top row first, each cell a
+   * group or a filler; empty without column groups.
+   */
+  headerGroups(): readonly (readonly HeaderGroupInfo[])[];
   /**
    * Wraps a column's own header or cell content for a template of the plugin's: in
    * `html\`<b>${host.content(own)}</b>\``, framework content (React elements, Vue

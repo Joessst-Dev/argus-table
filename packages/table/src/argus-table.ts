@@ -78,7 +78,7 @@ import { content, flushContent, type ContentRenderer } from './render/content-di
 import { columnKey, renderHeader, type CheckAll, type HeaderDrag } from './render/header.js';
 import type { CheckboxHandlers } from './render/content.js';
 import { renderPinnedRows } from './render/pinned-rows.js';
-import type { ArgusPlugin, CellTarget, ColumnInfo, PluginHost } from './plugins.js';
+import type { ArgusPlugin, CellTarget, ColumnInfo, PluginHost, RowSection } from './plugins.js';
 import { baseStyles } from './styles/base.js';
 import { switchConverter } from './attributes.js';
 import type {
@@ -746,7 +746,23 @@ export class ArgusTable<T = unknown> extends LitElement {
     requestUpdate: () => {
       this.requestUpdate();
     },
-    row: (index) => this.#table.model.rowAt(index)?.original,
+    row: (index, section) => this.#rowView(index, section)?.original,
+    rowCount: (section = 'body') => {
+      const model = this.#table.model;
+      return section === 'body' ? model.rowCount : model.pinnedCount(section);
+    },
+    rowId: (index, section) => this.#rowView(index, section)?.id,
+    value: (index, columnId, section = 'body') => {
+      const model = this.#table.model;
+      return section === 'body'
+        ? model.valueAt(index, columnId)
+        : model.pinnedValueAt(section, index, columnId);
+    },
+    readValue: (row, columnId, index) => this.#table.model.readValue(row, columnId, index),
+    headerGroups: () =>
+      this.#table.model.headerGroups.map((cells) =>
+        cells.map(({ groupId, columns }) => ({ groupId, columns })),
+      ),
     content: (value) => content(value),
     header: (def) => {
       const { header } = def;
@@ -2823,7 +2839,14 @@ export class ArgusTable<T = unknown> extends LitElement {
       sorted: view.sorted === false ? undefined : view.sorted,
       filter: view.filter,
       columnFilter: this.#filters.value[id],
+      align: view.align,
     };
+  }
+
+  /** A row of a section for plugins: the body's in the current order, a pinned one by its index on its side. */
+  #rowView(index: number, section: RowSection = 'body') {
+    const model = this.#table.model;
+    return section === 'body' ? model.rowAt(index) : model.pinnedRowAt(section, index);
   }
 
   /** The header or cell an event happened in, for plugins. */
