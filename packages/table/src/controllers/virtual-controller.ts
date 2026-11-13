@@ -1,6 +1,14 @@
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
 import { VirtualizerController } from '@tanstack/lit-virtual';
-import { RowPool, RowSizes, ScrollScale, maxVisibleRows, steadyWindow } from '@argus-table/core';
+import {
+  RowPool,
+  RowSizes,
+  ScrollScale,
+  alignOffset,
+  maxVisibleRows,
+  steadyWindow,
+  type ScrollAlign,
+} from '@argus-table/core';
 
 /** A rendered body row: its pool slot, its index in the row model and its offset. */
 export interface WindowRow {
@@ -559,20 +567,25 @@ export class VirtualController implements ReactiveController {
     return Math.min(Math.max(row, 0), count - 1);
   }
 
-  /** `'start'` puts the row at the top; `'auto'` scrolls only as far as needed to show it. */
-  scrollToIndex(index: number, align: 'start' | 'auto' = 'start'): void {
-    if (this.#config.auto) {
-      const element = this.#element;
-      if (!element) return;
-      if (align === 'auto') {
-        this.reveal(index, 0, 0);
-      } else {
-        this.#write(element, this.#sizes.startOf(Math.min(Math.max(index, 0), this.#sizes.count)));
-      }
-      this.#host.requestUpdate();
-      return;
+  /**
+   * Scrolls row `index` to where `align` says, between the content above the
+   * body (`before` px: the header and top pinned rows) and below it (`after`
+   * px). An index past the last row counts as the last row. Returns whether it
+   * moved a whole px or more (the virtualizer's own command: always).
+   */
+  scrollToIndex(index: number, align: ScrollAlign = 'start', before = 0, after = 0): boolean {
+    if (align === 'start' && !this.#config.auto) {
+      // The virtualizer's own command: it finishes the scroll once the rows it
+      // needs are counted (a data source's next page).
+      this.#virtual.getVirtualizer().scrollToIndex(index, { align });
+      return true;
     }
-    this.#virtual.getVirtualizer().scrollToIndex(index, { align });
+    const element = this.#element;
+    if (!element) return false;
+    const last = Math.max(0, (this.#config.auto ? this.#sizes.count : this.#config.count) - 1);
+    const moved = this.#align(element, Math.min(Math.max(index, 0), last), align, before, after);
+    if (this.#config.auto) this.#host.requestUpdate();
+    return moved;
   }
 
   /**
@@ -608,27 +621,37 @@ export class VirtualController implements ReactiveController {
   reveal(index: number, before: number, after: number): boolean {
     const element = this.#element;
     if (!element) return false;
-    const auto = this.#config.auto !== undefined;
+    this.#align(element, index, 'nearest', before, after);
+    // Rendered for an offset the scroller has since left: they move with the
+    // update after the scroll event.
+    const rendered = this.#config.auto
+      ? this.#rendered?.top
+      : this.#virtual.getVirtualizer().scrollOffset;
+    return rendered !== this.#top(element);
+  }
+
+  /**
+   * Scrolls row `index` to where `align` says, between `before` and `after` px.
+   * Returns whether it moved a whole px or more.
+   */
+  #align(
+    element: HTMLElement,
+    index: number,
+    align: ScrollAlign,
+    before: number,
+    after: number,
+  ): boolean {
     const offset = this.#top(element);
     const view = element.clientHeight - before - after;
     const start = this.startOf(index);
     const size = this.sizeOf(index);
-    let target: number;
-    let round: ((px: number) => number) | undefined;
-    // A row taller than the view shows its start.
-    if (start < offset || (auto && size > view)) {
-      target = start;
-      round = Math.floor;
-    } else if (start + size > offset + view) {
-      target = start + size - view;
-      round = Math.ceil;
-    } else {
-      target = offset;
-    }
-    if (target !== offset) this.#write(element, target, undefined, round);
-    // Rendered for an offset the scroller has since left: they move with the
-    // update after the scroll event.
-    const rendered = auto ? this.#rendered?.top : this.#virtual.getVirtualizer().scrollOffset;
-    return rendered !== this.#top(element);
+    const target = alignOffset(start, size, offset, view, align);
+    if (target === offset) return false;
+    // Whole px that show the row in full: down from its start, up from its end.
+    const round =
+      target === start ? Math.floor : target === start + size - view ? Math.ceil : Math.round;
+    this.#write(element, target, undefined, round);
+    // Not past the end: the scroller stops there.
+    return Math.abs(this.#top(element) - offset) >= 1;
   }
 }

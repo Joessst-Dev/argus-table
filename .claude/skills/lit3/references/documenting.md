@@ -40,13 +40,13 @@
 /** Row height in px, or `'auto'` to measure each row. Unset: the density decides (40px at comfortable). */
 @property({ attribute: 'row-height' }) rowHeight?: number | 'auto';
 
-/** Scrolls so that the row at `index` is visible. Resolves after render. */
-async scrollToRow(index: number): Promise<void> { … }
+/** Scrolls to a row by index or `{ id }`, placed by `align`. Resolves `true` once it is there. */
+async scrollToRow(target: RowTarget, options?: ScrollToRowOptions): Promise<boolean> { … }
 ```
 
 - One or two sentences: what, units, default, and any interaction ("ignored when `columns` is set").
 - `@internal` or `private`/`#private` hides members from the manifest.
-- Methods are documented the same way; the public ones are `scrollToRow`, `refresh`, `autosizeColumns`, `getState`, `setState`.
+- Methods are documented the same way; the public ones are `scrollToRow`, `scrollToColumn`, `refresh`, `autosizeColumns`, `getState`, `setState`.
 
 ## Checklist when adding public API
 
