@@ -201,10 +201,11 @@ describe('header menu actions', () => {
     const el = await fixture();
     const resizes: unknown[] = [];
     el.addEventListener('argus-column-sizing-change', (e) => resizes.push(e.detail.columnId));
+    el.addEventListener('argus-column-resize-end', (e) => resizes.push(e.detail.columnIds));
     buttonOf(el, 'age')?.click();
     items(await opened(el))[3]?.click();
     await settle(el);
-    expect(resizes).toEqual(['age']);
+    expect(resizes).toEqual(['age', ['age']]);
     expect(el.columnSizing.age).toBeLessThan(120);
     await new Promise((resolve) => setTimeout(resolve, 100));
     const region = document.querySelector('[data-argus-announcer]');
@@ -345,6 +346,52 @@ describe('header menu placement', () => {
     await settle(el);
     expect(openMenu(el)).toBe(menu);
     expect(document.activeElement && menu.contains(document.activeElement)).toBe(true);
+  });
+});
+
+describe('sort and fit width options', () => {
+  const texts = (menu: HTMLElement) => items(menu).map((i) => i.textContent.trim());
+  const off = { pin: false, hide: false, filter: false };
+
+  test('sort: false leaves out the sort items; a header click still sorts', async () => {
+    const el = await fixture({ plugins: [headerMenu<Row>({ ...off, sort: false })] });
+    buttonOf(el, 'age')?.click();
+    expect(texts(await opened(el))).toEqual(['Fit width']);
+    key(focused(), 'Escape');
+    await settle(el);
+    headerOf(el, 'age').click();
+    await settle(el);
+    expect(el.sorting).toEqual([{ id: 'age', desc: false }]);
+  });
+
+  test('fitWidth: false leaves out Fit width', async () => {
+    const el = await fixture({ plugins: [headerMenu<Row>({ ...off, fitWidth: false })] });
+    buttonOf(el, 'age')?.click();
+    expect(texts(await opened(el))).toEqual(['Sort ascending', 'Sort descending', 'Unsorted']);
+  });
+
+  test('with every item off, columns get a menu only for items from other plugins', async () => {
+    const el = await fixture({
+      plugins: [headerMenu<Row>({ ...off, sort: false, fitWidth: false })],
+    });
+    expect(buttonOf(el, 'name') ?? null).toBeNull();
+    expect(buttonOf(el, 'age') ?? null).toBeNull();
+    headerOf(el, 'age').dispatchEvent(
+      new MouseEvent('contextmenu', { bubbles: true, composed: true, cancelable: true }),
+    );
+    await settle(el);
+    expect(openMenu(el)).toBeNull();
+
+    const contributor: ArgusPlugin<Row> & HeaderMenuContributor<Row> = {
+      name: 'contributor',
+      headerMenuItems: (id) =>
+        id === 'age' ? [{ items: [{ label: 'Chart', run: () => undefined }] }] : [],
+    };
+    el.plugins = [headerMenu<Row>({ ...off, sort: false, fitWidth: false }), contributor];
+    await settle(el);
+    expect(buttonOf(el, 'name') ?? null).toBeNull();
+    buttonOf(el, 'age')?.click();
+    expect(texts(await opened(el))).toEqual(['Chart']);
   });
 });
 

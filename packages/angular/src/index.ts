@@ -21,6 +21,9 @@ export {
   type ArgusTemplate,
 } from './content.js';
 
+// The formula editor's events (`formulas()` from `@argus-table/formulas`), with this wrapper's content.
+export type { FormulaColumnChangeDetail, FormulaColumnDetail } from './formula-events.js';
+
 /** The table, its columns and column groups, and the cell, header and group header template directives, for a standalone component's `imports`. */
 export const ARGUS_TABLE = [
   ArgusTableComponent,
@@ -56,6 +59,7 @@ export type {
   ColumnPin,
   ColumnPinningChangeDetail,
   ColumnPinningState,
+  ColumnResizeEndDetail,
   ColumnSizingChangeDetail,
   ColumnSizingState,
   ColumnVisibilityChangeDetail,

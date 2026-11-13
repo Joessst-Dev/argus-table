@@ -38,6 +38,14 @@ export const inferred = (
     onSelectionChange={(e) => e.detail.selection.join()}
     onRangeChange={(e) => e.detail.first + e.detail.last}
     onLoadError={(e) => e.detail.error}
+    onColumnResizeEnd={(e) => e.detail.columnIds.join()}
+    onFormulaColumnAdd={(e) => {
+      // The formula editor's proposals carry React columns.
+      const next: readonly ReactColumnDef<Order>[] = e.detail.columns;
+      return next;
+    }}
+    onFormulaColumnChange={(e) => e.detail.previous.id}
+    onFormulaColumnRemove={(e) => e.detail.column.id}
   />
 );
 

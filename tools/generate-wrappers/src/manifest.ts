@@ -2,6 +2,7 @@
 // emitters work from. Anything a wrapper depends on is checked here, so a
 // renamed property or event fails the generator instead of quietly dropping
 // out of a wrapper.
+import { ADDON_EVENTS } from './addon-events.ts';
 
 /** The subset of the Custom Elements Manifest schema the generator reads. */
 export interface Manifest {
@@ -51,6 +52,11 @@ export interface ElementEvent {
   vue: string;
   /** Angular output: `sortingChange`. */
   angular: string;
+  /**
+   * An add-on's event (`ADDON_EVENTS`): the wrapper module its types come from,
+   * instead of `argus-table`.
+   */
+  from?: string;
 }
 
 /** A property kept in sync with an event: two-way binding in Vue and Angular. */
@@ -147,7 +153,7 @@ export function readElement(manifest: Manifest, tag: Tag): ElementInfo {
       return m.attribute ? { ...property, attribute: m.attribute } : property;
     });
 
-  const events = (decl.events ?? []).map((e) => {
+  const own = (decl.events ?? []).map((e) => {
     if (!e.type) {
       throw new Error(
         `<${tag}> event "${e.name}" has no type: document it as @fires {CustomEvent<…>} ${e.name}.`,
@@ -160,6 +166,8 @@ export function readElement(manifest: Manifest, tag: Tag): ElementInfo {
       ...eventNames(e.name),
     };
   });
+  const addons = (ADDON_EVENTS[tag] ?? []).map((e) => ({ ...e, ...eventNames(e.name) }));
+  const events: ElementEvent[] = [...own, ...addons];
 
   const methods = members
     .filter((m) => m.kind === 'method' && !INTERNAL_METHODS[tag].includes(m.name))
@@ -174,7 +182,8 @@ export function readElement(manifest: Manifest, tag: Tag): ElementInfo {
       ? [{ property: p.name, event, detailKey: p.name }]
       : [];
   });
-  for (const e of events) {
+  // Add-on events report actions the app applies, not state, so they keep their names.
+  for (const e of own) {
     if (e.name.endsWith('-change') && e.name !== 'argus-range-change') {
       if (!models.some((m) => m.event === e.name)) {
         throw new Error(

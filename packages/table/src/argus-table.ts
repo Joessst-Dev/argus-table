@@ -27,6 +27,7 @@ import {
   type ColumnVisibilityChangeDetail,
   type ColumnPinningChangeDetail,
   type ColumnOrderChangeDetail,
+  type ColumnResizeEndDetail,
   type ColumnSizingChangeDetail,
   type ColumnView,
   type Controllable,
@@ -58,6 +59,7 @@ import {
   COLUMN_FILTERS_CHANGE,
   COLUMN_ORDER_CHANGE,
   COLUMN_PINNING_CHANGE,
+  COLUMN_RESIZE_END,
   COLUMN_SIZING_CHANGE,
   COLUMN_VISIBILITY_CHANGE,
   fire,
@@ -249,7 +251,8 @@ function pinnedWidth<T>(
  * @summary Data table with pinned rows and columns and infinite loading.
  *
  * @fires {CustomEvent<SortingChangeDetail>} argus-sorting-change - `sorting` changed: a sortable header was clicked, or activated with Enter or Space. `detail: { sorting }`. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it.
- * @fires {CustomEvent<ColumnSizingChangeDetail>} argus-column-sizing-change - `columnSizing` changed: a column was resized by dragging its handle, with Alt+Arrow on its header, by a double-click on its handle (fit to content) or by `autosizeColumns()`. `detail: { columnSizing, columnId, width }`. Fires on every frame of a drag, and once per column that changes (a group resize, `autosizeColumns()`). The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it.
+ * @fires {CustomEvent<ColumnSizingChangeDetail>} argus-column-sizing-change - `columnSizing` changed: a column was resized by dragging its handle, with Alt+Arrow on its header, by a double-click on its handle (fit to content) or by `autosizeColumns()`. `detail: { columnSizing, columnId, width }`. Fires on every frame of a drag, and once per column that changes (a group resize, `autosizeColumns()`); to save widths once a resize is done, listen to `argus-column-resize-end`. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it.
+ * @fires {CustomEvent<ColumnResizeEndDetail>} argus-column-resize-end - A resize is done: a drag on a column's or group's resize handle was released, an Alt+Arrow press resized a column or group, or a double-click on a handle or `autosizeColumns()` fit columns to their content. Fires once, after that resize's `argus-column-sizing-change` events, and only if a width changed. `detail: { columnSizing, columnIds }`: the sizing after the resize (the last proposed one when `columnSizing` is controlled) and the columns it changed. Not fired when `columnSizing` or `setState()` set the widths. Use it to save widths without saving on every frame of a drag.
  * @fires {CustomEvent<ColumnOrderChangeDetail>} argus-column-order-change - `columnOrder` changed: a column or column group was moved by dragging its header, or with Alt+Shift+Arrow on its focused header. Columns move within their pin side (start-pinned, scrolling, end-pinned) and their column group; groups move as a whole. `detail: { columnOrder, columnId, groupId? }`: `groupId` is set when a group moved, and `columnId` is then its first column. Fires once per move, on drop. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it.
  * @fires {CustomEvent<ColumnPinningChangeDetail>} argus-column-pinning-change - `columnPinning` changed: a column was pinned to a side or unpinned, through a plugin such as the column menu. `detail: { columnPinning, columnId, pin }`: `pin` is `'start'`, `'end'` or `false`. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it.
  * @fires {CustomEvent<ColumnVisibilityChangeDetail>} argus-column-visibility-change - `columnVisibility` changed: a column was hidden or shown, through a plugin such as the column menu. `detail: { columnVisibility, columnId, visible }`: `visible` is `false` when it was hidden. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it.
@@ -553,9 +556,10 @@ export class ArgusTable<T = unknown> extends LitElement {
    * Shift+click selects the range from the last clicked row, and Ctrl/Cmd+A
    * selects every row. Space toggles the focused row. Clicks on buttons, links
    * and inputs inside cells don't select. Pinned rows, and `dataSource` rows not
-   * loaded yet, can't be selected.
+   * loaded yet, can't be selected. Reflected to the `selection-mode` attribute,
+   * so page CSS and themes can match it, e.g. `argus-table[selection-mode='multi']`.
    */
-  @property({ attribute: 'selection-mode' })
+  @property({ attribute: 'selection-mode', reflect: true })
   selectionMode: SelectionMode = 'none';
 
   /**
@@ -684,6 +688,10 @@ export class ArgusTable<T = unknown> extends LitElement {
   #announceMove: { unit: OrderUnit; from: number } | undefined;
   /** Resizes the table applied itself, by column; their events fire once the update is done. */
   readonly #appliedResizes = new Map<string, ColumnSizingChangeDetail>();
+  /** The resize under way (a drag), or one in this call: the columns it changed and the last sizing. */
+  #resizing: ColumnResizeEndDetail | undefined;
+  /** A resize the table applied itself is done; its event fires after the update, like `#appliedResizes`. */
+  #appliedResizeEnd: ColumnResizeEndDetail | undefined;
   /** Columns `autosizeColumns()` renders out of view for its measurement. */
   #measureKeep: readonly string[] = [];
   /** The column `scrollToColumn()` renders out of view to measure where it is. */
@@ -904,8 +912,8 @@ export class ArgusTable<T = unknown> extends LitElement {
   /**
    * Fits columns to their content: the header, the pinned rows and the body rows
    * rendered now (rows out of view aren't measured). It resizes them like a drag
-   * would, so `argus-column-sizing-change` fires for each column that changes, and with a
-   * controlled `columnSizing` nothing changes until you set it. Without `ids`, fits
+   * would, so `argus-column-sizing-change` fires for each column that changes, then one
+   * `argus-column-resize-end`, and with a controlled `columnSizing` nothing changes until you set it. Without `ids`, fits
    * every resizable column; columns with `resizable: false` keep their width.
    * With `virtualizeColumns`, columns out of view render for the measurement.
    * Resolves once the table has re-rendered.
@@ -1380,6 +1388,11 @@ export class ArgusTable<T = unknown> extends LitElement {
     }
     if (changed.has('density') || changed.has('rowHeight')) this.#measureRowHeight();
     this.#fireApplied(this.#appliedResizes, COLUMN_SIZING_CHANGE);
+    if (this.#appliedResizeEnd) {
+      const detail = this.#appliedResizeEnd;
+      this.#appliedResizeEnd = undefined;
+      fire(this, COLUMN_RESIZE_END, detail);
+    }
     if (this.#announceMove) {
       this.#announceMoved(model, this.#announceMove);
       this.#announceMove = undefined;
@@ -1523,14 +1536,23 @@ export class ArgusTable<T = unknown> extends LitElement {
       if (group) {
         const starts = this.#groupWidths(group.columns);
         const total = [...starts.values()].reduce((sum, w) => sum + w, 0);
-        startResizeDrag(handle, event, total, this.#direction(), (w) => {
-          this.#requestGroupResize(group.columns, starts, w);
-        });
+        this.#startResize();
+        startResizeDrag(
+          handle,
+          event,
+          total,
+          this.#direction(),
+          (w) => {
+            this.#requestGroupResize(group.columns, starts, w);
+          },
+          this.#endResize,
+        );
         return;
       }
       const id = handle.dataset.resizeCol;
       const cell = handle.parentElement;
       if (id !== undefined && cell) {
+        this.#startResize();
         startResizeDrag(
           handle,
           event,
@@ -1539,6 +1561,7 @@ export class ArgusTable<T = unknown> extends LitElement {
           (w) => {
             this.#requestResize(id, w);
           },
+          this.#endResize,
         );
         return;
       }
@@ -2468,6 +2491,13 @@ export class ArgusTable<T = unknown> extends LitElement {
     if (targets.length === 0) return;
     const { value, applied } = this.#sizing.request({ ...old, ...Object.fromEntries(targets) });
     const details = targets.map(([columnId, width]) => ({ columnSizing: value, columnId, width }));
+    // Outside a drag, this call is the whole resize: it ends below.
+    const single = !this.#resizing;
+    const resize = (this.#resizing ??= { columnSizing: value, columnIds: [] });
+    resize.columnSizing = value;
+    for (const [columnId] of targets) {
+      if (!resize.columnIds.includes(columnId)) resize.columnIds.push(columnId);
+    }
     if (applied) {
       // Only the latest width per column fires, all with the latest sizing.
       for (const detail of this.#appliedResizes.values()) detail.columnSizing = value;
@@ -2476,7 +2506,29 @@ export class ArgusTable<T = unknown> extends LitElement {
     } else {
       for (const detail of details) fire(this, COLUMN_SIZING_CHANGE, detail);
     }
+    if (single) this.#endResize();
   }
+
+  /** A drag on a resize handle starts: its changes add up to one `argus-column-resize-end`. */
+  #startResize(): void {
+    this.#resizing = { columnSizing: this.#sizing.value, columnIds: [] };
+  }
+
+  /**
+   * The resize is done: `argus-column-resize-end` fires if it changed a width,
+   * after the update when the table applied it, right away when `columnSizing` is controlled.
+   */
+  readonly #endResize = (): void => {
+    const detail = this.#resizing;
+    this.#resizing = undefined;
+    if (!detail || detail.columnIds.length === 0) return;
+    if (this.#sizing.controlled) {
+      fire(this, COLUMN_RESIZE_END, detail);
+    } else {
+      this.#appliedResizeEnd = detail;
+      this.requestUpdate();
+    }
+  };
 
   /**
    * Pins or unpins a column through the controlled/uncontrolled rules. Starts

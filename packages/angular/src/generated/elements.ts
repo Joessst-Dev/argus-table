@@ -19,6 +19,7 @@ import type {
   ColumnFiltersChangeDetail,
   ColumnOrderChangeDetail,
   ColumnPinningChangeDetail,
+  ColumnResizeEndDetail,
   ColumnSizingChangeDetail,
   ColumnVisibilityChangeDetail,
   LoadErrorDetail,
@@ -27,6 +28,7 @@ import type {
   SelectionChangeDetail,
   SortingChangeDetail,
 } from 'argus-table';
+import type { FormulaColumnChangeDetail, FormulaColumnDetail } from '../formula-events.js';
 import {
   ArgusTableBase,
   type AngularCellContent,
@@ -44,6 +46,7 @@ import { setProperty } from '../set-property.js';
   host: {
     '(argus-sorting-change)': 'handleSortingChange($event)',
     '(argus-column-sizing-change)': 'handleColumnSizingChange($event)',
+    '(argus-column-resize-end)': 'handleColumnResizeEnd($event)',
     '(argus-column-order-change)': 'handleColumnOrderChange($event)',
     '(argus-column-pinning-change)': 'handleColumnPinningChange($event)',
     '(argus-column-visibility-change)': 'handleColumnVisibilityChange($event)',
@@ -53,6 +56,9 @@ import { setProperty } from '../set-property.js';
     '(argus-row-click)': 'handleRowClick($event)',
     '(argus-range-change)': 'handleRangeChange($event)',
     '(argus-load-error)': 'handleLoadError($event)',
+    '(argus-formula-column-add)': 'handleFormulaColumnAdd($event)',
+    '(argus-formula-column-change)': 'handleFormulaColumnChange($event)',
+    '(argus-formula-column-remove)': 'handleFormulaColumnRemove($event)',
   },
 })
 export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
@@ -147,7 +153,7 @@ export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
     setProperty(this.element, 'quickFilter', 'quick-filter', value);
   }
 
-  /** How rows can be selected: `none` (the default), `single` or `multi`. A click on a body row selects it; in `multi` mode Ctrl/Cmd+click toggles a row, Shift+click selects the range from the last clicked row, and Ctrl/Cmd+A selects every row. Space toggles the focused row. Clicks on buttons, links and inputs inside cells don't select. Pinned rows, and `dataSource` rows not loaded yet, can't be selected. */
+  /** How rows can be selected: `none` (the default), `single` or `multi`. A click on a body row selects it; in `multi` mode Ctrl/Cmd+click toggles a row, Shift+click selects the range from the last clicked row, and Ctrl/Cmd+A selects every row. Space toggles the focused row. Clicks on buttons, links and inputs inside cells don't select. Pinned rows, and `dataSource` rows not loaded yet, can't be selected. Reflected to the `selection-mode` attribute, so page CSS and themes can match it, e.g. `argus-table[selection-mode='multi']`. */
   @Input() set selectionMode(value: ArgusTableElement<T>['selectionMode'] | null | undefined) {
     setProperty(this.element, 'selectionMode', 'selection-mode', value);
   }
@@ -177,8 +183,11 @@ export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
   /** `argus-sorting-change`, for `[(sorting)]`: the new `sorting`. Bind `(argus-sorting-change)` for the whole event. `sorting` changed: a sortable header was clicked, or activated with Enter or Space. `detail: { sorting }`. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
   @Output() readonly sortingChange = new EventEmitter<ArgusTableElement<T>['sorting']>();
 
-  /** `argus-column-sizing-change`, for `[(columnSizing)]`: the new `columnSizing`. Bind `(argus-column-sizing-change)` for the whole event. `columnSizing` changed: a column was resized by dragging its handle, with Alt+Arrow on its header, by a double-click on its handle (fit to content) or by `autosizeColumns()`. `detail: { columnSizing, columnId, width }`. Fires on every frame of a drag, and once per column that changes (a group resize, `autosizeColumns()`). The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
+  /** `argus-column-sizing-change`, for `[(columnSizing)]`: the new `columnSizing`. Bind `(argus-column-sizing-change)` for the whole event. `columnSizing` changed: a column was resized by dragging its handle, with Alt+Arrow on its header, by a double-click on its handle (fit to content) or by `autosizeColumns()`. `detail: { columnSizing, columnId, width }`. Fires on every frame of a drag, and once per column that changes (a group resize, `autosizeColumns()`); to save widths once a resize is done, listen to `argus-column-resize-end`. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
   @Output() readonly columnSizingChange = new EventEmitter<ArgusTableElement<T>['columnSizing']>();
+
+  /** `argus-column-resize-end`: A resize is done: a drag on a column's or group's resize handle was released, an Alt+Arrow press resized a column or group, or a double-click on a handle or `autosizeColumns()` fit columns to their content. Fires once, after that resize's `argus-column-sizing-change` events, and only if a width changed. `detail: { columnSizing, columnIds }`: the sizing after the resize (the last proposed one when `columnSizing` is controlled) and the columns it changed. Not fired when `columnSizing` or `setState()` set the widths. Use it to save widths without saving on every frame of a drag. */
+  @Output() readonly columnResizeEnd = new EventEmitter<CustomEvent<ColumnResizeEndDetail>>();
 
   /** `argus-column-order-change`, for `[(columnOrder)]`: the new `columnOrder`. Bind `(argus-column-order-change)` for the whole event. `columnOrder` changed: a column or column group was moved by dragging its header, or with Alt+Shift+Arrow on its focused header. Columns move within their pin side (start-pinned, scrolling, end-pinned) and their column group; groups move as a whole. `detail: { columnOrder, columnId, groupId? }`: `groupId` is set when a group moved, and `columnId` is then its first column. Fires once per move, on drop. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
   @Output() readonly columnOrderChange = new EventEmitter<ArgusTableElement<T>['columnOrder']>();
@@ -212,6 +221,17 @@ export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
 
   /** `argus-load-error`: A `dataSource` page failed to load: `getRows()` rejected or threw. `detail: { error, start, end }` (`end` exclusive). The rows show a Retry button. */
   @Output() readonly loadError = new EventEmitter<CustomEvent<LoadErrorDetail>>();
+
+  /** `argus-formula-column-add`: From `formulas()` (`@argus-table/formulas`): the formula editor proposes a new formula column. The table doesn't change its columns: set `columns` to `detail.columns` to apply it. `detail: { column, columns }`. */
+  @Output() readonly formulaColumnAdd = new EventEmitter<CustomEvent<FormulaColumnDetail<T>>>();
+
+  /** `argus-formula-column-change`: From `formulas()` (`@argus-table/formulas`): the formula editor proposes a changed formula column (its formula, or a rename). The table doesn't change its columns: set `columns` to `detail.columns` to apply it. `detail: { column, columns }`, and `previous`, the column as it was. */
+  @Output() readonly formulaColumnChange = new EventEmitter<
+    CustomEvent<FormulaColumnChangeDetail<T>>
+  >();
+
+  /** `argus-formula-column-remove`: From `formulas()` (`@argus-table/formulas`): the formula editor proposes removing a formula column. The table doesn't change its columns: set `columns` to `detail.columns` to apply it. `detail: { column, columns }`. */
+  @Output() readonly formulaColumnRemove = new EventEmitter<CustomEvent<FormulaColumnDetail<T>>>();
 
   /** Calls the element's `refresh()`. */
   refresh(
@@ -267,6 +287,12 @@ export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
     this.columnSizingChange.emit(
       (event as CustomEvent<ColumnSizingChangeDetail>).detail.columnSizing,
     );
+  }
+
+  protected handleColumnResizeEnd(event: Event): void {
+    // Events bubble: skip those of a table nested in a cell.
+    if (event.target !== this.element) return;
+    this.columnResizeEnd.emit(event as CustomEvent<ColumnResizeEndDetail>);
   }
 
   protected handleColumnOrderChange(event: Event): void {
@@ -327,6 +353,24 @@ export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
     // Events bubble: skip those of a table nested in a cell.
     if (event.target !== this.element) return;
     this.loadError.emit(event as CustomEvent<LoadErrorDetail>);
+  }
+
+  protected handleFormulaColumnAdd(event: Event): void {
+    // Events bubble: skip those of a table nested in a cell.
+    if (event.target !== this.element) return;
+    this.formulaColumnAdd.emit(event as CustomEvent<FormulaColumnDetail<T>>);
+  }
+
+  protected handleFormulaColumnChange(event: Event): void {
+    // Events bubble: skip those of a table nested in a cell.
+    if (event.target !== this.element) return;
+    this.formulaColumnChange.emit(event as CustomEvent<FormulaColumnChangeDetail<T>>);
+  }
+
+  protected handleFormulaColumnRemove(event: Event): void {
+    // Events bubble: skip those of a table nested in a cell.
+    if (event.target !== this.element) return;
+    this.formulaColumnRemove.emit(event as CustomEvent<FormulaColumnDetail<T>>);
   }
 }
 

@@ -10,6 +10,7 @@ import type {
   ColumnFiltersChangeDetail,
   ColumnOrderChangeDetail,
   ColumnPinningChangeDetail,
+  ColumnResizeEndDetail,
   ColumnSizingChangeDetail,
   ColumnVisibilityChangeDetail,
   LoadErrorDetail,
@@ -18,6 +19,7 @@ import type {
   SelectionChangeDetail,
   SortingChangeDetail,
 } from 'argus-table';
+import type { FormulaColumnChangeDetail, FormulaColumnDetail } from '../formula-events.js';
 import type {
   GroupSlotProps,
   HeaderSlotProps,
@@ -63,10 +65,12 @@ export interface ArgusTableEventProps<T = unknown> {
   'onSorting-change'?: (event: CustomEvent<SortingChangeDetail>) => void;
   /** `v-model:sorting`: the new `sorting` from `argus-sorting-change`. */
   'onUpdate:sorting'?: (value: ArgusTableElement<T>['sorting']) => void;
-  /** `argus-column-sizing-change`: `columnSizing` changed: a column was resized by dragging its handle, with Alt+Arrow on its header, by a double-click on its handle (fit to content) or by `autosizeColumns()`. `detail: { columnSizing, columnId, width }`. Fires on every frame of a drag, and once per column that changes (a group resize, `autosizeColumns()`). The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
+  /** `argus-column-sizing-change`: `columnSizing` changed: a column was resized by dragging its handle, with Alt+Arrow on its header, by a double-click on its handle (fit to content) or by `autosizeColumns()`. `detail: { columnSizing, columnId, width }`. Fires on every frame of a drag, and once per column that changes (a group resize, `autosizeColumns()`); to save widths once a resize is done, listen to `argus-column-resize-end`. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
   'onColumn-sizing-change'?: (event: CustomEvent<ColumnSizingChangeDetail>) => void;
   /** `v-model:columnSizing`: the new `columnSizing` from `argus-column-sizing-change`. */
   'onUpdate:columnSizing'?: (value: ArgusTableElement<T>['columnSizing']) => void;
+  /** `argus-column-resize-end`: A resize is done: a drag on a column's or group's resize handle was released, an Alt+Arrow press resized a column or group, or a double-click on a handle or `autosizeColumns()` fit columns to their content. Fires once, after that resize's `argus-column-sizing-change` events, and only if a width changed. `detail: { columnSizing, columnIds }`: the sizing after the resize (the last proposed one when `columnSizing` is controlled) and the columns it changed. Not fired when `columnSizing` or `setState()` set the widths. Use it to save widths without saving on every frame of a drag. */
+  'onColumn-resize-end'?: (event: CustomEvent<ColumnResizeEndDetail>) => void;
   /** `argus-column-order-change`: `columnOrder` changed: a column or column group was moved by dragging its header, or with Alt+Shift+Arrow on its focused header. Columns move within their pin side (start-pinned, scrolling, end-pinned) and their column group; groups move as a whole. `detail: { columnOrder, columnId, groupId? }`: `groupId` is set when a group moved, and `columnId` is then its first column. Fires once per move, on drop. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
   'onColumn-order-change'?: (event: CustomEvent<ColumnOrderChangeDetail>) => void;
   /** `v-model:columnOrder`: the new `columnOrder` from `argus-column-order-change`. */
@@ -95,6 +99,12 @@ export interface ArgusTableEventProps<T = unknown> {
   'onRange-change'?: (event: CustomEvent<RangeChangeDetail>) => void;
   /** `argus-load-error`: A `dataSource` page failed to load: `getRows()` rejected or threw. `detail: { error, start, end }` (`end` exclusive). The rows show a Retry button. */
   'onLoad-error'?: (event: CustomEvent<LoadErrorDetail>) => void;
+  /** `argus-formula-column-add`: From `formulas()` (`@argus-table/formulas`): the formula editor proposes a new formula column. The table doesn't change its columns: set `columns` to `detail.columns` to apply it. `detail: { column, columns }`. */
+  'onFormula-column-add'?: (event: CustomEvent<FormulaColumnDetail<T>>) => void;
+  /** `argus-formula-column-change`: From `formulas()` (`@argus-table/formulas`): the formula editor proposes a changed formula column (its formula, or a rename). The table doesn't change its columns: set `columns` to `detail.columns` to apply it. `detail: { column, columns }`, and `previous`, the column as it was. */
+  'onFormula-column-change'?: (event: CustomEvent<FormulaColumnChangeDetail<T>>) => void;
+  /** `argus-formula-column-remove`: From `formulas()` (`@argus-table/formulas`): the formula editor proposes removing a formula column. The table doesn't change its columns: set `columns` to `detail.columns` to apply it. `detail: { column, columns }`. */
+  'onFormula-column-remove'?: (event: CustomEvent<FormulaColumnDetail<T>>) => void;
 }
 
 /** Props of `<ArgusTable>`: element properties and event handlers. Other attributes go to the element. */
@@ -106,6 +116,7 @@ export interface ArgusTableEmit<T = unknown> {
   (event: 'update:sorting', value: ArgusTableElement<T>['sorting']): void;
   (event: 'column-sizing-change', payload: CustomEvent<ColumnSizingChangeDetail>): void;
   (event: 'update:columnSizing', value: ArgusTableElement<T>['columnSizing']): void;
+  (event: 'column-resize-end', payload: CustomEvent<ColumnResizeEndDetail>): void;
   (event: 'column-order-change', payload: CustomEvent<ColumnOrderChangeDetail>): void;
   (event: 'update:columnOrder', value: ArgusTableElement<T>['columnOrder']): void;
   (event: 'column-pinning-change', payload: CustomEvent<ColumnPinningChangeDetail>): void;
@@ -120,6 +131,11 @@ export interface ArgusTableEmit<T = unknown> {
   (event: 'row-click', payload: CustomEvent<RowClickDetail<T>>): void;
   (event: 'range-change', payload: CustomEvent<RangeChangeDetail>): void;
   (event: 'load-error', payload: CustomEvent<LoadErrorDetail>): void;
+  (
+    event: 'formula-column-add' | 'formula-column-remove',
+    payload: CustomEvent<FormulaColumnDetail<T>>,
+  ): void;
+  (event: 'formula-column-change', payload: CustomEvent<FormulaColumnChangeDetail<T>>): void;
 }
 
 /** What a template ref to `<ArgusTable>` gives. */
@@ -194,6 +210,7 @@ export const ArgusTable = defineWrapper({
       emit: 'column-sizing-change',
       model: { property: 'columnSizing', detailKey: 'columnSizing' },
     },
+    { name: 'argus-column-resize-end', emit: 'column-resize-end' },
     {
       name: 'argus-column-order-change',
       emit: 'column-order-change',
@@ -223,6 +240,9 @@ export const ArgusTable = defineWrapper({
     { name: 'argus-row-click', emit: 'row-click' },
     { name: 'argus-range-change', emit: 'range-change' },
     { name: 'argus-load-error', emit: 'load-error' },
+    { name: 'argus-formula-column-add', emit: 'formula-column-add' },
+    { name: 'argus-formula-column-change', emit: 'formula-column-change' },
+    { name: 'argus-formula-column-remove', emit: 'formula-column-remove' },
   ],
   methods: ['refresh', 'autosizeColumns', 'scrollToRow', 'scrollToColumn', 'getState', 'setState'],
   content: true,

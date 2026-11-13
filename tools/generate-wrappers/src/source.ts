@@ -43,8 +43,30 @@ export const usesContentTypes = (elements: readonly ElementInfo[], types: Conten
 export function argusTypes(elements: readonly ElementInfo[], withContent: boolean): string[] {
   const types = new Set<string>();
   for (const el of elements) {
-    for (const e of el.events) for (const t of referencedTypes(e.type)) types.add(t);
+    for (const e of el.events) {
+      if (e.from === undefined) for (const t of referencedTypes(e.type)) types.add(t);
+    }
   }
   if (withContent) types.add('CellContext');
   return [...types].sort();
+}
+
+/**
+ * `import type` lines for add-on events' types, from the wrapper's own modules
+ * (`ADDON_EVENTS`), sorted by module.
+ */
+export function addonTypeImports(elements: readonly ElementInfo[]): string {
+  const modules = new Map<string, Set<string>>();
+  for (const el of elements) {
+    for (const e of el.events) {
+      if (e.from === undefined) continue;
+      const types = modules.get(e.from) ?? new Set();
+      for (const t of referencedTypes(e.type)) types.add(t);
+      modules.set(e.from, types);
+    }
+  }
+  return [...modules]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([from, types]) => `import type { ${[...types].sort().join(', ')} } from '${from}';\n`)
+    .join('');
 }

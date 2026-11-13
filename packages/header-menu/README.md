@@ -34,7 +34,7 @@ One `headerMenu()` can serve several tables.
 
 ### Options
 
-`headerMenu({ pin: false })` leaves out the pin items, `headerMenu({ hide: false })` the hide and show items, and `headerMenu({ filter: false })` the filter items; all default to `true`. With all three off, only sortable and resizable columns (and columns with items from other plugins) get a menu. To keep a single column out, set `pinnable: false` or `hideable: false` on it, or leave out its `filter`.
+`headerMenu({ sort: false })` leaves out the sort items, `headerMenu({ fitWidth: false })` Fit width, `headerMenu({ pin: false })` the pin items, `headerMenu({ hide: false })` the hide and show items, and `headerMenu({ filter: false })` the filter items; all default to `true`. A column gets a menu only if something is left in it, so with all five off only columns with items from other plugins get one. Without the sort items a click on the header still sorts: that's the table's own, turned off per column with `sortable: false`. To keep a single column out, set `pinnable: false` or `hideable: false` on it, or leave out its `filter`.
 
 ## What it does
 

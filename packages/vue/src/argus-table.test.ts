@@ -93,6 +93,7 @@ describe('<ArgusTable>', () => {
     const onCellClick = vi.fn();
     const onRowClick = vi.fn();
     const onSortingChange = vi.fn();
+    const onColumnResizeEnd = vi.fn();
     const { el } = await mount(() =>
       h(ArgusTable<Order>, {
         style: size,
@@ -101,6 +102,7 @@ describe('<ArgusTable>', () => {
         onCellClick,
         onRowClick,
         'onSorting-change': onSortingChange,
+        'onColumn-resize-end': onColumnResizeEnd,
       }),
     );
 
@@ -117,6 +119,30 @@ describe('<ArgusTable>', () => {
     expect(onSortingChange.mock.calls[0]?.[0]).toMatchObject({
       detail: { sorting: [{ id: 'total', desc: false }] },
     });
+
+    await el.autosizeColumns(['id']);
+    expect(onColumnResizeEnd).toHaveBeenCalledOnce();
+    expect(onColumnResizeEnd.mock.calls[0]?.[0]).toMatchObject({ detail: { columnIds: ['id'] } });
+  });
+
+  test('emits the formula editor’s events', async () => {
+    const handlers = { add: vi.fn(), change: vi.fn(), remove: vi.fn() };
+    const { el } = await mount(() =>
+      h(ArgusTable<Order>, {
+        style: size,
+        columns,
+        data: orders,
+        'onFormula-column-add': handlers.add,
+        'onFormula-column-change': handlers.change,
+        'onFormula-column-remove': handlers.remove,
+      }),
+    );
+    const detail = { column: columns[0], columns };
+    for (const [name, handler] of Object.entries(handlers)) {
+      el.dispatchEvent(new CustomEvent(`argus-formula-column-${name}`, { detail, bubbles: true }));
+      expect(handler).toHaveBeenCalledOnce();
+      expect((handler.mock.calls[0]?.[0] as CustomEvent).detail).toBe(detail);
+    }
   });
 
   test('ignores the events of a table nested in a cell', async () => {

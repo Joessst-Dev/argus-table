@@ -20,13 +20,27 @@ interface TableState<T> {
   ids: string;
   /** Each column's text header (or its id), for items and announcements about it, hidden ones too. */
   headerText: Map<string, string>;
-  options: { pin: boolean; hide: boolean; filter: boolean; labels: HeaderMenuLabels };
+  options: {
+    sort: boolean;
+    fitWidth: boolean;
+    pin: boolean;
+    hide: boolean;
+    filter: boolean;
+    labels: HeaderMenuLabels;
+  };
   /** The open filter form, if any (never at the same time as a menu). */
   form: FilterForm | undefined;
 }
 
-/** What `headerMenu()` puts in the menu besides sorting and fitting widths. */
+/** What `headerMenu()` puts in the menu, and its text. */
 export interface HeaderMenuOptions {
+  /**
+   * Sort ascending, Sort descending and Unsorted, for columns with `sortable`.
+   * Default: `true`. Without them a click on the header still sorts: that's the table's own.
+   */
+  sort?: boolean;
+  /** Fit width, which fits a resizable column to its content. Default: `true`. */
+  fitWidth?: boolean;
   /** Pin to start, Pin to end and Don't pin, for columns with `pinnable` (the default). Default: `true`. */
   pin?: boolean;
   /**
@@ -120,6 +134,8 @@ const ICON = html`<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
 export function headerMenu<T = unknown>(options: HeaderMenuOptions = {}): ArgusPlugin<T> {
   const states = new WeakMap<HTMLElement, TableState<T>>();
   const resolved = {
+    sort: options.sort !== false,
+    fitWidth: options.fitWidth !== false,
     pin: options.pin !== false,
     hide: options.hide !== false,
     filter: options.filter !== false,
@@ -216,6 +232,14 @@ function textOf<T>(def: ColumnDef<T, unknown>): string {
 
 const labelOf = <T>(state: TableState<T>, id: string) => state.headerText.get(id) ?? id;
 
+/** Whether the menu has sort items for this column. */
+const canSort = <T>(state: TableState<T>, column: ColumnInfo) =>
+  state.options.sort && column.sortable;
+
+/** Whether the menu can fit this column's width. */
+const canFit = <T>(state: TableState<T>, column: ColumnInfo) =>
+  state.options.fitWidth && column.resizable;
+
 /** Whether the menu can pin and unpin this column. */
 const canPin = <T>(state: TableState<T>, column: ColumnInfo) =>
   state.options.pin && column.pinnable;
@@ -245,13 +269,18 @@ const canHide = (column: ColumnInfo, shown: readonly ColumnInfo[]) =>
   column.hideable && shown.length > 1;
 
 /**
- * Columns with something in the menu: sortable, resizable, pinnable or hideable
- * ones, every column while some are hidden (to show them), and columns with items
- * from other plugins.
+ * Columns with something in the menu: sortable, resizable, pinnable, filterable or
+ * hideable ones (as far as the options allow those items), every column while some
+ * are hidden (to show them), and columns with items from other plugins.
  */
 function hasMenu<T>(state: TableState<T>, column: ColumnInfo | undefined): column is ColumnInfo {
   if (column === undefined) return false;
-  if (column.sortable || column.resizable || canPin(state, column) || canFilter(state, column)) {
+  if (
+    canSort(state, column) ||
+    canFit(state, column) ||
+    canPin(state, column) ||
+    canFilter(state, column)
+  ) {
     return true;
   }
   const { shown, hidden } = visibility(state);
@@ -334,7 +363,7 @@ function menu<T>(
 ): TemplateResult {
   const { id } = column;
   const { labels } = state.options;
-  const sortItems = column.sortable
+  const sortItems = canSort(state, column)
     ? SORT_ITEMS.map((item) =>
         menuItem(
           labels[item.label],
@@ -424,7 +453,7 @@ function menu<T>(
       ${items}
     </div>`;
   });
-  const fit = column.resizable
+  const fit = canFit(state, column)
     ? menuItem(labels.fitWidth, () => {
         void fitWidth(state, id, labelId);
       })

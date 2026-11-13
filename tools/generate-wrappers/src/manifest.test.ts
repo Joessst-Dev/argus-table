@@ -185,6 +185,26 @@ describe('readElement', () => {
     expect(() => readElement(m, 'argus-table')).toThrow(/argus-sort-change.*matches no property/);
   });
 
+  test('adds the add-ons’ events after the element’s own, with their type module', () => {
+    const table = readElement(manifest(), 'argus-table');
+    const names = table.events.map((e) => e.name);
+    expect(names.slice(-3)).toEqual([
+      'argus-formula-column-add',
+      'argus-formula-column-change',
+      'argus-formula-column-remove',
+    ]);
+    expect(table.events.at(-2)).toMatchObject({
+      type: 'CustomEvent<FormulaColumnChangeDetail<T>>',
+      from: '../formula-events.js',
+      react: 'onFormulaColumnChange',
+      vue: 'formula-column-change',
+      angular: 'formulaColumnChange',
+    });
+    // An action the app applies, not state: no model, and no failure for its -change name.
+    expect(table.models.some((m) => m.event === 'argus-formula-column-change')).toBe(false);
+    expect(readElement(manifest(), 'argus-column').events).toEqual([]);
+  });
+
   test('fails when an event has no type', () => {
     const m = manifest({ tableEvents: [{ name: 'argus-sorting-change' }] });
     expect(() => readElement(m, 'argus-table')).toThrow(/@fires \{CustomEvent<…>\}/);
@@ -219,12 +239,19 @@ describe('emitReact', () => {
       "export type ArgusTableElementProps<T = unknown> = Partial<Pick<ArgusTableElement<T>, 'data' | 'rowHeight' | 'sorting' | 'columnSizing' | 'columnOrder' | 'columnPinning' | 'columnVisibility' | 'columnFilters' | 'selection'>>;",
     );
     expect(source).toContain('onRowClick?: (event: CustomEvent<RowClickDetail<T>>) => void;');
+    // Add-on events' types come from the wrapper's own module.
+    expect(source).toContain(
+      "import type { FormulaColumnChangeDetail, FormulaColumnDetail } from '../formula-events.js';",
+    );
+    expect(source).toContain(
+      'onFormulaColumnAdd?: (event: CustomEvent<FormulaColumnDetail<T>>) => void;',
+    );
     expect(source).toContain("onSortingChange: 'argus-sorting-change',");
     // Elements with events only pass their own events on (a nested table's bubble too).
     expect(source).toContain("import { ownEvents } from '../own-events.js';");
     expect(source).toContain('export const ArgusTable = ownEvents(createComponent({');
     expect(source).toContain(
-      "}), ['onSortingChange', 'onColumnSizingChange', 'onColumnOrderChange', 'onColumnPinningChange', 'onColumnVisibilityChange', 'onColumnFiltersChange', 'onRowClick', 'onSelectionChange'], 'ArgusTable') as unknown as <T = unknown>(props: ArgusTableProps<T>) => React.ReactElement | null;",
+      "}), ['onSortingChange', 'onColumnSizingChange', 'onColumnOrderChange', 'onColumnPinningChange', 'onColumnVisibilityChange', 'onColumnFiltersChange', 'onRowClick', 'onSelectionChange', 'onFormulaColumnAdd', 'onFormulaColumnChange', 'onFormulaColumnRemove'], 'ArgusTable') as unknown as <T = unknown>(props: ArgusTableProps<T>) => React.ReactElement | null;",
     );
     // No events: no event props interface, and no type parameter when nothing uses T.
     expect(source).not.toContain('ArgusColumnEventProps');
@@ -339,6 +366,12 @@ describe('emitVue', () => {
       '{"name":"argus-sorting-change","emit":"sorting-change","model":{"property":"sorting","detailKey":"sorting"}}',
     );
     expect(source).toContain('{"name":"argus-row-click","emit":"row-click"}');
+    expect(source).toContain(
+      '{"name":"argus-formula-column-change","emit":"formula-column-change"}',
+    );
+    expect(source).toContain(
+      "import type { FormulaColumnChangeDetail, FormulaColumnDetail } from '../formula-events.js';",
+    );
     expect(source).toContain('"methods":["refresh"]');
     expect(source).toContain('"props":["columnId","sortable","width"],"booleans":["sortable"]');
   });
@@ -352,6 +385,10 @@ describe('emitVue', () => {
     );
     expect(source).toContain(
       "(event: 'update:columnOrder', value: ArgusTableElement<T>['columnOrder']): void;",
+    );
+    // Events with one payload type share a signature.
+    expect(source).toContain(
+      "(event: 'formula-column-add' | 'formula-column-remove', payload: CustomEvent<FormulaColumnDetail<T>>): void;",
     );
     expect(source).toContain("refresh: ArgusTableElement<T>['refresh'];");
     expect(source).toContain(') => VNode & { __ctx?: ArgusTableContext<T> };');
@@ -404,6 +441,13 @@ describe('emitAngular', () => {
     );
     expect(source).toContain(
       '@Output() readonly rowClick = new EventEmitter<CustomEvent<RowClickDetail<T>>>();',
+    );
+    // An add-on's -change event emits the whole event: it isn't a two-way property.
+    expect(source).toContain(
+      'this.formulaColumnChange.emit(event as CustomEvent<FormulaColumnChangeDetail<T>>);',
+    );
+    expect(source).toContain(
+      "import type { FormulaColumnChangeDetail, FormulaColumnDetail } from '../formula-events.js';",
     );
     expect(source).toContain('if (event.target !== this.element) return;');
     expect(source).toContain(
