@@ -129,6 +129,7 @@ export interface ArgusTableExposed<T = unknown> {
   refresh: ArgusTableElement<T>['refresh'];
   autosizeColumns: ArgusTableElement<T>['autosizeColumns'];
   scrollToRow: ArgusTableElement<T>['scrollToRow'];
+  scrollToColumn: ArgusTableElement<T>['scrollToColumn'];
   getState: ArgusTableElement<T>['getState'];
   setState: ArgusTableElement<T>['setState'];
 }
@@ -223,7 +224,7 @@ export const ArgusTable = defineWrapper({
     { name: 'argus-range-change', emit: 'range-change' },
     { name: 'argus-load-error', emit: 'load-error' },
   ],
-  methods: ['refresh', 'autosizeColumns', 'scrollToRow', 'getState', 'setState'],
+  methods: ['refresh', 'autosizeColumns', 'scrollToRow', 'scrollToColumn', 'getState', 'setState'],
   content: true,
 }) as unknown as <T = unknown>(
   props: ArgusTableContext<T>['props'],

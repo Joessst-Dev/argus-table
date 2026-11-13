@@ -169,3 +169,99 @@ test.describe('the header at the end of 1,000,000 rows', () => {
     });
   }
 });
+
+/** Where a row (by aria-rowindex) sits in the body's view: its centre and the view's, in px. */
+function rowInView(page: Page, ariaRowIndex: number) {
+  return page.evaluate((index) => {
+    const root = document.querySelector('argus-table')?.shadowRoot;
+    const scroller = root?.querySelector<HTMLElement>('[part~="table"]');
+    const row = root?.querySelector(`[role='row'][aria-rowindex="${String(index)}"]`);
+    const header = root?.querySelector(`[role='row'][aria-rowindex="1"]`);
+    if (!scroller || !row || !header) return undefined;
+    const box = scroller.getBoundingClientRect();
+    const r = row.getBoundingClientRect();
+    const start = header.getBoundingClientRect().bottom;
+    const end = box.top + scroller.clientTop + scroller.clientHeight;
+    return { row: (r.top + r.bottom) / 2, view: (start + end) / 2, bottom: r.bottom, end };
+  }, ariaRowIndex);
+}
+
+test.describe('scrollToRow() with align', () => {
+  for (const rows of [100_000, 1_000_000]) {
+    test(`centres a row and puts one at the bottom, ${String(rows)} rows`, async ({ page }) => {
+      await open(page, { rows, cols: 8 });
+      const index = Math.round(rows * 0.7654);
+      // Firefox keeps scroll offsets past about 4M px to half a px, so deep in a
+      // scaled body a row can land 1 px off, with the default 'start' as well.
+      const slack = rows > 100_000 ? 1 : 0.5;
+      const found = await page.evaluate(
+        (i) => document.querySelector('argus-table')?.scrollToRow(i, { align: 'center' }),
+        index,
+      );
+      expect(found).toBe(true);
+      const centred = await rowInView(page, index + 2);
+      expect(Math.abs((centred?.row ?? 0) - (centred?.view ?? 1e9))).toBeLessThanOrEqual(slack);
+
+      // The playground's row ids are `r<index>`.
+      const byId = await page.evaluate(
+        (id) => document.querySelector('argus-table')?.scrollToRow({ id }, { align: 'end' }),
+        `r${String(index - 500)}`,
+      );
+      expect(byId).toBe(true);
+      const last = await rowInView(page, index - 498);
+      expect(Math.abs((last?.bottom ?? 0) - (last?.end ?? 1e9))).toBeLessThanOrEqual(slack);
+    });
+  }
+});
+
+test.describe('scrollToColumn()', () => {
+  for (const dir of ['ltr', 'rtl']) {
+    test(`lands a column between the pinned ones, ${dir}`, async ({ page }) => {
+      await open(page, { rows: 1000, cols: 40, ...(dir === 'rtl' ? { dir } : {}) });
+      const edges = (id: string) =>
+        page.evaluate((col) => {
+          const root = document.querySelector('argus-table')?.shadowRoot;
+          const header = (c: string) =>
+            root
+              ?.querySelector(`[role='row'][aria-rowindex="1"] > [data-col="${c}"]`)
+              ?.getBoundingClientRect();
+          const target = header(col);
+          // The pinned columns next to the scrolling area: the last start one, the first end one.
+          const pinned = [
+            ...(root?.querySelectorAll('[part~="header-cell-pinned-edge"]') ?? []),
+          ].map((c) => c.getBoundingClientRect());
+          return { target, pinned };
+        }, id);
+      const rtl = dir === 'rtl';
+
+      expect(
+        await page.evaluate(() =>
+          document.querySelector('argus-table')?.scrollToColumn('f20', { align: 'start' }),
+        ),
+      ).toBe(true);
+      let { target, pinned } = await edges('f20');
+      // The start-pinned edge column is the first pinned edge in the DOM.
+      const start = pinned[0];
+      expect(
+        Math.abs(
+          rtl
+            ? (target?.right ?? 0) - (start?.left ?? 1e9)
+            : (target?.left ?? 0) - (start?.right ?? 1e9),
+        ),
+      ).toBeLessThan(1);
+
+      await page.evaluate(() =>
+        document.querySelector('argus-table')?.scrollToColumn('f25', { align: 'end' }),
+      );
+      ({ target, pinned } = await edges('f25'));
+      const end = pinned.at(-1);
+      expect(
+        Math.abs(
+          rtl
+            ? (target?.left ?? 0) - (end?.right ?? 1e9)
+            : (target?.right ?? 0) - (end?.left ?? 1e9),
+        ),
+      ).toBeLessThan(1);
+    });
+  }
+});

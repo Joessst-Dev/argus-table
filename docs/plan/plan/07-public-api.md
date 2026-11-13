@@ -418,7 +418,16 @@ A change of controllable state fires `argus-<property>-change`: `detail` has the
 
 ## Methods
 
-`scrollToRow(index)`, `refresh()`, `autosizeColumns(ids?)`, `getState()` / `setState()`. (`scrollToColumn(id)` was planned and isn't built; it is on the list of additions after 1.0 in [ADR 0004](../../adr/0004-api-1-0.md).)
+`scrollToRow(target, options?)`, `scrollToColumn(id, options?)`, `refresh()`, `autosizeColumns(ids?)`, `getState()` / `setState()`.
+
+- `scrollToRow(target, { align })` (v0.1, options after 1.0): `target` is an index in the current row order (after sorting and filtering) or `{ id }`, a `getRowId` id. `align` (`ScrollAlign`) puts the row at the top of the view (`'start'`, the default: just below the header and the top pinned rows), at the bottom (`'end'`, just above the bottom pinned rows), in the middle (`'center'`), or scrolls only as far as needed to show it in full (`'nearest'`). It works the same in a scaled body and with `rowHeight: 'auto'` (rows measured on the way are taken into account). Resolves `true` once the table has re-rendered there; `false` for an id not in the rows (unknown, filtered out, a pinned row, a `dataSource` row not loaded; nothing scrolls), a negative index, or an index past the last row (it scrolls to the end). With a `dataSource` whose total isn't known, an index past the rows counted so far resolves `false`, and the table scrolls on toward it as pages arrive, unless the user scrolls, clicks or presses a key first.
+- `scrollToColumn(id, { align })` (after 1.0): scrolls sideways so the column shows in the scrolling area between the pinned columns. `align` defaults to `'nearest'` (no scroll when the column is in view in full); `'start'`, `'end'` and `'center'` as for rows, logical, so RTL works. Positions are measured from the rendered header, so flex columns land right; with `virtualizeColumns` the column renders first. Resolves `true` once the table has re-rendered there (a pinned column is always in view and doesn't scroll), `false` for an id of no column or of a hidden one.
+
+```js
+await table.scrollToRow({ id: 'order-42' }, { align: 'center' });
+await table.scrollToColumn('total');
+```
+
 
 - `autosizeColumns(ids?)` (v0.2): fits the given columns (default: every resizable one) to the header, the pinned rows and the rendered body rows, as a resize; see [Column widths](#column-widths). Columns with `resizable: false` keep their width. Resolves once the table has re-rendered.
 - `refresh()` (v0.2): with a `dataSource`, drops every loaded page and loads the rows in view again; with `data`, re-renders the cells. Resolves once the table has re-rendered.

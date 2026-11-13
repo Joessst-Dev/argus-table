@@ -234,6 +234,13 @@ export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
     return this.element.scrollToRow(...args);
   }
 
+  /** Calls the element's `scrollToColumn()`. */
+  scrollToColumn(
+    ...args: Parameters<ArgusTableElement<T>['scrollToColumn']>
+  ): ReturnType<ArgusTableElement<T>['scrollToColumn']> {
+    return this.element.scrollToColumn(...args);
+  }
+
   /** Calls the element's `getState()`. */
   getState(
     ...args: Parameters<ArgusTableElement<T>['getState']>

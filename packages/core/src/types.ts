@@ -289,6 +289,32 @@ export interface ScrollState {
 }
 
 /**
+ * Where `scrollToRow()` and `scrollToColumn()` put their target in the view:
+ * `'start'` at the start (just past the header and pinned rows, or the
+ * start-pinned columns), `'end'` at the end, `'center'` in the middle, and
+ * `'nearest'` only as far as needed to show it in full (not at all when it is).
+ */
+export type ScrollAlign = 'start' | 'center' | 'end' | 'nearest';
+
+/** Options of `scrollToRow()`. */
+export interface ScrollToRowOptions {
+  /** Where the row goes in the view. Default `'start'`. */
+  align?: ScrollAlign;
+}
+
+/** Options of `scrollToColumn()`. */
+export interface ScrollToColumnOptions {
+  /** Where the column goes in the scrolling area. Default `'nearest'`. */
+  align?: ScrollAlign;
+}
+
+/**
+ * A row for `scrollToRow()`: its index in the current row order (after sorting
+ * and filtering), or its id (`getRowId`'s).
+ */
+export type RowTarget = number | { id: string };
+
+/**
  * The state users change, as one object of plain JSON, for saving a user's layout:
  * `getState()` returns every key, and `setState()` applies the keys it is given.
  */
