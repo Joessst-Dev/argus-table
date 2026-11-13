@@ -12,6 +12,8 @@ npm i @argus-table/react @argus-table/themes
 
 `argus-table` comes with it. React 18.3 or 19 is a peer dependency.
 
+With a coding agent, the [`argus-table-integrate` skill](https://github.com/Joessst-Dev/argus-table/tree/main/skills#readme) sets the table up in your app, or migrates one from AG Grid, TanStack Table, MUI X and others.
+
 ## A first table
 
 ```tsx

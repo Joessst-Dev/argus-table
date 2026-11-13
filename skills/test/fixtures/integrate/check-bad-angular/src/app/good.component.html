@@ -1,0 +1,10 @@
+<argus-table
+  aria-label="Orders"
+  [columns]="columns"
+  [data]="orders"
+  [plugins]="plugins"
+  [getRowId]="getRowId"
+  selectionMode="multi"
+  [(sorting)]="sorting"
+  (rowClick)="$event.detail.row"
+/>

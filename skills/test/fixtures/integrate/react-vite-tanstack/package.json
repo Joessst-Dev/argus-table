@@ -1,0 +1,12 @@
+{
+  "name": "react-vite-tanstack",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@tanstack/react-table": "^8.21.3",
+    "@tanstack/react-virtual": "^3.13.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": { "typescript": "~5.8.0", "vite": "^7.0.0" }
+}

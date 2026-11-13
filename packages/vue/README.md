@@ -12,6 +12,8 @@ npm i @argus-table/vue @argus-table/themes
 
 `argus-table` comes with it. Vue 3.5 or newer is a peer dependency. No `isCustomElement` setting is needed: you use the components, not the raw tags.
 
+With a coding agent, the [`argus-table-integrate` skill](https://github.com/Joessst-Dev/argus-table/tree/main/skills#readme) sets the table up in your app, or migrates one from AG Grid, TanStack Table, MUI X and others.
+
 ## A first table
 
 ```vue

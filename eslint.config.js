@@ -16,6 +16,8 @@ export default tseslint.config(
       '**/.nx/**',
       // The starters are standalone apps with their own tooling (built by the smoke test).
       'apps/examples/{html,react,vue,angular,.smoke}/**',
+      // Sample apps the integrate skill's scripts read, some broken on purpose.
+      'skills/test/fixtures/**',
     ],
   },
   js.configs.recommended,

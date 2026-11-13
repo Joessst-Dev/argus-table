@@ -15,3 +15,6 @@ docs/plan/
 
 # Smoke-test copies of the starters (apps/examples/scripts/prepare.mjs)
 apps/examples/.smoke/
+
+# Sample apps the argus-table-integrate skill's tests read, written as their authors would
+skills/test/fixtures/

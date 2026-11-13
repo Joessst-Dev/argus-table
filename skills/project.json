@@ -1,14 +1,38 @@
 {
   "name": "skills",
   "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "implicitDependencies": [
+    "argus-table",
+    "core",
+    "react",
+    "vue",
+    "angular",
+    "themes",
+    "header-menu",
+    "formulas",
+    "export"
+  ],
   "targets": {
     "lint": {
       "command": "eslint .",
-      "options": { "cwd": "{projectRoot}" }
+      "options": { "cwd": "{projectRoot}" },
+      "dependsOn": []
     },
     "test": {
       "command": "node --test test/*.test.mjs",
-      "options": { "cwd": "{projectRoot}" }
+      "options": { "cwd": "{projectRoot}" },
+      "dependsOn": [{ "projects": ["argus-table"], "target": "build" }],
+      "inputs": [
+        "default",
+        "^production",
+        "{workspaceRoot}/.changeset/config.json",
+        "{workspaceRoot}/.claude-plugin/marketplace.json",
+        "{workspaceRoot}/tools/generate-wrappers/src/addon-events.ts",
+        "{workspaceRoot}/apps/examples/html/**/*",
+        "{workspaceRoot}/apps/examples/react/**/*",
+        "{workspaceRoot}/apps/examples/vue/**/*",
+        "{workspaceRoot}/apps/examples/angular/**/*"
+      ]
     }
   }
 }

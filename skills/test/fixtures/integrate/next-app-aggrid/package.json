@@ -1,0 +1,12 @@
+{
+  "name": "next-app-aggrid",
+  "private": true,
+  "dependencies": {
+    "ag-grid-enterprise": "^33.2.0",
+    "ag-grid-react": "^33.2.0",
+    "next": "^15.3.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": { "typescript": "^5.8.0" }
+}

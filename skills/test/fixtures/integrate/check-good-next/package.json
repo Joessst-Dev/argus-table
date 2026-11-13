@@ -1,0 +1,12 @@
+{
+  "name": "check-good-next",
+  "private": true,
+  "dependencies": {
+    "@argus-table/react": "^1.1.0",
+    "@argus-table/themes": "^1.1.0",
+    "argus-table": "^1.1.0",
+    "next": "^15.3.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  }
+}
