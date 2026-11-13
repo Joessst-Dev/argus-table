@@ -24,12 +24,17 @@ export const ordersSource: DataSource<Order> = {
 - **`start` / `end`:** row indexes, `end` exclusive (like `slice`). Ask the server for `end - start` rows from `start`.
 - **`sorting`:** `[{ id, desc }]` in priority order; `[]` unsorted. The table doesn't sort these rows: the server must. Columns still need `sortable: true`.
 - **`filters`:** `{ [columnId]: ColumnFilter }` ([api.md](api.md#filters)). `quickFilter`: the search text. The server filters.
-- **`signal`:** aborted when the rows aren't needed any more (scrolled away, a new sort). Pass it to `fetch`.
+- **`signal`:** aborted when the rows aren't needed any more (scrolled away, a new sort). Pass it to `fetch` to save the request. An API client without a signal works too: the table drops answers to requests it no longer wants.
 - **`total`:** the number of rows, if the server knows it. Without it, the table grows as pages arrive and a short page marks the end (an unknown total shows as an open-ended scrollbar).
 - **Errors:** throw or reject. The rows show a Retry button, and `argus-load-error` fires with `{ error, start, end }`.
 - **A new sort, filter or quick filter** starts a fresh cache and scrolls to the top. `table.refresh()` reloads the pages in view (after the data changed on the server).
 - **Keep the object stable.** A new `dataSource` object is a new source: it reloads from the top. Define it once (module scope, `useMemo`, a class field); to change parameters (a tenant, a date range), make a new one on purpose.
 - **`getRowId`:** use the server's ids. Without it, ids are positions in the server's order, which change with sorting.
+
+- **Pages are aligned:** `start` is always a multiple of the table's `pageSize`, and `end - start` is `pageSize` (less for the last page once `total` is known). So a page-based API gets `page = start / pageSize` exactly.
+- **Column ids are what the server gets** in `sorting` and `filters`. When they differ from the API's field names, map them in `getRows` (a small `Record<columnId, apiField>`), rather than renaming columns.
+- **State that only drove the fetch goes away:** pagination, sort and filter state, `loading` flags and the effect that fetched. Keep `sorting` bound only if the app shows or saves it.
+- **Showing the total** (the old footer's "1–25 of 50,000"): keep the `total` from the last `getRows` in your own state and render it next to the table.
 
 ## Mapping API styles
 

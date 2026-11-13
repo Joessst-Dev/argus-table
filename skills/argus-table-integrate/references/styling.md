@@ -2,7 +2,7 @@
 
 ## Themes
 
-`@argus-table/themes` has five: `default`, `material`, `fluent`, `bootstrap`, `minimal`. Each is one CSS file that styles every `argus-table` on the page through `--argus-*` tokens and `::part()` rules. Load one, once, after the table:
+`@argus-table/themes` has five: `default`, `material`, `fluent`, `bootstrap`, `minimal`. Each is one CSS file that styles every `argus-table` on the page through `--argus-*` tokens and `::part()` rules. Import one, once, where the app's global CSS goes, before the app's own CSS (so the app's token overrides win):
 
 | App                      | Where                                                                                              |
 | ------------------------ | -------------------------------------------------------------------------------------------------- |
@@ -27,10 +27,13 @@
 | MUI, Vuetify, Angular Material                            | `material`                                            |
 | Bootstrap tables, PrimeNG/PrimeVue, Element Plus `stripe` | `bootstrap`                                           |
 | Tailwind/shadcn, Ant Design                               | `minimal` or `default`, then the app's tokens (below) |
+| A plain `<table>` styled by the app                       | `default` or `minimal`, then the app's tokens         |
+
+Themes set their own font (`--argus-font`). A table that used the page's font should keep it: `argus-table { --argus-font: inherit; }`.
 
 ## Density
 
-`density="compact" | "comfortable" | "spacious"` (default `comfortable`): MUI `compact`/`standard`/`comfortable` → `compact`/`comfortable`/`spacious`; Vuetify `compact`/`default`/`comfortable` the same way; AG Grid `rowHeight` 28–32 → `compact`. An exact height: `rowHeight={36}` (or the `--argus-row-height` token in CSS).
+`density="compact" | "comfortable" | "spacious"` (default `comfortable`): MUI `compact`/`standard`/`comfortable` → `compact`/`comfortable`/`spacious`; Vuetify `compact`/`default`/`comfortable` the same way; AG Grid `rowHeight` 28–32 → `compact`. The heights differ between libraries (MUI `compact` is 36px, a theme's `compact` may be 40px): for an exact match set `rowHeight={36}` (or the `--argus-row-height` token in CSS).
 
 ## Height
 
@@ -81,3 +84,5 @@ States are part names: `row-selected`, `row-odd`, `header-cell-sorted`, `cell-pi
 ## Cell content
 
 Cell and header content is in the page's light DOM: style it with the app's own CSS classes, Tailwind classes, CSS modules or the framework's scoped styles (Angular component styles apply to `argusCell` templates, which are part of the component's template; in Vue, check that `scoped` styles reach slot content, else use `:deep()` or a global class). Old grid CSS that targeted the grid's internals (`.ag-cell`, `.MuiDataGrid-cell`, `td.mat-cell`) has no effect: move what you need to tokens, parts or the content's own classes.
+
+The themes follow the light or dark scheme; the app's own CSS in cells (a badge with a fixed light background) doesn't. Give it both schemes (`light-dark()`, or the app's dark-mode class).

@@ -152,7 +152,7 @@ describe('scan.mjs', () => {
     assert.deepEqual(u.scope.files, ['main.js']);
     assert.deepEqual(feature(u, 'pagination').at, ['main.js:7']);
     assert.equal(feature(u, 'sorting').fit, 'maps');
-    assert.equal(feature(u, 'search').fit, 'maps');
+    assert.equal(feature(u, 'search').fit, 'partial');
     const all = await scan(dir, '--include-static-tables');
     assert.deepEqual(
       all.usages.map((u) => u.file),

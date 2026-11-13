@@ -107,7 +107,7 @@ function Orders({ rows }: { rows: Order[] }) {
 }
 ```
 
-Columns that depend on props or state: `useMemo(() => [...], [deps])`. Keep accessor functions stable too: a column whose `accessor` is a new function makes the table re-read its values. In Vue, declare them in `<script setup>`, not inline in the template; in Angular, as readonly class fields.
+Columns that depend on props or state: `useMemo(() => [...], [deps])`. Columns a component receives as a prop are fine: the stability is the caller's job. In Angular, a `get columns()` that returns a new array is read on every change detection: use a readonly field or a `computed()`. Keep accessor functions stable too: a column whose `accessor` is a new function makes the table re-read its values. In Vue, declare them in `<script setup>`, not inline in the template; in Angular, as readonly class fields.
 
 ## selection-without-row-id
 
@@ -149,14 +149,26 @@ export default async function Page() {
   const orders = await getOrders();
   return <OrdersTable orders={orders} />;
 }
+```
 
-// app/orders/orders-table.tsx
-('use client');
+`app/orders/orders-table.tsx`, with the directive as its first line:
+
+```tsx
+'use client';
+
 import { ArgusTable, type ReactColumnDef } from '@argus-table/react';
 const columns: ReactColumnDef<Order>[] = [/* … cells may be JSX … */];
 export function OrdersTable({ orders }: { orders: Order[] }) {
   return <ArgusTable aria-label="Orders" columns={columns} data={orders} getRowId={(o) => o.id} />;
 }
+```
+
+## datasource-without-row-id
+
+With a `dataSource` and no `getRowId`, a row's id is its position in the server's order. Saved selection, `scrollToRow({ id })` and anything keyed by row id then point at other rows after a sort or filter. Return the server's id, as a string:
+
+```ts
+getRowId = (user: User) => String(user.id);
 ```
 
 ## controlled-without-handler

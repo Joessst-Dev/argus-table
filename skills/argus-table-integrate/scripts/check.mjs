@@ -54,6 +54,7 @@ import {
   objectsInArray,
 } from './lib/markup.mjs';
 import {
+  makeResolver,
   MARKUP_EXTS,
   SCRIPT_EXTS,
   STYLE_EXTS,
@@ -81,6 +82,7 @@ export const RULES = {
   'missing-label': 'warn',
   'unstable-identity': 'warn',
   'selection-without-row-id': 'warn',
+  'datasource-without-row-id': 'info',
   'plugin-order': 'error',
   'addon-not-installed': 'error',
   'addon-not-registered': 'warn',
@@ -199,10 +201,18 @@ const PROP_RENAMES = {
   pinnedBottomRowData: 'pinnedRows',
   localeText: 'labels',
   locale: 'labels',
-  loading: 'nothing: rows load through dataSource and show as skeletons',
-  pagination: 'nothing: argus-table scrolls (see references/gaps.md#pagination)',
-  paginationModel: 'nothing: argus-table scrolls (see references/gaps.md#pagination)',
+
   pageSize: 'dataSource.pageSize',
+};
+
+/** Props of other grids with no equivalent, and why. */
+const PROP_GONE = {
+  loading: 'rows from a dataSource show as skeletons while they load',
+  pagination: 'the table scrolls instead of paging (references/gaps.md#pagination)',
+  paginationModel: 'the table scrolls instead of paging (references/gaps.md#pagination)',
+  paginationMode: 'a dataSource loads pages as they scroll into view',
+  pageSizeOptions: 'the table scrolls instead of paging (references/gaps.md#pagination)',
+  rowCount: "a dataSource's getRows returns the total",
 };
 
 /** Parses the command line; throws a usage error. */
@@ -562,7 +572,9 @@ export function check(options) {
     }
 
     // --- Tables ---
-    const vanilla = vanillaBindings(projectFiles);
+    const resolver = makeResolver(dir);
+    const trace = (file, value) => traceArray(file, value, { resolver, fileOf });
+    const vanilla = vanillaBindings(projectFiles, trace);
     const tables = [];
     for (const file of projectFiles) {
       for (const name of ['ArgusTable', 'argus-table']) {
@@ -585,6 +597,7 @@ export function check(options) {
         fileOf,
         templateOwner,
         projectFiles,
+        trace,
       });
     // Vanilla tables: bindings made in scripts, checked once per project.
     if (vanilla.files.length) checkVanilla(vanilla, tables, { report, fromLibraries });
@@ -604,7 +617,7 @@ export function check(options) {
           if (a.kind === 'event') reasons.push(a.name);
           else if (['plugins', 'getRowId', 'dataSource'].includes(a.name)) reasons.push(a.name);
           else if (a.name === 'columns' && a.value) {
-            const cols = traceArray(t.file.text, a.value);
+            const cols = trace(t.file, a.value);
             if (cols && /=>|\bfunction\b|\bcell\s*:/.test(cols.text))
               reasons.push('columns with functions');
           }
@@ -627,7 +640,7 @@ export function check(options) {
     // --- Old libraries ---
     const catalogDeps = LIBRARIES.flatMap((l) => l.deps.map((d) => ({ dep: d, library: l })));
     const usageFiles = new Set(
-      (scanReport?.usages ?? []).flatMap((u) => [u.file, ...u.scope.files]),
+      (scanReport?.usages ?? []).flatMap((u) => [u.file, ...u.scope.files, ...u.scope.callSites]),
     );
     for (const file of projectFiles) {
       const argusFile = /argus-table|ArgusTable|@argus-table\//.test(file.text);
@@ -776,7 +789,26 @@ function checkTable(t, ctx) {
     }
   }
 
-  // missing-label
+  // missing-label (also aria-labelledby pointing at nothing)
+  const labelledby = attrs.find((a) => a.name === 'aria-labelledby' && a.kind === 'static');
+  if (
+    labelledby?.value &&
+    !labelledby.value
+      .split(/\s+/)
+      .every((id) =>
+        ctx.projectFiles.some((f) =>
+          new RegExp(`\\bid\\s*[=:]\\s*['"]${id.replace(/[^\w-]/g, '')}['"]`).test(f.text),
+        ),
+      )
+  ) {
+    report(
+      'missing-label',
+      file,
+      labelledby.index,
+      `aria-labelledby="${labelledby.value}" points at no element in the project: the table has no accessible name.`,
+      'Give the heading that id, or use aria-label="…".',
+    );
+  }
   if (
     !spread &&
     !attrs.some(
@@ -848,13 +880,23 @@ function checkTable(t, ctx) {
     const attrNames = Object.values(PROPERTIES).filter(Boolean);
     if (attrNames.includes(a.name)) continue;
     if (fw === 'vue' && /^on[A-Z]/.test(name)) continue;
+    if (PROP_GONE[name]) {
+      report(
+        'unknown-prop',
+        file,
+        a.index,
+        `${a.name} has no equivalent: ${PROP_GONE[name]}.`,
+        'Remove it.',
+      );
+      continue;
+    }
     report(
       'unknown-prop',
       file,
       a.index,
       `${a.name} is not a property of the table${PROP_RENAMES[name] ? `: use ${PROP_RENAMES[name]}` : ''}.`,
       PROP_RENAMES[name]
-        ? `See references/api.md for ${String(PROP_RENAMES[name]).split(/[ :(]/)[0]}.`
+        ? `Rename it, and check the value's shape in references/api.md.`
         : 'See references/api.md for the properties.',
     );
   }
@@ -869,7 +911,7 @@ function checkTable(t, ctx) {
         'unstable-identity',
         file,
         a.index,
-        `${prop} is written inline: every render makes a new ${prop === 'dataSource' ? 'object' : 'array'}${prop === 'plugins' ? ' and new plugin instances (menus close, add-ons reconnect)' : ', and the table re-resolves columns and re-reads every row'}.`,
+        `${prop} is written inline: every render makes a new ${prop === 'dataSource' ? 'object' : 'array'}${identityCost(prop)}.`,
         fw === 'react'
           ? `Define it at module scope or in useMemo, and pass the variable.`
           : fw === 'vue'
@@ -878,7 +920,27 @@ function checkTable(t, ctx) {
       );
       continue;
     }
-    if (fw !== 'react' || !/^[A-Za-z_$][\w$]*$/.test(value)) continue;
+    const name = /^(?:this\.)?([A-Za-z_$][\w$]*)(?:\(\))?$/.exec(value)?.[1];
+    if (!name) continue;
+    const owner = fw === 'angular' ? (ctx.templateOwner.get(file.path) ?? file.path) : file.path;
+    const ownerText = owner === file.path ? file.text : ctx.fileOf(owner).text;
+    const getter = findDeclaration(ownerText, name);
+    if (
+      getter?.kind === 'getter' &&
+      /^\s*(?:return\s*)?[[{]|\breturn\s*[[{]/.test(ownerText.slice(getter.init, getter.init + 200))
+    ) {
+      report(
+        'unstable-identity',
+        owner === file.path ? file : ctx.fileOf(owner),
+        getter.index,
+        `${name} is a getter that builds a new ${prop === 'dataSource' ? 'object' : 'array'} each time it's read${identityCost(prop)}.`,
+        fw === 'angular'
+          ? 'Make it a readonly field (or a computed() signal).'
+          : 'Build it once, and keep it in a field.',
+      );
+      continue;
+    }
+    if (fw !== 'react' || name !== value) continue;
     const decl = findDeclaration(file.text, value);
     if (!decl || decl.indent === 0 || decl.kind === 'function') continue;
     const init = file.text.slice(decl.init, decl.init + 80);
@@ -893,7 +955,7 @@ function checkTable(t, ctx) {
       'unstable-identity',
       file,
       decl.index,
-      `${value} is created inside the component: each render passes a new ${prop === 'dataSource' ? 'object' : 'array'} as ${prop}${prop === 'plugins' ? ' (new plugin instances: menus close, add-ons reconnect)' : ', and the table re-resolves columns and re-reads every row'}.`,
+      `${value} is created inside the component: each render passes a new ${prop === 'dataSource' ? 'object' : 'array'} as ${prop}${identityCost(prop)}.`,
       'Move it to module scope, or wrap it in useMemo with the values it depends on.',
     );
   }
@@ -911,6 +973,16 @@ function checkTable(t, ctx) {
       selection.index,
       'Selection without getRowId: selected ids are row indexes, so they point at other rows after a sort, filter or new data.',
       'Pass getRowId, returning a stable string id per row.',
+    );
+  }
+
+  if (!selection && has('dataSource') && !has('getRowId')) {
+    report(
+      'datasource-without-row-id',
+      file,
+      at,
+      "A dataSource without getRowId: row ids are positions in the server's order, so they change with every sort and filter.",
+      "Pass getRowId with the server's ids, as strings.",
     );
   }
 
@@ -950,7 +1022,10 @@ function checkTable(t, ctx) {
   const colsAttr = bound('columns');
   const cols =
     colsAttr && colsAttr.kind !== 'static'
-      ? traceArray(file.text, String(colsAttr.value ?? ''))
+      ? ctx.trace(
+          ctx.templateOwner.get(file.path) ? ctx.fileOf(ctx.templateOwner.get(file.path)) : file,
+          String(colsAttr.value ?? ''),
+        )
       : undefined;
   const childColumns = /<(?:ArgusColumn|argus-column)\b/.test(file.text);
   const hasDataSource = has('dataSource');
@@ -964,10 +1039,13 @@ function checkTable(t, ctx) {
   if (dataName) checkMutation(file, dataName, report);
 }
 
-function checkColumns(cols, file, { report, fromLibraries, hasDataSource, childColumns, at }) {
+function checkColumns(cols, tableFile, { report, fromLibraries, hasDataSource, childColumns, at }) {
   if (!cols && !childColumns) return;
+  // Columns may live in another file (imported): report them there.
+  const file = cols?.file ?? tableFile;
   const objects = cols ? objectsInArray(cols.text) : [];
-  let sortable = childColumns && /<(?:ArgusColumn|argus-column)\b[^>]*\bsortable\b/.test(file.text);
+  let sortable =
+    childColumns && /<(?:ArgusColumn|argus-column)\b[^>]*\bsortable\b/.test(tableFile.text);
   for (const o of objects) {
     const keys = objectKeys(o.text);
     if (keys.some((k) => k.key === 'sortable')) sortable = true;
@@ -1028,22 +1106,49 @@ function checkMutation(file, name, report) {
   }
 }
 
-/** The array literal a binding value points at: inline, or a variable declared in the file. */
-function traceArray(text, value) {
+/**
+ * The array literal a binding value points at: inline, a variable or getter
+ * in the file, or a variable imported from another file of the project.
+ */
+function traceArray(file, value, { resolver, fileOf }) {
   const v = value.trim();
   if (v.startsWith('[')) {
-    const index = text.indexOf(v);
-    return index === -1 ? undefined : { text: v, index };
+    const index = file.text.indexOf(v);
+    return index === -1 ? undefined : { text: v, index, file };
   }
   const name = /^(?:this\.)?([A-Za-z_$][\w$]*)(?:\(\)|\.value)?$/.exec(v)?.[1];
   if (!name) return undefined;
-  const decl = findDeclaration(text, name);
-  if (!decl || decl.kind === 'function') return undefined;
-  return arrayAt(text, decl.init);
+  const fromDecl = (target) => {
+    const decl = findDeclaration(target.text, name);
+    if (!decl || decl.kind === 'function') return undefined;
+    let from = decl.init;
+    if (decl.kind === 'getter') {
+      const ret = /\breturn\b/.exec(target.text.slice(decl.init, decl.init + 400));
+      if (!ret) return undefined;
+      from = decl.init + ret.index + ret[0].length;
+    }
+    const arr = arrayAt(target.text, from);
+    return arr ? { ...arr, file: target } : undefined;
+  };
+  const local = fromDecl(file);
+  if (local || findDeclaration(file.text, name)) return local;
+  const esc = name.replace(/\$/g, '\\$');
+  const m = new RegExp(
+    `import\\s+(?:type\\s+)?\\{[^}]*\\b${esc}\\b[^}]*\\}\\s*from\\s*['"]([^'"]+)['"]`,
+  ).exec(file.text);
+  const target = m ? resolver(m[1], file.path) : undefined;
+  return target ? fromDecl(fileOf(target)) : undefined;
+}
+
+/** What a new identity costs the table, for unstable-identity messages. */
+function identityCost(prop) {
+  if (prop === 'plugins') return ': new plugin instances reconnect, and open menus close';
+  if (prop === 'dataSource') return ': a new source reloads its rows from the top';
+  return ': the table re-resolves the columns and re-reads every row';
 }
 
 /** Property assignments and listeners on tables made in plain scripts (`table.columns = …`). */
-function vanillaBindings(files) {
+function vanillaBindings(files, trace) {
   const props = new Map();
   const listeners = new Set();
   const out = { props, listeners, label: false, files: [], columns: [] };
@@ -1058,8 +1163,12 @@ function vanillaBindings(files) {
       any = true;
       if (!props.has(m[1])) props.set(m[1], { file, index: m.index ?? 0 });
       if (m[1] === 'columns') {
-        const arr = arrayAt(file.text, (m.index ?? 0) + m[0].length);
-        if (arr) out.columns.push({ file, arr });
+        const after = (m.index ?? 0) + m[0].length;
+        const ident = /^\s*([A-Za-z_$][\w$]*)\s*[;\n]/.exec(
+          file.text.slice(after, after + 80),
+        )?.[1];
+        const arr = arrayAt(file.text, after) ?? (ident ? trace(file, ident) : undefined);
+        if (arr) out.columns.push({ file, arr: { ...arr, file: arr.file ?? file } });
       }
     }
     for (const m of file.text.matchAll(/addEventListener\(\s*['"](argus-[\w-]+)['"]/g)) {
@@ -1141,7 +1250,7 @@ function checkVanilla(vanilla, tables, { report, fromLibraries }) {
   }
   if (vanilla.props.has('data')) {
     const { file } = listed('data');
-    const m = /\.data\s*=\s*([A-Za-z_$][\w$]*)\s*;?/.exec(file.text);
+    const m = /\.data\s*=\s*(?!await\b|new\b)([A-Za-z_$][\w$]*)\s*(?:;|\n)/.exec(file.text);
     if (m) checkMutation(file, m[1], report);
   }
 }

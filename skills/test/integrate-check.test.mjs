@@ -19,6 +19,7 @@ describe('check.mjs', () => {
       'addon-unused@package.json:5',
       'controlled-without-handler@src/Orders.tsx:32',
       'data-mutated@src/Orders.tsx:22',
+      'datasource-without-row-id@src/Orders.tsx:45',
       'leftover-library@src/Orders.tsx:5',
       'missing-label@src/Orders.tsx:28',
       'no-theme@src/Orders.tsx:2',
@@ -188,6 +189,103 @@ describe('check.mjs', () => {
     assert.equal((await node('check.mjs', [warnOnly, '--strict'])).code, 1);
     assert.equal((await node('check.mjs', ['--only', 'nope'])).code, 2);
     assert.equal((await node('check.mjs', ['--from', 'nope'])).code, 2);
+  });
+
+  it('sees generic tags, imported columns, getters and script-set columns', async () => {
+    const react = project(undefined, {
+      'package.json': {
+        dependencies: {
+          react: '^19.1.0',
+          '@argus-table/react': '^1.1.0',
+          '@argus-table/themes': '^1.1.0',
+        },
+      },
+      'src/main.tsx': "import '@argus-table/themes/default.css';\n",
+      // A shared component passes its columns through: not an unstable identity.
+      'src/DataTable.tsx': [
+        "import { ArgusTable, type ReactColumnDef } from '@argus-table/react';",
+        'export function DataTable<T>({ columns, data }: { columns: ReactColumnDef<T>[]; data: T[] }) {',
+        '  return <ArgusTable<T> columns={columns} data={data} />;',
+        '}',
+        '',
+      ].join('\n'),
+      'src/columns.ts':
+        "export const columns = [{ id: 'a', headerName: 'A', accessor: 'a', sortable: true }];\n",
+      'src/Page.tsx': [
+        "import { ArgusTable } from '@argus-table/react';",
+        "import { columns } from './columns';",
+        'export function Page({ rows }: { rows: { a: string }[] }) {',
+        '  return <ArgusTable aria-label="Page" columns={columns} data={rows} pagination />;',
+        '}',
+        '',
+      ].join('\n'),
+    });
+    const found = await findings(react);
+    assert.deepEqual(ids(found), [
+      'missing-label@src/DataTable.tsx:3',
+      'unknown-column-field@src/columns.ts:1',
+      'unknown-prop@src/Page.tsx:4',
+    ]);
+    assert.equal(
+      found.find((f) => f.rule === 'unknown-prop').message,
+      'pagination has no equivalent: the table scrolls instead of paging (references/gaps.md#pagination).',
+    );
+
+    const angular = project(undefined, {
+      'package.json': {
+        dependencies: {
+          '@angular/core': '^20.1.0',
+          '@argus-table/angular': '^1.1.0',
+          '@argus-table/themes': '^1.1.0',
+        },
+      },
+      'src/styles.css': "@import '@argus-table/themes/default.css';\n",
+      'src/app/orders.component.ts': [
+        "import { Component } from '@angular/core';",
+        "import { ARGUS_TABLE } from '@argus-table/angular';",
+        '@Component({',
+        "  selector: 'app-orders',",
+        '  imports: [ARGUS_TABLE],',
+        '  template: `<argus-table aria-label="Orders" [columns]="columns" [data]="rows" />`,',
+        '})',
+        'export class OrdersComponent {',
+        '  readonly rows = [];',
+        '  get columns() {',
+        "    return [{ id: 'a', header: 'A', accessor: 'a', pinned: 'left' }];",
+        '  }',
+        '}',
+        '',
+      ].join('\n'),
+    });
+    assert.deepEqual(ids(await findings(angular)), [
+      'sortable-never-set@src/app/orders.component.ts:11',
+      'unknown-column-field@src/app/orders.component.ts:11',
+      'unstable-identity@src/app/orders.component.ts:10',
+    ]);
+
+    const vanilla = project(undefined, {
+      'package.json': {
+        dependencies: { 'argus-table': '^1.1.0', '@argus-table/themes': '^1.1.0' },
+      },
+      'index.html':
+        '<h2 id="title">Orders</h2>\n<argus-table id="t" aria-labelledby="heading"></argus-table>\n',
+      'main.js': [
+        "import 'argus-table';",
+        "import '@argus-table/themes/default.css';",
+        "const columns = [{ id: 'a', field: 'a', sortable: true }];",
+        "const table = document.querySelector('#t');",
+        'table.columns = columns;',
+        'const rows = await (await fetch("/rows")).json();',
+        'table.data = rows;',
+        'rows.push({ a: 1 });',
+        '',
+      ].join('\n'),
+    });
+    assert.deepEqual(ids(await findings(vanilla)), [
+      'data-mutated@main.js:8',
+      'missing-label@index.html:2',
+      'unknown-column-field@main.js:3',
+    ]);
   });
 
   it('reports the old library left in the files of a migrated usage', async () => {

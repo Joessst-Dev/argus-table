@@ -1,6 +1,6 @@
 # From MUI X Data Grid
 
-Covers `@mui/x-data-grid`, `-pro` and `-premium` (v6 to v8). The free version's 100-row page limit and Pro's licence go away; Premium's grouping, aggregation and Excel features mostly have no equivalent.
+Covers `@mui/x-data-grid`, `-pro` and `-premium` (v6 to v9). The free version's 100-row page limit and Pro's licence go away; Premium's grouping, aggregation and Excel features mostly have no equivalent.
 
 ## Detect
 
@@ -22,7 +22,8 @@ Covers `@mui/x-data-grid`, `-pro` and `-premium` (v6 to v8). The free version's 
 | `pinned-rows`        | `pinnedRows: { top, bottom }`                                          | `pinnedRows: { top, bottom }`                                          | maps    | Same shape                                                                         |
 | `visibility`         | `columnVisibilityModel`                                                | `columnVisibility`                                                     | maps    | Same shape                                                                         |
 | `column-grouping`    | `columnGroupingModel`                                                  | `columnGroups`                                                         | maps    | `{ groupId, headerName, children: [{ field }] }` → `{ id, header, columns: [id] }` |
-| `resizing`           | `resizable`, `onColumnWidthChange`, `flex`                             | `resizable`, `argus-column-resize-end`, `width: { flex }`              | maps    |                                                                                    |
+| `resizing`           | `resizable`, `onColumnWidthChange`                                     | `resizable`, `argus-column-resize-end`                                 | maps    |                                                                                    |
+| `flex`               | `flex: 1`                                                              | `width: { flex: 1 }`                                                   | maps    |                                                                                    |
 | `reorder`            | `columnOrder` / `onColumnOrderChange`, `disableColumnReorder`          | `columnOrder`, `reorderable: false`                                    | maps    |                                                                                    |
 | `toolbar`            | `GridToolbar`, `showToolbar`, quick filter, export buttons             | the app's toolbar: a search input → `quickFilter`, `downloadTable`     | partial | Build the toolbar outside the table                                                |
 | `auto-height`        | `autoHeight`                                                           | a fixed height                                                         | partial | The table needs a bounded height                                                   |
@@ -62,13 +63,20 @@ Covers `@mui/x-data-grid`, `-pro` and `-premium` (v6 to v8). The free version's 
 | `disableColumnMenu: true`                               | no `headerMenu()`, or turn its items off                               |
 | `type: 'actions', getActions`                           | `id: 'actions'`, `cell` rendering the buttons, `pin: 'end'`            |
 
+Defaults MUI turns on without a prop, so the scan doesn't list them:
+
+- **The column menu** (sort, filter, hide, manage columns): add `@argus-table/header-menu` (`plugins: [headerMenu()]`) unless the grid had `disableColumnMenu`.
+- **Client-side filtering** (`filterMode` defaults to `client`, even with server pagination): with a `dataSource`, filters go to the server in `getRows`. If the API can't filter, leave out the columns' `filter` kinds and say so in the gap review.
+- **The footer** with the row count, page controls and "N rows selected": render the count and the selection next to the table (with a `dataSource`, keep the `total` from `getRows`; see [server-data.md](../server-data.md)).
+- **Row heights:** `compact` / `standard` / `comfortable` are 36 / 52 / 67px. For the same height set `rowHeight` (`rowHeight={36}`).
+
 ## State and events
 
 - `sortModel` → `sorting`: `[{ field: 'age', sort: 'desc' }]` → `[{ id: 'age', desc: true }]`.
 - `rowSelectionModel` → `selection` (array of string ids); `onRowSelectionModelChange` → `onSelectionChange`.
 - `filterModel.quickFilterValues` → `quickFilter` (joined with spaces).
 - `columnVisibilityModel` / `onColumnVisibilityModelChange` → `columnVisibility` / `onColumnVisibilityChange`.
-- Server mode: the effect that fetches on `paginationModel` / `sortModel` / `filterModel` changes becomes `getRows` in a `dataSource`; `rowCount` → `total`.
+- Server mode: the effect that fetches on `paginationModel` / `sortModel` / `filterModel` changes becomes `getRows` in a `dataSource`; `rowCount` → `total`. The pagination, sort model and loading state that only drove the fetch go away (keep `sorting` bound only if the app shows or saves it).
 - `apiRef.current.exportState()` / `restoreState()` → `getState()` / `setState()`.
 
 ## Example
@@ -91,12 +99,15 @@ Covers `@mui/x-data-grid`, `-pro` and `-premium` (v6 to v8). The free version's 
 />;
 
 // After
+const PAGE = 50; // the API's page size
 const usersSource: DataSource<User> = {
-  pageSize: 50,
-  async getRows({ start, end, sorting, signal }) {
-    const page = start / 50;
+  pageSize: PAGE,
+  async getRows({ start, sorting, signal }) {
+    const page = start / PAGE; // pages are aligned to pageSize
     const sort = sorting[0] ? `${sorting[0].id},${sorting[0].desc ? 'desc' : 'asc'}` : '';
-    const res = await fetch(`/api/users?page=${String(page)}&size=50&sort=${sort}`, { signal });
+    const res = await fetch(`/api/users?page=${String(page)}&size=${String(PAGE)}&sort=${sort}`, {
+      signal,
+    });
     const body = await res.json();
     return { rows: body.items, total: body.total };
   },

@@ -28,7 +28,7 @@ describe('setup.mjs', () => {
       file: 'src/main.tsx',
       statement: "import '@argus-table/themes/default.css';",
       alreadyPresent: false,
-      note: 'Load one theme per page, after the table; it loads no fonts.',
+      note: 'Import one theme, once, before your own CSS (so your token overrides win). It loads no fonts: set --argus-font: inherit on argus-table to keep the page font.',
     });
     assert.deepEqual(plan.imports, [
       "import { ArgusTable, type ReactColumnDef } from '@argus-table/react';",

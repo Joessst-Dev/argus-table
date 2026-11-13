@@ -9,7 +9,8 @@
 //                  [--version <x.y.z>] [--cdn] [--json]
 //
 // Read-only: it prints the command and never runs it.
-import { join, relative, resolve } from 'node:path';
+import { existsSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   ADDONS,
@@ -110,6 +111,13 @@ export function plan(options) {
       autoInstallPeers: options.pm !== 'yarn',
     });
   const detected = detectFramework(dir, root);
+  const typescript =
+    existsSync(join(dir, 'tsconfig.json')) ||
+    'typescript' in
+      {
+        ...dependencies(readJson(join(root, 'package.json'))),
+        ...dependencies(readJson(join(dir, 'package.json'))),
+      };
   const frameworkName =
     options.framework ??
     (['react', 'vue', 'angular'].includes(detected.name) ? detected.name : 'vanilla');
@@ -196,7 +204,7 @@ export function plan(options) {
           file: themeFile,
           statement: options.cdn ? null : themeStatement(options.theme, themeFile ?? 'src/main.ts'),
           alreadyPresent: themePresent,
-          note: 'Load one theme per page, after the table; it loads no fonts.',
+          note: 'Import one theme, once, before your own CSS (so your token overrides win). It loads no fonts: set --argus-font: inherit on argus-table to keep the page font.',
         };
 
   return {
@@ -208,7 +216,9 @@ export function plan(options) {
     version: spec ?? 'latest',
     versionNote:
       versionNote ??
-      (spec ? undefined : 'latest: every argus-table package is released at the same version'),
+      (spec
+        ? undefined
+        : "npm's current release; every argus-table package is released at the same version, so they match"),
     command,
     packages,
     cdn: options.cdn
@@ -222,7 +232,9 @@ export function plan(options) {
     imports: options.cdn
       ? []
       : [
-          ...IMPORTS[frameworkName],
+          ...IMPORTS[frameworkName].filter(
+            (line) => typescript || !line.includes('TypeScript only'),
+          ),
           ...options.addons.map((a) => ADDON_IMPORTS[`@argus-table/${a}`]),
         ],
     plugins: options.addons.length
@@ -234,7 +246,9 @@ export function plan(options) {
     setup: SETUP[frameworkName],
     notes,
     warnings,
-    next: `node ${relative(process.cwd(), fileURLToPath(new URL('./check.mjs', import.meta.url)))} ${rel(process.cwd(), dir) || '.'}`,
+    next: `node ${fileURLToPath(new URL('./check.mjs', import.meta.url))} ${dir}`,
+    nextMigration:
+      'After a migration, add --scan <the scan.json you saved> to also find the old library left behind.',
   };
 }
 
@@ -279,7 +293,7 @@ function text(p) {
   lines.push(`Setup (${p.framework}):`, ...p.setup.map((l) => `  - ${l}`));
   if (p.notes.length) lines.push('', 'Notes:', ...p.notes.map((l) => `  - ${l}`));
   if (p.warnings.length) lines.push('', 'Warnings:', ...p.warnings.map((l) => `  ! ${l}`));
-  lines.push('', `Then check: ${p.next}`);
+  lines.push('', `Then check: ${p.next}`, `  ${p.nextMigration}`);
   return lines.join('\n');
 }
 

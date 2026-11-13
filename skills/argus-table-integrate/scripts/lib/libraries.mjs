@@ -45,6 +45,8 @@ export const LIBRARIES = [
       /\bcreateAngularTable\s*[<(]/,
       /\bcreateTable\s*[<(]/,
       /\buseTable\s*[<(]/,
+      /\buseLegacyTable\s*[<(]/,
+      /\bcreateTableHook\s*[<(]/,
     ],
     vocabulary:
       /\baccessorKey\s*:|\baccessorFn\s*:|\bcolumnHelper\.(?:accessor|display|group)\b|\bColumnDef\s*</,
@@ -54,7 +56,7 @@ export const LIBRARIES = [
     features: [
       f(
         'sorting',
-        /\bgetSortedRowModel\b|\bsortingFeature\b|\bonSortingChange\b|\benableSorting\b/,
+        /\bgetSortedRowModel\b|\bcreateSortedRowModel\b|\b(?:row)?[sS]ortingFeature\b|\bonSortingChange\b|\benableSorting\b/,
         'maps',
         {
           column: ['sortable'],
@@ -70,7 +72,7 @@ export const LIBRARIES = [
       ),
       f(
         'column-filters',
-        /\bgetFilteredRowModel\b|\bcolumnFilteringFeature\b|\bonColumnFiltersChange\b|\bfilterFn\s*:/,
+        /\bcolumnFilters\b|\bcolumnFilteringFeature\b|\bonColumnFiltersChange\b|\bsetFilterValue\b|\bfilterFn\s*:/,
         'maps',
         {
           column: ['filter', 'filterFn'],
@@ -79,15 +81,25 @@ export const LIBRARIES = [
           addons: ['@argus-table/header-menu'],
         },
       ),
-      f('global-filter', /\bglobalFilter\b|\bonGlobalFilterChange\b/, 'maps', {
-        props: ['quickFilter'],
-      }),
-      f('faceted', /\bgetFaceted(?:UniqueValues|RowModel|MinMaxValues)\b/, 'maps', {
-        column: ['filter', 'filterOptions'],
-      }),
+      f(
+        'global-filter',
+        /\bglobalFilter\b|\bonGlobalFilterChange\b|\bglobalFilteringFeature\b/,
+        'maps',
+        {
+          props: ['quickFilter'],
+        },
+      ),
+      f(
+        'faceted',
+        /\bgetFaceted(?:UniqueValues|RowModel|MinMaxValues)\b|\bcreateFaceted\w*RowModel\b|\bcolumnFacetingFeature\b/,
+        'maps',
+        {
+          column: ['filter', 'filterOptions'],
+        },
+      ),
       f(
         'pagination',
-        /\bgetPaginationRowModel\b|\bonPaginationChange\b|\bsetPageIndex\b|\bgetCanNextPage\b|\bpaginationRowModel\b/,
+        /\bgetPaginationRowModel\b|\bcreatePaginatedRowModel\b|\browPaginationFeature\b|\bonPaginationChange\b|\bsetPageIndex\b|\bgetCanNextPage\b|\bpaginationRowModel\b/,
         'gap',
         {},
         { gap: 'pagination' },
@@ -100,7 +112,7 @@ export const LIBRARIES = [
       ),
       f(
         'row-selection',
-        /\benableRowSelection\b|\browSelection\b|\bonRowSelectionChange\b|\bgetToggleAllRowsSelectedHandler\b/,
+        /\benableRowSelection\b|\browSelection(?:Feature)?\b|\bonRowSelectionChange\b|\bgetToggleAllRowsSelectedHandler\b/,
         'maps',
         {
           props: ['selectionMode', 'selectionCheckboxes', 'selection'],
@@ -110,7 +122,7 @@ export const LIBRARIES = [
       f('row-id', /\bgetRowId\s*[:(]/, 'maps', { props: ['getRowId'] }),
       f(
         'resizing',
-        /\benableColumnResizing\b|\bcolumnResizeMode\b|\bgetResizeHandler\b|\bcolumnSizing\b/,
+        /\benableColumnResizing\b|\bcolumnResizeMode\b|\bgetResizeHandler\b|\bcolumnSizing\b|\bcolumnResizingFeature\b/,
         'maps',
         {
           column: ['resizable', 'width', 'minWidth', 'maxWidth'],
@@ -118,20 +130,37 @@ export const LIBRARIES = [
           events: ['argus-column-sizing-change', 'argus-column-resize-end'],
         },
       ),
-      f('column-pinning', /\bcolumnPinning\b|\benableColumnPinning\b|\bgetIsPinned\b/, 'maps', {
-        column: ['pin'],
-        props: ['columnPinning'],
+      f(
+        'column-pinning',
+        /\bcolumnPinning(?:Feature)?\b|\benableColumnPinning\b|\bgetIsPinned\b/,
+        'maps',
+        {
+          column: ['pin'],
+          props: ['columnPinning'],
+        },
+      ),
+      f('row-pinning', /\browPinning(?:Feature)?\b|\benableRowPinning\b/, 'partial', {
+        props: ['pinnedRows'],
       }),
-      f('row-pinning', /\browPinning\b|\benableRowPinning\b/, 'partial', { props: ['pinnedRows'] }),
-      f('column-order', /\bcolumnOrder\b|\bonColumnOrderChange\b/, 'maps', {
-        props: ['columnOrder'],
-        column: ['reorderable'],
-      }),
-      f('column-visibility', /\bcolumnVisibility\b|\bgetToggleVisibilityHandler\b/, 'maps', {
-        props: ['columnVisibility'],
-        column: ['hidden'],
-        addons: ['@argus-table/header-menu'],
-      }),
+      f(
+        'column-order',
+        /\bcolumnOrder\b|\bcolumnOrderingFeature\b|\bonColumnOrderChange\b/,
+        'maps',
+        {
+          props: ['columnOrder'],
+          column: ['reorderable'],
+        },
+      ),
+      f(
+        'column-visibility',
+        /\bcolumnVisibility(?:Feature)?\b|\bgetToggleVisibilityHandler\b/,
+        'maps',
+        {
+          props: ['columnVisibility'],
+          column: ['hidden'],
+          addons: ['@argus-table/header-menu'],
+        },
+      ),
       f(
         'column-groups',
         /\bcolumnHelper\.group\s*\(|\bgetHeaderGroups\b[\s\S]{0,40}\bdepth\b|\bcolumns\s*:\s*\[\s*(?:columnHelper|\{)/,
@@ -142,14 +171,14 @@ export const LIBRARIES = [
       ),
       f(
         'grouping',
-        /\bgetGroupedRowModel\b|\bgroupingFeature\b|\baggregationFn\b|\baggregatedCell\b/,
+        /\bgetGroupedRowModel\b|\bcreateGroupedRowModel\b|\b(?:column)?[gG]roupingFeature\b|\browAggregationFeature\b|\baggregationFn\b|\baggregatedCell\b/,
         'gap',
         {},
         { gap: 'row-grouping' },
       ),
       f(
         'expanding',
-        /\bgetExpandedRowModel\b|\bgetSubRows\b|\brenderSubComponent\b|\bgetCanExpand\b/,
+        /\bgetExpandedRowModel\b|\bcreateExpandedRowModel\b|\browExpandingFeature\b|\bgetSubRows\b|\brenderSubComponent\b|\bgetCanExpand\b/,
         'gap',
         {},
         { gap: 'tree-data' },
@@ -161,6 +190,8 @@ export const LIBRARIES = [
       ),
       f('footer', /\bfooter\s*:|\bgetFooterGroups\b/, 'partial', { props: ['pinnedRows'] }),
       f('editing', /\bmeta\??\.updateData\b|\bupdateData\s*[:(]/, 'gap', {}, { gap: 'editing' }),
+      f('cell-selection', /\bcellSelectionFeature\b/, 'gap', {}, { gap: 'range-selection' }),
+      f('cell-spanning', /\bcellSpanningFeature\b/, 'gap', {}, { gap: 'cell-spanning' }),
       f('flex-render', /\bflexRender\b|\bFlexRender\b/, 'maps', { column: ['cell', 'header'] }),
     ],
   },
@@ -243,6 +274,9 @@ export const LIBRARIES = [
         events: ['argus-column-resize-end'],
       }),
       f('flex', /\bflex\s*:\s*\d/, 'maps', { column: ['width'] }),
+      f('numeric-column', /\btype\s*:\s*['"]numericColumn['"]|ag-right-aligned/, 'maps', {
+        column: ['align'],
+      }),
       f('movable', /\bsuppressMovable(?:Columns)?\b|\bonColumnMoved\b/, 'maps', {
         column: ['reorderable'],
         props: ['columnOrder'],
@@ -444,7 +478,8 @@ export const LIBRARIES = [
       f('pinned-rows', /\bpinnedRows\s*=/, 'maps', { props: ['pinnedRows'] }),
       f('visibility', /\bcolumnVisibilityModel\b/, 'maps', { props: ['columnVisibility'] }),
       f('column-grouping', /\bcolumnGroupingModel\b/, 'maps', { props: ['columnGroups'] }),
-      f('resizing', /\bresizable\s*:|\bonColumnWidthChange\b|\bflex\s*:\s*\d/, 'maps', {
+      f('flex', /\bflex\s*:\s*\d/, 'maps', { column: ['width'] }),
+      f('resizing', /\bresizable\s*:|\bonColumnWidthChange\b/, 'maps', {
         column: ['resizable', 'width'],
         events: ['argus-column-resize-end'],
       }),
@@ -775,7 +810,7 @@ export const LIBRARIES = [
           props: ['sorting'],
         },
       ),
-      f('search', /\.filter\s*\(.{0,120}?\b(?:search|query|term|keyword)\w*/i, 'maps', {
+      f('search', /\.filter\s*\(.{0,120}?\b(?:search|query|term|keyword)\w*/i, 'partial', {
         props: ['quickFilter'],
       }),
       f('selection', /<td\b[^>]*>\s*<input\b[^>]*type\s*=\s*['"]checkbox['"]/, 'maps', {

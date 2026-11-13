@@ -84,7 +84,7 @@ node scripts/setup.mjs --cwd <app dir> [--theme default|material|fluent|bootstra
 
 Run the command it prints. Put the theme where it says. `--cdn` gives the script and link tags for a page without a bundler.
 
-**A3. Write the table.** Follow the framework's guide: [react](references/frameworks/react.md), [vue](references/frameworks/vue.md), [angular](references/frameworks/angular.md), or [the element](references/frameworks/vanilla.md) (plain JS, Svelte, Solid, Lit, Astro). Columns: [references/columns.md](references/columns.md). The full API is in [references/api.md](references/api.md).
+**A3. Write the table.** Follow the framework's guide: [react](references/frameworks/react.md), [vue](references/frameworks/vue.md), [angular](references/frameworks/angular.md), or [the element](references/frameworks/vanilla.md) (plain JS, Svelte, Solid, Lit, Astro). Columns: [references/columns.md](references/columns.md). The full API is in [references/api.md](references/api.md). A shared table component of the app (a `DataTable` used on several screens) passes `columns` through and takes the table's `aria-label` and `getRowId` as props too.
 
 **A4. Wire state and events.** Leave state uncontrolled unless the app needs it (saving it, a URL, a toolbar elsewhere). Use the wrapper's two-way binding when it does.
 
@@ -98,7 +98,13 @@ Run the command it prints. Put the theme where it says. `--cdn` gives the script
 
 - a table of what the old table does → what it becomes (every feature in `features`, with its fit),
 - every `gap` and `partial`, with the options from [references/gaps.md](references/gaps.md) (pagination becomes scrolling; editing, grouping, tree rows and master/detail have no equivalent),
-- what changes for their users (sorting is opt-in per column, columns can be dragged to reorder, the table scrolls instead of paging).
+- what changes for their users. These usually apply:
+  - the table scrolls instead of paging;
+  - a header click cycles ascending → descending → unsorted, by that one column;
+  - columns can be resized and dragged to reorder (both on by default);
+  - with `selectionMode`, a click anywhere on a row selects it (Ctrl/Cmd+click adds, Shift+click a range), not only the checkbox; select-all selects every row the filters keep, not one page;
+  - `quickFilter` keeps rows where every word appears in some shown column, values included as text: an old search over one or two fields becomes broader (keep it as a filter on `data` if that matters);
+  - filters move into the column menu.
 
 Stop and ask when a `hardGaps` entry is there or the user hasn't agreed to a behaviour change. Don't migrate a screen the user needs a missing feature on: say so and leave it.
 
@@ -114,7 +120,7 @@ Stop and ask when a `hardGaps` entry is there or the user hasn't agreed to a beh
 6. styling: a theme instead of the old grid's CSS; their density becomes `density`;
 7. remove what argus-table does itself (virtualizer wrappers, sticky-header CSS, scroll containers).
 
-**B5. Parity.** Go through the old behaviour: which columns sorted (old grids often sorted every column), default sort, widths, pinned columns, row height, empty state, row click, keyboard. Reordering by drag is on for every column: set `reorderable: false` where it must not happen.
+**B5. Parity.** Go through the old behaviour: which columns sorted (old grids often sorted every column), default sort, widths, pinned columns, row height, empty state, row click, keyboard, and what each cell showed (formatting, conditional classes, badges: they go into `cell`, slots or templates). Reordering by drag is on for every column: set `reorderable: false` where it must not happen. Themes set their own font: add `argus-table { --argus-font: inherit; }` to keep the app's. App CSS in cells (a badge colour) doesn't follow the theme's dark scheme by itself.
 
 **B6. Remove the old table.** Its imports, CSS, module registration, and its dependency once `scan.mjs` finds no usage left. Ask before removing a dependency.
 

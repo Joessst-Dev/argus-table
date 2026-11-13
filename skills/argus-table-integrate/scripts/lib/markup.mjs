@@ -7,10 +7,17 @@
  */
 export function findTags(src, name) {
   const tags = [];
-  const re = new RegExp(`<${name.replace(/[-.]/g, '\\$&')}(?=[\\s/>])`, 'g');
+  // A JSX generic may follow the name: <ArgusTable<Order> …>.
+  const re = new RegExp(`<${name.replace(/[-.]/g, '\\$&')}(?=[\\s/>]|<)`, 'g');
   for (const m of src.matchAll(re)) {
     const start = m.index ?? 0;
-    const parsed = readAttributes(src, start + m[0].length);
+    let at = start + m[0].length;
+    if (src[at] === '<') {
+      const close = genericEnd(src, at);
+      if (close === -1) continue;
+      at = close + 1;
+    }
+    const parsed = readAttributes(src, at);
     if (!parsed) continue;
     tags.push({
       name,
@@ -21,6 +28,17 @@ export function findTags(src, name) {
     });
   }
   return tags;
+}
+
+/** The index of the `>` closing a type argument list that opens at `open`, or -1. */
+function genericEnd(src, open) {
+  let depth = 0;
+  for (let i = open; i < src.length && i < open + 200; i++) {
+    if (src[i] === '<') depth++;
+    else if (src[i] === '>' && src[i - 1] !== '=' && --depth === 0) return i;
+    else if (src[i] === '\n' || src[i] === ';') return -1;
+  }
+  return -1;
 }
 
 /** Reads attributes from `i` to the end of the opening tag. */
@@ -269,16 +287,33 @@ export function findDeclaration(src, name) {
       'g',
     ),
     new RegExp(`(^|\\n)([ \\t]*)(?:export\\s+)?(?:async\\s+)?function\\s+${escaped}\\b`, 'g'),
+    new RegExp(
+      `(^|\\n)([ \\t]*)(?:(?:public|private|protected|static)\\s+)*get\\s+${escaped}\\s*\\(\\s*\\)[^{\\n]*\\{`,
+      'g',
+    ),
   ];
   for (const re of patterns) {
-    const m = re.exec(src);
+    let m;
+    while ((m = re.exec(src))) {
+      const init = (m.index ?? 0) + m[0].length;
+      // `columns={columns}`, `columns="…"`: an attribute in markup, not a declaration.
+      if (
+        re !== patterns[2] &&
+        re !== patterns[3] &&
+        /[{"']/.test(src[init] ?? '') &&
+        !/\s/.test(src[init - 2] ?? '')
+      ) {
+        continue;
+      }
+      break;
+    }
     if (m) {
       const at = (m.index ?? 0) + m[1].length;
       return {
         index: at,
         indent: m[2].length,
         init: (m.index ?? 0) + m[0].length,
-        kind: re === patterns[2] ? 'function' : 'value',
+        kind: re === patterns[2] ? 'function' : re === patterns[3] ? 'getter' : 'value',
       };
     }
   }

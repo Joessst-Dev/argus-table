@@ -525,5 +525,5 @@ export function themeTargets(dir, framework) {
     'main.ts',
     'index.html',
   );
-  return candidates.filter((c) => existsSync(join(dir, c)));
+  return [...new Set(candidates)].filter((c) => existsSync(join(dir, c)));
 }
