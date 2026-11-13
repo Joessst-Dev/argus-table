@@ -42,6 +42,8 @@ body:
         - '@argus-table/vue'
         - '@argus-table/angular'
         - '@argus-table/formulas'
+        - '@argus-table/header-menu'
+        - '@argus-table/export'
         - Docs / Storybook
         - Not sure
     validations:

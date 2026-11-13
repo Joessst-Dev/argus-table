@@ -12,6 +12,7 @@
       "@argus-table/angular",
       "@argus-table/header-menu",
       "@argus-table/formulas",
+      "@argus-table/export",
       "@argus-table/themes"
     ]
   ],

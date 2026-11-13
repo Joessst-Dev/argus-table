@@ -430,6 +430,7 @@ describe('plugin host', () => {
       hidden: false,
       width: 200,
       sorted: undefined,
+      align: 'start',
     });
     expect(host().column('--argus-selection')).toBeUndefined();
     expect(host().column('nope')).toBeUndefined();
@@ -456,5 +457,90 @@ describe('plugin host', () => {
     await settle(el);
     expect([0, 1, 2].map((i) => host().row(i)?.name)).toEqual(['Bob', 'Cid', 'Ann']);
     expect(host().row(3)).toBeUndefined();
+  });
+
+  test('rowCount(), rowId() and value() read each section in the order shown', async () => {
+    const { plugin, host } = hostGrabber();
+    const top = { id: 't', name: 'Top', age: 99, address: { city: 'T' } };
+    const bottom = { id: 'z', name: 'Sum', age: 60, address: { city: 'S' } };
+    const el = await fixture({
+      columns: [
+        ...columns.map((c) => (c.id === 'age' ? { ...c, filter: 'number' as const } : c)),
+        { id: 'hidden', accessor: (p: Person) => p.age * 2, hidden: true },
+      ],
+      data,
+      plugins: [plugin],
+      pinnedRows: { top: [top], bottom: [bottom] },
+      getRowId: (p: Person) => p.id,
+      columnFilters: { age: { kind: 'number', op: 'gt', value: 15 } },
+    });
+    host().setSort('age', 'desc');
+    await settle(el);
+    const h = host();
+    expect([h.rowCount(), h.rowCount('top'), h.rowCount('bottom')]).toEqual([2, 1, 1]);
+    expect([0, 1, 2].map((i) => h.rowId(i))).toEqual(['a', 'c', undefined]);
+    expect([0, 1].map((i) => h.value(i, 'city'))).toEqual(['X', 'Z']);
+    expect(h.value(1, 'hidden')).toBe(40);
+    expect(h.value(0, 'name', 'top')).toBe('Top');
+    expect(h.row(0, 'bottom')).toBe(bottom);
+    expect(h.rowId(0, 'bottom')).toBe('z');
+    expect(h.value(1, 'name', 'top')).toBeUndefined();
+    expect(h.value(0, 'nope')).toBeUndefined();
+  });
+
+  test('readValue() applies a column accessor to any row', async () => {
+    const { plugin, host } = hostGrabber();
+    await fixture({
+      columns: [...columns, { id: 'at', accessor: (_p: Person, i: number) => i }],
+      data,
+      plugins: [plugin],
+    });
+    const other = { id: 'q', name: 'Quinn', age: 5, address: { city: 'Q' } };
+    expect(host().readValue(other, 'city', 7)).toBe('Q');
+    expect(host().readValue(other, 'at', 7)).toBe(7);
+    expect(host().readValue(other, 'nope', 0)).toBeUndefined();
+  });
+
+  test('headerGroups() lists group and filler cells over the shown columns', async () => {
+    const { plugin, host } = hostGrabber();
+    const el = await fixture({
+      columns: columns.map((c) => (c.id === 'city' ? { ...c, pin: 'start' as const } : c)),
+      columnGroups: [{ id: 'who', header: 'Who', columns: ['name', 'city'] }],
+      data,
+      plugins: [plugin],
+    });
+    expect(host().headerGroups()).toEqual([
+      [
+        { groupId: 'who', columns: ['city'] },
+        { groupId: 'who', columns: ['name'] },
+        { groupId: undefined, columns: ['age'] },
+      ],
+    ]);
+    el.columnGroups = [];
+    await settle(el);
+    expect(host().headerGroups()).toEqual([]);
+  });
+
+  test('rows of a dataSource that are not loaded have no id or value', async () => {
+    const { plugin, host } = hostGrabber();
+    const all = people(1000);
+    const el = await fixture({
+      columns,
+      plugins: [plugin],
+      getRowId: (p: Person) => p.id,
+      dataSource: {
+        pageSize: 50,
+        getRows: ({ start, end }) =>
+          Promise.resolve({ rows: all.slice(start, end), total: all.length }),
+      },
+    });
+    await vi.waitFor(() => {
+      expect(host().rowId(0)).toBe('p0');
+    });
+    await settle(el);
+    expect(host().rowCount()).toBe(1000);
+    expect(host().value(1, 'name')).toBe('Person 1');
+    expect(host().rowId(900)).toBeUndefined();
+    expect(host().value(900, 'name')).toBeUndefined();
   });
 });

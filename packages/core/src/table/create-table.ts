@@ -255,6 +255,8 @@ export interface TableModel<TData, TContent> {
   selectableIds(): string[];
   /** The value a column reads from the row at `index`. */
   valueAt(index: number, columnId: string): unknown;
+  /** The value a column reads from any row object, as its accessor gets it at `index`. */
+  readValue(row: TData, columnId: string, index: number): unknown;
   /** What a column's `cell` function receives for the row at `index`. */
   cellContext(index: number, columnId: string): CellContext<TData> | undefined;
   /**
@@ -768,6 +770,10 @@ export function createTableModel<TData, TContent>(
         return entry && byId.get(columnId)?.getValue(entry.row, index);
       }
       return rows()[index]?.getValue(columnId);
+    },
+
+    readValue(row, columnId, index) {
+      return byId.get(columnId)?.getValue(row, index);
     },
 
     cellContext(index, columnId) {

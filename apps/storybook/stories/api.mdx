@@ -45,7 +45,7 @@ addEventListener('pagehide', () => {
 
 ## Other languages
 
-The built-in text is English: accessible names, the Retry button, "No rows" and the screen-reader announcements. `labels` translates it, and `headerMenu({ labels })` and `formulas({ labels })` do the same for the add-ons (see Features/Labels, which sets every key in German). Keys left out stay English. Text with values in it is a function, so it can choose a plural form:
+The built-in text is English: accessible names, the Retry button, "No rows" and the screen-reader announcements. `labels` translates it, and `headerMenu({ labels })`, `formulas({ labels })` and `tableExport({ labels })` do the same for the add-ons (see Features/Labels, which sets every key in German). Keys left out stay English. Text with values in it is a function, so it can choose a plural form:
 
 ```js
 table.labels = {
@@ -56,7 +56,7 @@ table.labels = {
 
 ## Plugins
 
-`plugins` takes add-ons, such as the column menu from `@argus-table/header-menu` (see Add-ons/Header menu) and formula columns from `@argus-table/formulas` (see Add-ons/Formulas: a column with `formula: '[price] * [qty]'` computes its value per row, and with `editing: 'edit'` users add and edit them from the column menu). A plugin is an object with a `name` and any of these hooks:
+`plugins` takes add-ons, such as the column menu from `@argus-table/header-menu` (see Add-ons/Header menu) and formula columns from `@argus-table/formulas` (see Add-ons/Formulas: a column with `formula: '[price] * [qty]'` computes its value per row, and with `editing: 'edit'` users add and edit them from the column menu) and export to CSV, Excel and PDF from `@argus-table/export` (see Add-ons/Export). A plugin is an object with a `name` and any of these hooks:
 
 ```ts
 import type { ArgusPlugin } from 'argus-table';
@@ -78,4 +78,4 @@ const plugin: ArgusPlugin<Order> = {
 table.plugins = [plugin];
 ```
 
-The `host` reads resolved columns (`column(id)`), finds the header or cell of an event (`cellOf(event)`), sorts (`setSort(id, 'asc' | 'desc' | undefined)`, under the `sorting` rules), focuses a header (`focusHeader(id)`), announces to screen readers (`announce(message)`), runs the `columns` hooks again (`invalidateColumns()`), re-renders (`requestUpdate()`) and reads body rows in the current order (`row(index)`). It also pins, hides and filters columns (`setPin`, `setHidden`, `setFilter`), lists them (`columns()`), and wraps a column's own content for a plugin's template (`content(value)`, or `header(def)` for a column's or group's own header): every member is always there. The table itself is `host.element`. Plugins run in array order; one that throws is reported in the console and skipped.
+The `host` reads resolved columns (`column(id)`), finds the header or cell of an event (`cellOf(event)`), sorts (`setSort(id, 'asc' | 'desc' | undefined)`, under the `sorting` rules), focuses a header (`focusHeader(id)`), announces to screen readers (`announce(message)`), runs the `columns` hooks again (`invalidateColumns()`), re-renders (`requestUpdate()`) and reads rows: the body in the current order or a pinned side (`row(index, section?)`, `rowCount(section?)`, `rowId(index, section?)`, a column's value with `value(index, columnId, section?)`, or with `readValue(row, columnId, index)` for a row the plugin has itself), and the group header rows (`headerGroups()`). It also pins, hides and filters columns (`setPin`, `setHidden`, `setFilter`), lists them (`columns()`), and wraps a column's own content for a plugin's template (`content(value)`, or `header(def)` for a column's or group's own header): every member is always there. The table itself is `host.element`. Plugins run in array order; one that throws is reported in the console and skipped.

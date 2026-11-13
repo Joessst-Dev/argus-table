@@ -3,6 +3,7 @@ import { html } from 'lit';
 import { expect, userEvent, waitFor } from 'storybook/test';
 import type { ArgusTable, ColumnDef, TableLabels } from 'argus-table';
 import 'argus-table';
+import { tableExport, type ExportLabels } from '@argus-table/export';
 import { formulas, type FormulasLabels } from '@argus-table/formulas';
 import { headerMenu, type HeaderMenuLabels } from '@argus-table/header-menu';
 import { orders, type Order } from './data.js';
@@ -159,6 +160,17 @@ const formulaLabels = {
     `${fn}([${column}]) nimmt nur den Wert der eigenen Zeile. Für die ganze Spalte schreib [[${column}]].`,
 } satisfies FormulasLabels;
 
+/** The export's text in German. */
+const exportLabels = {
+  group: 'Exportieren',
+  csv: 'CSV',
+  xlsx: 'Excel (.xlsx)',
+  pdf: 'PDF',
+  page: ({ page, pages }) => `Seite ${String(page)} von ${String(pages)}`,
+  exported: ({ rows }) => `${count(rows, 'Zeile', 'Zeilen')} exportiert`,
+  failed: 'Export fehlgeschlagen',
+} satisfies ExportLabels;
+
 const columns: ColumnDef<Order>[] = [
   { id: 'id', header: 'Bestellung', accessor: 'id', width: 120, pin: 'start' },
   {
@@ -190,6 +202,7 @@ const columns: ColumnDef<Order>[] = [
 
 // Kept between renders: new plugin instances would reconnect.
 const plugins = [
+  tableExport<Order>({ labels: exportLabels }),
   formulas<Order>({ editing: 'edit', labels: formulaLabels }),
   headerMenu<Order>({ labels: menuLabels }),
 ];
@@ -224,7 +237,7 @@ const items = (menu: HTMLElement) =>
 
 /**
  * The built-in text in another language: `labels` on the table, and a `labels`
- * option on `headerMenu()` and `formulas()`. Text with values in it is a
+ * option on `headerMenu()`, `formulas()` and `tableExport()`. Text with values in it is a
  * function, so it can use `Intl.PluralRules` and `Intl.NumberFormat`. Keys
  * left out stay English; this story sets them all, in German, to copy from.
  * The column headers are the app's own. Function names and error codes
@@ -264,6 +277,7 @@ export const German: Story = {
       if (!open) throw new Error('menu not open');
       return open;
     });
+    await expect(menu.textContent).toContain('Exportieren');
     await expect(items(menu)).toEqual(
       expect.arrayContaining([
         'Absteigend sortieren',
@@ -271,6 +285,7 @@ export const German: Story = {
         'Rechts fixieren',
         'Spalte ausblenden',
         'Formelspalte hinzufügen…',
+        'Excel (.xlsx)',
       ]),
     );
     const sort = [...menu.querySelectorAll<HTMLElement>('[role^="menuitem"]')].find(

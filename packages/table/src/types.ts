@@ -25,7 +25,14 @@ export type ColumnGroup<TContent = CellContent> = CoreColumnGroup<TContent>;
 /** Row density. Each one sets defaults for `--argus-row-height` and `--argus-cell-padding-inline`. */
 export type Density = 'compact' | 'comfortable' | 'spacious';
 
-export type { ArgusPlugin, CellTarget, ColumnInfo, PluginHost } from './plugins.js';
+export type {
+  ArgusPlugin,
+  CellTarget,
+  ColumnInfo,
+  HeaderGroupInfo,
+  PluginHost,
+  RowSection,
+} from './plugins.js';
 export type { ContentRenderer } from './render/content-directive.js';
 export type { TableLabels } from './labels.js';
 
