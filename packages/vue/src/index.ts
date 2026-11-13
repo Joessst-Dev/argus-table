@@ -78,6 +78,7 @@ export type {
   SortDirection,
   SortItem,
   SortState,
+  TableLabels,
   TableState,
   TextFilter,
   TextFilterOp,

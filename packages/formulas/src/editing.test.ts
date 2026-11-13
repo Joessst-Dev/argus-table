@@ -499,3 +499,92 @@ describe('changing a column', () => {
     await closed(el);
   });
 });
+
+describe('labels', () => {
+  async function germanFixture(rows: Row[] = data): Promise<ArgusTable<Row>> {
+    const el = document.createElement('argus-table') as ArgusTable<Row>;
+    Object.assign(el, {
+      columns,
+      data: rows,
+      getRowId: (r: Row) => r.id,
+      plugins: [
+        formulas<Row>({
+          editing: 'edit',
+          labels: {
+            formulaGroup: 'Formel',
+            editFormula: 'Formel bearbeiten…',
+            deleteColumn: 'Spalte löschen',
+            addFormulaColumn: 'Formelspalte hinzufügen…',
+            columnDeleted: ({ column }) => `${column} gelöscht`,
+            addTitle: 'Formelspalte hinzufügen',
+            columnName: 'Spaltenname',
+            addColumn: 'Hinzufügen',
+            nameMissing: 'Die Spalte braucht einen Namen.',
+            preview: ({ count }) => `Vorschau, ${String(count)} Zeilen`,
+            noPreviewRows: 'Noch keine Zeilen.',
+            newColumn: ({ name }) => `${name || 'Neue Spalte'} (neu)`,
+            functionGroup: ({ group }) => (group === 'Math' ? 'Mathematik' : group),
+            functionGroupList: ({ name }) => `Funktionen: ${name}`,
+          },
+        }),
+        headerMenu<Row>({ pin: false, hide: false }),
+      ],
+    });
+    el.style.inlineSize = '900px';
+    el.style.blockSize = '300px';
+    document.body.append(el);
+    await settle(el);
+    return el;
+  }
+  const announced = async () => {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    return document.querySelector('[data-argus-announcer]')?.textContent;
+  };
+
+  test('translate the menu items and announcements', async () => {
+    const el = await germanFixture();
+    const menu = await openMenu(el, 'total');
+    expect(labels(menu)).toContain('Formel bearbeiten… [Unit price] * [qty]');
+    expect(labels(menu)).toContain('Rename…');
+    expect(labels(menu)).toContain('Formelspalte hinzufügen…');
+    expect(menu.querySelector('.argus-header-menu-group-label')?.textContent).toBe('Formel');
+    [...menu.querySelectorAll<HTMLElement>('.argus-header-menu-item')]
+      .find((i) => i.textContent.trim() === 'Spalte löschen')
+      ?.click();
+    expect(await announced()).toBe('Total gelöscht');
+  });
+
+  test('translate the editor, keeping the others English', async () => {
+    const el = await germanFixture();
+    await choose(el, 'qty', 'Formelspalte hinzufügen…');
+    const dialog = await editor(el);
+    expect(dialog.querySelector('h2')?.textContent).toBe('Formelspalte hinzufügen');
+    button(dialog, 'Hinzufügen').click();
+    await el.updateComplete;
+    expect(dialog.textContent).toContain('Die Spalte braucht einen Namen.');
+    expect(document.activeElement).toBe(field(dialog, 'Spaltenname'));
+    expect(field(dialog, 'Formula')).toBeInstanceOf(HTMLInputElement);
+    type(field(dialog, 'Formula'), '[qty] * 2');
+    await el.updateComplete;
+    expect(dialog.textContent).toContain('Vorschau, 3 Zeilen');
+    expect(previewText(dialog)[0]).toContain('Neue Spalte (neu)');
+    button(dialog, 'All functions').click();
+    await el.updateComplete;
+    const math = dialog.querySelector('[aria-label="Funktionen: Mathematik"]');
+    expect(math?.querySelector('.argus-formula-functions-group')?.textContent).toBe('Mathematik');
+    button(dialog, 'Cancel').click();
+    await closed(el);
+  });
+
+  test('English defaults: the preview of one row says so', async () => {
+    const el = await fixture();
+    el.data = data.slice(0, 1);
+    await settle(el);
+    await choose(el, 'qty', 'Add formula column…');
+    const dialog = await editor(el);
+    type(field(dialog, 'Formula'), '[qty] * 2');
+    await el.updateComplete;
+    expect(dialog.textContent).toContain('Preview, first row');
+    expect(dialog.textContent).not.toContain('first 1 rows');
+  });
+});

@@ -7,6 +7,7 @@ import {
   startForm,
   type FilterForm,
 } from './filter-form.js';
+import { resolveLabels, type HeaderMenuLabels, type HeaderMenuLabelsInput } from './labels.js';
 import { adoptStyles } from './styles.js';
 
 /** Which column's menu is open in one table, and the table's API. */
@@ -18,8 +19,8 @@ interface TableState<T> {
   /** Prefix of the ids that tie each menu to its header label. */
   ids: string;
   /** Each column's text header (or its id), for items and announcements about it, hidden ones too. */
-  labels: Map<string, string>;
-  options: Required<HeaderMenuOptions>;
+  headerText: Map<string, string>;
+  options: { pin: boolean; hide: boolean; filter: boolean; labels: HeaderMenuLabels };
   /** The open filter form, if any (never at the same time as a menu). */
   form: FilterForm | undefined;
 }
@@ -38,25 +39,31 @@ export interface HeaderMenuOptions {
    * filter, and Clear filter on a filtered column. Default: `true`.
    */
   filter?: boolean;
+  /**
+   * The menu's text in another language: its items, the filter form and its
+   * announcements. Keys left out stay English. Text with values in it is a
+   * function: `showColumn: ({ column }) => …`.
+   */
+  labels?: HeaderMenuLabelsInput;
 }
 
 let tables = 0;
 
 const SORT_ITEMS = [
-  { direction: 'asc', label: 'Sort ascending' },
-  { direction: 'desc', label: 'Sort descending' },
-  { direction: undefined, label: 'Unsorted' },
+  { direction: 'asc', label: 'sortAscending' },
+  { direction: 'desc', label: 'sortDescending' },
+  { direction: undefined, label: 'unsorted' },
 ] as const;
 
 const PIN_ITEMS = [
-  { pin: 'start', label: 'Pin to start', done: 'pinned to the start' },
-  { pin: 'end', label: 'Pin to end', done: 'pinned to the end' },
-  { pin: false, label: "Don't pin", done: 'unpinned' },
-] as const satisfies readonly { pin: ColumnPin | false; label: string; done: string }[];
+  { pin: 'start', label: 'pinStart' },
+  { pin: 'end', label: 'pinEnd' },
+  { pin: false, label: 'unpin' },
+] as const satisfies readonly { pin: ColumnPin | false; label: keyof HeaderMenuLabels }[];
 
 /**
  * An item another plugin adds to the column menu, through `headerMenuItems`.
- * Labels are the plugin's own (the built-in ones are in English).
+ * Labels are the plugin's own: the built-in ones come from `headerMenu({ labels })`.
  */
 export interface HeaderMenuItem {
   label: string;
@@ -116,6 +123,7 @@ export function headerMenu<T = unknown>(options: HeaderMenuOptions = {}): ArgusP
     pin: options.pin !== false,
     hide: options.hide !== false,
     filter: options.filter !== false,
+    labels: resolveLabels(options.labels),
   };
 
   const stateOf = (host: PluginHost<T>): TableState<T> => {
@@ -127,7 +135,7 @@ export function headerMenu<T = unknown>(options: HeaderMenuOptions = {}): ArgusP
         open: undefined,
         pressedOpen: false,
         ids: `argus-hm-${String(tables)}`,
-        labels: new Map(),
+        headerText: new Map(),
         options: resolved,
         form: undefined,
       };
@@ -165,7 +173,7 @@ export function headerMenu<T = unknown>(options: HeaderMenuOptions = {}): ArgusP
 
     columns(defs, host) {
       const state = stateOf(host);
-      state.labels = new Map(defs.map((def) => [def.id, textOf(def)]));
+      state.headerText = new Map(defs.map((def) => [def.id, textOf(def)]));
       return defs.map((def, index) => ({
         ...def,
         header: () => header(state, def, `${state.ids}-${String(index)}`),
@@ -206,7 +214,7 @@ function textOf<T>(def: ColumnDef<T, unknown>): string {
   return typeof header === 'string' || typeof header === 'number' ? String(header) : def.id;
 }
 
-const labelOf = <T>(state: TableState<T>, id: string) => state.labels.get(id) ?? id;
+const labelOf = <T>(state: TableState<T>, id: string) => state.headerText.get(id) ?? id;
 
 /** Whether the menu can pin and unpin this column. */
 const canPin = <T>(state: TableState<T>, column: ColumnInfo) =>
@@ -265,7 +273,7 @@ function header<T>(state: TableState<T>, def: ColumnDef<T, unknown>, labelId: st
       class="argus-header-menu-button"
       type="button"
       tabindex="-1"
-      aria-label="Column menu"
+      aria-label=${state.options.labels.columnMenu}
       aria-haspopup="menu"
       aria-expanded=${isOpen ? 'true' : 'false'}
       aria-controls=${isOpen ? menuId : nothing}
@@ -325,10 +333,11 @@ function menu<T>(
   menuId: string,
 ): TemplateResult {
   const { id } = column;
+  const { labels } = state.options;
   const sortItems = column.sortable
     ? SORT_ITEMS.map((item) =>
         menuItem(
-          item.label,
+          labels[item.label],
           () => {
             close(state, id);
             state.host.setSort(id, item.direction);
@@ -340,12 +349,12 @@ function menu<T>(
   const pinItems = canPin(state, column)
     ? PIN_ITEMS.map((item) =>
         menuItem(
-          item.label,
+          labels[item.label],
           () => {
             close(state, id);
             if ((column.pin ?? false) === item.pin) return;
             state.host.setPin(id, item.pin);
-            state.host.announce(`${labelOf(state, id)} ${item.done}`);
+            state.host.announce(labels.pinned({ column: labelOf(state, id), pin: item.pin }));
           },
           { checked: (column.pin ?? false) === item.pin },
         ),
@@ -354,7 +363,7 @@ function menu<T>(
   const filterItems = canFilter(state, column)
     ? [
         menuItem(
-          'Filter…',
+          labels.filter,
           () => {
             close(state, undefined);
             void openFilter(state, id);
@@ -362,7 +371,7 @@ function menu<T>(
           { dialog: true },
         ),
         column.columnFilter
-          ? menuItem('Clear filter', () => {
+          ? menuItem(labels.clearFilter, () => {
               close(state, id);
               clearFilter(state, id);
             })
@@ -371,7 +380,7 @@ function menu<T>(
     : undefined;
   const { shown, hidden } = visibility(state);
   const hide = canHide(column, shown)
-    ? menuItem('Hide column', () => {
+    ? menuItem(labels.hideColumn, () => {
         hideColumn(state, id, shown);
       })
     : undefined;
@@ -381,16 +390,16 @@ function menu<T>(
       for (const c of columns) state.host.setHidden(c.id, false);
       state.host.announce(
         columns.length === 1
-          ? `${labelOf(state, columns[0]?.id ?? '')} shown`
-          : `${String(columns.length)} columns shown`,
+          ? labels.columnShown({ column: labelOf(state, columns[0]?.id ?? '') })
+          : labels.columnsShown({ count: columns.length }),
       );
     });
   const showLabelId = `${menuId}-hidden`;
   const showGroup = hidden.length
     ? html`<div role="group" aria-labelledby=${showLabelId}>
-        <div class="argus-header-menu-group-label" id=${showLabelId}>Hidden columns</div>
-        ${hidden.map((c) => show([c], `Show ${labelOf(state, c.id)}`))}
-        ${hidden.length > 1 ? show(hidden, 'Show all') : nothing}
+        <div class="argus-header-menu-group-label" id=${showLabelId}>${labels.hiddenColumns}</div>
+        ${hidden.map((c) => show([c], labels.showColumn({ column: labelOf(state, c.id) })))}
+        ${hidden.length > 1 ? show(hidden, labels.showAll) : nothing}
       </div>`
     : undefined;
   const groups = contributions(state.host, id).map((group, g) => {
@@ -416,7 +425,7 @@ function menu<T>(
     </div>`;
   });
   const fit = column.resizable
-    ? menuItem('Fit width', () => {
+    ? menuItem(labels.fitWidth, () => {
         void fitWidth(state, id, labelId);
       })
     : undefined;
@@ -454,6 +463,7 @@ function filterForm<T>(state: TableState<T>, form: FilterForm, labelId: string):
   };
   return renderForm(form, {
     label: labelOf(state, form.columnId),
+    labels: state.options.labels,
     id: `${labelId}-filter`,
     apply,
     applySoon: () => {
@@ -567,7 +577,7 @@ function hideColumn<T>(state: TableState<T>, columnId: string, shown: readonly C
   const next = shown[at + 1] ?? shown[at - 1];
   close(state, next?.id);
   state.host.setHidden(columnId, true);
-  state.host.announce(`${labelOf(state, columnId)} hidden`);
+  state.host.announce(state.options.labels.columnHidden({ column: labelOf(state, columnId) }));
 }
 
 async function fitWidth<T>(state: TableState<T>, columnId: string, labelId: string) {
@@ -579,7 +589,12 @@ async function fitWidth<T>(state: TableState<T>, columnId: string, labelId: stri
   await host.element.autosizeColumns([columnId]);
   const after = host.column(columnId)?.width;
   if (after !== undefined && after !== before) {
-    host.announce(`${label === '' ? columnId : label} fitted to ${String(Math.round(after))} px`);
+    host.announce(
+      state.options.labels.columnFitted({
+        column: label === '' ? columnId : label,
+        width: Math.round(after),
+      }),
+    );
   }
 }
 

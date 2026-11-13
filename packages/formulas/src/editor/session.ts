@@ -18,6 +18,8 @@ import { nodesOf, refsOf, type FormulaNode } from '../engine/parse.js';
 import { tokenize } from '../engine/tokenize.js';
 import { DOCS, type FunctionDoc } from './docs.js';
 import { openEditor, type PreviewTable } from './editor.js';
+import { EDITOR_LABELS } from './labels.js';
+import { resolveLabels, type FormulasEditorLabels, type FormulasLabels } from '../labels.js';
 
 // What the plugin loads when the editor first opens: the editor, and the
 // checks, preview and column changes around it.
@@ -88,14 +90,17 @@ const TOTALS = new Set(['SUM', 'MIN', 'MAX', 'AVERAGE', 'COUNT', 'COUNTA', 'COUN
  * A note on a formula that is fine but likely not what was meant: a total of a
  * single value of the row (`SUM([amount])`), where the whole column was meant.
  */
-export function noteOn(formula: string): string | undefined {
+export function noteOn(
+  formula: string,
+  labels: Pick<FormulasEditorLabels, 'rowValueTotal'> = EDITOR_LABELS,
+): string | undefined {
   const tree = parseOrError(formula);
   if (tree instanceof FormulaSyntaxError) return undefined;
   for (const n of nodesOf(tree)) {
     if (n.type !== 'call' || !TOTALS.has(n.name) || n.args.length !== 1) continue;
     const [only] = n.args;
     if (only?.type === 'ref') {
-      return `${n.name}([${only.name}]) uses one value, the row’s own. For the whole column, write [[${only.name}]].`;
+      return labels.rowValueTotal({ fn: n.name, column: only.name });
     }
   }
   return undefined;
@@ -148,15 +153,16 @@ function checkName<T>(
   defs: readonly ColumnDef<T, unknown>[],
   columnId: string | undefined,
   name: string,
+  labels: FormulasEditorLabels,
 ): string | undefined {
   const trimmed = name.trim();
-  if (!trimmed) return 'Give the column a name.';
-  if (/[[\]]/.test(trimmed)) return 'A column name can’t contain [ or ].';
+  if (!trimmed) return labels.nameMissing;
+  if (/[[\]]/.test(trimmed)) return labels.nameBrackets;
   const lower = trimmed.toLowerCase();
   const clash = defs.find(
     (d) => d.id !== columnId && (nameOf(d).toLowerCase() === lower || d.id.toLowerCase() === lower),
   );
-  return clash ? `Another column is already called ${trimmed}.` : undefined;
+  return clash ? labels.nameTaken({ name: trimmed }) : undefined;
 }
 
 export type Mode = 'add' | 'edit' | 'view';
@@ -173,6 +179,8 @@ export interface Session<T> {
   functions: FunctionTable;
   own: Readonly<Record<string, FormulaFunction>>;
   parse: (formula: string) => FormulaNode | FormulaSyntaxError;
+  /** The labels given to `formulas()`; the editor's own go over its defaults. */
+  labels: Partial<FormulasLabels>;
 }
 
 /** A change the user saved, for the plugin to propose through its events. */
@@ -208,7 +216,12 @@ function withDraft<T>(
  * The first rows (in the table's order) with the formula's result: the first
  * column, up to two columns the formula names, and the result.
  */
-function preview<T>(session: Session<T>, defs: ColumnDef<T, unknown>[], id: string): PreviewTable {
+function preview<T>(
+  session: Session<T>,
+  defs: ColumnDef<T, unknown>[],
+  id: string,
+  labels: FormulasEditorLabels,
+): PreviewTable {
   const { host } = session;
   const compiled = compileColumns(defs, {
     functions: session.functions,
@@ -250,7 +263,7 @@ function preview<T>(session: Session<T>, defs: ColumnDef<T, unknown>[], id: stri
     columns: [
       ...shown.map((def) => ({ label: nameOf(def), numeric: numeric(def), draft: false })),
       {
-        label: session.mode === 'add' ? `${draftName || 'New column'} (new)` : draftName || id,
+        label: session.mode === 'add' ? labels.newColumn({ name: draftName }) : draftName || id,
         numeric: draft?.type === 'number' || draft?.type === 'date',
         draft: true,
       },
@@ -269,6 +282,7 @@ export async function edit<T>(session: Session<T>): Promise<Outcome<T> | undefin
   const { defs, mode, columnId, functions } = session;
   const current = defs.find((d) => d.id === columnId);
   if (!current) return undefined;
+  const labels = resolveLabels(EDITOR_LABELS, session.labels);
   const docs: Record<string, FunctionDoc> = { ...DOCS };
   for (const [name, fn] of Object.entries(session.own)) {
     docs[name.toUpperCase()] = {
@@ -279,6 +293,7 @@ export async function edit<T>(session: Session<T>): Promise<Outcome<T> | undefin
   }
   const result = await openEditor({
     mode,
+    labels,
     focus: session.focus,
     name: mode === 'add' ? '' : nameOf(current),
     formula: mode === 'add' ? '' : (current.formula ?? ''),
@@ -289,16 +304,16 @@ export async function edit<T>(session: Session<T>): Promise<Outcome<T> | undefin
     check(name, formula) {
       const draft = withDraft(session, name, formula);
       return {
-        name: checkName(defs, mode === 'add' ? undefined : columnId, name),
+        name: checkName(defs, mode === 'add' ? undefined : columnId, name, labels),
         formula: formula.trim()
           ? checkFormula(draft.defs, draft.id, functions)
-          : { message: 'Enter a formula.', start: 0, end: 0 },
-        note: noteOn(formula),
+          : { message: labels.formulaMissing, start: 0, end: 0 },
+        note: noteOn(formula, labels),
       };
     },
     preview(name, formula) {
       const draft = withDraft(session, name, formula);
-      return preview(session, draft.defs, draft.id);
+      return preview(session, draft.defs, draft.id, labels);
     },
   });
   if (!result || mode === 'view') return undefined;

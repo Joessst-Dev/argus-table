@@ -52,6 +52,7 @@ export type ArgusTableElementProps<T = unknown> = Partial<
     | 'selectionCheckboxes'
     | 'selection'
     | 'plugins'
+    | 'labels'
   >
 > & {
   columns?: readonly ReactColumnDef<T>[] | null;

@@ -9,6 +9,9 @@ import { cellParts, cellSlot, cellStyle, type CheckboxHandlers } from './content
 
 type Columns<T> = readonly RenderedColumn<T>[];
 
+/** The rows' checkboxes in the selection column: their handlers and accessible name. */
+export type RowCheckboxes = CheckboxHandlers & { label: string };
+
 /** The cell holding the grid's tab stop: a row index and a column id. */
 export interface ActiveCell {
   index: number;
@@ -21,6 +24,8 @@ export interface Loading {
   stateAt(index: number): RowState;
   /** Rows that show a Retry button (one per failed page in view), with its accessible label. */
   retry: ReadonlyMap<number, string>;
+  /** The Retry button's text. */
+  retryText: string;
   /** Click handler of the Retry buttons; the button carries the row index in `data-row`. */
   onRetry: (event: Event) => void;
 }
@@ -48,7 +53,7 @@ export function renderBody<T>(
   firstRowIndex: number,
   loading?: Loading,
   selectedAt?: SelectedAt,
-  checkboxes?: CheckboxHandlers,
+  checkboxes?: RowCheckboxes,
   inset = false,
 ) {
   return html`<div
@@ -88,7 +93,7 @@ function renderRow<T>(
   firstRowIndex: number,
   loading: Loading | undefined,
   selected: boolean | undefined,
-  checkboxes: CheckboxHandlers | undefined,
+  checkboxes: RowCheckboxes | undefined,
   inset: boolean,
 ) {
   const state = loading?.stateAt(row.index) ?? 'loaded';
@@ -178,14 +183,14 @@ function firstDataColumn<T>(columns: Columns<T>): string | undefined {
 function rowCheckbox(
   index: number,
   selected: boolean | undefined,
-  checkboxes: CheckboxHandlers | undefined,
+  checkboxes: RowCheckboxes | undefined,
 ) {
   if (selected === undefined || !checkboxes) return nothing;
   return html`<input
     type="checkbox"
     part="selection-checkbox"
     tabindex="-1"
-    aria-label="Select row"
+    aria-label=${checkboxes.label}
     data-row=${index}
     .checked=${live(selected)}
     @click=${checkboxes.row}
@@ -210,7 +215,7 @@ function placeholder(
       aria-label=${retryLabel}
       @click=${loading.onRetry}
     >
-      Retry
+      ${loading.retryText}
     </button>`;
   }
   return html`<div

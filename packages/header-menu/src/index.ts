@@ -5,3 +5,4 @@ export type {
   HeaderMenuItem,
   HeaderMenuOptions,
 } from './header-menu.js';
+export type { HeaderMenuLabels, HeaderMenuLabelsInput } from './labels.js';

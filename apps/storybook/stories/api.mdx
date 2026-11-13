@@ -43,6 +43,17 @@ addEventListener('pagehide', () => {
 });
 ```
 
+## Other languages
+
+The built-in text is English: accessible names, the Retry button, "No rows" and the screen-reader announcements. `labels` translates it, and `headerMenu({ labels })` and `formulas({ labels })` do the same for the add-ons (see Features/Labels, which sets every key in German). Keys left out stay English. Text with values in it is a function, so it can choose a plural form:
+
+```js
+table.labels = {
+  selectRow: 'Zeile auswählen',
+  rowCount: ({ count }) => (count === 1 ? '1 Zeile' : `${count} Zeilen`),
+};
+```
+
 ## Plugins
 
 `plugins` takes add-ons, such as the column menu from `@argus-table/header-menu` (see Add-ons/Header menu) and formula columns from `@argus-table/formulas` (see Add-ons/Formulas: a column with `formula: '[price] * [qty]'` computes its value per row, and with `editing: 'edit'` users add and edit them from the column menu). A plugin is an object with a `name` and any of these hooks:

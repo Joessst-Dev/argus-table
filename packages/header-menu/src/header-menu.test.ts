@@ -849,3 +849,96 @@ describe('filter items and form', () => {
     expect(el.querySelector('.argus-header-filter')).toBeNull();
   });
 });
+
+describe('labels', () => {
+  const labelColumns: ColumnDef<Row>[] = [
+    { id: 'name', header: 'Name', accessor: 'name', width: 160, sortable: true, filter: 'text' },
+    { id: 'age', header: 'Age', accessor: 'age', width: 120, filter: 'number' },
+    { id: 'note', header: 'Note', accessor: 'note', width: 120, filter: 'set' },
+  ];
+  const german = headerMenu<Row>({
+    labels: {
+      columnMenu: 'Spaltenmenü',
+      sortAscending: 'Aufsteigend sortieren',
+      pinEnd: 'Rechts fixieren',
+      filter: 'Filtern…',
+      hideColumn: 'Spalte ausblenden',
+      hiddenColumns: 'Ausgeblendete Spalten',
+      showColumn: ({ column }) => `${column} einblenden`,
+      pinned: ({ column, pin }) => `${column} ${pin ? 'fixiert' : 'gelöst'}`,
+      columnHidden: ({ column }) => `${column} ausgeblendet`,
+      filterDialog: ({ column }) => `${column} filtern`,
+      condition: 'Bedingung',
+      numberOperators: { gt: 'Größer als' },
+      emptyValue: '(Leer)',
+      done: 'Fertig',
+    },
+  });
+  const texts = (root: ParentNode, selector: string) =>
+    [...root.querySelectorAll(selector)].map((e) => e.textContent.trim());
+  const item = (menu: HTMLElement, label: string) => {
+    const found = items(menu).find((i) => i.textContent.trim() === label);
+    if (!found) throw new Error(`no item ${label}`);
+    return found;
+  };
+  const announced = async () => {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    return document.querySelector('[data-argus-announcer]')?.textContent;
+  };
+
+  test('translate the items, keeping the others English', async () => {
+    const el = await fixture({ columns: labelColumns, plugins: [german] });
+    expect(buttonOf(el, 'name')?.getAttribute('aria-label')).toBe('Spaltenmenü');
+    buttonOf(el, 'name')?.click();
+    let menu = await opened(el);
+    expect(items(menu).map((i) => i.textContent.trim())).toEqual([
+      'Aufsteigend sortieren',
+      'Sort descending',
+      'Unsorted',
+      'Filtern…',
+      'Pin to start',
+      'Rechts fixieren',
+      "Don't pin",
+      'Fit width',
+      'Spalte ausblenden',
+    ]);
+
+    item(menu, 'Rechts fixieren').click();
+    await settle(el);
+    expect(await announced()).toBe('Name fixiert');
+
+    buttonOf(el, 'age')?.click();
+    item(await opened(el), 'Spalte ausblenden').click();
+    await settle(el);
+    expect(await announced()).toBe('Age ausgeblendet');
+    buttonOf(el, 'note')?.click();
+    menu = await opened(el);
+    expect(texts(menu, '.argus-header-menu-group-label')).toEqual(['Ausgeblendete Spalten']);
+    expect(item(menu, 'Age einblenden')).toBeInstanceOf(HTMLElement);
+  });
+
+  test('translate the filter form, its operators and the empty value', async () => {
+    const rows = [...data, { id: 'd', name: 'Dan', age: 40, note: null as unknown as string }];
+    const el = await fixture({ columns: labelColumns, data: rows, plugins: [german] });
+    buttonOf(el, 'age')?.click();
+    item(await opened(el), 'Filtern…').click();
+    await settle(el);
+    let form = el.querySelector<HTMLElement>('.argus-header-filter:popover-open');
+    if (!form) throw new Error('form not open');
+    expect(form.getAttribute('aria-label')).toBe('Age filtern');
+    expect(texts(form, 'label')[0]?.startsWith('Bedingung')).toBe(true);
+    const options = texts(form, 'option');
+    expect(options[0]).toBe('Equals');
+    expect(options[2]).toBe('Größer als');
+    expect(texts(form, 'button')).toEqual(['Clear', 'Fertig']);
+    key(form, 'Escape');
+    await settle(el);
+
+    buttonOf(el, 'note')?.click();
+    item(await opened(el), 'Filtern…').click();
+    await settle(el);
+    form = el.querySelector<HTMLElement>('.argus-header-filter:popover-open');
+    if (!form) throw new Error('form not open');
+    expect(texts(form, '.argus-header-filter-values label')).toContain('(Leer)');
+  });
+});

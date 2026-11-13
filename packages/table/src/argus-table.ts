@@ -67,6 +67,7 @@ import {
   SORTING_CHANGE,
 } from './events.js';
 import { fromInteractive, INTERACTIVE } from './interactive.js';
+import { resolveLabels, type TableLabels } from './labels.js';
 import { bodyCap, watchMaxElementHeight } from './max-height.js';
 import { renderBody, type ActiveCell, type Loading, type SelectedAt } from './render/body.js';
 import { renderLightDom } from './render/cells.js';
@@ -253,7 +254,7 @@ function pinnedWidth<T>(
  * @fires {CustomEvent<RangeChangeDetail>} argus-range-change - The rows in view changed (rows rendered ahead of the scroll position not counted). `detail: { first, last }` (row indices in the current order, both inclusive).
  * @fires {CustomEvent<LoadErrorDetail>} argus-load-error - A `dataSource` page failed to load: `getRows()` rejected or threw. `detail: { error, start, end }` (`end` exclusive). The rows show a Retry button.
  *
- * @slot empty - Shown instead of the body when there are no rows. Default: "No rows".
+ * @slot empty - Shown instead of the body when there are no rows. Default: `labels.noRows` ("No rows").
  *
  * @csspart table - The scroll container that holds header and body.
  * @csspart header - The sticky header row group.
@@ -607,6 +608,33 @@ export class ArgusTable<T = unknown> extends LitElement {
     if (!sameItems(next, this.#pluginsProp)) this.#pluginsProp = next;
   }
 
+  /**
+   * The table's built-in text, for another language: labels screen readers read
+   * (`selectRow`, `resizeColumn`, …), the Retry button, the empty state
+   * (`noRows`) and announcements (`rowCount`, `columnMoved`, …). Text with values
+   * in it is a function: `rowCount: ({ count }) => …`. Keys left out stay English.
+   * Property only. Plugins such as `headerMenu()` take their own `labels` option.
+   * `null` or `undefined` means `{}`.
+   */
+  @property({ attribute: false })
+  get labels(): Partial<TableLabels> {
+    return this.#labelsProp;
+  }
+  set labels(value: Partial<TableLabels> | null | undefined) {
+    this.#labelsProp = value ?? {};
+  }
+
+  #labelsProp: Partial<TableLabels> = {};
+  /** `labels` over the defaults, rebuilt when `labels` changes. */
+  #resolvedLabels: { of: Partial<TableLabels>; labels: TableLabels } | undefined;
+
+  /** The built-in text in effect: `labels` over the English defaults. */
+  get #labels(): TableLabels {
+    if (this.#resolvedLabels?.of !== this.#labelsProp) {
+      this.#resolvedLabels = { of: this.#labelsProp, labels: resolveLabels(this.#labelsProp) };
+    }
+    return this.#resolvedLabels.labels;
+  }
   #columnsProp: readonly ColumnDef<T>[] = [];
   #columnGroupsProp: readonly ColumnGroup[] = [];
   /** The groups last passed to the model: `columnGroups`, or the `<argus-column-group>` children. */
@@ -1106,6 +1134,7 @@ export class ArgusTable<T = unknown> extends LitElement {
   protected override render(): TemplateResult {
     const model = this.#table.model;
     const columns = model.columns;
+    const labels = this.#labels;
     this.#window = this.#virtual.computeWindow();
     const rendered = this.#columnWindow.compute(
       columns,
@@ -1165,11 +1194,12 @@ export class ArgusTable<T = unknown> extends LitElement {
           active: activeIn('header'),
           drag: this.#drag,
           checkAll: this.#checkAllOf(model),
+          labels,
         })}
         ${renderPinnedRows('top', layout.top, rendered, firstIndex('top'), activeIn('top'))}
         ${
           model.rowCount === 0
-            ? html`<div part="empty"><slot name="empty">No rows</slot></div>`
+            ? html`<div part="empty"><slot name="empty">${labels.noRows}</slot></div>`
             : renderBody(
                 this.#window.rows,
                 rendered,
@@ -1178,7 +1208,9 @@ export class ArgusTable<T = unknown> extends LitElement {
                 firstIndex('body'),
                 this.#loading(),
                 this.#selectedAt(model),
-                this.#selectionColumn ? this.#checkboxHandlers : undefined,
+                this.#selectionColumn
+                  ? { ...this.#checkboxHandlers, label: labels.selectRow }
+                  : undefined,
                 auto,
               )
         }
@@ -1317,6 +1349,7 @@ export class ArgusTable<T = unknown> extends LitElement {
   #loading(): Loading | undefined {
     const cache = this.#data.rows;
     if (!cache) return undefined;
+    const labels = this.#labels;
     const top = this.#window.range?.start ?? 0;
     const firstByPage = new Map<number, number>();
     for (const { index } of this.#window.rows) {
@@ -1329,9 +1362,14 @@ export class ArgusTable<T = unknown> extends LitElement {
     for (const [page, index] of firstByPage) {
       const start = page * cache.pageSize;
       const end = Math.min(start + cache.pageSize, cache.rowCount);
-      retry.set(index, `Retry loading rows ${String(start + 1)} to ${String(end)}`);
+      retry.set(index, labels.retryRows({ first: start + 1, last: end }));
     }
-    return { stateAt: (index) => cache.stateAt(index), retry, onRetry: this.#onRetry };
+    return {
+      stateAt: (index) => cache.stateAt(index),
+      retry,
+      retryText: labels.retry,
+      onRetry: this.#onRetry,
+    };
   }
 
   readonly #onRetry = (event: Event) => {
@@ -2385,8 +2423,7 @@ export class ArgusTable<T = unknown> extends LitElement {
    */
   #announceRowCount(model: TableModel<T, CellContent>): void {
     if (this.#data.rows) return;
-    const n = model.rowCount;
-    announce(this.ownerDocument, n === 1 ? '1 row' : `${String(n)} rows`);
+    announce(this.ownerDocument, this.#labels.rowCount({ count: model.rowCount }));
   }
 
   /**
@@ -2444,7 +2481,8 @@ export class ArgusTable<T = unknown> extends LitElement {
   /** Tells screen readers where a column or group moved from the keyboard went. */
   #announceMoved(model: TableModel<T, CellContent>, move: { unit: OrderUnit; from: number }): void {
     const { unit } = move;
-    const total = String(model.columns.length);
+    const total = model.columns.length;
+    const labels = this.#labels;
     if (unit.kind === 'column') {
       const view = model.columns.find((c) => c.id === unit.id);
       if (!view || view.colIndex === move.from) return;
@@ -2453,7 +2491,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       );
       announce(
         this.ownerDocument,
-        `${name || unit.id} moved to column ${String(view.colIndex)} of ${total}`,
+        labels.columnMoved({ column: name || unit.id, position: view.colIndex, total }),
       );
       return;
     }
@@ -2461,12 +2499,15 @@ export class ArgusTable<T = unknown> extends LitElement {
     const cell = model.headerGroups.flat().find((c) => c.key === key);
     if (!cell || cell.colIndex === move.from) return;
     const name = this.#slotText(`[data-group-key="${CSS.escape(key)}"] slot`);
-    const last = cell.colIndex + cell.span - 1;
-    const where =
-      cell.span === 1
-        ? `column ${String(cell.colIndex)}`
-        : `columns ${String(cell.colIndex)} to ${String(last)}`;
-    announce(this.ownerDocument, `${name || unit.id} moved to ${where} of ${total}`);
+    announce(
+      this.ownerDocument,
+      labels.groupMoved({
+        group: name || unit.id,
+        first: cell.colIndex,
+        last: cell.colIndex + cell.span - 1,
+        total,
+      }),
+    );
   }
 
   /** The text slotted into a header, read through the slot's assigned nodes. */

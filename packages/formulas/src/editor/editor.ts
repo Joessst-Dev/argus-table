@@ -4,6 +4,7 @@ import type { Mode, Problem } from './session.js';
 import type { ValueType } from '../engine/functions/index.js';
 import { callAt, completionAt, highlight, type Completion } from './assist.js';
 import type { FunctionDoc } from './docs.js';
+import type { FormulasEditorLabels } from '../labels.js';
 import { adoptEditorStyles } from './styles.js';
 
 /** One cell of the preview: its text, and the explanation when it's an error. */
@@ -20,6 +21,7 @@ export interface PreviewTable {
 
 export interface EditorOptions {
   mode: Mode;
+  labels: FormulasEditorLabels;
   /** The field focused first. */
   focus: 'name' | 'formula';
   name: string;
@@ -44,14 +46,7 @@ export interface EditorResult {
 
 let editors = 0;
 
-const TITLES = { add: 'Add formula column', edit: 'Edit formula column', view: 'Formula column' };
-const TYPES: Record<ValueType, string> = {
-  number: 'number',
-  text: 'text',
-  boolean: 'TRUE or FALSE',
-  date: 'date',
-  unknown: 'depends on the row',
-};
+const TITLES = { add: 'addTitle', edit: 'editTitle', view: 'viewTitle' } as const;
 
 const CLOSE_ICON = html`<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
   <path
@@ -69,7 +64,7 @@ const CLOSE_ICON = html`<svg viewBox="0 0 24 24" aria-hidden="true" focusable="f
  * they cancel. The dialog is removed again when it closes.
  */
 export function openEditor(options: EditorOptions): Promise<EditorResult | undefined> {
-  const { container, mode } = options;
+  const { container, mode, labels } = options;
   const readOnly = mode === 'view';
   const ids = `argus-fe-${String(++editors)}`;
   adoptEditorStyles(container);
@@ -208,13 +203,13 @@ export function openEditor(options: EditorOptions): Promise<EditorResult | undef
     const functionList = () => {
       const groups = new Map<string, string[]>();
       for (const fn of options.functions) {
-        const group = options.docs[fn]?.group ?? 'Yours';
+        const group = labels.functionGroup({ group: options.docs[fn]?.group ?? 'Yours' });
         groups.set(group, [...(groups.get(group) ?? []), fn]);
       }
       return html`<div class="argus-formula-functions" id=${`${ids}-functions`}>
         ${[...groups].map(
           ([group, names]) =>
-            html`<div role="group" aria-label=${`${group} functions`}>
+            html`<div role="group" aria-label=${labels.functionGroupList({ name: group })}>
               <span class="argus-formula-functions-group" aria-hidden="true">${group}</span>
               ${names.map(
                 (fn) =>
@@ -271,7 +266,7 @@ export function openEditor(options: EditorOptions): Promise<EditorResult | undef
               )}
             </tbody>
           </table>`
-        : html`<p class="argus-formula-note">No rows to preview yet.</p>`;
+        : html`<p class="argus-formula-note">${labels.noPreviewRows}</p>`;
 
     const view = (): TemplateResult => {
       const problems = touched ? options.check(name, formula) : {};
@@ -308,11 +303,11 @@ export function openEditor(options: EditorOptions): Promise<EditorResult | undef
           }}
         >
           <div class="argus-formula-editor-head">
-            <h2 id=${`${ids}-title`}>${TITLES[mode]}</h2>
+            <h2 id=${`${ids}-title`}>${labels[TITLES[mode]]}</h2>
             <button
               type="button"
               class="argus-formula-close"
-              aria-label="Close"
+              aria-label=${labels.close}
               @click=${() => dialog()?.close()}
             >
               ${CLOSE_ICON}
@@ -320,7 +315,7 @@ export function openEditor(options: EditorOptions): Promise<EditorResult | undef
           </div>
 
           <div class="argus-formula-row">
-            <label for=${`${ids}-name`}>Column name</label>
+            <label for=${`${ids}-name`}>${labels.columnName}</label>
             <input
               id=${`${ids}-name`}
               type="text"
@@ -345,7 +340,7 @@ export function openEditor(options: EditorOptions): Promise<EditorResult | undef
           </div>
 
           <div class="argus-formula-row">
-            <label for=${`${ids}-formula`}>Formula</label>
+            <label for=${`${ids}-formula`}>${labels.formula}</label>
             <div class="argus-formula-field">
               <div class="argus-formula-mirror" aria-hidden="true">${mirror(formulaProblem)}</div>
               <input
@@ -354,7 +349,7 @@ export function openEditor(options: EditorOptions): Promise<EditorResult | undef
                 spellcheck="false"
                 autocomplete="off"
                 autocapitalize="off"
-                placeholder=${readOnly ? '' : 'ROUND([Total] * 1.19, 2)'}
+                placeholder=${readOnly ? '' : labels.formulaPlaceholder}
                 role=${readOnly ? nothing : 'combobox'}
                 aria-autocomplete=${readOnly ? nothing : 'list'}
                 aria-expanded=${readOnly ? nothing : items.length ? 'true' : 'false'}
@@ -390,7 +385,7 @@ export function openEditor(options: EditorOptions): Promise<EditorResult | undef
                       class="argus-formula-suggestions"
                       role="listbox"
                       id=${listId}
-                      aria-label="Suggestions"
+                      aria-label=${labels.suggestions}
                     >
                       ${items.map(
                         (item, i) =>
@@ -408,7 +403,13 @@ export function openEditor(options: EditorOptions): Promise<EditorResult | undef
                           >
                             <span>${item.label}</span>
                             <span class="argus-formula-suggestion-kind">
-                              ${item.kind === 'boolean' ? 'value' : item.kind}
+                              ${
+                                item.kind === 'boolean'
+                                  ? labels.suggestionValue
+                                  : item.kind === 'column'
+                                    ? labels.suggestionColumn
+                                    : labels.suggestionFunction
+                              }
                             </span>
                           </li>`,
                       )}
@@ -435,7 +436,7 @@ export function openEditor(options: EditorOptions): Promise<EditorResult | undef
                     role="group"
                     aria-labelledby=${`${ids}-insert`}
                   >
-                    <span id=${`${ids}-insert`}>Insert column</span>
+                    <span id=${`${ids}-insert`}>${labels.insertColumn}</span>
                     ${options.columns.map(
                       (column) =>
                         html`<button
@@ -458,7 +459,7 @@ export function openEditor(options: EditorOptions): Promise<EditorResult | undef
                         update();
                       }}
                     >
-                      All functions
+                      ${labels.allFunctions}
                     </button>
                   </div>
                   ${functionsOpen ? functionList() : nothing}`
@@ -467,11 +468,11 @@ export function openEditor(options: EditorOptions): Promise<EditorResult | undef
           <div class="argus-formula-row">
             <div class="argus-formula-preview-head">
               <span id=${`${ids}-preview`}
-                >Preview, first ${String(preview.rows.length || 5)} rows</span
+                >${labels.preview({ count: preview.rows.length || 5 })}</span
               >
               ${
                 preview.type && !formulaProblem
-                  ? html`<span>Result: ${TYPES[preview.type]}</span>`
+                  ? html`<span>${labels.result({ type: preview.type })}</span>`
                   : nothing
               }
             </div>
@@ -481,10 +482,12 @@ export function openEditor(options: EditorOptions): Promise<EditorResult | undef
           <div class="argus-formula-actions">
             ${
               readOnly
-                ? html`<button type="submit" class="argus-formula-primary">Close</button>`
-                : html`<button type="button" @click=${() => dialog()?.close()}>Cancel</button>
+                ? html`<button type="submit" class="argus-formula-primary">${labels.close}</button>`
+                : html`<button type="button" @click=${() => dialog()?.close()}>
+                      ${labels.cancel}
+                    </button>
                     <button type="submit" class="argus-formula-primary">
-                      ${mode === 'add' ? 'Add column' : 'Save'}
+                      ${mode === 'add' ? labels.addColumn : labels.save}
                     </button>`
             }
           </div>

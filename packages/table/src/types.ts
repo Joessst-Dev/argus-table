@@ -27,6 +27,7 @@ export type Density = 'compact' | 'comfortable' | 'spacious';
 
 export type { ArgusPlugin, CellTarget, ColumnInfo, PluginHost } from './plugins.js';
 export type { ContentRenderer } from './render/content-directive.js';
+export type { TableLabels } from './labels.js';
 
 export type {
   CellClickDetail,

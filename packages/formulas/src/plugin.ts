@@ -15,6 +15,7 @@ import { FormulaError, FormulaSyntaxError, isFormulaError } from './engine/error
 import type { FormulaNode } from './engine/parse.js';
 import type { Mode, Outcome } from './editor/session.js';
 import { fire } from './events.js';
+import { PLUGIN_LABELS, resolveLabels, type FormulasLabels } from './labels.js';
 import { adoptStyles } from './styles.js';
 
 export type { FormulaFunction } from './columns.js';
@@ -38,6 +39,11 @@ export interface FormulasOptions {
    * - `'none'`: nothing in the menu.
    */
   editing?: 'edit' | 'view' | 'none';
+  /**
+   * The menu items, announcements and editor in another language. Keys left out
+   * stay English. Text with values in it is a function: `columnAdded: ({ column }) => …`.
+   */
+  labels?: Partial<FormulasLabels>;
 }
 
 /** An item for `headerMenu()`'s column menu (its `HeaderMenuItem`, by shape: no import needed). */
@@ -133,6 +139,8 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPl
   const functions = functionTable(options.functions);
   const marker = options.marker ?? true;
   const editing = options.editing ?? 'view';
+  const given = options.labels ?? {};
+  const labels = resolveLabels(PLUGIN_LABELS, given);
   const parsed = new Map<string, FormulaNode | FormulaSyntaxError>();
   const states = new WeakMap<HTMLElement, TableState<T>>();
 
@@ -225,6 +233,7 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPl
           functions,
           own: options.functions ?? {},
           parse: parseOnce,
+          labels: given,
         });
       }
     } finally {
@@ -236,14 +245,14 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPl
         column: outcome.column,
         columns: outcome.columns,
       });
-      host.announce(`Formula column ${nameOf(outcome.column)} added`);
+      host.announce(labels.columnAdded({ column: nameOf(outcome.column) }));
     } else if (outcome?.kind === 'change') {
       fire(host.element, 'argus-formula-column-change', {
         column: outcome.column,
         previous: outcome.previous,
         columns: outcome.columns,
       });
-      host.announce(`${nameOf(outcome.column)} changed`);
+      host.announce(labels.columnChanged({ column: nameOf(outcome.column) }));
     }
     host.focusHeader(columnId);
   };
@@ -257,7 +266,7 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPl
       column,
       columns: defs.filter((d) => d.id !== columnId),
     });
-    host.announce(`${nameOf(column)} deleted`);
+    host.announce(labels.columnDeleted({ column: nameOf(column) }));
     const neighbour = defs[at + 1] ?? defs[at - 1];
     if (neighbour) host.focusHeader(neighbour.id);
   };
@@ -340,21 +349,21 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPl
       const groups: FormulaMenuGroup[] = [];
       if (def.formula !== undefined) {
         groups.push({
-          label: 'Formula',
+          label: labels.formulaGroup,
           items:
             editing === 'edit'
               ? [
                   {
-                    label: 'Edit formula…',
+                    label: labels.editFormula,
                     detail: def.formula,
                     run: () => void openEditor(state, 'edit', columnId, 'formula'),
                   },
                   {
-                    label: 'Rename…',
+                    label: labels.rename,
                     run: () => void openEditor(state, 'edit', columnId, 'name'),
                   },
                   {
-                    label: 'Delete column',
+                    label: labels.deleteColumn,
                     danger: true,
                     run: () => {
                       remove(state, columnId);
@@ -363,7 +372,7 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPl
                 ]
               : [
                   {
-                    label: 'View formula…',
+                    label: labels.viewFormula,
                     detail: def.formula,
                     run: () => void openEditor(state, 'view', columnId, 'formula'),
                   },
@@ -374,7 +383,7 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPl
         groups.push({
           items: [
             {
-              label: 'Add formula column…',
+              label: labels.addFormulaColumn,
               run: () => void openEditor(state, 'add', columnId, 'name'),
             },
           ],
