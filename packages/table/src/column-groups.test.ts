@@ -579,6 +579,8 @@ describe('column groups: follow-ups', () => {
     expect(handle.getAttribute('aria-label')).toBe('Resize group');
     const resized: string[] = [];
     el.addEventListener('argus-column-sizing-change', (e) => resized.push(e.detail.columnId));
+    const ends: unknown[] = [];
+    el.addEventListener('argus-column-resize-end', (e) => ends.push(e.detail));
     const x = handle.getBoundingClientRect().left + 2;
     handle.dispatchEvent(new PointerEvent('pointerdown', { ...opts, clientX: x }));
     handle.dispatchEvent(new PointerEvent('pointermove', { ...opts, clientX: x + 170 }));
@@ -586,6 +588,8 @@ describe('column groups: follow-ups', () => {
     await settle(el);
     expect(el.columnSizing).toEqual({ age: 160, note: 180 });
     expect(resized.sort()).toEqual(['age', 'note']);
+    // One end for the whole drag, with every column it changed.
+    expect(ends).toEqual([{ columnSizing: { age: 160, note: 180 }, columnIds: ['age', 'note'] }]);
     expect(groupCell(el, 'more').getBoundingClientRect().width).toBeCloseTo(340, 0);
   });
 

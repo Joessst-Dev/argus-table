@@ -198,7 +198,7 @@ table.quickFilter = 'oslo paid'; // from the app's own search box
 | `getRowId`            | —                      | `(row, index) => string`                                             | index (among all rows, for a `dataSource`)                                                                                                                          |
 | `overscan`            | `overscan`             | number                                                               | 6                                                                                                                                                                   |
 | `virtualizeColumns`   | `virtualize-columns`   | boolean                                                              | `false` (see [Column virtualization](#column-virtualization))                                                                                                       |
-| `selectionMode`       | `selection-mode`       | `'none'` \| `'single'` \| `'multi'`                                  | `'none'` (see [Row selection](#row-selection))                                                                                                                      |
+| `selectionMode`       | `selection-mode`       | `'none'` \| `'single'` \| `'multi'`                                  | `'none'`, reflected to the attribute (see [Row selection](#row-selection))                                                                                          |
 | `selection`           | —                      | `string[]` of row ids (controlled or uncontrolled)                   | `[]`                                                                                                                                                                |
 | `selectionCheckboxes` | `selection-checkboxes` | boolean                                                              | `false`: adds the checkbox column while `selectionMode` isn't `'none'`                                                                                              |
 | `plugins`             | —                      | `ArgusPlugin[]`                                                      | `[]` (see [Plugins](#plugins))                                                                                                                                      |
@@ -385,6 +385,7 @@ A change of controllable state fires `argus-<property>-change`: `detail` has the
 | --- | --- |
 | `argus-sorting-change` | `{ sorting }` |
 | `argus-column-sizing-change` | `{ columnSizing, columnId, width }` |
+| `argus-column-resize-end` | `{ columnSizing, columnIds }`: once a user's resize is done |
 | `argus-column-order-change` | `{ columnOrder, columnId, groupId? }`: `groupId` when a column group moved |
 | `argus-column-pinning-change` | `{ columnPinning, columnId, pin }`: `pin` is `'start'`, `'end'` or `false` |
 | `argus-column-visibility-change` | `{ columnVisibility, columnId, visible }`: fires when a column is hidden and when it is shown |
@@ -398,6 +399,7 @@ A change of controllable state fires `argus-<property>-change`: `detail` has the
 - The package exports each name as a constant (`SORTING_CHANGE`, `COLUMN_SIZING_CHANGE`, `CELL_CLICK`, `ROW_CLICK`, `RANGE_CHANGE`, …), and `HTMLElementEventMap` types each `detail`.
 - `argus-sorting-change` fires on a click on a sortable header, or Enter or Space on a focused one; the order cycles ascending → descending → unsorted, by that one column. `sorting` itself may hold several columns, set by the host or a plugin.
 - `argus-column-sizing-change` fires when a column is resized by dragging its `resize-handle` or with Alt+Arrow on its focused header (10 px; the arrow toward the inline end grows it), and when a double-click on the handle or `autosizeColumns()` fits it to its content (once per column that changes, each with the whole new `columnSizing`). A press on the handle without moving changes nothing. The handle is a `separator` labelled "Resize column" (`labels.resizeColumn`). During a drag it fires once per animation frame, so a controlled host can follow the drag; `width` is already clamped to `minWidth`/`maxWidth`.
+- `argus-column-resize-end` fires once a user's resize is done, for saving widths: a drag released (or cancelled), an Alt+Arrow press, a double-click fit or `autosizeColumns()`. It comes after that resize's `argus-column-sizing-change` events, with `columnSizing` after the resize (the last proposed one when controlled) and `columnIds`, the columns it changed. A resize that changed nothing fires none, and so does setting `columnSizing` or `setState()`.
 - `argus-column-order-change` fires when a column or column group is moved: on drop after a header drag, or with Alt+Shift+Arrow on its focused header. `columnOrder` is the whole new order. A drop where the column would stay put, or a cancelled drag, fires nothing.
 - `argus-column-pinning-change`, `argus-column-visibility-change` and `argus-column-filters-change` fire when a plugin pins, unpins, hides, shows or filters a column (`setPin()`, `setHidden()`, `setFilter()`).
 - `argus-cell-click` and `argus-row-click` fire on a click in the body, in that order, including clicks on content inside a cell (check `event.composedPath()` to skip your own buttons). `row` is the data object, `value` what the column's accessor reads. On a pinned row, `pinned` is `'top'` or `'bottom'` and `index` is the row's index in its list. Enter on a focused body cell fires both too (Enter pressed in content inside a cell is left to that content). Header clicks fire neither.
@@ -450,6 +452,7 @@ Each `argus-*` event drops its prefix and takes the framework's style:
 | --- | --- | --- | --- |
 | `argus-sorting-change` | `onSortingChange` | `sorting-change` | `sortingChange` |
 | `argus-column-sizing-change` | `onColumnSizingChange` | `column-sizing-change` | `columnSizingChange` |
+| `argus-column-resize-end` | `onColumnResizeEnd` | `column-resize-end` | `columnResizeEnd` |
 | `argus-column-order-change` | `onColumnOrderChange` | `column-order-change` | `columnOrderChange` |
 | `argus-column-pinning-change` | `onColumnPinningChange` | `column-pinning-change` | `columnPinningChange` |
 | `argus-column-visibility-change` | `onColumnVisibilityChange` | `column-visibility-change` | `columnVisibilityChange` |

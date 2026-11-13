@@ -4,7 +4,8 @@
  * animation frame (TanStack's `onChange` mode: the width updates while dragging).
  *
  * `direction` is 1 in LTR and -1 in RTL: the handle sits on the inline-end edge,
- * so moving toward the inline end always grows the column.
+ * so moving toward the inline end always grows the column. `onEnd` runs once
+ * when the pointer is released or the drag is cancelled, after the last `onWidth`.
  */
 export function startResizeDrag(
   handle: HTMLElement,
@@ -12,6 +13,7 @@ export function startResizeDrag(
   startWidth: number,
   direction: 1 | -1,
   onWidth: (width: number) => void,
+  onEnd: () => void,
 ): void {
   const startX = down.clientX;
   let frame = 0;
@@ -39,6 +41,7 @@ export function startResizeDrag(
     handle.removeEventListener('pointerup', end);
     handle.removeEventListener('pointercancel', end);
     if (handle.hasPointerCapture(event.pointerId)) handle.releasePointerCapture(event.pointerId);
+    onEnd();
   };
 
   down.preventDefault();

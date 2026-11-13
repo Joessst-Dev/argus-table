@@ -35,6 +35,7 @@ export type {
   ColumnPin,
   ColumnPinningChangeDetail,
   ColumnPinningState,
+  ColumnResizeEndDetail,
   ColumnSizingChangeDetail,
   ColumnSizingState,
   ColumnVisibilityChangeDetail,

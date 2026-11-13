@@ -8,6 +8,7 @@ import {
   type ArgusTableElement,
   type CellClickDetail,
   type ColumnDef,
+  type ColumnResizeEndDetail,
   type SortState,
 } from './index.js';
 import { columns, orders, type Order } from './test/data.js';
@@ -108,6 +109,7 @@ describe('<argus-table> component', () => {
         (cellClick)="cells.push($event)"
         (rowClick)="rows = rows + 1"
         (sortingChange)="sorts.push($event)"
+        (columnResizeEnd)="resizes.push($event)"
       />`,
     })
     class Host {
@@ -117,6 +119,7 @@ describe('<argus-table> component', () => {
       cells: CustomEvent<CellClickDetail<Order>>[] = [];
       rows = 0;
       sorts: SortState[] = [];
+      resizes: CustomEvent<ColumnResizeEndDetail>[] = [];
     }
 
     const { el, host, fixture } = await mount(Host);
@@ -129,6 +132,10 @@ describe('<argus-table> component', () => {
     headers(el)[2]?.click();
     await settle(fixture, el);
     expect(host.sorts).toEqual([[{ id: 'total', desc: false }]]);
+
+    await el.autosizeColumns(['id']);
+    expect(host.resizes).toHaveLength(1);
+    expect(host.resizes[0]?.detail.columnIds).toEqual(['id']);
   });
 
   test('ignores the events of a table nested in a cell', async () => {

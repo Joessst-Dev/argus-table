@@ -128,6 +128,7 @@ describe('<ArgusTable>', () => {
     const onCellClick = vi.fn();
     const onRowClick = vi.fn();
     const onSortingChange = vi.fn();
+    const onColumnResizeEnd = vi.fn();
     const el = await mount(
       <ArgusTable<Order>
         style={size}
@@ -136,6 +137,7 @@ describe('<ArgusTable>', () => {
         onCellClick={onCellClick}
         onRowClick={onRowClick}
         onSortingChange={onSortingChange}
+        onColumnResizeEnd={onColumnResizeEnd}
       />,
     );
 
@@ -152,6 +154,10 @@ describe('<ArgusTable>', () => {
     expect(onSortingChange.mock.calls[0]?.[0]).toMatchObject({
       detail: { sorting: [{ id: 'total', desc: false }] },
     });
+
+    await act(() => el.autosizeColumns(['id']));
+    expect(onColumnResizeEnd).toHaveBeenCalledOnce();
+    expect(onColumnResizeEnd.mock.calls[0]?.[0]).toMatchObject({ detail: { columnIds: ['id'] } });
   });
 
   test('replaces and removes handlers between renders', async () => {

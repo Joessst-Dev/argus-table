@@ -93,6 +93,7 @@ describe('<ArgusTable>', () => {
     const onCellClick = vi.fn();
     const onRowClick = vi.fn();
     const onSortingChange = vi.fn();
+    const onColumnResizeEnd = vi.fn();
     const { el } = await mount(() =>
       h(ArgusTable<Order>, {
         style: size,
@@ -101,6 +102,7 @@ describe('<ArgusTable>', () => {
         onCellClick,
         onRowClick,
         'onSorting-change': onSortingChange,
+        'onColumn-resize-end': onColumnResizeEnd,
       }),
     );
 
@@ -117,6 +119,10 @@ describe('<ArgusTable>', () => {
     expect(onSortingChange.mock.calls[0]?.[0]).toMatchObject({
       detail: { sorting: [{ id: 'total', desc: false }] },
     });
+
+    await el.autosizeColumns(['id']);
+    expect(onColumnResizeEnd).toHaveBeenCalledOnce();
+    expect(onColumnResizeEnd.mock.calls[0]?.[0]).toMatchObject({ detail: { columnIds: ['id'] } });
   });
 
   test('ignores the events of a table nested in a cell', async () => {

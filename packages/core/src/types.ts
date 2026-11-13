@@ -357,6 +357,17 @@ export interface ColumnSizingChangeDetail {
   width: number;
 }
 
+/**
+ * `detail` of `argus-column-resize-end`: fires once when a resize is done (a
+ * drag released, an Alt+Arrow press, a fit to content), for persisting widths.
+ */
+export interface ColumnResizeEndDetail {
+  /** The sizing state after the resize, or the last proposed one when `columnSizing` is controlled. */
+  columnSizing: ColumnSizingState;
+  /** The columns whose width the resize changed. */
+  columnIds: string[];
+}
+
 /** `detail` of `argus-column-order-change`. */
 export interface ColumnOrderChangeDetail {
   /** The whole new order, or the proposed one when `columnOrder` is controlled. */

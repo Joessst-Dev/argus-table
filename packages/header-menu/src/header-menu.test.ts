@@ -201,10 +201,11 @@ describe('header menu actions', () => {
     const el = await fixture();
     const resizes: unknown[] = [];
     el.addEventListener('argus-column-sizing-change', (e) => resizes.push(e.detail.columnId));
+    el.addEventListener('argus-column-resize-end', (e) => resizes.push(e.detail.columnIds));
     buttonOf(el, 'age')?.click();
     items(await opened(el))[3]?.click();
     await settle(el);
-    expect(resizes).toEqual(['age']);
+    expect(resizes).toEqual(['age', ['age']]);
     expect(el.columnSizing.age).toBeLessThan(120);
     await new Promise((resolve) => setTimeout(resolve, 100));
     const region = document.querySelector('[data-argus-announcer]');

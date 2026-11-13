@@ -936,6 +936,76 @@ describe('column resizing', () => {
     expect(width(el, 0)).toBe(310);
   });
 
+  /** The events of resizes, in order: `change` for each sizing change, then `end` with its detail. */
+  const resizeEvents = (el: HTMLElement) => {
+    const seen: (string | { end: unknown })[] = [];
+    el.addEventListener('argus-column-sizing-change', (e) => seen.push(e.detail.columnId));
+    el.addEventListener('argus-column-resize-end', (e) => seen.push({ end: e.detail }));
+    return seen;
+  };
+
+  test('fires argus-column-resize-end once a drag is released, after its changes', async () => {
+    const el = await fixture({ columns: resizeColumns, data: people(1) });
+    const seen = resizeEvents(el);
+    await drag(el, 0, 30);
+    expect(seen.filter((e) => e === 'name').length).toBeGreaterThan(0);
+    expect(seen.at(-1)).toEqual({ end: { columnSizing: { name: 230 }, columnIds: ['name'] } });
+    expect(seen.filter((e) => typeof e === 'object')).toHaveLength(1);
+  });
+
+  test('fires no argus-column-resize-end when nothing changed', async () => {
+    const el = await fixture({ columns: resizeColumns, data: people(1) });
+    await drag(el, 1, -40);
+    const seen = resizeEvents(el);
+    // Held at minWidth.
+    await drag(el, 1, -40);
+    // Pressed and released without moving.
+    await drag(el, 0, 0);
+    // Set by the host.
+    el.columnSizing = { age: 100 };
+    await settle(el);
+    el.columnSizing = undefined;
+    await el.setState({ version: 1, columnSizing: { name: 300 } });
+    await settle(el);
+    expect(seen).toEqual([]);
+  });
+
+  test('fires argus-column-resize-end for each Alt+Arrow press', async () => {
+    const el = await fixture({ columns: resizeColumns, data: people(1) });
+    const seen = resizeEvents(el);
+    const name = header(el, 0);
+    name.focus();
+    const press = () => {
+      name.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: 'ArrowRight',
+          altKey: true,
+          bubbles: true,
+          composed: true,
+          cancelable: true,
+        }),
+      );
+    };
+    press();
+    await settle(el);
+    press();
+    await settle(el);
+    expect(seen).toEqual([
+      'name',
+      { end: { columnSizing: { name: 210 }, columnIds: ['name'] } },
+      'name',
+      { end: { columnSizing: { name: 220 }, columnIds: ['name'] } },
+    ]);
+  });
+
+  test('controlled: argus-column-resize-end carries the last proposed sizing', async () => {
+    const el = await fixture({ columns: resizeColumns, data: people(1), columnSizing: {} });
+    const seen = resizeEvents(el);
+    await drag(el, 0, 40);
+    expect(seen.at(-1)).toEqual({ end: { columnSizing: { name: 240 }, columnIds: ['name'] } });
+    expect(el.columnSizing).toEqual({});
+  });
+
   test('exposes the width on the separator and has no handle when resizable is false', async () => {
     const el = await fixture({ columns: resizeColumns, data: people(1) });
     const h = handle(el, 1);
@@ -1421,6 +1491,19 @@ describe('auto width', () => {
     expect(fits(el, 'city')).toBe(true);
     expect(seen).toEqual([{ columnId: 'city', width: fitted, columnSizing: { city: fitted } }]);
     expect(el.columnSizing).toEqual({ city: fitted });
+  });
+
+  test('a double-click fit and autosizeColumns() fire one argus-column-resize-end each', async () => {
+    const el = await fixture({ columns: autoColumns, data: withLong(20) });
+    const ends: unknown[] = [];
+    el.addEventListener('argus-column-resize-end', (e) => ends.push(e.detail));
+    await dblclick(el, 'city');
+    expect(ends).toEqual([{ columnSizing: el.columnSizing, columnIds: ['city'] }]);
+    await el.setState({ version: 1, columnSizing: { name: 40, age: 40 } });
+    await settle(el);
+    ends.length = 0;
+    await el.autosizeColumns(['name', 'age']);
+    expect(ends).toEqual([{ columnSizing: el.columnSizing, columnIds: ['name', 'age'] }]);
   });
 
   test('controlled: a double-click only proposes the fitted width', async () => {

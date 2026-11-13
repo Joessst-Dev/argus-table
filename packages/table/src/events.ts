@@ -3,6 +3,7 @@ import type {
   ColumnFiltersChangeDetail,
   ColumnOrderChangeDetail,
   ColumnPinningChangeDetail,
+  ColumnResizeEndDetail,
   ColumnSizingChangeDetail,
   ColumnVisibilityChangeDetail,
   LoadErrorDetail,
@@ -25,6 +26,9 @@ export const SORTING_CHANGE = 'argus-sorting-change';
 
 /** `columnSizing` changed (uncontrolled), or the proposed widths (controlled). Once per column. */
 export const COLUMN_SIZING_CHANGE = 'argus-column-sizing-change';
+
+/** A user's resize is done: once per drag, key press or fit, after its sizing changes. */
+export const COLUMN_RESIZE_END = 'argus-column-resize-end';
 
 /** `columnOrder` changed (uncontrolled), or the proposed order (controlled). */
 export const COLUMN_ORDER_CHANGE = 'argus-column-order-change';
@@ -55,6 +59,7 @@ declare global {
     'argus-range-change': CustomEvent<RangeChangeDetail>;
     'argus-sorting-change': CustomEvent<SortingChangeDetail>;
     'argus-column-sizing-change': CustomEvent<ColumnSizingChangeDetail>;
+    'argus-column-resize-end': CustomEvent<ColumnResizeEndDetail>;
     'argus-column-order-change': CustomEvent<ColumnOrderChangeDetail>;
     'argus-column-pinning-change': CustomEvent<ColumnPinningChangeDetail>;
     'argus-column-visibility-change': CustomEvent<ColumnVisibilityChangeDetail>;
