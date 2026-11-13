@@ -220,9 +220,12 @@ export function stripComments(src, path) {
   }
   let text = stripHtmlComments(src);
   // Scripts inside markup: strip their JS comments in place.
-  text = text.replace(/(<script\b[^>]*>)([\s\S]*?)(<\/script\s*>)/gi, (_, open, body, close) => {
-    return open + stripJsComments(body) + close;
-  });
+  text = text.replace(
+    /(<script\b[^>]*>)([\s\S]*?)(<\/script\b[^>]*>)/gi,
+    (_, open, body, close) => {
+      return open + stripJsComments(body) + close;
+    },
+  );
   if (ext === '.astro' || ext === '.svelte') {
     text = text.replace(/^---\n([\s\S]*?)\n---/, (m, body) => `---\n${stripJsComments(body)}\n---`);
   }
