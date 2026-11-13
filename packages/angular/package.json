@@ -1,6 +1,6 @@
 {
   "name": "@argus-table/angular",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Angular components for argus-table: typed inputs, outputs and two-way binding for <argus-table> and <argus-column>.",
   "license": "MIT",
   "repository": {
