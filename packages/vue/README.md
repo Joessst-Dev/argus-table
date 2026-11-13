@@ -46,8 +46,8 @@ const columns: ColumnDef<Order>[] = [
 </template>
 ```
 
-- **Props** set the element's properties: `columns`, `data`, `dataSource`, `pinnedRows`, `getRowId`, `rowHeight`, `density`, `overscan`, `virtualizeColumns`, `sorting`, `columnSizing`, `columnOrder`, `selectionMode`, `selectionCheckboxes`, `selection` and `plugins`. Other attributes (`aria-label`, `class`, `style`, …) go to the element.
-- **Events** get the element's `CustomEvent`: `sorting-change`, `column-sizing-change`, `column-order-change`, `column-pinning-change`, `column-visibility-change`, `column-filters-change`, `selection-change`, `cell-click`, `row-click`, `range-change` and `load-error`. Each `…-change` event also emits `update:<property>` with the new value, for `v-model`. In `@row-click`, `e.detail.row` has your row type. The details are in the [`argus-table` README](https://www.npmjs.com/package/argus-table).
+- **Props** set the element's properties: `columns`, `data`, `dataSource`, `pinnedRows`, `getRowId`, `rowHeight`, `density`, `overscan`, `virtualizeColumns`, `columnGroups`, `sorting`, `columnSizing`, `columnOrder`, `columnPinning`, `columnVisibility`, `columnFilters`, `quickFilter`, `selectionMode`, `selectionCheckboxes`, `selection`, `plugins` and `labels`. Other attributes (`aria-label`, `class`, `style`, …) go to the element.
+- **Events** get the element's `CustomEvent`: `sorting-change`, `column-sizing-change`, `column-resize-end`, `column-order-change`, `column-pinning-change`, `column-visibility-change`, `column-filters-change`, `selection-change`, `cell-click`, `row-click`, `range-change` and `load-error`. Each `…-change` event also emits `update:<property>` with the new value, for `v-model`. In `@row-click`, `e.detail.row` has your row type. The details are in the [`argus-table` README](https://www.npmjs.com/package/argus-table).
 - **Cells and headers** can be Vue content: `#cell-<column id>` and `#header-<column id>` slots, or `cell`/`header` functions that return VNodes. See [Vue content in cells](#vue-content-in-cells).
 - **Height:** the table virtualizes its rows, so it needs a bounded height. Its default is 400 px.
 
@@ -73,7 +73,7 @@ Give a column its cells or header with a slot named after its id:
 
 ## v-model
 
-`sorting`, `columnSizing`, `columnOrder` and `selection` bind two-way:
+`sorting`, `columnSizing`, `columnOrder`, `columnPinning`, `columnVisibility`, `columnFilters` and `selection` bind two-way:
 
 ```vue
 <script setup lang="ts">

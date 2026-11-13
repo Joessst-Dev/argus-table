@@ -44,8 +44,8 @@ export function Orders({ orders }: { orders: Order[] }) {
 }
 ```
 
-- **Props** set the element's properties: `columns`, `data`, `dataSource`, `pinnedRows`, `getRowId`, `rowHeight`, `density`, `overscan`, `virtualizeColumns`, `sorting`, `columnSizing`, `columnOrder`, `selectionMode`, `selectionCheckboxes`, `selection` and `plugins`. Other props (`aria-label`, `className`, `style`, …) go to the element as usual.
-- **Events** are `on*` props that get the element's `CustomEvent`: `onSortingChange`, `onColumnSizingChange`, `onColumnOrderChange`, `onColumnPinningChange`, `onColumnVisibilityChange`, `onColumnFiltersChange`, `onSelectionChange`, `onCellClick`, `onRowClick`, `onRangeChange` and `onLoadError`. A `…Change` event has the new value in `e.detail` under the property's name. The details are in the [`argus-table` README](https://www.npmjs.com/package/argus-table).
+- **Props** set the element's properties: `columns`, `data`, `dataSource`, `pinnedRows`, `getRowId`, `rowHeight`, `density`, `overscan`, `virtualizeColumns`, `columnGroups`, `sorting`, `columnSizing`, `columnOrder`, `columnPinning`, `columnVisibility`, `columnFilters`, `quickFilter`, `selectionMode`, `selectionCheckboxes`, `selection`, `plugins` and `labels`. Other props (`aria-label`, `className`, `style`, …) go to the element as usual.
+- **Events** are `on*` props that get the element's `CustomEvent`: `onSortingChange`, `onColumnSizingChange`, `onColumnResizeEnd`, `onColumnOrderChange`, `onColumnPinningChange`, `onColumnVisibilityChange`, `onColumnFiltersChange`, `onSelectionChange`, `onCellClick`, `onRowClick`, `onRangeChange` and `onLoadError`. A `…Change` event has the new value in `e.detail` under the property's name. The details are in the [`argus-table` README](https://www.npmjs.com/package/argus-table).
 - **Cells and headers** can be JSX: a column's `cell` (and `header`) may return any React node, as well as a string, a number, a DOM node or a Lit template. See [React content in cells](#react-content-in-cells).
 - **Height:** the table virtualizes its rows, so it needs a bounded height. Its default is 400 px.
 
@@ -71,7 +71,7 @@ const columns: ReactColumnDef<Order>[] = [
 
 ## Controlled state
 
-`sorting`, `columnSizing`, `columnOrder` and `selection` work like a controlled input. Leave the prop out and the table keeps the state itself. Set it, and the table shows what you pass and only proposes changes through the event:
+`sorting`, `columnSizing`, `columnOrder`, `columnPinning`, `columnVisibility`, `columnFilters` and `selection` work like a controlled input. Leave the prop out and the table keeps the state itself. Set it, and the table shows what you pass and only proposes changes through the event:
 
 ```tsx
 const [sorting, setSorting] = useState<SortState>([]);
