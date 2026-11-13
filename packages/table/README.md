@@ -85,6 +85,6 @@ The CDN build has every dependency bundled:
 
 ## Status
 
-This is an early release. Names can still change before 1.0. Pinned rows, auto column widths, column reordering and framework wrappers come in v0.2. See the [roadmap](https://github.com/Joessst-Dev/argus-table/blob/main/docs/plan/plan/12-roadmap.md).
+Stable since 1.0: properties, events, parts and tokens follow semantic versioning ([compatibility policy](https://github.com/Joessst-Dev/argus-table/blob/main/docs/adr/0004-api-1-0.md)). See the [roadmap](https://github.com/Joessst-Dev/argus-table/blob/main/docs/plan/plan/12-roadmap.md).
 
 MIT licensed.
