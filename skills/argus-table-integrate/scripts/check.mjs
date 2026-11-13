@@ -54,6 +54,7 @@ import {
   objectsInArray,
 } from './lib/markup.mjs';
 import {
+  escapeRegExp,
   makeResolver,
   MARKUP_EXTS,
   SCRIPT_EXTS,
@@ -66,6 +67,10 @@ import {
   stripComments,
   walk,
 } from './lib/walk.mjs';
+
+/** The CDN bundle's URL (jsDelivr or unpkg), from `//` on. */
+const CDN_SCRIPT =
+  /\/\/(?:cdn\.jsdelivr\.net\/npm|unpkg\.com)\/argus-table(?:@[^/'"\s]*)?\/dist\/cdn\//;
 
 /** Every rule, with its default severity. references/pitfalls.md has a section per id. */
 export const RULES = {
@@ -509,9 +514,7 @@ export function check(options) {
     }
 
     // --- CDN and bundle ---
-    const cdn = projectFiles.find((f) =>
-      /cdn\.jsdelivr\.net\/npm\/argus-table|unpkg\.com\/argus-table/.test(f.text),
-    );
+    const cdn = projectFiles.find((f) => CDN_SCRIPT.test(f.text));
     const bundled = projectFiles.find(
       (f) =>
         SCRIPT_EXTS.has(f.ext) &&
@@ -523,7 +526,7 @@ export function check(options) {
       report(
         'cdn-and-bundle',
         cdn,
-        cdn.text.search(/cdn\.jsdelivr\.net\/npm\/argus-table|unpkg\.com\/argus-table/),
+        cdn.text.search(CDN_SCRIPT),
         `The page loads argus-table from a CDN and ${bundled.rel} bundles it too: the second copy throws "argus-table has already been defined".`,
         'Use one: the npm packages with a bundler, or the CDN script.',
       );
@@ -537,7 +540,7 @@ export function check(options) {
         if (!file.text.includes(addon ?? '') && !file.text.includes(factory)) continue;
         if (
           !new RegExp(
-            `['"]${String(addon).replace('/', '\\/')}(?:@[^'"/]*)?(?:\\/\\+esm)?['"]|${String(addon).replace('/', '\\/')}`,
+            `['"]${escapeRegExp(String(addon))}(?:@[^'"/]*)?(?:\\/\\+esm)?['"]|${escapeRegExp(String(addon))}`,
           ).test(file.text)
         )
           continue;
@@ -607,7 +610,7 @@ export function check(options) {
         if (t.framework !== 'react') continue;
         const relPath = t.file.rel;
         const inApp =
-          new RegExp(`(?:^|/)${String(framework.meta.appDir).replace('/', '\\/')}/`).test(
+          new RegExp(`(?:^|/)${escapeRegExp(String(framework.meta.appDir))}/`).test(
             rel(dir, t.file.path),
           ) || rel(dir, t.file.path).startsWith(`${String(framework.meta.appDir)}/`);
         if (!inApp || /^\s*['"]use client['"]/.test(t.file.text)) continue;
@@ -1109,7 +1112,7 @@ function checkColumns(cols, tableFile, { report, fromLibraries, hasDataSource, c
 
 function checkMutation(file, name, report) {
   if (/\.refresh\s*\(/.test(file.text)) return;
-  const esc = name.replace(/\$/g, '\\$');
+  const esc = escapeRegExp(name);
   const re = new RegExp(
     `(?<![\\w$.\\]])(?:this\\.)?${esc}(?:\\.value|\\(\\))?(?:\\.(push|splice|unshift|pop|shift|sort|reverse|fill|copyWithin)\\s*\\(|\\[[^\\]\\n]+\\]\\s*=(?!=))`,
     'g',
@@ -1152,7 +1155,7 @@ function traceArray(file, value, { resolver, fileOf }) {
   };
   const local = fromDecl(file);
   if (local || findDeclaration(file.text, name)) return local;
-  const esc = name.replace(/\$/g, '\\$');
+  const esc = escapeRegExp(name);
   const m = new RegExp(
     `import\\s+(?:type\\s+)?\\{[^}]*\\b${esc}\\b[^}]*\\}\\s*from\\s*['"]([^'"]+)['"]`,
   ).exec(file.text);

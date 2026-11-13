@@ -27,6 +27,7 @@ import {
   themeTargets,
 } from './lib/project.mjs';
 import {
+  escapeRegExp,
   MARKUP_EXTS,
   SCRIPT_EXTS,
   importsOf,
@@ -563,10 +564,10 @@ function argusUsages(paths, fileOf) {
     const patterns = [
       [/<ArgusTable\b/g, 'wrapper'],
       [/<argus-table\b/g, 'element'],
-      [/cdn\.jsdelivr\.net\/npm\/argus-table|unpkg\.com\/argus-table/g, 'cdn'],
+      [/\/\/(?:cdn\.jsdelivr\.net\/npm|unpkg\.com)\/argus-table\b/g, 'cdn'],
       [
         new RegExp(
-          `from\\s+['"](?:${PACKAGES.map((p) => p.replace(/[/]/g, '\\/')).join('|')})['"]|import\\s+['"]argus-table['"]`,
+          `from\\s+['"](?:${PACKAGES.map(escapeRegExp).join('|')})['"]|import\\s+['"]argus-table['"]`,
           'g',
         ),
         'import',

@@ -99,6 +99,11 @@ export function walk(
   return { files, visited: Math.min(visited, maxFiles), skippedLarge, truncated };
 }
 
+/** `text` with every regular-expression metacharacter escaped, for `new RegExp()`. */
+export function escapeRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\/-]/g, '\\$&');
+}
+
 /** Reads a file as UTF-8, or `undefined`. */
 export function read(path) {
   try {
@@ -215,7 +220,7 @@ export function stripComments(src, path) {
   }
   let text = stripHtmlComments(src);
   // Scripts inside markup: strip their JS comments in place.
-  text = text.replace(/(<script\b[^>]*>)([\s\S]*?)(<\/script>)/gi, (_, open, body, close) => {
+  text = text.replace(/(<script\b[^>]*>)([\s\S]*?)(<\/script\s*>)/gi, (_, open, body, close) => {
     return open + stripJsComments(body) + close;
   });
   if (ext === '.astro' || ext === '.svelte') {
@@ -260,7 +265,7 @@ export function importsOf(src) {
 /** Names imported from a module: `import { A, type B as C } from 'x'` → `['A', 'B']`, plus a default. */
 export function namedImports(src, spec) {
   const names = [];
-  const escaped = spec.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+  const escaped = escapeRegExp(spec);
   const re = new RegExp(
     `\\bimport\\s+(?:type\\s+)?([\\w$]+)?\\s*,?\\s*(?:\\{([^}]*)\\})?\\s*from\\s+['"]${escaped}['"]`,
     'g',

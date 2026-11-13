@@ -11,7 +11,7 @@ import {
   compareVersions,
   minVersion,
 } from './api.mjs';
-import { read, readJson, rel } from './walk.mjs';
+import { escapeRegExp, read, readJson, rel } from './walk.mjs';
 
 /** All dependencies of a package.json, by name → range. */
 export function dependencies(pkg) {
@@ -341,7 +341,7 @@ function importerVersion(name, dir, root) {
 }
 
 function escape(text) {
-  return text.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+  return escapeRegExp(text);
 }
 
 const lockCache = new Map();
@@ -351,7 +351,7 @@ export function lockedVersions(name, root) {
   const key = `${root}\0${name}`;
   if (lockCache.has(key)) return lockCache.get(key);
   const versions = new Set();
-  const esc = name.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+  const esc = escapeRegExp(name);
   const pnpm = read(join(root, 'pnpm-lock.yaml'));
   if (pnpm) {
     const re = new RegExp(`^\\s+['"]?/?${esc}@(\\d+\\.\\d+\\.\\d+[\\w.-]*)(?:\\(|['"]?:)`, 'gm');

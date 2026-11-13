@@ -1,5 +1,6 @@
 // Reading tags, attributes, array literals and object keys out of source
 // text without a parser: enough to find a table's bindings and its columns.
+import { escapeRegExp } from './walk.mjs';
 
 /**
  * Finds opening tags named `name` (`ArgusTable`, `argus-table`) and reads
@@ -8,7 +9,7 @@
 export function findTags(src, name) {
   const tags = [];
   // A JSX generic may follow the name: <ArgusTable<Order> …>.
-  const re = new RegExp(`<${name.replace(/[-.]/g, '\\$&')}(?=[\\s/>]|<)`, 'g');
+  const re = new RegExp(`<${escapeRegExp(name)}(?=[\\s/>]|<)`, 'g');
   for (const m of src.matchAll(re)) {
     const start = m.index ?? 0;
     let at = start + m[0].length;
@@ -276,7 +277,7 @@ export function objectValue(objectText, key) {
  * initializer's offset and the declaration's indentation.
  */
 export function findDeclaration(src, name) {
-  const escaped = name.replace(/[$]/g, '\\$');
+  const escaped = escapeRegExp(name);
   const patterns = [
     new RegExp(
       `(^|\\n)([ \\t]*)(?:export\\s+)?(?:const|let|var)\\s+${escaped}\\b[^=\\n]*?=(?!=|>)`,
