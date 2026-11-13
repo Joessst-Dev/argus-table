@@ -1,5 +1,94 @@
 # @argus-table/react
 
+## 1.1.0
+
+### Minor Changes
+
+- 696a67b: New event `argus-column-resize-end`: it fires once when a user's resize is done, so you can save column widths without saving on every frame of a drag.
+
+  ```js
+  table.addEventListener('argus-column-resize-end', (event) => {
+    localStorage.setItem('widths', JSON.stringify(event.detail.columnSizing));
+  });
+  ```
+
+  - It fires when a drag on a column's or group's resize handle is released, after each Alt+Arrow press, and after a double-click on a handle or `autosizeColumns()` fits columns to their content. It comes after that resize's `argus-column-sizing-change` events.
+  - `detail: { columnSizing, columnIds }`: the sizing after the resize and the columns it changed. When `columnSizing` is controlled, it's the last proposed sizing.
+  - It doesn't fire when nothing changed (a column already at its `minWidth`, a press without moving), or when `columnSizing` or `setState()` set the widths.
+  - The wrappers have it as `onColumnResizeEnd` (React), `@column-resize-end` (Vue) and `(columnResizeEnd)` (Angular), and export the `ColumnResizeEndDetail` type.
+
+- 696a67b: The table components bind the formula editor's events from `formulas()` (`@argus-table/formulas`): `onFormulaColumnAdd`, `onFormulaColumnChange` and `onFormulaColumnRemove` in React, `@formula-column-add`, `@formula-column-change` and `@formula-column-remove` in Vue, and the `formulaColumnAdd`, `formulaColumnChange` and `formulaColumnRemove` outputs in Angular. Before, these needed a ref and `addEventListener`.
+
+  ```tsx
+  const apply = (e: CustomEvent<FormulaColumnDetail<Order>>) => setColumns(e.detail.columns);
+
+  <ArgusTable
+    columns={columns}
+    data={orders}
+    plugins={plugins}
+    onFormulaColumnAdd={apply}
+    onFormulaColumnChange={apply}
+    onFormulaColumnRemove={apply}
+  />;
+  ```
+
+  Each wrapper exports `FormulaColumnDetail<T>` and `FormulaColumnChangeDetail<T>`, typed with its own columns (`ReactColumnDef<T>`, `VueColumnDef<T>`, `AngularColumnDef<T>`), so `detail.columns` can go straight back into `columns`. The wrappers still don't depend on `@argus-table/formulas`.
+
+- 806fc7d: The built-in text can be translated. Set `labels` on the table, and pass a `labels` option to `headerMenu()` and `formulas()`. Keys you leave out stay English.
+
+  ```js
+  table.labels = {
+    selectRow: 'Zeile auswählen',
+    rowCount: ({ count }) => (count === 1 ? '1 Zeile' : `${count} Zeilen`),
+  };
+  table.plugins = [
+    formulas({ labels: { editFormula: 'Formel bearbeiten…' } }),
+    headerMenu({ labels: { sortAscending: 'Aufsteigend sortieren' } }),
+  ];
+  ```
+
+  - The table's labels cover the checkbox, resize handle and Retry button labels, the "No rows" text, the `aria-description` of filtered headers, and the announcements: the row count after filtering, and a column or group moved from the keyboard.
+  - The column menu's labels cover its items, the filter form with its operators, and its announcements.
+  - The formulas labels cover the menu items, the announcements and the editor. Function names, error codes, error messages and function descriptions stay English.
+  - Text with values in it is a function of an object, such as `({ count }) => …`, so it can pick a plural form with `Intl.PluralRules`. Numbers are passed unformatted.
+  - The types are `TableLabels` (also exported by the React, Vue and Angular wrappers, which get a `labels` prop), `HeaderMenuLabels` and `FormulasLabels`.
+
+  The formula editor's preview of a single row now reads "Preview, first row" instead of "first 1 rows".
+
+- 7397d32: Plugins can read the table's rows, values and group headers, as the new export add-on does:
+
+  - `host.rowCount(section?)`, `host.rowId(index, section?)` and `host.value(index, columnId, section?)` read the body rows in the order shown (after sorting and filtering), or the rows pinned to the `'top'` or `'bottom'`. `value()` is what the column's `accessor` reads, hidden columns too. With a `dataSource`, rows that aren't loaded have no id or value.
+  - `host.row(index, section?)` takes the section too.
+  - `host.readValue(row, columnId, index)` applies a column's `accessor` to a row the plugin has itself, such as one it fetched from the `dataSource`.
+  - `host.headerGroups()` lists the group header rows over the shown columns: each cell's group id (or none, over columns without a group) and its columns.
+  - `ColumnInfo` (from `host.column()` and `host.columns()`) has the column's `align`.
+  - New types: `RowSection` and `HeaderGroupInfo`, also exported by the React, Vue and Angular wrappers.
+
+- 3a96001: Scroll to a row by id, choose where it lands, and scroll to a column.
+
+  ```js
+  await table.scrollToRow(500, { align: 'center' });
+  await table.scrollToRow({ id: 'order-42' }, { align: 'nearest' });
+  await table.scrollToColumn('total');
+  ```
+
+  - `scrollToRow()` takes an index in the current row order, as before, or `{ id }` with a `getRowId` id. Its new `align` option puts the row at the top of the view (`'start'`, the default, as before), at the bottom (`'end'`), in the middle (`'center'`), or scrolls only as far as needed to show it (`'nearest'`). The header and pinned rows are left out of the view, so the row never ends up behind them.
+  - `scrollToColumn(id)` scrolls sideways so the column shows between the pinned columns: by default only as far as needed (`'nearest'`), or with `align: 'start' | 'center' | 'end'`. It works right to left, with flex columns and with `virtualizeColumns`.
+  - Both resolve `true` once the table has re-rendered with the target in view, and `false` when there's nothing to scroll to: an unknown id, a row that's filtered out or not loaded, a hidden column. `scrollToRow()` used to resolve `undefined`.
+  - With a `dataSource` that doesn't know its total yet, `scrollToRow()` to an index past the rows counted so far keeps scrolling toward it as pages arrive, as `setState()` does, until the user scrolls, clicks or presses a key.
+  - New types: `ScrollAlign`, `ScrollToRowOptions`, `ScrollToColumnOptions` and `RowTarget`, also exported by the React, Vue and Angular wrappers. Their components expose `scrollToColumn()` too.
+
+### Patch Changes
+
+- 94353ae: The READMEs list every property, event and two-way binding: the wrappers' lists were missing `columnGroups`, `columnPinning`, `columnVisibility`, `columnFilters`, `quickFilter`, `labels` and the resize-end event, and `argus-table`'s status section still described a pre-1.0 release.
+- Updated dependencies [696a67b]
+- Updated dependencies [806fc7d]
+- Updated dependencies [7397d32]
+- Updated dependencies [94353ae]
+- Updated dependencies [696a67b]
+- Updated dependencies [3a96001]
+  - argus-table@1.1.0
+
 ## 1.0.0
 
 ### Patch Changes

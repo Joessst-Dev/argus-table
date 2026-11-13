@@ -1,6 +1,6 @@
 {
   "name": "@argus-table/export",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Export for argus-table: the rows and columns shown, as CSV, Excel (.xlsx) or PDF, with no dependencies.",
   "license": "MIT",
   "repository": {
