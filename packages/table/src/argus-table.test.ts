@@ -53,6 +53,18 @@ describe('element basics', () => {
     expect(el.getAttribute('density')).toBe('comfortable');
   });
 
+  test('reflects selectionMode with none as the default', async () => {
+    const el = await fixture();
+    expect(el.getAttribute('selection-mode')).toBe('none');
+    el.selectionMode = 'multi';
+    await el.updateComplete;
+    expect(el.getAttribute('selection-mode')).toBe('multi');
+    el.setAttribute('selection-mode', 'single');
+    await el.updateComplete;
+    expect(el.selectionMode).toBe('single');
+    expect(el.getAttribute('selection-mode')).toBe('single');
+  });
+
   // Framework bindings (React through @lit/react) set `undefined` when a prop goes away.
   test('treats undefined and null columns, data and overscan as their defaults', async () => {
     const el = await fixture({ columns, data: people(20), overscan: 2 });

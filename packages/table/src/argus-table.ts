@@ -553,9 +553,10 @@ export class ArgusTable<T = unknown> extends LitElement {
    * Shift+click selects the range from the last clicked row, and Ctrl/Cmd+A
    * selects every row. Space toggles the focused row. Clicks on buttons, links
    * and inputs inside cells don't select. Pinned rows, and `dataSource` rows not
-   * loaded yet, can't be selected.
+   * loaded yet, can't be selected. Reflected to the `selection-mode` attribute,
+   * so page CSS and themes can match it, e.g. `argus-table[selection-mode='multi']`.
    */
-  @property({ attribute: 'selection-mode' })
+  @property({ attribute: 'selection-mode', reflect: true })
   selectionMode: SelectionMode = 'none';
 
   /**
