@@ -1,0 +1,12 @@
+{
+  "name": "check-bad-react",
+  "private": true,
+  "dependencies": {
+    "@argus-table/export": "^1.1.0",
+    "@argus-table/header-menu": "^1.1.0",
+    "@argus-table/react": "^1.2.0",
+    "ag-grid-react": "^33.2.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  }
+}

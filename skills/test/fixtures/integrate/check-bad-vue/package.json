@@ -1,0 +1,10 @@
+{
+  "name": "check-bad-vue",
+  "private": true,
+  "dependencies": {
+    "@argus-table/react": "^1.1.0",
+    "@argus-table/themes": "^1.1.0",
+    "@argus-table/vue": "^1.1.0",
+    "vue": "^3.5.13"
+  }
+}

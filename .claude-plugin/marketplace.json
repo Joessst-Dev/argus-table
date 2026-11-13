@@ -6,12 +6,21 @@
     {
       "name": "argus-table",
       "source": "./",
-      "description": "Make an argus-table theme from your brand colours or website and open it in the theme creator.",
+      "description": "Add argus-table to your app or migrate an existing table to it, and make a theme from your brand colours or website.",
       "homepage": "https://joessst-dev.github.io/argus-table/",
       "repository": "https://github.com/Joessst-Dev/argus-table",
       "license": "MIT",
-      "keywords": ["argus-table", "theme", "design-tokens", "data-table"],
-      "skills": ["./skills/argus-table-theme"]
+      "keywords": [
+        "argus-table",
+        "data-table",
+        "data-grid",
+        "migration",
+        "ag-grid",
+        "tanstack-table",
+        "theme",
+        "design-tokens"
+      ],
+      "skills": ["./skills/argus-table-theme", "./skills/argus-table-integrate"]
     }
   ]
 }

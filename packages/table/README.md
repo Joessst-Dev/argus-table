@@ -20,6 +20,8 @@
 npm i argus-table @argus-table/themes
 ```
 
+With a coding agent, the [`argus-table-integrate` skill](https://github.com/Joessst-Dev/argus-table/tree/main/skills#readme) sets the table up in your app, or migrates one from AG Grid, TanStack Table, MUI X and others.
+
 ## A first table
 
 ```html

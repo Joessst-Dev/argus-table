@@ -12,6 +12,8 @@ npm i @argus-table/angular @argus-table/themes
 
 `argus-table` comes with it. Angular 20, 21 or 22.
 
+With a coding agent, the [`argus-table-integrate` skill](https://github.com/Joessst-Dev/argus-table/tree/main/skills#readme) sets the table up in your app, or migrates one from AG Grid, TanStack Table, MUI X and others.
+
 ## A first table
 
 The components sit on the element's own tag, so you write `<argus-table>` as usual, with no `CUSTOM_ELEMENTS_SCHEMA`:

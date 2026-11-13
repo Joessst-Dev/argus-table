@@ -1,0 +1,5 @@
+{
+  "projects": {
+    "app": { "architect": { "build": { "options": { "styles": ["src/styles.scss"] } } } }
+  }
+}
