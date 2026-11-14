@@ -10,6 +10,8 @@ export interface ResolvedColumn<TData, TContent> {
   id: string;
   header: ColumnDef<TData, TContent>['header'];
   cell: ColumnDef<TData, TContent>['cell'];
+  /** The definition's `meta`, for plugins. */
+  meta: ColumnDef<TData, TContent>['meta'];
   /** Reads the cell value; returns `undefined` when the column has no accessor. */
   getValue: (row: TData, index: number) => unknown;
   hasAccessor: boolean;
@@ -119,6 +121,7 @@ export function resolveColumns<TData, TContent>(
       id: def.id,
       header: def.header,
       cell: def.cell,
+      meta: def.meta,
       getValue,
       hasAccessor: accessor !== undefined,
       width: base,

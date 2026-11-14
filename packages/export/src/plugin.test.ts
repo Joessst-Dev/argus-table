@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
+import { html } from 'lit';
 import 'argus-table';
 import type { ArgusTable, ColumnDef, DataSource, RowsRequest } from 'argus-table';
 import { headerMenu } from '@argus-table/header-menu';
@@ -75,12 +76,64 @@ describe('exportTable', () => {
     );
   });
 
-  test('reads text headers before other plugins wrap them', async () => {
+  test("names columns by their headers' text, wherever it is listed among the plugins", async () => {
     const el = await fixture({ plugins: [tableExport<Row>(), headerMenu<Row>()] });
     expect((await csv(el)).split('\r\n')[0]).toBe('Name,Age,City');
-    // Listed after the menu, headers are functions returning templates: the ids stand in.
+    // Listed after the menu, whose headers forward their text mode.
     const late = await fixture({ plugins: [headerMenu<Row>(), tableExport<Row>()] });
-    expect((await csv(late)).split('\r\n')[0]).toBe('name,age,city');
+    expect((await csv(late)).split('\r\n')[0]).toBe('Name,Age,City');
+  });
+
+  test("names a content header by its text mode, else by the column's id", async () => {
+    const el = await fixture({
+      columns: [
+        {
+          id: 'name',
+          header: ({ text }) => (text ? 'Full name' : html`<b>Name</b>`),
+          accessor: 'name',
+        },
+        { id: 'age', header: () => html`<i>Age</i>`, accessor: 'age' },
+      ],
+      columnGroups: [
+        {
+          id: 'who',
+          header: ({ text }) => (text ? 'Person' : html`<b>Who</b>`),
+          columns: ['name', 'age'],
+        },
+      ],
+    });
+    expect((await csv(el)).split('\r\n').slice(0, 2)).toEqual(['Person,', 'Full name,age']);
+  });
+
+  test("reads a column's meta.export; the columns option wins field by field", async () => {
+    const el = await fixture({
+      columns: columns.map((c): ColumnDef<Row> =>
+        c.id === 'name'
+          ? {
+              ...c,
+              meta: { export: { header: 'Who', value: (v, row) => `${String(v)}/${row.id}` } },
+            }
+          : c.id === 'city'
+            ? { ...c, meta: { export: { exclude: true } } }
+            : c,
+      ),
+    });
+    expect((await csv(el)).split('\r\n').slice(0, 2)).toEqual(['Who,Age', 'Ann/a,30']);
+    expect(
+      (await csv(el, { columns: { name: { header: 'Name' }, city: { exclude: false } } }))
+        .split('\r\n')
+        .slice(0, 2),
+    ).toEqual(['Name,Age,City', 'Ann/a,30,Oslo']);
+  });
+
+  test('types meta.export by augmenting ColumnMeta', () => {
+    const typed: ColumnDef<Row> = {
+      id: 'name',
+      meta: { export: { value: (_v, row) => row.name.toUpperCase() }, other: 1 },
+    };
+    // @ts-expect-error -- exclude is a boolean
+    const wrong: ColumnDef<Row> = { id: 'name', meta: { export: { exclude: 'yes' } } };
+    expect([typed, wrong]).toHaveLength(2);
   });
 
   test('exports the selected rows, hidden columns and per-column options', async () => {

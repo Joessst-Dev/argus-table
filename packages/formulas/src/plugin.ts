@@ -1,5 +1,5 @@
 import { html, nothing, render } from 'lit';
-import type { ArgusPlugin, CellContext, ColumnDef, PluginHost } from 'argus-table';
+import type { ArgusPlugin, CellContext, ColumnDef, HeaderContext, PluginHost } from 'argus-table';
 import {
   compileColumns,
   display,
@@ -187,7 +187,9 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPl
       anchor: HTMLElement | undefined,
       host: PluginHost<T>,
     ) =>
-    () => {
+    (context: HeaderContext) => {
+      // Text mode asks for the column's name: the header's own, without the mark.
+      if (context.text) return host.headerText(def);
       // As the table shows it; framework content (React, Vue) renders in our template too.
       const own = host.header(def);
       if (!mark) return html`${own}${anchor ?? nothing}`;

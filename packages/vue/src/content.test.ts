@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { createApp, defineComponent, h, nextTick, provide, reactive, type App } from 'vue';
-import { ArgusTable, type ArgusTableElement, type VueColumnDef } from './index.js';
+import {
+  ArgusTable,
+  type ArgusPlugin,
+  type ArgusTableElement,
+  type VueColumnDef,
+} from './index.js';
 import Groups from './test/Groups.vue';
 import Slots from './test/Slots.vue';
 import { counts } from './test/counts.js';
@@ -91,6 +96,23 @@ describe('Vue content in cells and headers', () => {
     state.showTotal = false;
     await settle(el);
     expect(cells(el, 'total')).toEqual(['0', '37', '74']);
+  });
+
+  test("a slotted header names its column by the definition's header", async () => {
+    const names: (string | undefined)[] = [];
+    const plugins: ArgusPlugin<Order>[] = [
+      {
+        name: 'names',
+        columns: (defs, host) => {
+          names.splice(0, Infinity, ...defs.map((d) => host.headerText(d)));
+          return undefined;
+        },
+      },
+    ];
+    await mount(() =>
+      createApp(() => h(Slots, { rows: orders(2), currency: 'EUR', showTotal: true, plugins })),
+    );
+    expect(names).toEqual(['Order', 'Customer', 'Total']);
   });
 
   test('pooled cells keep their components while scrolling: no remounts', async () => {

@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { html } from 'lit';
 import { expect, userEvent, waitFor } from 'storybook/test';
-import type { ArgusTable, SortingChangeDetail } from 'argus-table';
+import type { ArgusTable, ColumnDef, SortingChangeDetail } from 'argus-table';
 import 'argus-table';
 import { headerMenu } from '@argus-table/header-menu';
 import { orderColumns, orders, type Order } from './data.js';
@@ -200,6 +200,41 @@ export const PinAndHide: Story = {
     await userEvent.click(buttonOf(table, 'customer'));
     await userEvent.click(item(await openMenu(table), "Don't pin"));
     await waitFor(() => expect(headerOrder(table)).toEqual(start));
+  },
+};
+
+const templateColumns: ColumnDef<Order>[] = orderColumns.map((c) =>
+  c.id === 'customer'
+    ? {
+        ...c,
+        header: ({ text }) =>
+          text ? 'Customer' : html`<span>Customer <small>(name)</small></span>`,
+      }
+    : c,
+);
+
+/**
+ * A header that is a template (or JSX, VNodes) still gets its name in the menu's
+ * "Hidden columns" items and announcements: a `header` function returns plain
+ * text when its context asks for it (`({ text }) => (text ? 'Customer' : html`…`)`).
+ * Without that, the column is named by its id.
+ */
+export const TemplateHeaders: Story = {
+  render: () =>
+    html`<argus-table
+      style="block-size: 420px; inline-size: 720px"
+      .columns=${templateColumns}
+      .data=${data}
+      .plugins=${plugins}
+    ></argus-table>`,
+  play: async ({ canvasElement }) => {
+    const table = await tableIn(canvasElement);
+    await userEvent.click(buttonOf(table, 'customer'));
+    await userEvent.click(item(await openMenu(table), 'Hide column'));
+    await waitFor(() => expect(headerOrder(table)).not.toContain('customer'));
+    await userEvent.click(buttonOf(table, 'city'));
+    await userEvent.click(item(await openMenu(table), 'Show Customer'));
+    await waitFor(() => expect(headerOrder(table)).toContain('customer'));
   },
 };
 

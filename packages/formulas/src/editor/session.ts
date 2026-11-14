@@ -159,8 +159,11 @@ function checkName<T>(
   if (!trimmed) return labels.nameMissing;
   if (/[[\]]/.test(trimmed)) return labels.nameBrackets;
   const lower = trimmed.toLowerCase();
+  const lookup = lookupOf(defs);
   const clash = defs.find(
-    (d) => d.id !== columnId && (nameOf(d).toLowerCase() === lower || d.id.toLowerCase() === lower),
+    (d) =>
+      d.id !== columnId &&
+      (nameOf(d, lookup).toLowerCase() === lower || d.id.toLowerCase() === lower),
   );
   return clash ? labels.nameTaken({ name: trimmed }) : undefined;
 }
@@ -282,6 +285,7 @@ export async function edit<T>(session: Session<T>): Promise<Outcome<T> | undefin
   const { defs, mode, columnId, functions } = session;
   const current = defs.find((d) => d.id === columnId);
   if (!current) return undefined;
+  const lookup = lookupOf(defs);
   const labels = resolveLabels(EDITOR_LABELS, session.labels);
   const docs: Record<string, FunctionDoc> = { ...DOCS };
   for (const [name, fn] of Object.entries(session.own)) {
@@ -298,7 +302,7 @@ export async function edit<T>(session: Session<T>): Promise<Outcome<T> | undefin
     name: mode === 'add' ? '' : nameOf(current),
     formula: mode === 'add' ? '' : (current.formula ?? ''),
     container: session.container,
-    columns: defs.filter((d) => mode === 'add' || d.id !== columnId).map(nameOf),
+    columns: defs.filter((d) => mode === 'add' || d.id !== columnId).map((d) => nameOf(d, lookup)),
     functions: Object.keys(functions).sort(),
     docs,
     check(name, formula) {

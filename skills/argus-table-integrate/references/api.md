@@ -72,7 +72,7 @@ Call them on the element: a React `ref`, Vue `ref` (the component exposes them),
 | Field           | Type                                           | Default         | Notes                                                                            |
 | --------------- | ---------------------------------------------- | --------------- | -------------------------------------------------------------------------------- |
 | `id`            | `string`                                       | required        | Unique and stable: state, events and saved layouts use it                        |
-| `header`        | content, or `() => content`                    | empty           | Text, a node, a template; JSX/VNodes in the wrappers. Always give one            |
+| `header`        | content, or `(context) => content`             | empty           | Text, a node, a template; JSX/VNodes in the wrappers. Always give one            |
 | `accessor`      | `'path.to.value'` or `(row, index) => unknown` | none            | What the column sorts, filters and exports. Without it, the value is `undefined` |
 | `cell`          | `(row, ctx) => content`                        | the value       | `ctx`: `{ row, rowId, index, columnId, value, pinned? }`                         |
 | `formula`       | `string`                                       |                 | Only with `formulas()`                                                           |
@@ -91,17 +91,24 @@ Call them on the element: a React `ref`, Vue `ref` (the component exposes them),
 | `filterOptions` | `FilterValue[]`                                | distinct values | The values a `'set'` filter offers; required with a `dataSource`                 |
 | `align`         | `'start' \| 'center' \| 'end'`                 | `'start'`       | Numbers: `'end'`                                                                 |
 | `wrap`          | `boolean`                                      | `false`         | Wraps text; rows grow only with `rowHeight: 'auto'`                              |
+| `meta`          | `ColumnMeta` (an object)                       | none            | Plugins' and the app's own fields, such as `meta.export`. Since 1.2              |
+
+A `header` function gets `{ columnId, text }` (a group's: `{ groupId, text }`). With `text: true` it returns the name as plain text: the column menu, exports and the table's announcements use it, where a JSX or template header would otherwise be named by its id. Since 1.2:
+
+```tsx
+header: ({ text }) => (text ? 'Total' : <b>Total</b>);
+```
 
 ## ColumnGroup
 
 `columnGroups: ColumnGroup[]` puts header rows over the flat columns.
 
-| Field         | Type                        | Notes                                                      |
-| ------------- | --------------------------- | ---------------------------------------------------------- |
-| `id`          | `string`                    |                                                            |
-| `header`      | content, or `() => content` | The id when missing                                        |
-| `reorderable` | `boolean`                   | Lets the group move as a whole (its columns must allow it) |
-| `columns`     | `(string \| ColumnGroup)[]` | Column ids, or nested groups                               |
+| Field         | Type                               | Notes                                                      |
+| ------------- | ---------------------------------- | ---------------------------------------------------------- |
+| `id`          | `string`                           |                                                            |
+| `header`      | content, or `(context) => content` | The id when missing                                        |
+| `reorderable` | `boolean`                          | Lets the group move as a whole (its columns must allow it) |
+| `columns`     | `(string \| ColumnGroup)[]`        | Column ids, or nested groups                               |
 
 ## DataSource
 
@@ -131,7 +138,7 @@ const dataSource: DataSource<Order> = {
 
 ## `<argus-column>` children
 
-Columns can be markup instead of `columns` (React `<ArgusColumn>`, Vue `<ArgusColumn>`, Angular `<argus-column>`): attributes `column-id`, `header`, `accessor` (a path), `formula`, `width` (`90`, `auto`, `2fr`), `min-width`, `max-width`, `pin`, `pinnable`, `hideable`, `align`, `wrap`, `sortable`, `resizable`, `reorderable`, `filter`, `hidden`; `cell`, `filterFn` and `filterOptions` as properties; a `<template>` child as static cell content. `<argus-column-group group-id header>` groups them.
+Columns can be markup instead of `columns` (React `<ArgusColumn>`, Vue `<ArgusColumn>`, Angular `<argus-column>`): attributes `column-id`, `header`, `accessor` (a path), `formula`, `width` (`90`, `auto`, `2fr`), `min-width`, `max-width`, `pin`, `pinnable`, `hideable`, `align`, `wrap`, `sortable`, `resizable`, `reorderable`, `filter`, `hidden`; `cell`, `filterFn`, `filterOptions` and `meta` as properties; a `<template>` child as static cell content. `<argus-column-group group-id header>` groups them.
 
 ## Slots, parts and tokens
 

@@ -129,6 +129,30 @@ describe('formula columns', () => {
     expect(contentOf(headerOf(el, 'price'))?.textContent).toBe('Unit price');
   });
 
+  test("passes the header's text on, and names a template header by it in formulas", async () => {
+    const names: (string | undefined)[] = [];
+    const after: ArgusPlugin<Row> = {
+      name: 'names',
+      columns: (defs, host) => {
+        names.splice(0, Infinity, ...defs.map((d) => host.headerText(d)));
+        return undefined;
+      },
+    };
+    const el = await fixture({
+      plugins: [formulas(), after],
+      columns: [
+        ...base.map((c) =>
+          c.id === 'price'
+            ? { ...c, header: ({ text }: { text: boolean }) => (text ? 'Cost' : html`<i>Cost</i>`) }
+            : c,
+        ),
+        { id: 'total', header: 'Total', formula: '[cost] * [qty]' },
+      ],
+    });
+    expect(names).toEqual(['Name', 'Cost', 'Quantity', 'Total']);
+    expect(texts(el, 'total')).toEqual(['24', '2', '0']);
+  });
+
   test('leaves headers alone with marker: false', async () => {
     const el = await fixture({
       plugins: [formulas({ marker: false })],

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { html } from 'lit';
 import type { ArgusTable } from './argus-table.js';
-import type { ArgusPlugin, ColumnDef, PluginHost } from './index.js';
+import type { ArgusPlugin, ColumnDef, HeaderContext, PluginHost } from './index.js';
 import {
   fixture,
   people,
@@ -367,6 +367,100 @@ describe('plugin host', () => {
     }
     // The group without a header shows its id; the column without one, nothing.
     expect(seen).toEqual(['«who»', '«Name»', '«Age»', '«»']);
+  });
+
+  test('header functions get a context: the id, and text: false when rendering', async () => {
+    const contexts: unknown[] = [];
+    const el = await fixture({
+      columns: [
+        {
+          id: 'name',
+          header: (context) => (contexts.push(context), 'Name'),
+          accessor: 'name',
+        },
+      ],
+      columnGroups: [
+        { id: 'who', header: (context) => (contexts.push(context), 'Who'), columns: ['name'] },
+      ],
+      data: people(2),
+    });
+    expect(contexts).toContainEqual({ columnId: 'name', text: false });
+    expect(contexts).toContainEqual({ groupId: 'who', text: false });
+    expect(contexts).not.toContainEqual(expect.objectContaining({ text: true }));
+    expect(slotted(headerOf(el, 'name'))?.textContent.trim()).toBe('Name');
+  });
+
+  test("headerText(def) names a column or group as plain text, in the header's text mode", async () => {
+    const { plugin, host } = hostGrabber();
+    const forwarding: ArgusPlugin<Person> = {
+      name: 'forwarding',
+      // A plugin that wraps headers forwards text mode to the header it wraps.
+      columns: (defs, h) =>
+        defs.map((d) => ({
+          ...d,
+          header: (context: HeaderContext) =>
+            context.text ? h.headerText(d) : html`<b>${h.header(d)}</b>`,
+        })),
+    };
+    const defs: ColumnDef<Person>[] = [
+      { id: 'name', header: ' Name ', accessor: 'name' },
+      { id: 'age', header: 42, accessor: 'age' },
+      {
+        id: 'city',
+        header: ({ text }) => (text ? 'City' : html`<i>City</i>`),
+        accessor: 'address.city',
+      },
+      { id: 'tpl', header: () => html`<i>Template</i>` },
+      { id: 'blank', header: () => '  ' },
+      { id: 'none' },
+    ];
+    const group = {
+      id: 'who',
+      header: ({ text }: { text: boolean }) => (text ? 'Who' : html`<i>Who</i>`),
+      columns: ['name'],
+    };
+    const el = await fixture({
+      columns: defs,
+      columnGroups: [group],
+      data: people(2),
+      plugins: [forwarding, plugin],
+    });
+    expect(defs.map((d) => host().headerText(d))).toEqual([
+      'Name',
+      '42',
+      'City',
+      undefined,
+      undefined,
+      undefined,
+    ]);
+    expect(host().headerText(group)).toBe('Who');
+    expect(host().headerText({ id: 'g', columns: [] })).toBeUndefined();
+    // The wrapped headers still render the content, and forward the text.
+    expect(slotted(headerOf(el, 'city'))?.querySelector('b > i')?.textContent).toBe('City');
+    const wrapped = forwarding.columns?.(defs, host()) ?? [];
+    expect(wrapped.map((d) => host().headerText(d))).toEqual([
+      'Name',
+      '42',
+      'City',
+      undefined,
+      undefined,
+      undefined,
+    ]);
+  });
+
+  test('column(id).meta is the definition’s meta, as given', async () => {
+    const { plugin, host } = hostGrabber();
+    const meta = { unit: 'years' };
+    await fixture({
+      columns: [
+        { id: 'name', accessor: 'name' },
+        { id: 'age', accessor: 'age', meta },
+      ],
+      data: people(2),
+      plugins: [plugin],
+    });
+    expect(host().column('age')?.meta).toBe(meta);
+    expect(host().column('name')?.meta).toBeUndefined();
   });
 
   const data = [

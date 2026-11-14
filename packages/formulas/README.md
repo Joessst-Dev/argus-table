@@ -35,7 +35,7 @@ A formula column is an ordinary column: it sorts, resizes, pins, moves and virtu
 
 In the framework wrappers it's the `plugins` prop. Keep the array the same between renders: a new plugin instance compiles every formula again. One `formulas()` can serve several tables.
 
-**With `headerMenu()`**, list `formulas()` first: `plugins = [formulas(), headerMenu()]`. The header menu turns text headers into functions, and formulas name columns by their text header.
+**With `headerMenu()`**, list `formulas()` first: `plugins = [formulas(), headerMenu()]`, so the menu button sits after the `ƒx` header.
 
 ## Formulas
 
@@ -49,7 +49,7 @@ DAYS(TODAY(), [created_at])
 COUNTIF([[customer]], [customer])
 ```
 
-- **Columns** go in square brackets, by `id` or by text `header` (case doesn't matter): `[Unit price]` is the row's value. A formula can use other formula columns.
+- **Columns** go in square brackets, by `id` or by text `header` (case doesn't matter): `[Unit price]` is the row's value. A formula can use other formula columns. A column whose header is a template, JSX or a slot is named by its header's text mode (`header: ({ text }) => (text ? 'Unit price' : …)`), after ids and text headers.
 - **Whole columns** go in double brackets: `[[amount]]` is every value of the column, for the functions in the Columns group and `SUM`, `MIN`, `MAX` and `AVERAGE` (see [Whole columns](#whole-columns)).
 - **Operators:** `+ - * / ^`, `%` after a number (`20%` is 0.2), `&` joins text, and `= <> < <= > >=` compare. `^` goes left to right and a leading minus binds tightest, as in spreadsheets: `-2^2` is 4.
 - **Values:** numbers with `.` as the decimal point, text in double quotes (`""` for a quote inside), `TRUE` and `FALSE`. A leading `=` is allowed.

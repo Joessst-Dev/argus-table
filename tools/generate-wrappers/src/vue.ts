@@ -27,7 +27,9 @@ const handlerProp = (emit: string) => `'on${emit.charAt(0).toUpperCase()}${emit.
 const CONTENT_PROPS: ContentTypes = {
   columns: 'readonly VueColumnDef<T>[] | null',
   columnGroups: 'readonly VueColumnGroup[] | null',
-  header: 'VueCellContent | (() => VueCellContent)',
+  // A column's header gets a HeaderContext, a group's a GroupHeaderContext.
+  header: "VueColumnDef<T>['header']",
+  'ArgusColumnGroup.header': "VueColumnGroup['header']",
   cell: '(row: T, context: CellContext<T>) => VueCellContent',
   contentRenderer: null,
 };
@@ -43,7 +45,7 @@ function component(el: ElementInfo): string {
   const typed = el.properties.filter((p) => typeof CONTENT_PROPS[p.name] === 'string');
   const keys = plain.map((p) => `'${p.name}'`).join(' | ');
   const contentProps = typed.length
-    ? ` & {\n${typed.map((p) => `  ${p.name}?: ${contentType(CONTENT_PROPS, p.name, el.generic)};`).join('\n')}\n}`
+    ? ` & {\n${typed.map((p) => `  ${p.name}?: ${contentType(CONTENT_PROPS, p.name, el.generic, el.className)};`).join('\n')}\n}`
     : '';
   const slotTp = content ? tp : '';
   const slotTa = content ? ta : '';

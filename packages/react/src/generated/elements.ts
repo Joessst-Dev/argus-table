@@ -175,9 +175,10 @@ export type ArgusColumnElementProps<T = unknown> = Partial<
     | 'filter'
     | 'filterFn'
     | 'filterOptions'
+    | 'meta'
   >
 > & {
-  header?: ReactCellContent | (() => ReactCellContent);
+  header?: ReactColumnDef<T>['header'];
   cell?: (row: T, context: CellContext<T>) => ReactCellContent;
 };
 
@@ -204,7 +205,7 @@ export const ArgusColumn = createComponent({
 export type ArgusColumnGroupElementProps = Partial<
   Pick<ArgusColumnGroupElement, 'groupId' | 'reorderable'>
 > & {
-  header?: ReactCellContent | (() => ReactCellContent);
+  header?: ReactColumnGroup['header'];
 };
 
 /** Props of `<ArgusColumnGroup>`: element properties and the usual HTML attributes. */

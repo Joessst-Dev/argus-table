@@ -1,4 +1,4 @@
-import type { ColumnDef, PluginHost } from 'argus-table';
+import type { ColumnDef, HeaderContext, PluginHost } from 'argus-table';
 import { checkNumber, formatNumber } from './engine/coerce.js';
 import { compile, type Evaluate } from './engine/compile.js';
 import { FormulaError, FormulaSyntaxError, isFormulaError } from './engine/errors.js';
@@ -199,20 +199,47 @@ function entry<T>(
 const sameInputs = (a: readonly unknown[], b: readonly unknown[]) =>
   a.length === b.length && a.every((value, i) => Object.is(value, b[i]));
 
-/** Finds a column a formula names: by id, then by text header, then by id in any case. */
+/**
+ * Finds a column a formula names: by id, then by text header, then by id in any
+ * case, then by the text a header function gives in text mode (`HeaderContext`).
+ * The last comes last so that names that resolved before still lead to the same
+ * column.
+ */
 export function lookupOf<T>(
   defs: readonly ColumnDef<T, unknown>[],
 ): (name: string) => ColumnDef<T, unknown> | undefined {
   const byId = new Map(defs.map((d) => [d.id, d]));
   const byHeader = new Map<string, ColumnDef<T, unknown>>();
   const byIdCase = new Map<string, ColumnDef<T, unknown>>();
+  const byText = new Map<string, ColumnDef<T, unknown>>();
   for (const def of defs) {
     const header = typeof def.header === 'string' ? def.header.trim().toLowerCase() : undefined;
     if (header && !byHeader.has(header)) byHeader.set(header, def);
     if (!byIdCase.has(def.id.toLowerCase())) byIdCase.set(def.id.toLowerCase(), def);
+    const text = header === undefined ? headerTextOf(def)?.toLowerCase() : undefined;
+    if (text && !byText.has(text)) byText.set(text, def);
   }
-  return (name) =>
-    byId.get(name) ?? byHeader.get(name.toLowerCase()) ?? byIdCase.get(name.toLowerCase());
+  return (name) => {
+    const lower = name.toLowerCase();
+    return byId.get(name) ?? byHeader.get(lower) ?? byIdCase.get(lower) ?? byText.get(lower);
+  };
+}
+
+/**
+ * The name a header gives as plain text when it isn't a string: a number, or what a
+ * header function returns in text mode. `undefined` for content and blank text.
+ */
+function headerTextOf<T>(def: ColumnDef<T, unknown>): string | undefined {
+  let own: unknown = def.header;
+  if (typeof own === 'function') {
+    try {
+      own = (own as (context: HeaderContext) => unknown)({ columnId: def.id, text: true });
+    } catch {
+      return undefined;
+    }
+  }
+  const text = typeof own === 'string' ? own.trim() : typeof own === 'number' ? String(own) : '';
+  return text || undefined;
 }
 
 /** The formula columns a formula names, by id: its edges in the dependency graph. */
@@ -368,9 +395,19 @@ export function compileColumns<T>(
   return next;
 }
 
-/** A column's name as formulas use it: its text header, else its id. */
-export const nameOf = <T>(def: ColumnDef<T, unknown>): string =>
-  typeof def.header === 'string' && def.header.trim() ? def.header.trim() : def.id;
+/**
+ * A column's name as formulas use it: its text header, else the text its header
+ * gives in text mode, else its id. With `lookup`, that text is used only where it
+ * names this column in a formula (it is the last thing `lookupOf` tries).
+ */
+export function nameOf<T>(
+  def: ColumnDef<T, unknown>,
+  lookup?: (name: string) => ColumnDef<T, unknown> | undefined,
+): string {
+  if (typeof def.header === 'string' && def.header.trim()) return def.header.trim();
+  const text = headerTextOf(def);
+  return text !== undefined && (!lookup || lookup(text)?.id === def.id) ? text : def.id;
+}
 
 /** A result as cell text, the way a spreadsheet shows it. */
 export function display(value: unknown): string {

@@ -92,6 +92,8 @@ Give a column its cells or header with a template inside the table, named by col
 - The views keep your component's bindings and DI. Hold the state they read in signals (as zoneless apps do), so changes reach the cells.
 - Cells are pooled: as the table scrolls, a cell shows another row and its view **gets a new context instead of being re-created**. Keep per-row state in your data (or keyed by `rowId`), not in a cell component's own fields.
 - Template content renders before the browser paints and before `width: 'auto'` measures. The templates reach the columns as the table's first plugin, so `headerMenu()` and `formulas()` wrap templated headers as usual.
+- A column with an `argusHeader` template keeps the `header` of its definition as its name in the column menu, exports and announcements: give it `header: 'Total'` too.
+- `meta` holds plugins' and your own fields per column (`meta: { export: { exclude: true } }`). Type your own by augmenting the wrapper's module: `declare module '@argus-table/angular' { interface ColumnMeta<TData> { … } }`.
 - `ARGUS_TABLE` holds the table and column components and both directives, for `imports`.
 
 ## Two-way binding

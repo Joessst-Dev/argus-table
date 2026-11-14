@@ -13,8 +13,9 @@ export function doc(text: string): string {
 }
 
 /**
- * Content properties' types in a framework's wrapper, by property name. `null`:
- * the wrapper sets the property itself and leaves it out (`contentRenderer`).
+ * Content properties' types in a framework's wrapper, by property name, or by
+ * `Element.property` for one element's own type (`ArgusColumnGroup.header`).
+ * `null`: the wrapper sets the property itself and leaves it out (`contentRenderer`).
  */
 export type ContentTypes = Readonly<Record<string, string | null>>;
 
@@ -22,9 +23,18 @@ export type ContentTypes = Readonly<Record<string, string | null>>;
 export const rendersContent = (el: ElementInfo): boolean =>
   el.properties.some((p) => p.name === 'contentRenderer');
 
-/** A content property's type; the row type is `unknown` for an element that isn't generic. */
-export function contentType(types: ContentTypes, property: string, generic: boolean): string {
-  const type = types[property] ?? 'unknown';
+/**
+ * A content property's type, the element's own if it has one; the row type is
+ * `unknown` for an element that isn't generic.
+ */
+export function contentType(
+  types: ContentTypes,
+  property: string,
+  generic: boolean,
+  element?: string,
+): string {
+  const own = element === undefined ? undefined : types[`${element}.${property}`];
+  const type = own ?? types[property] ?? 'unknown';
   return generic ? type : type.replace(/\bT\b/g, 'unknown');
 }
 

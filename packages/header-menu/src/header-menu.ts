@@ -1,5 +1,12 @@
 import { html, nothing, type TemplateResult } from 'lit';
-import type { ArgusPlugin, ColumnDef, ColumnInfo, ColumnPin, PluginHost } from 'argus-table';
+import type {
+  ArgusPlugin,
+  ColumnDef,
+  ColumnInfo,
+  ColumnPin,
+  HeaderContext,
+  PluginHost,
+} from 'argus-table';
 import {
   FILTER_DEBOUNCE_MS,
   filterOf,
@@ -18,8 +25,8 @@ interface TableState<T> {
   pressedOpen: boolean;
   /** Prefix of the ids that tie each menu to its header label. */
   ids: string;
-  /** Each column's text header (or its id), for items and announcements about it, hidden ones too. */
-  headerText: Map<string, string>;
+  /** The columns the `columns` hook saw, by id, hidden ones too: their names label items and announcements. */
+  defs: Map<string, ColumnDef<T, unknown>>;
   options: {
     sort: boolean;
     fitWidth: boolean;
@@ -151,7 +158,7 @@ export function headerMenu<T = unknown>(options: HeaderMenuOptions = {}): ArgusP
         open: undefined,
         pressedOpen: false,
         ids: `argus-hm-${String(tables)}`,
-        headerText: new Map(),
+        defs: new Map(),
         options: resolved,
         form: undefined,
       };
@@ -189,10 +196,12 @@ export function headerMenu<T = unknown>(options: HeaderMenuOptions = {}): ArgusP
 
     columns(defs, host) {
       const state = stateOf(host);
-      state.headerText = new Map(defs.map((def) => [def.id, textOf(def)]));
+      state.defs = new Map(defs.map((def) => [def.id, def]));
       return defs.map((def, index) => ({
         ...def,
-        header: () => header(state, def, `${state.ids}-${String(index)}`),
+        // Text mode asks for the column's name: the header's own, not the menu.
+        header: (context: HeaderContext) =>
+          context.text ? host.headerText(def) : header(state, def, `${state.ids}-${String(index)}`),
       }));
     },
 
@@ -224,13 +233,11 @@ function contributions<T>(host: PluginHost<T>, columnId: string): HeaderMenuGrou
   return groups;
 }
 
-/** A column's text header, or its id when the header isn't text. */
-function textOf<T>(def: ColumnDef<T, unknown>): string {
-  const { header } = def;
-  return typeof header === 'string' || typeof header === 'number' ? String(header) : def.id;
+/** A column's name: its header's text (`host.headerText`), or its id when the header is content. */
+function labelOf<T>(state: TableState<T>, id: string): string {
+  const def = state.defs.get(id);
+  return (def && state.host.headerText(def)) ?? id;
 }
-
-const labelOf = <T>(state: TableState<T>, id: string) => state.headerText.get(id) ?? id;
 
 /** Whether the menu has sort items for this column. */
 const canSort = <T>(state: TableState<T>, column: ColumnInfo) =>

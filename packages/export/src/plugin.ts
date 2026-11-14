@@ -1,4 +1,4 @@
-import type { ArgusPlugin, ArgusTable, ColumnGroup, PluginHost } from 'argus-table';
+import type { ArgusPlugin, ArgusTable, ColumnDef, ColumnGroup, PluginHost } from 'argus-table';
 import { collect, type CollectOptions, type HeaderTexts } from './collect.js';
 import { toCsv, type CsvOptions } from './csv.js';
 import { resolveLabels, type ExportFormat, type ExportLabels } from './labels.js';
@@ -40,8 +40,12 @@ export type ExportPlugin<T = unknown> = ArgusPlugin<T> & {
 /** A table's state; the host and options are typed by the table's rows where they're read. */
 interface TableState {
   host: unknown;
-  /** Kept while the table is disconnected: the `columns` hooks only run again when columns change. */
-  headers: HeaderTexts;
+  /**
+   * The columns and groups the hooks saw, named at export time (`host.headerText`).
+   * Kept while the table is disconnected: the hooks only run again when columns change.
+   */
+  columns: readonly unknown[];
+  groups: ColumnGroup<unknown>[];
   options: unknown;
   labels: ExportLabels;
   /** Whether a `tableExport()` is connected to the table. */
@@ -53,29 +57,31 @@ const tables = new WeakMap<Element, TableState>();
 
 const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
-/** A header's text: a string or number, or what a header function returns of those. */
-function textOf(header: unknown): string | undefined {
-  let own = header;
-  if (typeof own === 'function') {
-    try {
-      own = (own as () => unknown)();
-    } catch {
-      return undefined;
-    }
-  }
-  return typeof own === 'string' || typeof own === 'number' ? String(own) : undefined;
-}
-
-function recordGroups(
+/** The groups among a group list's entries, nested ones too. */
+function groupsIn(
   groups: readonly (string | ColumnGroup<unknown>)[],
-  into: Map<string, string>,
-) {
+  into: ColumnGroup<unknown>[] = [],
+): ColumnGroup<unknown>[] {
   for (const group of groups) {
     if (typeof group === 'string') continue;
-    const text = textOf(group.header);
-    if (text !== undefined) into.set(group.id, text);
-    recordGroups(group.columns, into);
+    into.push(group);
+    groupsIn(group.columns, into);
   }
+  return into;
+}
+
+/** The names of the columns and groups the plugin saw, read now through the host. */
+function headerTexts<T>(host: PluginHost<T>, state: TableState): HeaderTexts {
+  const texts: HeaderTexts = { columns: new Map(), groups: new Map() };
+  for (const def of state.columns as readonly ColumnDef<T, unknown>[]) {
+    const text = host.headerText(def);
+    if (text !== undefined) texts.columns.set(def.id, text);
+  }
+  for (const group of state.groups) {
+    const text = host.headerText(group);
+    if (text !== undefined && !texts.groups.has(group.id)) texts.groups.set(group.id, text);
+  }
+  return texts;
 }
 
 /**
@@ -84,9 +90,9 @@ function recordGroups(
  * `plugins`, then call `exportTable()` or `downloadTable()` from your own
  * buttons; with `headerMenu()` the column menu offers the formats too.
  *
- * List it first in `plugins`: it reads the text headers of the columns and
- * groups before other plugins wrap them (`[tableExport(), formulas(), headerMenu()]`).
- * The options here are defaults for every export of the table.
+ * Columns and groups are named by their headers' text (a header function's text
+ * mode, `HeaderContext`), else by their ids. A column's `meta.export` sets how it
+ * is exported. The options here are defaults for every export of the table.
  */
 export function tableExport<T = unknown>(options: TableExportOptions<T> = {}): ExportPlugin<T> {
   const labels = resolveLabels(options.labels);
@@ -95,7 +101,8 @@ export function tableExport<T = unknown>(options: TableExportOptions<T> = {}): E
     if (!state) {
       state = {
         host,
-        headers: { columns: new Map(), groups: new Map() },
+        columns: [],
+        groups: [],
         options,
         labels,
         connected: false,
@@ -115,18 +122,11 @@ export function tableExport<T = unknown>(options: TableExportOptions<T> = {}): E
       };
     },
     columns(defs, host) {
-      const { columns } = stateOf(host).headers;
-      columns.clear();
-      for (const def of defs) {
-        const text = textOf(def.header);
-        if (text !== undefined) columns.set(def.id, text);
-      }
+      stateOf(host).columns = defs;
       return undefined;
     },
     columnGroups(groups, host) {
-      const { groups: texts } = stateOf(host).headers;
-      texts.clear();
-      recordGroups(groups, texts);
+      stateOf(host).groups = groupsIn(groups);
       return undefined;
     },
     headerMenuItems(_columnId, host) {
@@ -160,7 +160,8 @@ async function run<T>(table: ArgusTable<T>, format: ExportFormat, options: Expor
   }
   await table.updateComplete;
   const merged = { ...(state.options as TableExportOptions<T>), ...options };
-  const sheet = await collect(state.host as PluginHost<T>, state.headers, merged);
+  const host = state.host as PluginHost<T>;
+  const sheet = await collect(host, headerTexts(host, state), merged);
   merged.signal?.throwIfAborted();
   let blob: Blob;
   if (format === 'csv') {

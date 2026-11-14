@@ -194,6 +194,7 @@ export const COLUMN_FIELDS = [
   'filterOptions',
   'align',
   'wrap',
+  'meta',
 ];
 
 /** Fields of a `ColumnGroup`. */
@@ -303,6 +304,16 @@ export const SINCE = [
     version: '1.1.0',
     patterns: [
       /onFormulaColumn(?:Add|Change|Remove)|@formula-column-|\(formulaColumn(?:Add|Change|Remove)\)/,
+    ],
+  },
+  {
+    feature: "a column's meta and the header's text mode",
+    version: '1.2.0',
+    patterns: [
+      /\binterface\s+ColumnMeta\b/,
+      /\bmeta\s*:\s*\{\s*export\s*:/,
+      /\b(?:Group)?HeaderContext\b/,
+      /\.headerText\s*\(/,
     ],
   },
 ];

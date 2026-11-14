@@ -66,6 +66,8 @@ const columns: ReactColumnDef<Order>[] = [
 ```
 
 - `cell(row, context)` gets the row and `{ rowId, index, columnId, value, pinned? }`; `header` is a node or a function returning one. `<ArgusColumn>` takes JSX in `header` and `cell` too.
+- A JSX header has no text to name its column in the column menu, exports and announcements. A function header can give one: `header: ({ text }) => (text ? 'Order' : <b>Order</b>)`.
+- `meta` holds plugins' and your own fields per column (`meta: { export: { exclude: true } }`). Type your own by augmenting the wrapper's module: `declare module '@argus-table/react' { interface ColumnMeta<TData> { … } }`.
 - The content renders through portals in your component tree, so it sees your providers (theme, router, store, i18n) like any other child.
 - Cells are pooled: as the table scrolls, a cell shows another row, and its component **updates with new props instead of remounting**. Keep per-row state in your data (or keyed by `context.rowId`), not in a cell component's own state. Effects with `[]` dependencies run once per pooled cell, not once per row.
 - Content commits synchronously before the browser paints and before `width: 'auto'` measures, so there is no flash of empty cells.

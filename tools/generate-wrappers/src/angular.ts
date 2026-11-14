@@ -42,7 +42,9 @@ const pascal = (camel: string) => camel.charAt(0).toUpperCase() + camel.slice(1)
 const CONTENT_INPUTS: ContentTypes = {
   columns: 'readonly AngularColumnDef<T>[]',
   columnGroups: 'readonly AngularColumnGroup[]',
-  header: 'AngularCellContent | (() => AngularCellContent)',
+  // A column's header gets a HeaderContext, a group's a GroupHeaderContext.
+  header: "AngularColumnDef<T>['header']",
+  'ArgusColumnGroup.header': "AngularColumnGroup['header']",
   cell: '(row: T, context: CellContext<T>) => AngularCellContent',
   contentRenderer: null,
 };
@@ -61,7 +63,7 @@ function component(el: ElementInfo): string {
       const attribute = p.attribute === undefined ? 'undefined' : `'${p.attribute}'`;
       const type =
         typeof CONTENT_INPUTS[p.name] === 'string'
-          ? `(${contentType(CONTENT_INPUTS, p.name, el.generic)})`
+          ? `(${contentType(CONTENT_INPUTS, p.name, el.generic, el.className)})`
           : `${element}${ta}['${p.name}']${attributeStrings(p)}`;
       // The base puts its template plugin before the user's plugins.
       const body =
