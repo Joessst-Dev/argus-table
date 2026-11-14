@@ -38,12 +38,12 @@ describe('setup.mjs', () => {
   it('matches the installed version, or upgrades every package together', async () => {
     const current = project(undefined, {
       'package.json': react,
-      ...installed({ 'argus-table': '1.1.2', '@argus-table/react': '1.1.2' }),
+      ...installed({ 'argus-table': '1.2.1', '@argus-table/react': '1.2.1' }),
     });
     const plan = await setup(current, '--addons', 'header-menu,export');
     assert.equal(
       plan.command,
-      'npm install @argus-table/react@1.1.2 argus-table@1.1.2 @argus-table/themes@1.1.2 @argus-table/header-menu@1.1.2 @argus-table/export@1.1.2',
+      'npm install @argus-table/react@1.2.1 argus-table@1.2.1 @argus-table/themes@1.2.1 @argus-table/header-menu@1.2.1 @argus-table/export@1.2.1',
     );
     assert.equal(plan.plugins, '[tableExport(), headerMenu()]');
 
@@ -57,7 +57,7 @@ describe('setup.mjs', () => {
     const upgrade = await setup(old, '--theme', 'none');
     assert.equal(
       upgrade.command,
-      'npm install @argus-table/react@^1.1.0 argus-table@^1.1.0 @argus-table/vue@^1.1.0',
+      'npm install @argus-table/react@^1.2.0 argus-table@^1.2.0 @argus-table/vue@^1.2.0',
     );
     assert.match(upgrade.versionNote, /upgrade every argus-table package together/);
     assert.equal(upgrade.theme, null);
@@ -105,10 +105,10 @@ describe('setup.mjs', () => {
     }
     const pnpm = project('monorepo-pnpm');
     const plan = await setup(join(pnpm, 'apps/web'));
-    // 1.0.0 and 1.1.0 locked: everything moves to the newer one.
+    // 1.0.0 and 1.2.0 locked: everything moves to the newer one.
     assert.equal(
       plan.command,
-      'pnpm --filter web add @argus-table/react@1.1.0 argus-table@1.1.0 @argus-table/themes@1.1.0',
+      'pnpm --filter web add @argus-table/react@1.2.0 argus-table@1.2.0 @argus-table/themes@1.2.0',
     );
   });
 

@@ -1,35 +1,35 @@
 # argus-table API
 
-The public API of `argus-table` 1.1 and its wrappers, for writing code. Types come from `argus-table` or the wrapper you use (they re-export every type). Full docs: the package READMEs and https://joessst-dev.github.io/argus-table/.
+The public API of `argus-table` 1.2 and its wrappers, for writing code. Types come from `argus-table` or the wrapper you use (they re-export every type). Full docs: the package READMEs and https://joessst-dev.github.io/argus-table/.
 
 ## Properties
 
 "Two-way" properties are controllable: uncontrolled until the app sets them; once set, user actions only fire `argus-<property>-change` with the proposed value, and nothing changes until the app sets it. Setting `undefined` hands the state back to the table.
 
-| Property              | Attribute              | Type                                       | Default         | Notes                                                                                             |
-| --------------------- | ---------------------- | ------------------------------------------ | --------------- | ------------------------------------------------------------------------------------------------- |
-| `columns`             |                        | `ColumnDef<T>[]`                           | `[]`            | Wins over `<argus-column>` children when not empty                                                |
-| `columnGroups`        |                        | `ColumnGroup[]`                            | `[]`            | Header groups over the flat `columns`                                                             |
-| `data`                |                        | `T[]`                                      | `[]`            | Replace the array to change rows; changes inside it aren't seen (`refresh()` after mutating)      |
-| `dataSource`          |                        | `DataSource<T>`                            |                 | Rows loaded page by page; wins over `data` while set. [server-data.md](server-data.md)            |
-| `pinnedRows`          |                        | `{ top?: T[]; bottom?: T[] }`              |                 | Separate rows kept at the top or bottom: totals, summaries. Not sorted, filtered or selectable    |
-| `getRowId`            |                        | `(row: T, index: number) => string`        | the index       | Needed for selection and `dataSource`; must return a string                                       |
-| `rowHeight`           | `row-height`           | `number \| 'auto'`                         | from `density`  | `'auto'`: rows fit their content (with `wrap` columns)                                            |
-| `density`             | `density`              | `'compact' \| 'comfortable' \| 'spacious'` | `'comfortable'` | Row height and padding from the theme                                                             |
-| `overscan`            | `overscan`             | `number`                                   | `6`             | Rows rendered beyond the view on each side                                                        |
-| `virtualizeColumns`   | `virtualize-columns`   | `boolean`                                  | `false`         | Renders only the columns in view; for very wide tables (50+ columns)                              |
-| `sorting`             |                        | `SortState` (`{ id, desc }[]`)             | uncontrolled    | Two-way. A header click sorts by that column alone; several items sort by several columns         |
-| `columnSizing`        |                        | `Record<id, px>`                           | uncontrolled    | Two-way                                                                                           |
-| `columnOrder`         |                        | `string[]` (column ids)                    | uncontrolled    | Two-way. Users reorder by dragging headers or Alt+Shift+Arrow                                     |
-| `columnPinning`       |                        | `Record<id, 'start' \| 'end' \| false>`    | uncontrolled    | Two-way; overrides `ColumnDef.pin`                                                                |
-| `columnVisibility`    |                        | `Record<id, boolean>`                      | uncontrolled    | Two-way; overrides `ColumnDef.hidden` (`false` hides)                                             |
-| `columnFilters`       |                        | `Record<id, ColumnFilter>`                 | uncontrolled    | Two-way. Users set filters through `@argus-table/header-menu`                                     |
-| `quickFilter`         | `quick-filter`         | `string`                                   | `''`            | Rows where every word appears in some shown column. Not two-way: bind it to your own search input |
-| `selectionMode`       | `selection-mode`       | `'none' \| 'single' \| 'multi'`            | `'none'`        | Click selects; Ctrl/Cmd+click toggles; Shift+click selects a range; Space and Ctrl/Cmd+A          |
-| `selectionCheckboxes` | `selection-checkboxes` | `boolean`                                  | `false`         | A checkbox column (and select-all in `multi`)                                                     |
-| `selection`           |                        | `string[]` (row ids)                       | uncontrolled    | Two-way. Ids are never dropped by the table                                                       |
-| `plugins`             |                        | `ArgusPlugin<T>[]`                         | `[]`            | Add-ons: `[tableExport(), formulas(), headerMenu()]`, in that order. Keep the array stable        |
-| `labels`              |                        | `Partial<TableLabels>`                     | English         | Built-in text (Retry, Select row, announcements). Since 1.1                                       |
+| Property              | Attribute              | Type                                       | Default         | Notes                                                                                                           |
+| --------------------- | ---------------------- | ------------------------------------------ | --------------- | --------------------------------------------------------------------------------------------------------------- |
+| `columns`             |                        | `ColumnDef<T>[]`                           | `[]`            | Wins over `<argus-column>` children when not empty                                                              |
+| `columnGroups`        |                        | `ColumnGroup[]`                            | `[]`            | Header groups over the flat `columns`                                                                           |
+| `data`                |                        | `T[]`                                      | `[]`            | Replace the array to change rows; changes inside it aren't seen (`refresh()` after mutating)                    |
+| `dataSource`          |                        | `DataSource<T>`                            |                 | Rows loaded page by page; wins over `data` while set. [server-data.md](server-data.md)                          |
+| `pinnedRows`          |                        | `{ top?: T[]; bottom?: T[] }`              |                 | Separate rows kept at the top or bottom: totals, summaries. Not sorted, filtered or selectable                  |
+| `getRowId`            |                        | `(row: T, index: number) => string`        | the index       | Needed for selection and `dataSource`; must return a string                                                     |
+| `rowHeight`           | `row-height`           | `number \| 'auto'`                         | from `density`  | `'auto'`: rows fit their content (with `wrap` columns)                                                          |
+| `density`             | `density`              | `'compact' \| 'comfortable' \| 'spacious'` | `'comfortable'` | Row height and padding from the theme                                                                           |
+| `overscan`            | `overscan`             | `number`                                   | `6`             | Rows rendered beyond the view on each side                                                                      |
+| `virtualizeColumns`   | `virtualize-columns`   | `boolean`                                  | `false`         | Renders only the columns in view; for very wide tables (50+ columns)                                            |
+| `sorting`             |                        | `SortState` (`{ id, desc }[]`)             | uncontrolled    | Two-way. A header click sorts by that column alone; several items sort by several columns                       |
+| `columnSizing`        |                        | `Record<id, px>`                           | uncontrolled    | Two-way                                                                                                         |
+| `columnOrder`         |                        | `string[]` (column ids)                    | uncontrolled    | Two-way. Users reorder by dragging headers or Alt+Shift+Arrow                                                   |
+| `columnPinning`       |                        | `Record<id, 'start' \| 'end' \| false>`    | uncontrolled    | Two-way; overrides `ColumnDef.pin`                                                                              |
+| `columnVisibility`    |                        | `Record<id, boolean>`                      | uncontrolled    | Two-way; overrides `ColumnDef.hidden` (`false` hides)                                                           |
+| `columnFilters`       |                        | `Record<id, ColumnFilter>`                 | uncontrolled    | Two-way. Users set filters through `@argus-table/header-menu`                                                   |
+| `quickFilter`         | `quick-filter`         | `string`                                   | `''`            | Rows where every word appears in some shown column. Not two-way: bind it to your own search input               |
+| `selectionMode`       | `selection-mode`       | `'none' \| 'single' \| 'multi'`            | `'none'`        | Click selects; Ctrl/Cmd+click toggles; Shift+click selects a range; Space and Ctrl/Cmd+A                        |
+| `selectionCheckboxes` | `selection-checkboxes` | `boolean`                                  | `false`         | A checkbox column (and select-all in `multi`)                                                                   |
+| `selection`           |                        | `string[]` (row ids)                       | uncontrolled    | Two-way. Ids are never dropped by the table                                                                     |
+| `plugins`             |                        | `ArgusPlugin<T>[]`                         | `[]`            | Add-ons: `[formulas(), headerMenu(), tableExport()]`, `formulas()` before `headerMenu()`. Keep the array stable |
+| `labels`              |                        | `Partial<TableLabels>`                     | English         | Built-in text (Retry, Select row, announcements). Since 1.1                                                     |
 
 ## Events
 

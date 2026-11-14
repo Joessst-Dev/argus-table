@@ -49,7 +49,7 @@ export function project(fixture, files = {}) {
   return dir;
 }
 
-/** `{ "argus-table": "1.1.2" }` → node_modules/<name>/package.json files for project(). */
+/** `{ "argus-table": "1.2.1" }` → node_modules/<name>/package.json files for project(). */
 export function installed(versions, prefix = '') {
   const files = {};
   for (const [name, version] of Object.entries(versions)) {

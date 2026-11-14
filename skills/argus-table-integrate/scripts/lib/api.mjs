@@ -4,7 +4,7 @@
 // Custom Elements Manifest, the core types, the wrappers and the themes.
 
 /** The lowest release this skill's references are written for. */
-export const MIN_VERSION = '1.1.0';
+export const MIN_VERSION = '1.2.0';
 
 /** Every published package, released together at one version (changesets `fixed`). */
 export const PACKAGES = [
@@ -78,8 +78,11 @@ export const ADDONS = {
   },
 };
 
-/** The order add-ons must have in `plugins`, when several are used. */
-export const PLUGIN_ORDER = ['tableExport', 'formulas', 'headerMenu'];
+/**
+ * The order add-ons must have in `plugins`, when several are used. Add-ons
+ * not listed (`tableExport()`) can go anywhere.
+ */
+export const PLUGIN_ORDER = ['formulas', 'headerMenu'];
 
 /** Theme files: `@argus-table/themes/<name>.css`. */
 export const THEMES = ['default', 'material', 'fluent', 'bootstrap', 'minimal'];

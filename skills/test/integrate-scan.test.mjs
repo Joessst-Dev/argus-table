@@ -169,9 +169,9 @@ describe('scan.mjs', () => {
     );
     const web = report.projects.find((p) => p.path === 'apps/web');
     assert.equal(web.argus.packages['argus-table'].version, '1.0.0');
-    assert.equal(web.argus.packages['@argus-table/react'].version, '1.1.0');
-    assert.deepEqual(web.argus.mismatched, ['argus-table@1.0.0', '@argus-table/react@1.1.0']);
-    assert.deepEqual(web.argus.duplicates, ['1.0.0', '1.1.0']);
+    assert.equal(web.argus.packages['@argus-table/react'].version, '1.2.0');
+    assert.deepEqual(web.argus.mismatched, ['argus-table@1.0.0', '@argus-table/react@1.2.0']);
+    assert.deepEqual(web.argus.duplicates, ['1.0.0', '1.2.0']);
     assert.equal(web.argus.wrapperMatchesFramework, true);
     assert.deepEqual(
       report.usages.map((u) => [u.library, u.project, u.file]),

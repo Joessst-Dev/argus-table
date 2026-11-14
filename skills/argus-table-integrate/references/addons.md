@@ -1,9 +1,9 @@
 # Add-ons
 
-Add-ons are plugins: create each once and pass them in `plugins`, in this order:
+Add-ons are plugins: create each once and pass them in `plugins`, with `formulas()` before `headerMenu()`:
 
 ```ts
-const plugins = [tableExport(), formulas(), headerMenu()]; // the ones you use, in this order
+const plugins = [formulas(), headerMenu(), tableExport()]; // the ones you use; tableExport() goes anywhere
 ```
 
 Each is its own package, released with the table at the same version. `@argus-table/header-menu` and `@argus-table/formulas` have `lit` as a peer dependency (npm, pnpm and bun install it; with Yarn, add `lit@^3.3.0`). Define `plugins` once (module scope, `useMemo`, a class field): new instances reconnect and close open menus. One instance can serve several tables.
