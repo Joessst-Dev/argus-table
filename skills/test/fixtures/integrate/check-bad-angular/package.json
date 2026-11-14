@@ -3,8 +3,8 @@
   "private": true,
   "dependencies": {
     "@angular/core": "^20.1.0",
-    "@argus-table/angular": "^1.1.0",
-    "@argus-table/header-menu": "^1.1.0",
-    "@argus-table/themes": "^1.1.0"
+    "@argus-table/angular": "^1.2.0",
+    "@argus-table/header-menu": "^1.2.0",
+    "@argus-table/themes": "^1.2.0"
   }
 }

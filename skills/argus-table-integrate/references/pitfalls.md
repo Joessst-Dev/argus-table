@@ -7,7 +7,7 @@ One section per `check.mjs` rule, with the same id. Each says what goes wrong an
 Every `argus-table` and `@argus-table/*` package is released together, at one version. A wrapper or add-on built for another version of the element can miss properties or register a second copy of it. Install them all at the same version: `setup.mjs` prints the command, or
 
 ```bash
-npm install argus-table@1.1.2 @argus-table/react@1.1.2 @argus-table/themes@1.1.2
+npm install argus-table@1.2.0 @argus-table/react@1.2.0 @argus-table/themes@1.2.0
 ```
 
 ## duplicate-argus-table
@@ -16,7 +16,7 @@ Two copies of `argus-table` in the bundle (a wrapper with its own nested copy, o
 
 ## version-below-minimum
 
-These references describe argus-table 1.1. With 1.0, `labels`, `scrollToColumn()`, `scrollToRow()` options, `argus-column-resize-end`, the header menu's `sort` / `fitWidth` options, the formula events on the wrappers and `@argus-table/export` don't exist. Upgrade every argus-table package together.
+These references describe argus-table 1.2. With 1.1, a header function's `text` mode, `host.headerText()` and a column's `meta` (with `meta.export`) don't exist, and `tableExport()` has to come first in `plugins`. With 1.0, `labels`, `scrollToColumn()`, `scrollToRow()` options, `argus-column-resize-end`, the header menu's `sort` / `fitWidth` options, the formula events on the wrappers and `@argus-table/export` don't exist either. Upgrade every argus-table package together.
 
 ## feature-needs-newer-version
 
@@ -119,7 +119,7 @@ getRowId = (order: Order) => String(order.id);
 
 ## plugin-order
 
-Add-ons wrap each other's work, so their order matters: `[tableExport(), formulas(), headerMenu()]`. `tableExport()` reads the text headers before the others wrap them; `formulas()` names columns before the menu adds its button.
+`formulas()` and `headerMenu()` both wrap the column headers, so their order matters: `formulas()` first, so the menu button sits after a formula column's `ƒx` mark. `tableExport()` can go anywhere in `plugins`.
 
 ## addon-not-installed
 

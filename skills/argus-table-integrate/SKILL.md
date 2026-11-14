@@ -52,7 +52,7 @@ Each has a section in [references/pitfalls.md](references/pitfalls.md), named li
 7. **`getRowId` returns a string**, and is set whenever there's selection or a `dataSource`. Without it, row ids are indexes. ([selection-without-row-id](references/pitfalls.md#selection-without-row-id))
 8. **Controlled state needs its handler.** Binding `sorting`, `selection`, `columnSizing`, `columnOrder`, `columnPinning`, `columnVisibility` or `columnFilters` one way makes it controlled: the table only proposes changes. Bind it two-way, or leave it out. ([controlled-without-handler](references/pitfalls.md#controlled-without-handler))
 9. **`sortable` is opt-in.** Columns sort only with `sortable: true`. Most grids sort by default. ([sortable-never-set](references/pitfalls.md#sortable-never-set))
-10. **Plugin order:** `[tableExport(), formulas(), headerMenu()]`. ([plugin-order](references/pitfalls.md#plugin-order))
+10. **Plugin order:** `formulas()` before `headerMenu()`; `tableExport()` goes anywhere. ([plugin-order](references/pitfalls.md#plugin-order))
 11. **Pooled cells.** As the table scrolls, a cell shows another row and its component gets new props instead of remounting. Keep per-row state in the data or keyed by row id, not in a cell component's own state.
 12. **Server rendering.** The table renders in the browser. In Next.js App Router, functions (cells, accessors, `getRowId`, handlers, plugins, `dataSource`) can't be passed from a Server Component: put the table in a `'use client'` file. ([server-component-props](references/pitfalls.md#server-component-props))
 13. **Versions in step.** Every `argus-table` and `@argus-table/*` package is released together: install the same version of each. ([versions-mixed](references/pitfalls.md#versions-mixed))

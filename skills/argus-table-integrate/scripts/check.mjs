@@ -565,9 +565,7 @@ export function check(options) {
             `Plugins in the wrong order: [${list.map((c) => `${c.factory}()`).join(', ')}].`,
             `Order them [${PLUGIN_ORDER.filter((p) => list.some((c) => c.factory === p))
               .map((p) => `${p}()`)
-              .join(
-                ', ',
-              )}]: tableExport() reads text headers before formulas() and headerMenu() wrap them, and formulas() names columns before the menu does.`,
+              .join(', ')}]: formulas() marks its columns before the menu adds its button.`,
           );
         }
       }

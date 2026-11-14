@@ -257,8 +257,9 @@ describe('api.mjs', () => {
       const exported = exportsOf(join(repo, PACKAGE_DIRS[name], 'src/index.ts'));
       for (const e of addon.exports) assert.ok(exported.has(e), `${name} exports ${e}`);
       assert.ok(addon.exports.includes(addon.factory));
-      assert.ok(api.PLUGIN_ORDER.includes(addon.factory));
     }
+    const factories = Object.values(api.ADDONS).map((a) => a.factory);
+    for (const factory of api.PLUGIN_ORDER) assert.ok(factories.includes(factory), factory);
     const menu = text('packages/header-menu/src/header-menu.ts');
     assert.deepEqual(
       sorted(api.ADDONS['@argus-table/header-menu'].options),
