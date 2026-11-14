@@ -1,5 +1,16 @@
 # @argus-table/header-menu
 
+## 1.2.0
+
+### Minor Changes
+
+- 3cdbe9c: The column menu names columns whose header is a template, JSX or a slot by the header's plain text (`header: ({ text }) => (text ? 'Total' : …)`) in its "Hidden columns" items and announcements, instead of by their ids. The menu's own header passes that text on, so other plugins and the table see it too.
+
+### Patch Changes
+
+- Updated dependencies [3cdbe9c]
+  - argus-table@1.2.0
+
 ## 1.1.0
 
 ### Minor Changes

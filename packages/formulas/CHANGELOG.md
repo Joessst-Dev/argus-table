@@ -1,5 +1,16 @@
 # @argus-table/formulas
 
+## 1.2.0
+
+### Minor Changes
+
+- 3cdbe9c: Formulas can name a column whose header is a template, JSX or a slot by its header's plain text (`header: ({ text }) => (text ? 'Unit price' : …)`), so `[Unit price]` works for it. Ids and text headers still come first, so existing formulas keep reading the same columns. The editor suggests that name where it leads to the column, and the `ƒx` header passes the column's text on to other plugins.
+
+### Patch Changes
+
+- Updated dependencies [3cdbe9c]
+  - argus-table@1.2.0
+
 ## 1.1.0
 
 ### Minor Changes
