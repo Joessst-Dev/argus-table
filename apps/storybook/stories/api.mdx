@@ -88,7 +88,7 @@ A `header` function gets a context: `{ columnId, text }` for a column, `{ groupI
 { id: 'total', header: ({ text }) => (text ? 'Total' : html`<b>Total</b> <small>EUR</small>`) }
 ```
 
-`host.headerText(def)` reads that name (`undefined` for content without one: name the column by its id then). A plugin that wraps headers in its own function forwards text mode: `header: (context) => (context.text ? host.headerText(def) : html`…`)`.
+`host.headerText(def)` reads that name (`undefined` for content without one: name the column by its id then). A plugin that wraps headers in its own function forwards text mode: ``header: (context) => (context.text ? host.headerText(def) : html`…`)``.
 
 `meta` on a column holds fields for plugins and the app; the table never reads it, and plugins get it as `host.column(id).meta`. `@argus-table/export` reads `meta.export`. A plugin types its own field by augmenting `ColumnMeta` (with only a framework wrapper installed, augment the wrapper's module instead, such as `'@argus-table/react'`):
 
