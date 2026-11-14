@@ -163,6 +163,23 @@ describe('createTableModel: columns', () => {
     ]);
   });
 
+  it('carries meta into the column views as given, hidden columns too', () => {
+    const meta = { unit: 'kg' };
+    const m = model({
+      columns: [
+        { id: 'name', accessor: 'name', meta },
+        { id: 'age', accessor: 'age', hidden: true, meta: { unit: 'years' } },
+      ],
+      selectionColumn: true,
+    });
+    expect(m.columns.map((c) => [c.id, c.meta])).toEqual([
+      [SELECTION_COLUMN_ID, undefined],
+      ['name', meta],
+    ]);
+    expect(m.columns[1]?.meta).toBe(meta);
+    expect(m.allColumns.find((c) => c.id === 'age')?.meta).toEqual({ unit: 'years' });
+  });
+
   it('follows new columns', () => {
     const m = model();
     m.update({ columns: [{ id: 'name', accessor: 'name' }] });

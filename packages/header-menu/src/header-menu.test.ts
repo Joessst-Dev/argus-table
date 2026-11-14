@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
+import { html } from 'lit';
 import 'argus-table';
 import type { ArgusPlugin, ArgusTable, ColumnDef } from 'argus-table';
 import {
@@ -615,6 +616,26 @@ describe('pin and hide items', () => {
     expect(order(el)).toEqual(['name', 'age', 'note']);
     expect(el.shadowRoot?.activeElement).toBe(headerOf(el, 'note'));
     expect(await announced()).toBe('Name shown');
+  });
+
+  test("names a column with a content header by its header's text mode, else by its id", async () => {
+    const el = await fixture({
+      plugins: [full()],
+      columns: columns.map((c): ColumnDef<Row> =>
+        c.id === 'name'
+          ? { ...c, header: ({ text }) => (text ? 'Full name' : html`<b>Name</b>`) }
+          : c.id === 'age'
+            ? { ...c, header: () => html`<i>Age</i>` }
+            : c,
+      ),
+      columnVisibility: { name: false, age: false },
+    });
+    buttonOf(el, 'note')?.click();
+    expect(labels(await opened(el)).slice(-3)).toEqual(['Show Full name', 'Show age', 'Show all']);
+    // The menu still wraps the header's content.
+    el.columnVisibility = {};
+    await settle(el);
+    expect(el.querySelector('.argus-header-menu-label b')?.textContent).toBe('Name');
   });
 
   test('Show all shows every hidden column; the last column shown has no Hide', async () => {

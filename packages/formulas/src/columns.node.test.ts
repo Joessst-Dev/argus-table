@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import type { ColumnDef } from 'argus-table';
+import type { ColumnDef, HeaderContext } from 'argus-table';
 import {
   compileColumns,
   functionTable,
   lookupOf,
+  nameOf,
   parseOrError,
   type RowSource,
 } from './columns.js';
@@ -54,6 +55,52 @@ describe('lookupOf', () => {
     expect(lookup('B ')).toBeUndefined();
     expect(lookup('other')?.id).toBe('b');
     expect(lookup('mixed')?.id).toBe('Mixed');
+  });
+
+  it("finds a column by its header's text mode last, so earlier matches keep their column", () => {
+    const named = (text: string) => (context: HeaderContext) =>
+      context.text ? text : { template: text };
+    const columns: ColumnDef<unknown, unknown>[] = [
+      { id: 'a', header: named('Total') },
+      { id: 'b', header: named('Other') },
+      { id: 'c', header: 'Other' },
+      { id: 'total', header: 'Sum' },
+      { id: 'd', header: () => ({ template: true }) },
+      { id: 'e', header: 2024 },
+      {
+        id: 'f',
+        header: () => {
+          throw new Error('only renders');
+        },
+      },
+    ];
+    const lookup = lookupOf(columns);
+    expect(lookup('Total')?.id).toBe('total'); // the id in any case still wins
+    expect(lookup('other')?.id).toBe('c'); // a string header still wins
+    expect(lookup('2024')?.id).toBe('e');
+    expect(lookup('f')?.id).toBe('f');
+    const only = lookupOf<unknown>([{ id: 'a', header: named('Unit price') }]);
+    expect(only('unit price')?.id).toBe('a');
+  });
+});
+
+describe('nameOf', () => {
+  it("names a column by its text header, its header's text mode, else its id", () => {
+    // Its text names another column in a formula: suggest the id.
+    const misleading: ColumnDef<unknown, unknown> = {
+      id: 'd',
+      header: ({ text }: HeaderContext) => (text ? 'A' : { template: true }),
+    };
+    const columns: ColumnDef<unknown, unknown>[] = [
+      { id: 'a', header: ' Price ' },
+      { id: 'b', header: ({ text }: HeaderContext) => (text ? 'Quantity' : { template: true }) },
+      { id: 'c', header: () => ({ template: true }) },
+      misleading,
+    ];
+    const lookup = lookupOf(columns);
+    expect(columns.map((d) => nameOf(d, lookup))).toEqual(['Price', 'Quantity', 'c', 'd']);
+    // Without a lookup (announcements), the text is used as it is.
+    expect(nameOf(misleading)).toBe('A');
   });
 });
 

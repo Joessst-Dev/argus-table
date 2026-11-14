@@ -72,6 +72,8 @@ Give a column its cells or header with a slot named after its id:
 - Cells see your app (global components, directives, `app.provide`: router, Pinia, i18n) and what `<ArgusTable>`'s ancestors `provide()`. A slot follows the state it reads, and updates by itself when that changes.
 - Cells are pooled: as the table scrolls, a cell shows another row and its components **update with new props instead of remounting**. Keep per-row state in your data (or keyed by `rowId`), not in a cell component's own state.
 - Slotted content renders before the browser paints and before `width: 'auto'` measures. The slots run as the table's first plugin, so `headerMenu()` and `formulas()` wrap slotted headers as usual.
+- A column with a `#header-<id>` slot keeps the `header` of its definition as its name in the column menu, exports and announcements: give it `header: 'Total'` too. A function header can also give a name: `header: ({ text }) => (text ? 'Total' : h('b', 'Total'))`.
+- `meta` holds plugins' and your own fields per column (`meta: { export: { exclude: true } }`). Type your own by augmenting the wrapper's module: `declare module '@argus-table/vue' { interface ColumnMeta<TData> { … } }`.
 
 ## v-model
 

@@ -391,8 +391,8 @@ export class ArgusColumnComponent<T = unknown> {
     setProperty(this.element, 'columnId', 'column-id', value);
   }
 
-  /** Header content: text as an attribute; a Lit template, a node or a function as a property. */
-  @Input() set header(value: (AngularCellContent | (() => AngularCellContent)) | null | undefined) {
+  /** Header content: text as an attribute; a Lit template, a node or a function as a property. A function gets a `HeaderContext`: with `text: true`, return the column's name as plain text (for menus, exports and announcements). */
+  @Input() set header(value: AngularColumnDef<T>['header'] | null | undefined) {
     setProperty(this.element, 'header', 'header', value);
   }
 
@@ -502,6 +502,11 @@ export class ArgusColumnComponent<T = unknown> {
   @Input() set filterOptions(value: ArgusColumnElement<T>['filterOptions'] | null | undefined) {
     setProperty(this.element, 'filterOptions', undefined, value);
   }
+
+  /** Fields for plugins and the app (`ColumnDef.meta`), such as `meta.export`. Property only. */
+  @Input() set meta(value: ArgusColumnElement<T>['meta'] | null | undefined) {
+    setProperty(this.element, 'meta', undefined, value);
+  }
 }
 
 /** `<argus-column-group>` as an Angular component, on the element's own tag. */
@@ -521,8 +526,8 @@ export class ArgusColumnGroupComponent {
     setProperty(this.element, 'groupId', 'group-id', value);
   }
 
-  /** Header content: text as an attribute; a Lit template, a node or a function as a property. Default: the id. */
-  @Input() set header(value: (AngularCellContent | (() => AngularCellContent)) | null | undefined) {
+  /** Header content: text as an attribute; a Lit template, a node or a function as a property. A function gets a `GroupHeaderContext`: with `text: true`, return the group's name as plain text. Default: the id. */
+  @Input() set header(value: AngularColumnGroup['header'] | null | undefined) {
     setProperty(this.element, 'header', 'header', value);
   }
 

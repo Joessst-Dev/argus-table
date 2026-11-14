@@ -138,6 +138,8 @@ export interface ColumnView<TData, TContent> {
   sorted: SortDirection;
   header: ColumnDef<TData, TContent>['header'];
   cell: ColumnDef<TData, TContent>['cell'];
+  /** The definition's `meta`, for plugins. */
+  meta: ColumnDef<TData, TContent>['meta'];
   hasAccessor: boolean;
 }
 
@@ -389,6 +391,7 @@ function selectionView<TData, TContent>(pinEdge: boolean): ColumnView<TData, TCo
     sorted: false,
     header: undefined,
     cell: undefined,
+    meta: undefined,
     hasAccessor: false,
   };
 }
@@ -574,6 +577,7 @@ export function createTableModel<TData, TContent>(
       sorted: sort ? (sort.desc ? 'desc' : 'asc') : false,
       header: def.header,
       cell: def.cell,
+      meta: def.meta,
       hasAccessor: def.hasAccessor,
     };
   };

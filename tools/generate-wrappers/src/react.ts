@@ -20,7 +20,9 @@ import {
 const CONTENT_PROPS: ContentTypes = {
   columns: 'readonly ReactColumnDef<T>[] | null',
   columnGroups: 'readonly ReactColumnGroup[] | null',
-  header: 'ReactCellContent | (() => ReactCellContent)',
+  // A column's header gets a HeaderContext, a group's a GroupHeaderContext.
+  header: "ReactColumnDef<T>['header']",
+  'ArgusColumnGroup.header': "ReactColumnGroup['header']",
   cell: '(row: T, context: CellContext<T>) => ReactCellContent',
   contentRenderer: null,
 };
@@ -34,7 +36,7 @@ function component(el: ElementInfo): string {
   const typed = el.properties.filter((p) => typeof CONTENT_PROPS[p.name] === 'string');
   const keys = plain.map((p) => `'${p.name}'`).join(' | ');
   const contentProps = typed.length
-    ? ` & {\n${typed.map((p) => `  ${p.name}?: ${contentType(CONTENT_PROPS, p.name, el.generic)};`).join('\n')}\n}`
+    ? ` & {\n${typed.map((p) => `  ${p.name}?: ${contentType(CONTENT_PROPS, p.name, el.generic, el.className)};`).join('\n')}\n}`
     : '';
   const handlers = el.events
     .map(

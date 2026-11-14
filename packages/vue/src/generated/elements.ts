@@ -274,9 +274,10 @@ export type ArgusColumnElementProps<T = unknown> = Partial<
     | 'filter'
     | 'filterFn'
     | 'filterOptions'
+    | 'meta'
   >
 > & {
-  header?: VueCellContent | (() => VueCellContent);
+  header?: VueColumnDef<T>['header'];
   cell?: (row: T, context: CellContext<T>) => VueCellContent;
 };
 
@@ -327,6 +328,7 @@ export const ArgusColumn = defineWrapper({
     'filter',
     'filterFn',
     'filterOptions',
+    'meta',
   ],
   booleans: ['pinnable', 'hideable', 'wrap', 'sortable', 'resizable', 'reorderable'],
   events: [],
@@ -342,7 +344,7 @@ export const ArgusColumn = defineWrapper({
 export type ArgusColumnGroupElementProps = Partial<
   Pick<ArgusColumnGroupElement, 'groupId' | 'reorderable'>
 > & {
-  header?: VueCellContent | (() => VueCellContent);
+  header?: VueColumnGroup['header'];
 };
 
 /** Props of `<ArgusColumnGroup>`: element properties. Other attributes go to the element. */

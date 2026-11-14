@@ -20,6 +20,8 @@ import type {
   ColumnDef,
   ColumnGroup,
   ContentRenderer,
+  GroupHeaderContext,
+  HeaderContext,
   PluginHost,
   RowPin,
 } from 'argus-table';
@@ -227,8 +229,8 @@ export abstract class ArgusTableBase<T = unknown> implements AfterContentInit, O
         this.#host = undefined;
       };
     },
-    columns: (defs) => defs.map((def) => this.#withTemplates(def)),
-    columnGroups: (groups) => groups.map((group) => this.#withGroupTemplate(group)),
+    columns: (defs, host) => defs.map((def) => this.#withTemplates(def, host)),
+    columnGroups: (groups, host) => groups.map((group) => this.#withGroupTemplate(group, host)),
   };
 
   constructor() {
@@ -257,10 +259,10 @@ export abstract class ArgusTableBase<T = unknown> implements AfterContentInit, O
   }
 
   /** A group, and the groups inside it, with the header from its `argusGroupHeader` template. */
-  #withGroupTemplate(group: ColumnGroup<unknown>): ColumnGroup<unknown> {
+  #withGroupTemplate(group: ColumnGroup<unknown>, host: PluginHost<T>): ColumnGroup<unknown> {
     const id = group.id;
     const columns = group.columns.map((c) =>
-      typeof c === 'string' ? c : this.#withGroupTemplate(c),
+      typeof c === 'string' ? c : this.#withGroupTemplate(c, host),
     );
     const changed = columns.some((c, i) => c !== group.columns[i]);
     const template = this.groupTemplates?.find((t) => t.argusGroupHeader === id);
@@ -268,11 +270,15 @@ export abstract class ArgusTableBase<T = unknown> implements AfterContentInit, O
     return {
       ...group,
       columns,
-      header: () => argusTemplate(template.template, { $implicit: id, groupId: id }),
+      // Text mode asks for the group's name: a template has none, the definition's header may.
+      header: (context: GroupHeaderContext) =>
+        context.text
+          ? host.headerText(group)
+          : argusTemplate(template.template, { $implicit: id, groupId: id }),
     };
   }
 
-  #withTemplates(def: ColumnDef<T, unknown>): ColumnDef<T, unknown> {
+  #withTemplates(def: ColumnDef<T, unknown>, host: PluginHost<T>): ColumnDef<T, unknown> {
     const id = def.id;
     const cell = this.cellTemplates?.find((t) => t.argusCell === id);
     const header = this.headerTemplates?.find((t) => t.argusHeader === id);
@@ -292,7 +298,11 @@ export abstract class ArgusTableBase<T = unknown> implements AfterContentInit, O
           }),
       }),
       ...(header && {
-        header: () => argusTemplate(header.template, { $implicit: id, columnId: id }),
+        // Text mode asks for the column's name: a template has none, the definition's header may.
+        header: (context: HeaderContext) =>
+          context.text
+            ? host.headerText(def)
+            : argusTemplate(header.template, { $implicit: id, columnId: id }),
       }),
     };
   }

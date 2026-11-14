@@ -51,6 +51,7 @@ Covers `@tanstack/react-table`, `@tanstack/vue-table`, `@tanstack/angular-table`
 | `enableResizing: false`                             | `resizable: false`                                                                              |
 | `enableColumnFilter`, `filterFn: 'includesString'`  | `filter: 'text'`                                                                                |
 | `meta: { align: 'right' }` (custom)                 | `align: 'end'`                                                                                  |
+| `meta: { … }` (other custom fields)                 | `meta: { … }` (since 1.2; type it by augmenting `ColumnMeta` instead of TanStack's)             |
 | `id: 'select'` checkbox column                      | delete it: `selectionCheckboxes`                                                                |
 | `id: 'actions'` column                              | keep it: `id: 'actions'`, `cell` with the menu, `pin: 'end'`, `reorderable: false`              |
 

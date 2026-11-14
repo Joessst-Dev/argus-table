@@ -20,6 +20,16 @@ export interface ExportColumnOptions<T = unknown> {
   exclude?: boolean;
 }
 
+declare module 'argus-table' {
+  interface ColumnMeta<TData> {
+    /**
+     * How `@argus-table/export` exports the column. The `columns` option of
+     * `tableExport()` and `exportTable()` wins field by field.
+     */
+    export?: ExportColumnOptions<TData>;
+  }
+}
+
 /** Which rows and columns an export holds. */
 export interface CollectOptions<T = unknown> {
   /**
@@ -39,13 +49,16 @@ export interface CollectOptions<T = unknown> {
    * rows are exported. Default `false`.
    */
   allRows?: boolean;
-  /** Options per column id. */
+  /**
+   * Options per column id. A column's own `meta.export` applies too; these win
+   * field by field.
+   */
   columns?: Record<string, ExportColumnOptions<T> | undefined>;
   /** Stops the export (and the `getRows` requests of `allRows`). */
   signal?: AbortSignal;
 }
 
-/** The text headers the plugin saw, by column id and group id. */
+/** The names of the columns and groups (their headers' text), by column id and group id. */
 export interface HeaderTexts {
   columns: Map<string, string>;
   groups: Map<string, string>;
@@ -57,7 +70,12 @@ export async function collect<T>(
   headers: HeaderTexts,
   options: CollectOptions<T> = {},
 ): Promise<ExportSheet> {
-  const own = options.columns ?? {};
+  const own: Record<string, ExportColumnOptions<T> | undefined> = {};
+  for (const c of host.columns()) {
+    const meta = c.meta?.export as ExportColumnOptions<T> | undefined;
+    const given = options.columns?.[c.id];
+    if (meta || given) own[c.id] = { ...meta, ...given };
+  }
   const infos = host
     .columns()
     .filter((c) => (!c.hidden || options.hiddenColumns) && !own[c.id]?.exclude);

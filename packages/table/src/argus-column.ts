@@ -8,10 +8,12 @@ import type {
   CellContext,
   ColumnAlign,
   ColumnDef,
+  ColumnMeta,
   ColumnPin,
   ColumnWidth,
   FilterKind,
   FilterValue,
+  HeaderContext,
 } from './types.js';
 
 /** `width` attribute: `"90"` or `"90px"` → 90, `"auto"`, `"2fr"` → `{ flex: 2 }`. */
@@ -49,9 +51,13 @@ export class ArgusColumn<T = unknown> extends ReactiveElement {
   @property({ attribute: 'column-id' })
   columnId = '';
 
-  /** Header content: text as an attribute; a Lit template, a node or a function as a property. */
+  /**
+   * Header content: text as an attribute; a Lit template, a node or a function as a
+   * property. A function gets a `HeaderContext`: with `text: true`, return the
+   * column's name as plain text (for menus, exports and announcements).
+   */
   @property()
-  header?: CellContent | (() => CellContent);
+  header?: CellContent | ((context: HeaderContext) => CellContent);
 
   /**
    * How to read the cell value: a property path such as `customer.name`, or (as a
@@ -133,6 +139,10 @@ export class ArgusColumn<T = unknown> extends ReactiveElement {
   @property({ attribute: false })
   filterOptions?: readonly FilterValue[];
 
+  /** Fields for plugins and the app (`ColumnDef.meta`), such as `meta.export`. Property only. */
+  @property({ attribute: false })
+  meta?: ColumnMeta<T>;
+
   #parent: Element | null = null;
   #def: ColumnDef<T> | undefined;
   readonly #children = new MutationObserver(() => {
@@ -200,6 +210,7 @@ export class ArgusColumn<T = unknown> extends ReactiveElement {
       filter: this.filter,
       filterFn: this.filterFn,
       filterOptions: this.filterOptions,
+      meta: this.meta,
     });
   }
 

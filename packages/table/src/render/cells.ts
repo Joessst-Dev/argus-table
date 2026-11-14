@@ -57,15 +57,20 @@ export function renderLightDom<T>(
   );
 }
 
-/** A group's header: its own content, else its id. */
+/** A group's header: its own content, else its id. Only groups, no fillers, get here. */
 function groupContent(group: HeaderGroupCell<CellContent>): unknown {
   const { header } = group;
-  return content((typeof header === 'function' ? header() : header) ?? group.groupId);
+  const groupId = group.groupId ?? '';
+  return content(
+    (typeof header === 'function' ? header({ groupId, text: false }) : header) ?? groupId,
+  );
 }
 
 function headerContent<T>(column: Column<T>): unknown {
   const { header } = column;
-  return content(typeof header === 'function' ? header() : header);
+  return content(
+    typeof header === 'function' ? header({ columnId: column.id, text: false }) : header,
+  );
 }
 
 /** Content of the rows pinned to one side, slotted by side, index and column. */

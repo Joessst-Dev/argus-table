@@ -18,6 +18,8 @@ import type {
   ColumnDef,
   ColumnGroup,
   ContentRenderer,
+  GroupHeaderContext,
+  HeaderContext,
   PluginHost,
 } from 'argus-table';
 
@@ -128,7 +130,7 @@ export function slotPlugin(
         connected(undefined);
       };
     },
-    columns(defs) {
+    columns(defs, host) {
       return defs.map((def) => {
         const id = def.id;
         const cell = slots[CELL + id] !== undefined;
@@ -139,17 +141,26 @@ export function slotPlugin(
           ...(cell && {
             cell: (_row: unknown, context: CellContext<unknown>) => render(CELL + id, context),
           }),
-          ...(header && { header: () => render(HEADER + id, { columnId: id }) }),
+          // Text mode asks for the column's name: a slot has none, the definition's header may.
+          ...(header && {
+            header: (context: HeaderContext) =>
+              context.text ? host.headerText(def) : render(HEADER + id, { columnId: id }),
+          }),
         };
       });
     },
-    columnGroups(groups) {
+    columnGroups(groups, host) {
       const withSlots = (group: ColumnGroup<unknown>): ColumnGroup<unknown> => {
         const id = group.id;
         const columns = group.columns.map((c) => (typeof c === 'string' ? c : withSlots(c)));
         const changed = columns.some((c, i) => c !== group.columns[i]);
         if (slots[GROUP + id] === undefined) return changed ? { ...group, columns } : group;
-        return { ...group, columns, header: () => render(GROUP + id, { groupId: id }) };
+        return {
+          ...group,
+          columns,
+          header: (context: GroupHeaderContext) =>
+            context.text ? host.headerText(group) : render(GROUP + id, { groupId: id }),
+        };
       };
       return groups.map(withSlots);
     },

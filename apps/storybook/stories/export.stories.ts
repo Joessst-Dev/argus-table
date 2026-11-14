@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { html } from 'lit';
 import { expect, waitFor } from 'storybook/test';
-import type { ArgusTable, ColumnGroup } from 'argus-table';
+import type { ArgusTable, ColumnDef, ColumnGroup } from 'argus-table';
 import 'argus-table';
 import { downloadTable, exportTable, tableExport, type ExportFormat } from '@argus-table/export';
 import { headerMenu } from '@argus-table/header-menu';
@@ -16,8 +16,7 @@ const columns = orderColumns.map((c) =>
       : c,
 );
 const groups: ColumnGroup[] = [{ id: 'where', header: 'Delivery', columns: ['city', 'status'] }];
-// Kept between renders: new plugin instances would reconnect. The export comes
-// first, so it reads the text headers before the menu wraps them.
+// Kept between renders: new plugin instances would reconnect.
 const plugins = [tableExport<Order>({ filename: 'orders', title: 'Orders' }), headerMenu<Order>()];
 
 const meta = {
@@ -102,5 +101,49 @@ export const Default: Story = {
     ]);
     table.selection = [];
     table.quickFilter = '';
+  },
+};
+
+const metaColumns: ColumnDef<Order>[] = orderColumns.map((c): ColumnDef<Order> => {
+  if (c.id === 'customer') {
+    // A template header names the column through its text mode.
+    return { ...c, header: ({ text }) => (text ? 'Customer' : html`<b>Customer</b> ✦`) };
+  }
+  if (c.id === 'status') return { ...c, meta: { export: { exclude: true } } };
+  if (c.id === 'total') {
+    return {
+      ...c,
+      cell: (o) => `${o.total.toFixed(2)} €`,
+      meta: { export: { header: 'Total (EUR)', value: (v) => Math.round(Number(v)) } },
+    };
+  }
+  return c;
+});
+
+/**
+ * A column's `meta.export` sets how it is exported (`header`, `value`, `exclude`),
+ * next to its definition; the `columns` option of `tableExport()` or of a call
+ * wins field by field. Headers that are templates (or JSX, VNodes) name the column
+ * through their text mode: `header: ({ text }) => (text ? 'Customer' : html`…`)`.
+ * Here Status stays out of the files, Total is exported as whole euros under
+ * another header, and Customer keeps its name.
+ */
+export const ColumnMeta: Story = {
+  render: () =>
+    html`<argus-table
+      style="block-size: 360px"
+      .columns=${metaColumns}
+      .data=${data}
+      .getRowId=${(row: Order) => row.id}
+      .plugins=${plugins}
+    ></argus-table>`,
+  play: async ({ canvasElement }) => {
+    const table = await tableIn(canvasElement);
+    const lines = await waitFor(async () => {
+      const csv = (await (await exportTable(table, 'csv', { bom: false })).text()).split('\r\n');
+      await expect(csv[0]).toBe('Order,Customer,City,Total (EUR)');
+      return csv;
+    });
+    await expect(lines[1]).toMatch(/^o\d+,Customer \d+,\w+,\d+$/);
   },
 };

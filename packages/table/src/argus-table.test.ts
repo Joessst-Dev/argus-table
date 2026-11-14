@@ -1266,6 +1266,32 @@ describe('column reordering', () => {
     });
   });
 
+  test("names a moved column by its header's text mode, else by its header's text", async () => {
+    const el = await fixture({
+      columns: reorderColumns.map((c): ColumnDef<Person> =>
+        c.id === 'name'
+          ? { ...c, header: ({ text }) => (text ? 'Full name' : html`<b>Name</b>`) }
+          : c.id === 'age'
+            ? { ...c, header: () => html`<i>Years</i>` }
+            : c,
+      ),
+      data: people(1),
+    });
+    const region = () => document.querySelector('[data-argus-announcer]')?.textContent;
+    header(el, 'name').focus();
+    header(el, 'name').dispatchEvent(altShift('ArrowRight'));
+    await settle(el);
+    await vi.waitFor(() => {
+      expect(region()).toBe('Full name moved to column 2 of 4');
+    });
+    header(el, 'age').focus();
+    header(el, 'age').dispatchEvent(altShift('ArrowRight'));
+    await settle(el);
+    await vi.waitFor(() => {
+      expect(region()).toBe('Years moved to column 2 of 4');
+    });
+  });
+
   test('fires argus-column-order-change after the update with columnOrder and columnId', async () => {
     const el = await fixture({ columns: reorderColumns, data: people(1) });
     const seen: { detail: unknown; order: unknown }[] = [];

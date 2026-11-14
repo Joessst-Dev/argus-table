@@ -30,7 +30,7 @@ const blob = await exportTable(table, 'csv'); // or keep the file
 
 Both reject when the table has no `tableExport()` in its `plugins`.
 
-**List it first in `plugins`.** It reads the columns' and groups' text headers before other plugins wrap them in their own content: `[tableExport(), formulas(), headerMenu()]`. A header that is a function returning a string counts as text. A header that isn't text is exported as the column's id, unless `columns: { [id]: { header } }` names it.
+Columns and groups are named by their headers' text: a string header, or what a `header` function returns when its context asks for text (`header: ({ text }) => (text ? 'Total' : html\`<b>Total</b>\`)`). A header without text (a template, JSX, a slot) is exported as the column's id, unless its `meta.export.header`or`columns: { [id]: { header } }`names it. Before 1.2, list`tableExport()`first in`plugins` so it sees the text headers before other plugins wrap them.
 
 With [`@argus-table/header-menu`](https://www.npmjs.com/package/@argus-table/header-menu), every column menu gets an Export group with the formats. `tableExport({ menu: false })` leaves it out, and `tableExport({ formats: ['csv', 'xlsx'] })` picks the formats.
 
@@ -50,6 +50,15 @@ Values are what each column's `accessor` reads, not what its `cell` renders. For
 
 Pass options to `tableExport()` as defaults for every export of the table, or per call to `exportTable()` / `downloadTable()`.
 
+A column can also carry its own options as `meta.export`, with the same `header`, `value` and `exclude`, typed for your rows. The `columns` option wins field by field:
+
+```js
+const columns = [
+  { id: 'total', header: 'Total', accessor: 'total', meta: { export: { header: 'Total (EUR)' } } },
+  { id: 'actions', cell: () => html`<button>…</button>`, meta: { export: { exclude: true } } },
+];
+```
+
 | Option           | Default                                     | What it does                                                                                       |
 | ---------------- | ------------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | `rows`           | `'view'`                                    | `'selected'` exports only the selected rows (`selection`), in the order shown                      |
@@ -57,7 +66,7 @@ Pass options to `tableExport()` as defaults for every export of the table, or pe
 | `hiddenColumns`  | `false`                                     | Includes hidden columns, in their place in the column order (and leaves out the group header rows) |
 | `headerGroups`   | `true`                                      | Includes the group header rows                                                                     |
 | `allRows`        | `false`                                     | With a `dataSource`: fetches every row through `getRows` (see below)                               |
-| `columns`        |                                             | Per column id: `header` (text), `value(value, row)` (what to write), `exclude`                     |
+| `columns`        |                                             | Per column id: `header` (text), `value(value, row)` (what to write), `exclude`; wins over `meta`   |
 | `signal`         |                                             | An `AbortSignal` that stops the export                                                             |
 | `filename`       | `'table'`                                   | `downloadTable()` only: the file name; the extension is added                                      |
 | `delimiter`      | `','`                                       | CSV: between fields                                                                                |

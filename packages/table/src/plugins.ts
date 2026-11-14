@@ -4,6 +4,7 @@ import type {
   ColumnDef,
   ColumnFilter,
   ColumnGroup,
+  ColumnMeta,
   ColumnPin,
   FilterKind,
   FilterValue,
@@ -103,6 +104,8 @@ export interface ColumnInfo {
   columnFilter: ColumnFilter | undefined;
   /** How the column aligns its content (`align`, default `'start'`). */
   align: ColumnAlign;
+  /** The column's `meta`, as given: plugins read their own fields from it. */
+  meta: ColumnMeta | undefined;
 }
 
 /** Where a row is: the rows pinned to the top, the body, or the rows pinned to the bottom. */
@@ -234,4 +237,13 @@ export interface PluginHost<T = unknown> {
    * `html\`<b>${host.header(def)}</b>\``.
    */
   header(def: ColumnDef<T, unknown> | ColumnGroup<unknown>): unknown;
+  /**
+   * A column's or column group's name as plain text, for a menu, an export or an
+   * announcement: a string or number `header` as text, or what a `header` function
+   * returns when its context has `text: true`. `undefined` when the header is
+   * content (a template, a node, framework content) or missing; name it by its id
+   * then. A plugin that wraps a column's header in its own function forwards text
+   * mode: `(context) => context.text ? host.headerText(def) : …`.
+   */
+  headerText(def: ColumnDef<T, unknown> | ColumnGroup<unknown>): string | undefined;
 }

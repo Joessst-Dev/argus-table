@@ -3,6 +3,7 @@ import { eventNames, readElement, referencedTypes, type Manifest } from './manif
 import { emitAngular } from './angular.ts';
 import { emitReact } from './react.ts';
 import { emitVue } from './vue.ts';
+import { contentType } from './source.ts';
 
 type Declaration = NonNullable<Manifest['modules'][number]['declarations']>[number];
 
@@ -304,7 +305,7 @@ describe('emitReact with content', () => {
     );
     expect(source).toContain('columns?: readonly ReactColumnDef<T>[] | null;');
     expect(source).not.toMatch(/'contentRenderer'|contentRenderer\?:/);
-    expect(source).toContain('header?: ReactCellContent | (() => ReactCellContent);');
+    expect(source).toMatch(/header\?: ReactColumnDef<(T|unknown)>\['header'\];/);
     expect(source).toContain('cell?: (row: T, context: CellContext<T>) => ReactCellContent;');
     expect(source).toContain('export const ArgusTable = withContent(ownEvents(');
     expect(source).not.toContain('export const ArgusColumn = withContent(');
@@ -453,5 +454,20 @@ describe('emitAngular', () => {
     expect(source).toContain(
       "refresh(...args: Parameters<ArgusTableElement<T>['refresh']>): ReturnType<ArgusTableElement<T>['refresh']> {",
     );
+  });
+});
+
+describe('contentType', () => {
+  const types = {
+    header: "XColumnDef<T>['header']",
+    'ArgusColumnGroup.header': "XColumnGroup['header']",
+  };
+  test("takes an element's own type over the property's, and drops T where it isn't generic", () => {
+    expect(contentType(types, 'header', true, 'ArgusColumn')).toBe("XColumnDef<T>['header']");
+    expect(contentType(types, 'header', false, 'ArgusColumn')).toBe(
+      "XColumnDef<unknown>['header']",
+    );
+    expect(contentType(types, 'header', false, 'ArgusColumnGroup')).toBe("XColumnGroup['header']");
+    expect(contentType(types, 'cell', true)).toBe('unknown');
   });
 });

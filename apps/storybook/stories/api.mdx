@@ -78,4 +78,24 @@ const plugin: ArgusPlugin<Order> = {
 table.plugins = [plugin];
 ```
 
-The `host` reads resolved columns (`column(id)`), finds the header or cell of an event (`cellOf(event)`), sorts (`setSort(id, 'asc' | 'desc' | undefined)`, under the `sorting` rules), focuses a header (`focusHeader(id)`), announces to screen readers (`announce(message)`), runs the `columns` hooks again (`invalidateColumns()`), re-renders (`requestUpdate()`) and reads rows: the body in the current order or a pinned side (`row(index, section?)`, `rowCount(section?)`, `rowId(index, section?)`, a column's value with `value(index, columnId, section?)`, or with `readValue(row, columnId, index)` for a row the plugin has itself), and the group header rows (`headerGroups()`). It also pins, hides and filters columns (`setPin`, `setHidden`, `setFilter`), lists them (`columns()`), and wraps a column's own content for a plugin's template (`content(value)`, or `header(def)` for a column's or group's own header): every member is always there. The table itself is `host.element`. Plugins run in array order; one that throws is reported in the console and skipped.
+The `host` reads resolved columns (`column(id)`), finds the header or cell of an event (`cellOf(event)`), sorts (`setSort(id, 'asc' | 'desc' | undefined)`, under the `sorting` rules), focuses a header (`focusHeader(id)`), announces to screen readers (`announce(message)`), runs the `columns` hooks again (`invalidateColumns()`), re-renders (`requestUpdate()`) and reads rows: the body in the current order or a pinned side (`row(index, section?)`, `rowCount(section?)`, `rowId(index, section?)`, a column's value with `value(index, columnId, section?)`, or with `readValue(row, columnId, index)` for a row the plugin has itself), and the group header rows (`headerGroups()`). It also pins, hides and filters columns (`setPin`, `setHidden`, `setFilter`), lists them (`columns()`), and wraps a column's own content for a plugin's template (`content(value)`, or `header(def)` for a column's or group's own header), or names it as plain text (`headerText(def)`): every member is always there. The table itself is `host.element`. Plugins run in array order; one that throws is reported in the console and skipped.
+
+### Header text and column meta
+
+A `header` function gets a context: `{ columnId, text }` for a column, `{ groupId, text }` for a group. The table renders it with `text: false`. With `text: true` the table or a plugin asks for the name as plain text, for the column menu's "Hidden columns", an export's header row or an announcement. Return a string then, and a template or framework content (JSX, VNodes) can stay the header:
+
+```ts
+{ id: 'total', header: ({ text }) => (text ? 'Total' : html`<b>Total</b> <small>EUR</small>`) }
+```
+
+`host.headerText(def)` reads that name (`undefined` for content without one: name the column by its id then). A plugin that wraps headers in its own function forwards text mode: `header: (context) => (context.text ? host.headerText(def) : html`…`)`.
+
+`meta` on a column holds fields for plugins and the app; the table never reads it, and plugins get it as `host.column(id).meta`. `@argus-table/export` reads `meta.export`. A plugin types its own field by augmenting `ColumnMeta` (with only a framework wrapper installed, augment the wrapper's module instead, such as `'@argus-table/react'`):
+
+```ts
+declare module 'argus-table' {
+  interface ColumnMeta<TData> {
+    total?: { label: string };
+  }
+}
+```

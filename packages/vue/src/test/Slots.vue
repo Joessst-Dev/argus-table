@@ -2,11 +2,17 @@
 // Cells and headers from slots: `#cell-<id>` gets the row and its context,
 // `#header-<id>` the column id. The slots use the parent's state (`currency`),
 // a component (`Badge`), and can come and go (`showTotal`).
-import { ArgusColumn, ArgusTable } from '../index.js';
+import { ArgusColumn, ArgusTable, type ArgusPlugin } from '../index.js';
 import Badge from './Badge.vue';
 import { size, type Order } from './data.js';
 
-defineProps<{ rows: Order[]; currency: string; showTotal: boolean; declarative?: boolean }>();
+defineProps<{
+  rows: Order[];
+  currency: string;
+  showTotal: boolean;
+  declarative?: boolean;
+  plugins?: ArgusPlugin<Order>[];
+}>();
 </script>
 
 <template>
@@ -14,6 +20,7 @@ defineProps<{ rows: Order[]; currency: string; showTotal: boolean; declarative?:
     v-if="!declarative"
     :data="rows"
     :style="size"
+    :plugins="plugins"
     :columns="[
       { id: 'id', header: 'Order', accessor: 'id', width: 90 },
       { id: 'customer', header: 'Customer', accessor: 'customer', width: 200 },

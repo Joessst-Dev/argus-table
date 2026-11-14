@@ -3,7 +3,7 @@ import { customElement, property } from 'lit/decorators.js';
 import { ArgusColumn } from './argus-column.js';
 import { flagConverter } from './attributes.js';
 import { notify, unwatchColumns, watchColumns } from './column-registry.js';
-import type { CellContent, ColumnGroup } from './types.js';
+import type { CellContent, ColumnGroup, GroupHeaderContext } from './types.js';
 
 /**
  * A header over the `<argus-column>` children it wraps, written as markup instead
@@ -22,9 +22,13 @@ export class ArgusColumnGroup extends ReactiveElement {
   @property({ attribute: 'group-id' })
   groupId = '';
 
-  /** Header content: text as an attribute; a Lit template, a node or a function as a property. Default: the id. */
+  /**
+   * Header content: text as an attribute; a Lit template, a node or a function as a
+   * property. A function gets a `GroupHeaderContext`: with `text: true`, return the
+   * group's name as plain text. Default: the id.
+   */
   @property()
-  header?: CellContent | (() => CellContent);
+  header?: CellContent | ((context: GroupHeaderContext) => CellContent);
 
   /** Whether the group can be moved as a whole. Default: `true`; `reorderable="false"` turns it off. */
   @property({ converter: flagConverter })

@@ -76,6 +76,7 @@ import { renderBody, type ActiveCell, type Loading, type SelectedAt } from './re
 import { renderLightDom } from './render/cells.js';
 import { content, flushContent, type ContentRenderer } from './render/content-directive.js';
 import { columnKey, renderHeader, type CheckAll, type HeaderDrag } from './render/header.js';
+import { headerText } from './render/header-text.js';
 import type { CheckboxHandlers } from './render/content.js';
 import { renderPinnedRows } from './render/pinned-rows.js';
 import type { ArgusPlugin, CellTarget, ColumnInfo, PluginHost, RowSection } from './plugins.js';
@@ -766,10 +767,21 @@ export class ArgusTable<T = unknown> extends LitElement {
     content: (value) => content(value),
     header: (def) => {
       const { header } = def;
-      const own = typeof header === 'function' ? (header as () => unknown)() : header;
+      const group = 'columns' in def;
+      const own =
+        typeof header === 'function'
+          ? (header as (context: unknown) => unknown)(
+              group ? { groupId: def.id, text: false } : { columnId: def.id, text: false },
+            )
+          : header;
       // A group without a header shows its id; a column shows nothing.
-      return content(own ?? ('columns' in def ? def.id : undefined));
+      return content(own ?? (group ? def.id : undefined));
     },
+    headerText: (def) =>
+      headerText(
+        def.header,
+        'columns' in def ? { groupId: def.id, text: true } : { columnId: def.id, text: true },
+      ),
   };
   readonly #plugins = new PluginController<T>(this, this.#pluginHost);
   #columnsById:
@@ -2667,9 +2679,9 @@ export class ArgusTable<T = unknown> extends LitElement {
     if (unit.kind === 'column') {
       const view = model.columns.find((c) => c.id === unit.id);
       if (!view || view.colIndex === move.from) return;
-      const name = this.#slotText(
-        `[role='columnheader'][data-col="${CSS.escape(unit.id)}"] > slot`,
-      );
+      const name =
+        headerText(view.header, { columnId: unit.id, text: true }) ??
+        this.#slotText(`[role='columnheader'][data-col="${CSS.escape(unit.id)}"] > slot`);
       announce(
         this.ownerDocument,
         labels.columnMoved({ column: name || unit.id, position: view.colIndex, total }),
@@ -2679,7 +2691,9 @@ export class ArgusTable<T = unknown> extends LitElement {
     const key = unitKey(unit);
     const cell = model.headerGroups.flat().find((c) => c.key === key);
     if (!cell || cell.colIndex === move.from) return;
-    const name = this.#slotText(`[data-group-key="${CSS.escape(key)}"] slot`);
+    const name =
+      headerText(cell.header, { groupId: unit.id, text: true }) ??
+      this.#slotText(`[data-group-key="${CSS.escape(key)}"] slot`);
     announce(
       this.ownerDocument,
       labels.groupMoved({
@@ -2840,6 +2854,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       filter: view.filter,
       columnFilter: this.#filters.value[id],
       align: view.align,
+      meta: view.meta,
     };
   }
 

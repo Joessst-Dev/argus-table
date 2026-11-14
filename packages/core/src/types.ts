@@ -51,6 +51,51 @@ export interface CellContext<TData> {
 }
 
 /**
+ * What a column's `header` function receives.
+ *
+ * With `text: false` the table asks for the content to show in the header. With
+ * `text: true` the table or a plugin asks for the column's name as plain text, for
+ * a menu, an export or an announcement: return a string (or a number) then. A
+ * header that returns content in text mode is named by its column id instead.
+ */
+export interface HeaderContext {
+  /** The column's id. */
+  columnId: string;
+  /** `true` when a plain-text name is wanted rather than content to show. */
+  text: boolean;
+}
+
+/** What a column group's `header` function receives; see `HeaderContext`. */
+export interface GroupHeaderContext {
+  /** The group's id. */
+  groupId: string;
+  /** `true` when a plain-text name is wanted rather than content to show. */
+  text: boolean;
+}
+
+/**
+ * A column's own fields for plugins and apps (`ColumnDef.meta`). The table never
+ * reads it. Any key is allowed; a plugin types its own key by augmenting this
+ * interface (in an app with only a framework wrapper, augment the wrapper's module):
+ *
+ * ```ts
+ * declare module 'argus-table' {
+ *   interface ColumnMeta<TData> {
+ *     myPlugin?: { total?: boolean };
+ *   }
+ * }
+ * ```
+ *
+ * @typeParam TData - the row type, for fields that take a row.
+ */
+// An interface (not a Record) so it can be augmented, with `TData` for the
+// fields augmentations add: nothing here uses either.
+// eslint-disable-next-line @typescript-eslint/consistent-indexed-object-style, @typescript-eslint/no-unused-vars
+export interface ColumnMeta<TData = unknown> {
+  [key: string]: unknown;
+}
+
+/**
  * One column of the table.
  *
  * @typeParam TData - the row type.
@@ -60,8 +105,12 @@ export interface CellContext<TData> {
 export interface ColumnDef<TData, TContent = unknown> {
   /** Stable key, used in state objects, events and persistence. Must be unique. */
   id: string;
-  /** Header content, or a function that returns it. */
-  header?: TContent | (() => TContent);
+  /**
+   * Header content, or a function that returns it. A function gets a
+   * `HeaderContext`; when its `text` is `true`, return the column's name as plain
+   * text (menus, exports and announcements use it).
+   */
+  header?: TContent | ((context: HeaderContext) => TContent);
   /**
    * How to read the cell value: a property path such as `'customer.name'`, or a
    * function of the row. Without an accessor the value is `undefined`; the column
@@ -145,6 +194,11 @@ export interface ColumnDef<TData, TContent = unknown> {
    * text, up to `maxWidth`.
    */
   wrap?: boolean;
+  /**
+   * Fields for plugins and the app, such as `meta.export` for `@argus-table/export`.
+   * The table doesn't read it; plugins get it in `PluginHost.column(id).meta`.
+   */
+  meta?: ColumnMeta<TData>;
 }
 
 /** A sort direction: ascending or descending. */
@@ -174,8 +228,11 @@ export type SortState = readonly SortItem[];
 export interface ColumnGroup<TContent = unknown> {
   /** Stable key. Unique among groups; it may equal a column id. */
   id: string;
-  /** Header content, or a function returning it. Default: the id. */
-  header?: TContent | (() => TContent);
+  /**
+   * Header content, or a function returning it (it gets a `GroupHeaderContext`; in
+   * text mode, return the group's name as plain text). Default: the id.
+   */
+  header?: TContent | ((context: GroupHeaderContext) => TContent);
   /**
    * Whether the group can be moved as a whole (a drag on its header, Alt+Shift+Arrow
    * on it). Default: `true`. Its columns can still move within it.

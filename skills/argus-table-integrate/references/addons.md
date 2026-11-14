@@ -37,6 +37,7 @@ const blob = await exportTable(tableElement, 'csv'); // to upload instead
 - `downloadTable()` and `exportTable()` reject unless `tableExport()` is in that table's `plugins`.
 - Exports what the table shows: shown columns in order, the rows the filters keep in the current sort, pinned rows, group header rows. Values come from each column's `accessor`, not its `cell`.
 - Options (on `tableExport()` or per call): `rows: 'selected'`, `hiddenColumns`, `allRows` (with a `dataSource`, fetches every row through `getRows`), `columns: { [id]: { header, value, exclude } }`, `formats`, `menu` (an Export group in the column menu; `false` to leave it out).
+- A column can carry its own export options as `meta: { export: { header, value, exclude } }` (since 1.2); the `columns` option wins field by field.
 - `tableElement` is the element: a React `ref`'s `current`, a Vue template ref's `.element`, Angular `viewChild(ArgusTableComponent)` then `.element`, or `document.querySelector('argus-table')`.
 - Since 1.1.
 

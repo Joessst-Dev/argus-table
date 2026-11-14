@@ -17,6 +17,7 @@ import {
   argusTemplate,
   type AngularColumnDef,
   type ArgusCellContext,
+  type ArgusPlugin,
   type ArgusTableElement,
 } from './index.js';
 
@@ -110,7 +111,7 @@ const header = (el: ArgusTableElement, id: string) =>
   imports: [ARGUS_TABLE, Badge],
   providers: [Unit],
   template: `
-    <argus-table style="${SIZE}" [columns]="columns" [data]="rows()">
+    <argus-table style="${SIZE}" [columns]="columns" [data]="rows()" [plugins]="plugins">
       <ng-template argusCell="customer" [argusCellOf]="rows()" let-row>
         <test-badge [label]="row.customer" />
       </ng-template>
@@ -128,11 +129,24 @@ class Templates {
   readonly currency = signal('EUR');
   readonly showTotal = signal(true);
   readonly columns = columns;
+  /** The names a plugin after the templates reads from the headers it gets. */
+  readonly names: (string | undefined)[] = [];
+  readonly plugins: ArgusPlugin<Order>[] = [
+    {
+      name: 'names',
+      columns: (defs, host) => {
+        this.names.splice(0, Infinity, ...defs.map((d) => host.headerText(d)));
+        return undefined;
+      },
+    },
+  ];
 }
 
 describe('Angular templates in cells and headers', () => {
   test('renders argusCell and argusHeader templates, with the host’s state and DI', async () => {
     const { el, fixture, host } = await mount(Templates);
+    // A template header names its column by the definition's header.
+    expect(host.names).toEqual(['Order', 'Customer', 'Total']);
     expect(cells(el, 'customer')).toEqual(['Customer 0 kg', 'Customer 1 kg', 'Customer 2 kg']);
     expect(cells(el, 'total')).toEqual(['0 EUR', '37 EUR', '74 EUR']);
     expect(header(el, 'total')?.querySelector('.slot-header')?.textContent.trim()).toBe(
