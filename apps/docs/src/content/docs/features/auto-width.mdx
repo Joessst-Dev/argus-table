@@ -1,0 +1,31 @@
+---
+title: Auto width
+description: Fit columns to their content, once or on demand.
+since: '0.2'
+---
+
+import FlavourTabs from '../../../components/FlavourTabs.astro';
+import ReactAuto from '../../../examples/auto-width/auto-columns/react/AutoColumns.tsx';
+import VueAuto from '../../../examples/auto-width/auto-columns/vue/AutoColumns.vue';
+import { AutoColumnsComponent } from '../../../examples/auto-width/auto-columns/angular/auto-columns.component.ts';
+import ReactFit from '../../../examples/auto-width/fit-to-content/react/FitToContent.tsx';
+import VueFit from '../../../examples/auto-width/fit-to-content/vue/FitToContent.vue';
+import { FitToContentComponent } from '../../../examples/auto-width/fit-to-content/angular/fit-to-content.component.ts';
+
+`width: 'auto'` fits a column to its header, its pinned rows and the rows in view, within `minWidth` and `maxWidth` (Product stops at 360 px here). It measures once the first rows render, then keeps its width, so scrolling never moves the columns. An auto width is the column's own width, not a resize: it fires no event and adds nothing to `columnSizing`.
+
+<FlavourTabs example="auto-width/auto-columns">
+  <ReactAuto slot="react" client:visible />
+  <VueAuto slot="vue" client:visible />
+  <AutoColumnsComponent slot="angular" client:visible />
+</FlavourTabs>
+
+## Fitting on demand
+
+A double-click on a header's resize handle fits that column to the rows in view, and `autosizeColumns(ids?)` fits several, or all. Both are resizes: they fire `argus-column-sizing-change` for each column they change and follow the `columnSizing` rules, so a saved layout keeps them.
+
+<FlavourTabs example="auto-width/fit-to-content">
+  <ReactFit slot="react" client:visible />
+  <VueFit slot="vue" client:visible />
+  <FitToContentComponent slot="angular" client:visible />
+</FlavourTabs>

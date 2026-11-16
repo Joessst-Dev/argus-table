@@ -66,3 +66,15 @@ export function headerTexts(table: Locator): Promise<string[]> {
     ),
   );
 }
+
+/** How many rendered cells of a column, its header included, cut their content off. */
+export function truncated(table: Locator, columnId: string): Promise<number> {
+  return table.evaluate(
+    (el, id) =>
+      [...(el.shadowRoot?.querySelectorAll(`[data-col="${id}"]`) ?? [])].filter((cell) => {
+        const content = cell.querySelector('slot')?.assignedElements()[0];
+        return content !== undefined && content.scrollWidth > content.clientWidth;
+      }).length,
+    columnId,
+  );
+}
