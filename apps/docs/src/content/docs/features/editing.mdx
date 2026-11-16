@@ -1,0 +1,46 @@
+---
+title: Cell editing
+description: Edit cells in place, with validation and editors of your own.
+since: '1.3'
+---
+
+import FlavourTabs from '../../../components/FlavourTabs.astro';
+import ReactEditing from '../../../examples/editing/basic/react/Editing.tsx';
+import VueEditing from '../../../examples/editing/basic/vue/Editing.vue';
+import { EditingComponent } from '../../../examples/editing/basic/angular/editing.component.ts';
+import ReactValidation from '../../../examples/editing/validation/react/Validation.tsx';
+import VueValidation from '../../../examples/editing/validation/vue/Validation.vue';
+import { ValidationComponent } from '../../../examples/editing/validation/angular/validation.component.ts';
+import ReactMore from '../../../examples/editing/more-editors/react/MoreEditors.tsx';
+import VueMore from '../../../examples/editing/more-editors/vue/MoreEditors.vue';
+import { MoreEditorsComponent } from '../../../examples/editing/more-editors/angular/more-editors.component.ts';
+
+`@argus-table/editing` is a plugin: `plugins: [cellEditing()]`, and each editable column says so in `meta: { edit: true }` or `meta: { edit: { … } }`. Press Enter or F2, start typing, or double-click a cell to edit it; Enter commits and moves down, Tab moves to the next editable column, Escape cancels. The editor follows the column's `filter` kind: text for Customer, a select of `filterOptions` for Status.
+
+The table never changes your data: a commit fires `argus-cell-edit`, and your code applies it, here with `applyEdit(data, event.detail, columns)`, which copies the row along the column's accessor path.
+
+<FlavourTabs example="editing/basic">
+  <ReactEditing slot="react" client:visible />
+  <VueEditing slot="vue" client:visible />
+  <EditingComponent slot="angular" client:visible />
+</FlavourTabs>
+
+## Validation
+
+`validate` returns a message to block a commit: the editor stays open with `aria-invalid`, the message shows under it and is announced. `editable` decides per row: here shipped orders keep their total. The number editor reads what's typed as a number, and an empty one as `null`.
+
+<FlavourTabs example="editing/validation">
+  <ReactValidation slot="react" client:visible />
+  <VueValidation slot="vue" client:visible />
+  <ValidationComponent slot="angular" client:visible />
+</FlavourTabs>
+
+## Other editors
+
+`date` (from the column's `filter: 'date'`; a `Date` stays a `Date`), `checkbox` (a click, Space or Enter toggles it, without an editing mode), and editors of your own: `editor` as a function that returns content for the cell, like `cell`, so JSX, a VNode or an Angular template work too. It gets `{ value, row, label, commit, cancel }`; the plugin focuses its first control, and Escape or leaving it cancels.
+
+<FlavourTabs example="editing/more-editors">
+  <ReactMore slot="react" client:visible />
+  <VueMore slot="vue" client:visible />
+  <MoreEditorsComponent slot="angular" client:visible />
+</FlavourTabs>

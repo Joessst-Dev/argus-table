@@ -83,6 +83,9 @@ importers:
       '@argus-table/angular':
         specifier: workspace:*
         version: link:../../packages/angular
+      '@argus-table/editing':
+        specifier: workspace:*
+        version: link:../../packages/editing
       '@argus-table/header-menu':
         specifier: workspace:*
         version: link:../../packages/header-menu
