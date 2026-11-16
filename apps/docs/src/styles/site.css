@@ -1,0 +1,18 @@
+/* argus-table's colours, from the logo (brand/argus-table-logo.svg): blue
+   #168FEF and violet #873CF2. Starlight's accent in dark mode, then light. */
+:root {
+  --sl-color-accent-low: #1b1d4f;
+  --sl-color-accent: #168fef;
+  --sl-color-accent-high: #b9dcfb;
+}
+
+:root[data-theme='light'] {
+  --sl-color-accent-low: #dcecfd;
+  --sl-color-accent: #0f6fc0;
+  --sl-color-accent-high: #3c1a73;
+}
+
+/* Examples get room to breathe between the table and its source. */
+.example argus-table {
+  margin-block-end: 0.5rem;
+}

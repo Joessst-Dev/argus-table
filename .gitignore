@@ -15,3 +15,6 @@ benchmarks/results/
 .vitest/
 .angular/
 apps/examples/.smoke/
+
+# Astro (apps/docs): generated types and caches
+.astro/

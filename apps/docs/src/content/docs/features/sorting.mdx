@@ -1,0 +1,20 @@
+---
+title: Sorting
+description: Sort by a column with a header click or the keyboard, and keep the order as state.
+since: '0.1'
+---
+
+import FlavourTabs from '../../../components/FlavourTabs.astro';
+import ReactSorting from '../../../examples/sorting/basic/react/Sorting.tsx';
+import VueSorting from '../../../examples/sorting/basic/vue/Sorting.vue';
+import { SortingComponent } from '../../../examples/sorting/basic/angular/sorting.component.ts';
+
+Columns with `sortable: true` sort with a click on their header, or with Enter or Space on a focused header: ascending, then descending, then unsorted. `sorting` holds the order as `{ id, desc }[]`. Once you set it, the table is controlled: a click only proposes the new order in `argus-sorting-change`, and your code applies it, as each example below does.
+
+<FlavourTabs example="sorting/basic">
+  <ReactSorting slot="react" client:visible />
+  <VueSorting slot="vue" client:visible />
+  <SortingComponent slot="angular" client:visible />
+</FlavourTabs>
+
+A sorted header shows the direction with a chevron and in `aria-sort`; its cells get the `cell-sorted` part, so themes can mark the column.

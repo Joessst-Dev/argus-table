@@ -25,7 +25,8 @@
     "@argus-table/generate-wrappers",
     "@argus-table/playground",
     "@argus-table/storybook",
-    "@argus-table/visual"
+    "@argus-table/visual",
+    "@argus-table/docs"
   ],
   "updateInternalDependencies": "patch",
   "privatePackages": {

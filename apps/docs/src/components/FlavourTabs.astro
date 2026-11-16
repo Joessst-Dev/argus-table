@@ -1,0 +1,49 @@
+---
+// A feature example in its four flavours: a tab each, with the running example
+// above the files it is built from, read raw. What is shown is what runs. The
+// page gives the React, Vue and Angular islands as slots of those names (each
+// imported from this example's folder: `lint` checks it); the HTML flavour is
+// mounted here. A missing flavour fails the build.
+import { TabItem, Tabs } from '@astrojs/starlight/components';
+import Example from './Example.astro';
+import HtmlExample from './HtmlExample.astro';
+import Since from './Since.astro';
+import { FLAVOURS, filesOf, type Flavour } from '../lib/sources';
+
+interface Props {
+  /** `<feature>/<example>`: the folder under `src/examples`. */
+  example: string;
+  /** The release this example arrived in, when later than its page's. */
+  since?: string;
+}
+
+const { example, since } = Astro.props;
+if (since !== undefined && !/^\d+\.\d+$/.test(since)) {
+  throw new Error(`FlavourTabs ${example}: since "${since}" isn't <major>.<minor>`);
+}
+const raw = import.meta.glob<string>('/src/examples/**/*.{html,js,tsx,vue,ts}', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+});
+const files = filesOf(raw, example);
+const LABELS: Record<Flavour, string> = { html: 'HTML', react: 'React', vue: 'Vue', angular: 'Angular' };
+for (const flavour of FLAVOURS) {
+  if ((flavour !== 'html' && !Astro.slots.has(flavour)) || files[flavour].length === 0) {
+    throw new Error(`FlavourTabs ${example}: missing the ${flavour} flavour`);
+  }
+}
+---
+
+{since && <p><Since since={since} /></p>}
+<Tabs syncKey="flavour">
+  {
+    FLAVOURS.map((flavour) => (
+      <TabItem label={LABELS[flavour]}>
+        <Example example={example} flavour={flavour} files={files[flavour]}>
+          {flavour === 'html' ? <HtmlExample example={example} /> : <slot name={flavour} />}
+        </Example>
+      </TabItem>
+    ))
+  }
+</Tabs>

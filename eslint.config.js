@@ -18,6 +18,8 @@ export default tseslint.config(
       'apps/examples/{html,react,vue,angular,.smoke}/**',
       // Sample apps the integrate skill's scripts read, some broken on purpose.
       'skills/test/fixtures/**',
+      // Astro's generated types.
+      '**/.astro/**',
     ],
   },
   js.configs.recommended,

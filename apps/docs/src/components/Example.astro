@@ -1,0 +1,24 @@
+---
+// One flavour of an example: the running example, then its source files.
+import { Code } from '@astrojs/starlight/components';
+import type { ExampleFile, Flavour } from '../lib/sources';
+
+interface Props {
+  example: string;
+  flavour: Flavour;
+  files: ExampleFile[];
+}
+
+const { example, flavour, files } = Astro.props;
+---
+
+<div class="example" data-example={example} data-flavour={flavour}>
+  <div class="example-live not-content"><slot /></div>
+  {files.map((file) => <Code code={file.code} lang={file.lang} title={file.name} wrap />)}
+</div>
+
+<style>
+  .example-live {
+    margin-block-end: 1rem;
+  }
+</style>

@@ -1,0 +1,16 @@
+---
+// Starlight's page title, with the page's release badge (frontmatter `since`).
+import Default from '@astrojs/starlight/components/PageTitle.astro';
+import Since from './Since.astro';
+
+const { since } = Astro.locals.starlightRoute.entry.data;
+---
+
+<Default />
+{since && <p class="since"><Since since={since} /></p>}
+
+<style>
+  .since {
+    margin-block-start: 0.5rem;
+  }
+</style>

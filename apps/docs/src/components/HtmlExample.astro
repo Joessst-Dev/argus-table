@@ -1,0 +1,44 @@
+---
+// The plain-HTML flavour on a page: the example's `html/index.html` as written,
+// and its `html/main.js`, loaded once the example is visible (like the
+// framework islands, `client:visible`).
+interface Props {
+  /** `<feature>/<example>`. */
+  example: string;
+}
+
+const { example } = Astro.props;
+const markups = import.meta.glob<string>('/src/examples/**/html/index.html', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+});
+const markup = markups[`/src/examples/${example}/html/index.html`];
+if (markup === undefined) throw new Error(`HtmlExample ${example}: no html/index.html`);
+---
+
+<argus-html-example data-for={example}><Fragment set:html={markup} /></argus-html-example>
+
+<script>
+  const scripts = import.meta.glob('/src/examples/**/html/main.js');
+
+  class HtmlExample extends HTMLElement {
+    connectedCallback(): void {
+      const load = scripts[`/src/examples/${this.dataset.for ?? ''}/html/main.js`];
+      if (!load) return;
+      const observer = new IntersectionObserver((entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        observer.disconnect();
+        void load();
+      });
+      observer.observe(this);
+    }
+  }
+  customElements.define('argus-html-example', HtmlExample);
+</script>
+
+<style>
+  argus-html-example {
+    display: block;
+  }
+</style>

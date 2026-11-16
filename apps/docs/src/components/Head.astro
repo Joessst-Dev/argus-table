@@ -1,0 +1,18 @@
+---
+// Starlight's head, plus the link between the site's theme and the tables':
+// @argus-table/themes follows `data-argus-theme` on an ancestor, so the
+// site's `data-theme` (light or dark) is mirrored onto it.
+import Default from '@astrojs/starlight/components/Head.astro';
+---
+
+<Default />
+<script is:inline>
+  (() => {
+    const root = document.documentElement;
+    const sync = () => {
+      root.setAttribute('data-argus-theme', root.dataset.theme === 'dark' ? 'dark' : 'light');
+    };
+    sync();
+    new MutationObserver(sync).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+  })();
+</script>
