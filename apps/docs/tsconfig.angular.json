@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "node_modules/.cache/docs-ngc",
+    "target": "es2022",
+    "module": "es2022",
+    "lib": ["es2022", "dom"],
+    "experimentalDecorators": false,
+    "skipLibCheck": true
+  },
+  "angularCompilerOptions": {
+    "strictTemplates": true,
+    "strictInjectionParameters": true
+  },
+  "include": ["src/examples/**/angular/*.ts"],
+  "exclude": []
+}

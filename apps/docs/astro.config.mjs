@@ -23,6 +23,6 @@ export default defineConfig({
     }),
     react({ include: ['**/examples/**/react/**'] }),
     vue(),
-    angular(),
+    angular({ vite: { tsconfig: './tsconfig.angular.json' } }),
   ],
 });
