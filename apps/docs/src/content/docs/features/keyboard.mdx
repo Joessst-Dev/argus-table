@@ -1,0 +1,20 @@
+---
+title: Keyboard
+description: How the grid moves focus, and the keys it answers.
+since: '0.1'
+---
+
+import FlavourTabs from '../../../components/FlavourTabs.astro';
+import ReactNavigation from '../../../examples/keyboard/navigation/react/Navigation.tsx';
+import VueNavigation from '../../../examples/keyboard/navigation/vue/Navigation.vue';
+import { NavigationComponent } from '../../../examples/keyboard/navigation/angular/navigation.component.ts';
+
+The table follows the WAI-ARIA grid pattern. It is one tab stop, starting on the first header. The arrow keys move between cells, and between the header and the body; Home and End jump to the start or end of the row. PageDown and PageUp move by a page of rows and scroll with it; Ctrl+Home and Ctrl+End (Cmd on macOS) jump to the first header and the last cell. Enter on a body cell fires `argus-cell-click` and `argus-row-click`, as a click does (see the log). Enter or Space sorts a focused sortable header, and Alt+Arrow resizes it. Scroll away and press an arrow key: focus comes back. Directions follow the writing direction, so in a right-to-left table ArrowRight moves toward the start.
+
+<FlavourTabs example="keyboard/navigation">
+  <ReactNavigation slot="react" client:visible />
+  <VueNavigation slot="vue" client:visible />
+  <NavigationComponent slot="angular" client:visible />
+</FlavourTabs>
+
+Other pages add their keys: Alt+Shift+Arrow [moves a column](../column-reorder/), Space and Shift+Arrow [select rows](../selection/).
