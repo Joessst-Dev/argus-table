@@ -15,15 +15,31 @@
   ],
   "lockFileMaintenance": {
     "enabled": true,
-    "schedule": ["on monday"]
+    "schedule": ["on monday"],
+    "automerge": true
   },
   "packageRules": [
     {
-      "description": "Dev dependencies: one grouped PR, merged automatically when CI is green",
+      "description": "Dev dependencies: one grouped PR, merged automatically when CI is green. They don't ship, so the PR needs no changeset (the label skips the check)",
       "matchDepTypes": ["devDependencies"],
       "matchUpdateTypes": ["minor", "patch", "digest"],
       "groupName": "dev dependencies",
-      "automerge": true
+      "automerge": true,
+      "addLabels": ["no-changeset"]
+    },
+    {
+      "description": "The private tools' dependencies (prettier in generate-wrappers) are dev tooling too: same PR",
+      "matchFileNames": ["tools/*/package.json"],
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "groupName": "dev dependencies",
+      "automerge": true,
+      "addLabels": ["no-changeset"]
+    },
+    {
+      "description": "Runtime dependencies of the published packages: a range users install, so it changes only when a new release is outside it (bump would narrow it to the newest release). In-range releases reach the lockfile through lock file maintenance",
+      "matchFileNames": ["packages/*/package.json"],
+      "matchDepTypes": ["dependencies"],
+      "rangeStrategy": "replace"
     },
     {
       "description": "GitHub Actions: one grouped PR, merged automatically when CI is green",
