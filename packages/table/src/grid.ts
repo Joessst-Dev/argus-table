@@ -5,6 +5,7 @@ import {
   RowLayout,
   type ColumnView,
   type GridRow,
+  type HeaderGroupCell,
   type OrderUnit,
   type TableModel,
 } from '@argus-table/core';
@@ -122,4 +123,13 @@ export function pinnedWidth<T>(
 /** `1` for left-to-right, `-1` for right-to-left: logical arrow keys and offsets. */
 export function directionOf(element: Element): 1 | -1 {
   return getComputedStyle(element).direction === 'rtl' ? -1 : 1;
+}
+
+/** The group header cell with a key (`data-group-key`), from the model. */
+export function groupCellOf<T>(
+  model: TableModel<T, CellContent>,
+  key: string | undefined,
+): HeaderGroupCell<CellContent> | undefined {
+  if (key === undefined) return undefined;
+  return model.headerGroups.flat().find((c) => c.key === key);
 }
