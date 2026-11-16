@@ -28,7 +28,7 @@
     "preview": "astro preview --port 4321 --host 0.0.0.0",
     "sync": "astro sync",
     "typecheck": "astro check",
-    "lint": "eslint .",
+    "lint": "eslint . && node scripts/check-examples.mjs",
     "test": "vitest run"
   },
   "dependencies": {
