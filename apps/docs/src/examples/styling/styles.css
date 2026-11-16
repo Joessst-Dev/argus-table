@@ -1,0 +1,54 @@
+/* Each example's rules are scoped to its table by a class. */
+
+/* ::part() styles the table's structure from outside. State is part of the name
+   (row-odd, header-cell-sorted, cell-pinned-edge): parts can't take attribute
+   selectors. Pseudo-classes work: ::part(row):hover. */
+.styling-parts::part(header-cell) {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.styling-parts::part(header-cell-sorted) {
+  text-decoration: underline;
+}
+.styling-parts::part(cell-sorted) {
+  font-weight: 600;
+}
+.styling-parts::part(cell-pinned-edge) {
+  border-inline-end: 1px solid currentColor;
+}
+
+/* Cell and header content lives in the light DOM: the page's own classes apply. */
+.styling-slotted .badge {
+  padding: 0.1em 0.6em;
+  border-radius: 999px;
+  font-size: 0.85em;
+}
+.styling-slotted .badge-open {
+  background: light-dark(#fff4d6, #3a2d07);
+}
+.styling-slotted .badge-paid {
+  background: light-dark(#dcf5e3, #0f3320);
+}
+.styling-slotted .badge-shipped {
+  background: light-dark(#e3e9fb, #1b2647);
+}
+.styling-slotted .visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Tokens are custom properties: set them on the table, a parent or a theme. */
+.styling-striped {
+  --argus-row-odd-bg: light-dark(#f4f6fb, #1a1f2a);
+  --argus-row-hover-bg: light-dark(#e6ecfa, #232b3b);
+  --argus-row-height: 44px;
+}
+
+.styling-rounded {
+  --argus-border: 1px solid light-dark(#d0d5dd, #3a414c);
+  --argus-border-radius: 12px;
+}

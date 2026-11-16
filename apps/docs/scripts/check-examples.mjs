@@ -87,6 +87,20 @@ export function checkExamples(root) {
           problems.push(`${where}/${flavour}: more than one component`);
         }
       }
+      // A feature's styles.css is shown with every flavour, so every flavour loads it.
+      if (existsSync(join(examplesDir, feature, 'styles.css'))) {
+        for (const [flavour, wants] of FLAVOURS) {
+          const folder = join(examplesDir, id, flavour);
+          const names = existsSync(folder) ? readdirSync(folder) : [];
+          const code = names
+            .filter((name) => (Array.isArray(wants) ? name.endsWith('.js') : wants.test(name)))
+            .map((name) => readFileSync(join(folder, name), 'utf8'))
+            .join('\n');
+          if (!code.includes('../../styles.css')) {
+            problems.push(`${where}/${flavour}: doesn't load ../../styles.css`);
+          }
+        }
+      }
       const markup = join(examplesDir, id, 'html/index.html');
       if (!existsSync(markup)) continue;
       const prefix = `${feature}-${example}-`;

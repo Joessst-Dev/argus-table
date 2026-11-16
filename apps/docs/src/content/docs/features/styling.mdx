@@ -1,0 +1,59 @@
+---
+title: Styling
+description: Style the table with parts, tokens and your own CSS.
+since: '0.1'
+---
+
+import FlavourTabs from '../../../components/FlavourTabs.astro';
+import ReactParts from '../../../examples/styling/parts/react/Parts.tsx';
+import VueParts from '../../../examples/styling/parts/vue/Parts.vue';
+import { PartsComponent } from '../../../examples/styling/parts/angular/parts.component.ts';
+import ReactSlotted from '../../../examples/styling/slotted-content/react/SlottedContent.tsx';
+import VueSlotted from '../../../examples/styling/slotted-content/vue/SlottedContent.vue';
+import { SlottedContentComponent } from '../../../examples/styling/slotted-content/angular/slotted-content.component.ts';
+import ReactStriped from '../../../examples/styling/striped/react/Striped.tsx';
+import VueStriped from '../../../examples/styling/striped/vue/Striped.vue';
+import { StripedComponent } from '../../../examples/styling/striped/angular/striped.component.ts';
+import ReactRounded from '../../../examples/styling/rounded/react/Rounded.tsx';
+import VueRounded from '../../../examples/styling/rounded/vue/Rounded.vue';
+import { RoundedComponent } from '../../../examples/styling/rounded/angular/rounded.component.ts';
+
+Three ways in, from the outside: `::part()` rules for the table's structure, `--argus-*` tokens for its colours and sizes, and your own CSS for what you put in its cells. The examples' rules are in `styles.css`, shown with each flavour; every example scopes its rules with a class on its table. The Angular flavours load it as the component's `styleUrl` with `ViewEncapsulation.None`: the rules style parts and light-DOM content, which Angular's own scoping would miss.
+
+## Parts
+
+`::part()` styles the table's structure from outside its shadow DOM. State is part of the name (`row-odd`, `header-cell-sorted`, `cell-pinned-edge`), because parts can't be combined with attribute selectors. Pseudo-classes work: `::part(row):hover`. Click a sortable header (Customer, Total) to see `header-cell-sorted` and `cell-sorted`. Leave backgrounds of rows and cells to tokens: pinned cells paint their own background from them, and so does a hovered row.
+
+<FlavourTabs example="styling/parts">
+  <ReactParts slot="react" client:visible />
+  <VueParts slot="vue" client:visible />
+  <PartsComponent slot="angular" client:visible />
+</FlavourTabs>
+
+## Your CSS in cells
+
+Cell and header content is rendered into the table's light DOM and slotted into the cells, so the page's own CSS, utility classes and components work inside cells. Here `.badge` is a plain class from the page's stylesheet, and the Actions column has a header only screen readers see.
+
+<FlavourTabs example="styling/slotted-content">
+  <ReactSlotted slot="react" client:visible />
+  <VueSlotted slot="vue" client:visible />
+  <SlottedContentComponent slot="angular" client:visible />
+</FlavourTabs>
+
+## Tokens
+
+Tokens are CSS custom properties, so they pass into the shadow DOM: set them on the table, on a parent, or in a theme. Striped rows, a hover colour and taller rows, from tokens alone:
+
+<FlavourTabs example="styling/striped" since="0.4">
+  <ReactStriped slot="react" client:visible />
+  <VueStriped slot="vue" client:visible />
+  <StripedComponent slot="angular" client:visible />
+</FlavourTabs>
+
+A border around the table and rounded corners: `--argus-border` and `--argus-border-radius`.
+
+<FlavourTabs example="styling/rounded" since="0.4">
+  <ReactRounded slot="react" client:visible />
+  <VueRounded slot="vue" client:visible />
+  <RoundedComponent slot="angular" client:visible />
+</FlavourTabs>

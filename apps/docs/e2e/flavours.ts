@@ -12,23 +12,28 @@ const TAB_NAMES: Record<Flavour, string> = {
 };
 
 /**
- * Opens a flavour's tab, scrolls its table into view and waits for the table's
+ * Opens a flavour's tab, scrolls the example into view and waits for its table's
  * first body row. Returns the flavour's container (`[data-example][data-flavour]`),
  * which holds the running example and its source.
  */
 export async function openFlavour(page: Page, example: string, flavour: Flavour): Promise<Locator> {
   const container = page.locator(`[data-example="${example}"][data-flavour="${flavour}"]`);
-  await container
+  const tab = container
     .locator('xpath=ancestor::starlight-tabs[1]')
-    .getByRole('tab', { name: TAB_NAMES[flavour], exact: true })
-    .click();
+    .getByRole('tab', { name: TAB_NAMES[flavour], exact: true });
+  // A click before Starlight's tabs script has started does nothing: click until selected.
+  await expect(async () => {
+    await tab.click();
+    await expect(tab).toHaveAttribute('aria-selected', 'true', { timeout: 500 });
+  }).toPass();
   // Examples load when visible (`client:visible`): clicking the tab scrolls only
   // the tab into view, which can leave the example below the fold, never loaded.
-  // Angular replaces its server-rendered table when it starts: retry if it detached.
+  // Scroll the flavour's container (always rendered, the example at its top) rather
+  // than the table, which may have no size until its island has loaded.
+  await container.evaluate((el) => {
+    el.scrollIntoView({ block: 'start' });
+  });
   const table = container.locator('argus-table').first();
-  await expect(async () => {
-    await table.scrollIntoViewIfNeeded({ timeout: 1000 });
-  }).toPass();
   // Its first body row: a skeleton for a data source still loading.
   await table.locator('[role="row"][aria-rowindex="2"]').waitFor();
   return container;

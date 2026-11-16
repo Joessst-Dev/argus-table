@@ -21,7 +21,7 @@ const { example, since } = Astro.props;
 if (since !== undefined && !/^\d+\.\d+$/.test(since)) {
   throw new Error(`FlavourTabs ${example}: since "${since}" isn't <major>.<minor>`);
 }
-const raw = import.meta.glob<string>('/src/examples/**/*.{html,js,tsx,vue,ts}', {
+const raw = import.meta.glob<string>('/src/examples/**/*.{html,js,tsx,vue,ts,css}', {
   query: '?raw',
   import: 'default',
   eager: true,
