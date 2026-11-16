@@ -5,7 +5,10 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-/** What each flavour folder must hold: a file name, or one file matching a pattern. */
+/**
+ * What each flavour folder must hold: these files, or one file matching a pattern.
+ * @type {[string, string[] | RegExp][]}
+ */
 const FLAVOURS = [
   ['html', ['index.html', 'main.js']],
   ['react', /\.tsx$/],
@@ -13,6 +16,7 @@ const FLAVOURS = [
   ['angular', /\.component\.ts$/],
 ];
 
+/** @param {string} path */
 const dirs = (path) =>
   existsSync(path)
     ? readdirSync(path).filter((name) => statSync(join(path, name)).isDirectory())

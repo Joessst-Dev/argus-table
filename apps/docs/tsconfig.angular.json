@@ -7,7 +7,9 @@
     "module": "es2022",
     "lib": ["es2022", "dom"],
     "experimentalDecorators": false,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "rootDir": "src",
+    "allowImportingTsExtensions": false
   },
   "angularCompilerOptions": {
     "strictTemplates": true,

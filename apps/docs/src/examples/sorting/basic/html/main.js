@@ -1,12 +1,14 @@
 import 'argus-table';
 import { orders } from '../../data.ts';
 
-const example = document.querySelector('[data-example="sorting/basic"][data-flavour="html"]');
-/** @type {import('argus-table').ArgusTable<import('../../data.ts').Order>} */
-const table = example.querySelector('argus-table');
-const output = example.querySelector('output');
+/** @typedef {import('../../data.ts').Order} Order */
+const table = /** @type {import('argus-table').ArgusTable<Order>} */ (
+  document.querySelector('#sorting-table')
+);
+const output = /** @type {HTMLOutputElement} */ (document.querySelector('#sorting-output'));
 
-table.columns = [
+/** @type {import('argus-table').ColumnDef<Order>[]} */
+const columns = [
   { id: 'id', header: 'Order', accessor: 'id', width: 90 },
   { id: 'customer', header: 'Customer', accessor: 'customer', width: { flex: 1 }, sortable: true },
   { id: 'city', header: 'City', accessor: 'city', width: 120, sortable: true },
@@ -24,6 +26,8 @@ table.columns = [
     },
   },
 ];
+
+table.columns = columns;
 table.data = orders;
 table.sorting = [{ id: 'total', desc: true }];
 
