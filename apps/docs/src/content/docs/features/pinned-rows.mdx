@@ -1,0 +1,33 @@
+---
+title: Pinned rows
+description: Keep summary rows above or below the body while it scrolls.
+since: '0.2'
+---
+
+import FlavourTabs from '../../../components/FlavourTabs.astro';
+import ReactTotals from '../../../examples/pinned-rows/totals/react/Totals.tsx';
+import VueTotals from '../../../examples/pinned-rows/totals/vue/Totals.vue';
+import { TotalsComponent } from '../../../examples/pinned-rows/totals/angular/totals.component.ts';
+import ReactBoth from '../../../examples/pinned-rows/top-and-bottom/react/TopAndBottom.tsx';
+import VueBoth from '../../../examples/pinned-rows/top-and-bottom/vue/TopAndBottom.vue';
+import { TopAndBottomComponent } from '../../../examples/pinned-rows/top-and-bottom/angular/top-and-bottom.component.ts';
+
+`pinnedRows: { bottom: [totals] }` keeps a totals row at the bottom while the body scrolls. Pinned rows are separate objects, read by the same columns, and never sorted or filtered. Cell content gets `pinned` (`'top'` or `'bottom'`) in its context, so it can show a summary row its own way: in bold here. Pinned rows have the `row-pinned` and `row-pinned-bottom` (or `row-pinned-top`) parts, and their background is `--argus-row-pinned-bg`.
+
+<FlavourTabs example="pinned-rows/totals">
+  <ReactTotals slot="react" client:visible />
+  <VueTotals slot="vue" client:visible />
+  <TotalsComponent slot="angular" client:visible />
+</FlavourTabs>
+
+## Both sides, and the keyboard
+
+The keyboard moves through pinned rows like any row: from the header down into the top row, through the body, and on to the bottom row; Ctrl+End lands on the totals. PageUp and PageDown page through the body only. A click, or Enter on a cell, fires `argus-row-click` (and `argus-cell-click`) with `pinned` set to the row's side.
+
+<FlavourTabs example="pinned-rows/top-and-bottom">
+  <ReactBoth slot="react" client:visible />
+  <VueBoth slot="vue" client:visible />
+  <TopAndBottomComponent slot="angular" client:visible />
+</FlavourTabs>
+
+Pinned rows work the same with a [`dataSource`](../infinite-loading/): they don't wait for pages.
