@@ -124,6 +124,8 @@ jobs:
           path: |
             tests/e2e/test-results
             tests/e2e/playwright-report
+            apps/docs/test-results
+            apps/docs/playwright-report
           retention-days: 14
 
   examples:
