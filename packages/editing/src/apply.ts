@@ -18,19 +18,21 @@ import type { CellEditDetail } from './types.js';
  */
 export function applyEdit<T>(
   data: readonly T[],
-  detail: CellEditDetail<T>,
-  columns: readonly ColumnDef<T>[],
+  detail: CellEditDetail,
+  columns: readonly ColumnDef<T, unknown>[],
 ): T[] {
-  const at = detail.pinned ? -1 : data.indexOf(detail.row);
+  // The row is one of data's, found by identity; the detail of a plain element's
+  // event doesn't know its type.
+  const at = detail.pinned ? -1 : data.indexOf(detail.row as T);
   if (at < 0) return [...data];
   const column = columns.find((c) => c.id === detail.columnId);
   const edit = column?.meta?.edit;
   const set = typeof edit === 'object' ? edit.set : undefined;
   let row: T;
   if (set) {
-    row = set(detail.row, detail.value) as T;
+    row = set(detail.row as T, detail.value) as T;
   } else if (typeof column?.accessor === 'string') {
-    row = setPath(detail.row, column.accessor.split('.'), detail.value);
+    row = setPath(detail.row as T, column.accessor.split('.'), detail.value);
   } else {
     throw new Error(
       `applyEdit: column "${detail.columnId}" has no accessor path; give it meta.edit.set`,
