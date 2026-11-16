@@ -1,0 +1,16 @@
+---
+// A release badge for a page, a section or an example: "Since 1.3", or
+// "Coming in 1.4" while that release is still to come (the site follows main).
+import { Badge } from '@astrojs/starlight/components';
+import table from '../../../../packages/table/package.json';
+import { releaseBadge } from '../lib/since';
+
+interface Props {
+  /** `<major>.<minor>`, e.g. `'1.3'`. */
+  since: string;
+}
+
+const badge = releaseBadge(Astro.props.since, table.version);
+---
+
+<Badge text={badge.text} variant={badge.upcoming ? 'caution' : 'note'} />

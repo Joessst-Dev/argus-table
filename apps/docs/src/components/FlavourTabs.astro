@@ -4,14 +4,17 @@
 // What is shown is what runs. A missing flavour fails the build.
 import { TabItem, Tabs } from '@astrojs/starlight/components';
 import Example from './Example.astro';
+import Since from './Since.astro';
 import { FLAVOURS, filesOf, type Flavour } from '../lib/sources';
 
 interface Props {
   /** `<feature>/<example>`: the folder under `src/examples`. */
   example: string;
+  /** The release this example arrived in, when later than its page's. */
+  since?: string;
 }
 
-const { example } = Astro.props;
+const { example, since } = Astro.props;
 const raw = import.meta.glob<string>('/src/examples/**/*.{html,js,tsx,vue,ts}', {
   query: '?raw',
   import: 'default',
@@ -26,6 +29,7 @@ for (const flavour of FLAVOURS) {
 }
 ---
 
+{since && <p><Since since={since} /></p>}
 <Tabs syncKey="flavour">
   {
     FLAVOURS.map((flavour) => (

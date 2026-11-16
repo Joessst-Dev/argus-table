@@ -12,6 +12,7 @@ export default defineConfig({
   integrations: [
     starlight({
       title: 'argus-table',
+      components: { PageTitle: './src/components/PageTitle.astro' },
       logo: { src: '../../brand/argus-table-logo.svg', replacesTitle: true },
       social: [
         { icon: 'github', label: 'GitHub', href: 'https://github.com/Joessst-Dev/argus-table' },
