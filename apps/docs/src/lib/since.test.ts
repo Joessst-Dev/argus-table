@@ -15,4 +15,9 @@ describe('releaseBadge', () => {
   test('compares numerically, not as text', () => {
     expect(releaseBadge('1.10', '1.9.0').upcoming).toBe(true);
   });
+
+  test('a prerelease of that minor is still to come', () => {
+    expect(releaseBadge('1.4', '1.4.0-rc.1').upcoming).toBe(true);
+    expect(releaseBadge('1.3', '1.4.0-rc.1').upcoming).toBe(false);
+  });
 });

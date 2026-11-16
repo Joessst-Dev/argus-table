@@ -32,9 +32,22 @@ jobs:
           path: apps/storybook/dist
           retention-days: 7
 
-      # The new docs site (apps/docs): built and kept as an artifact on every
-      # event until it replaces Storybook on Pages (docs/superpowers/specs/
-      # 2026-11-16-docs-site-design.md, "Rollout").
+      - name: Upload Pages artifact
+        if: github.event_name == 'push'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: apps/storybook/dist
+
+  # The new docs site (apps/docs): built and kept as an artifact on every event
+  # until it replaces Storybook on Pages (docs/superpowers/specs/
+  # 2026-11-16-docs-site-design.md, "Rollout"). Its own job, so a failing
+  # site never holds back Storybook's deploy.
+  site:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup
+
       - name: Build the docs site
         run: pnpm nx run docs:build
 
@@ -44,12 +57,6 @@ jobs:
           name: docs-site
           path: apps/docs/dist
           retention-days: 7
-
-      - name: Upload Pages artifact
-        if: github.event_name == 'push'
-        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
-        with:
-          path: apps/storybook/dist
 
   deploy:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'

@@ -18,33 +18,31 @@ BROWSERS=chromium pnpm nx run docs:e2e    # Playwright + axe against the built s
 Every example on a feature page has all four flavours; `lint` and the build fail otherwise.
 
 1. **The example's files**, in `src/examples/<feature>/<example>/`:
-   - `html/index.html` (the markup, with ids prefixed by the example, e.g. `sorting-table`) and `html/main.js` (`import 'argus-table'`, typed with JSDoc: `checkJs` is on);
+   - `html/index.html` (the markup; every `id` starts with `<feature>-<example>-`, e.g. `sorting-basic-table`, and no two examples share one) and `html/main.js` (`import 'argus-table'`, typed with JSDoc: `checkJs` is on);
    - `react/<Name>.tsx` (a default-exported component; `ReactColumnDef` for columns with React content);
-   - `vue/<Name>.vue` (`<script setup lang="ts">`, `v-model:<prop>`, `#cell-<id>` slots);
+   - `vue/<Name>.vue` (`<script setup lang="ts">`, `v-model:<prop>`, `#cell-<id>` slots; `vue-tsc` checks templates strictly);
    - `angular/<name>.component.ts` (a standalone component, signals, `[(prop)]`, `ng-template argusCell`).
 
-   Shared rows go in `src/examples/<feature>/data.ts`. Write each flavour the way that framework's users write code, with the packages' public API only.
+   Shared rows go in `src/examples/<feature>/data.ts`, shown after each flavour's files. Write each flavour the way that framework's users write code, with the packages' public API only.
 
 2. **The page**, `src/content/docs/features/<feature>.mdx`, with `since: '<major>.<minor>'` in its frontmatter (the release the feature arrived in: "Since 1.3", or "Coming in 1.4" until that release):
 
    ```mdx
    import FlavourTabs from '../../../components/FlavourTabs.astro';
-   import HtmlExample from '../../../components/HtmlExample.astro';
    import ReactX from '../../../examples/x/basic/react/X.tsx';
    import VueX from '../../../examples/x/basic/vue/X.vue';
    import { XComponent } from '../../../examples/x/basic/angular/x.component.ts';
 
    <FlavourTabs example="x/basic">
-     <HtmlExample slot="html" example="x/basic" />
      <ReactX slot="react" client:visible />
      <VueX slot="vue" client:visible />
      <XComponent slot="angular" client:visible />
    </FlavourTabs>
    ```
 
-   `FlavourTabs` takes `since` for an example newer than its page; `<Since since="1.4" />` marks a section.
+   `FlavourTabs` mounts the HTML flavour itself; the three islands are imported from the example's own folders and load `client:visible` (`lint` checks both). It takes `since` for an example newer than its page; `<Since since="1.4" />` marks a section.
 
-3. **The spec**, `e2e/<feature>.spec.ts`: one page load, every flavour in turn with `openFlavour(page, '<feature>/<example>', flavour)`, the feature's interaction, an assertion on the flavour's own state, and `expectAccessible(page, example)`. `cellText(table, rowIndex, columnId)` reads a cell's text. See `e2e/sorting.spec.ts`.
+3. **The spec**, `e2e/<feature>.spec.ts` (`lint` fails for an example no spec opens): one page load, every flavour in turn with `openFlavour(page, '<feature>/<example>', flavour)`, the feature's interaction, an assertion on the flavour's own state, and `expectAccessible(page, example)`. `cellText(table, rowIndex, columnId)` reads a cell's text. See `e2e/sorting.spec.ts`.
 
 ## How it fits together
 

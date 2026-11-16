@@ -1,5 +1,10 @@
 {
   "extends": "./tsconfig.json",
   "include": ["src/examples/**/vue/*.vue", "src/examples/**/data.ts"],
-  "exclude": []
+  "exclude": [],
+  "vueCompilerOptions": {
+    "checkUnknownEvents": true,
+    "checkUnknownDirectives": true,
+    "checkUnknownComponents": true
+  }
 }

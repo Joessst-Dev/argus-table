@@ -17,66 +17,134 @@ function site(files: Record<string, string>): string {
   return root;
 }
 
+/** An example's four flavours, its ids prefixed as required. */
 const example = (id: string): Record<string, string> => ({
-  [`src/examples/${id}/html/index.html`]: '',
+  [`src/examples/${id}/html/index.html`]: `<argus-table id="${id.replace('/', '-')}-table"></argus-table>`,
   [`src/examples/${id}/html/main.js`]: '',
-  [`src/examples/${id}/react/Sorting.tsx`]: '',
-  [`src/examples/${id}/vue/Sorting.vue`]: '',
-  [`src/examples/${id}/angular/sorting.component.ts`]: '',
+  [`src/examples/${id}/react/X.tsx`]: '',
+  [`src/examples/${id}/vue/X.vue`]: '',
+  [`src/examples/${id}/angular/x.component.ts`]: '',
 });
+
+/** A page using these examples, its islands imported from each example's folders. */
 const page = (...ids: string[]) =>
-  ids.map((id) => `<FlavourTabs example="${id}">\n</FlavourTabs>`).join('\n');
+  [
+    ...ids.flatMap((id, i) => [
+      `import R${String(i)} from '../../examples/${id}/react/X.tsx';`,
+      `import V${String(i)} from '../../examples/${id}/vue/X.vue';`,
+      `import { A${String(i)} } from '../../examples/${id}/angular/x.component.ts';`,
+    ]),
+    '',
+    ...ids.map(
+      (id, i) =>
+        `<FlavourTabs example="${id}">\n  <R${String(i)} slot="react" client:visible />\n  <V${String(i)} slot="vue" client:visible />\n  <A${String(i)} slot="angular" client:visible />\n</FlavourTabs>`,
+    ),
+  ].join('\n');
+
+const spec = (...ids: string[]) => ids.map((id) => `openFlavour(page, '${id}', f);`).join('\n');
+
+/** A complete, valid site with these examples on one page. */
+const valid = (...ids: string[]): Record<string, string> => ({
+  ...Object.fromEntries(ids.flatMap((id) => Object.entries(example(id)))),
+  'src/content/docs/features/x.mdx': page(...ids),
+  'e2e/x.spec.ts': spec(...ids),
+});
 
 afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
 describe('checkExamples', () => {
-  test('a complete example used on a page is fine', () => {
+  test('complete examples, used, with their islands and specs, are fine', () => {
     const root = site({
-      ...example('sorting/basic'),
+      ...valid('sorting/basic', 'sorting/multi'),
       'src/examples/sorting/data.ts': '',
-      'src/content/docs/features/sorting.mdx': page('sorting/basic'),
+      'src/examples/sorting/shared/helpers.ts': '',
+    });
+    expect(checkExamples(root)).toEqual([]);
+  });
+
+  test('pages in any folder count', () => {
+    const files = valid('sorting/basic');
+    const root = site({
+      ...files,
+      'src/content/docs/features/x.mdx': '',
+      'src/content/docs/start/first-table.mdx': page('sorting/basic'),
     });
     expect(checkExamples(root)).toEqual([]);
   });
 
   test('names a missing flavour', () => {
-    const files = example('sorting/basic');
-    delete files['src/examples/sorting/basic/vue/Sorting.vue'];
-    const root = site({ ...files, 'src/content/docs/features/sorting.mdx': page('sorting/basic') });
-    expect(checkExamples(root)).toEqual(['src/examples/sorting/basic: missing the vue flavour']);
+    const files = valid('sorting/basic');
+    delete files['src/examples/sorting/basic/vue/X.vue'];
+    expect(checkExamples(site(files))).toEqual([
+      'src/examples/sorting/basic: missing the vue flavour',
+    ]);
   });
 
   test('names a flavour with two components', () => {
-    const root = site({
-      ...example('sorting/basic'),
-      'src/examples/sorting/basic/react/Other.tsx': '',
-      'src/content/docs/features/sorting.mdx': page('sorting/basic'),
-    });
+    const root = site({ ...valid('sorting/basic'), 'src/examples/sorting/basic/react/Y.tsx': '' });
     expect(checkExamples(root)).toEqual([
       'src/examples/sorting/basic/react: more than one component',
     ]);
   });
 
-  test('names an example no feature page uses', () => {
-    const root = site({
-      ...example('sorting/basic'),
-      ...example('sorting/extra'),
-      'src/content/docs/features/sorting.mdx': page('sorting/basic'),
-    });
+  test('names an example no page uses', () => {
+    const root = site({ ...valid('sorting/basic'), ...example('sorting/extra') });
     expect(checkExamples(root)).toEqual([
-      'src/examples/sorting/extra: not used on any feature page',
+      'src/examples/sorting/extra: not used on any page',
+      'src/examples/sorting/extra: no e2e spec opens it',
     ]);
   });
 
   test('names a page example that does not exist', () => {
-    const root = site({
-      ...example('sorting/basic'),
-      'src/content/docs/features/sorting.mdx': page('sorting/basic', 'sorting/gone'),
-    });
-    expect(checkExamples(root)).toEqual([
-      'src/content/docs/features/sorting.mdx: example "sorting/gone" does not exist',
+    const files = valid('sorting/basic');
+    files['src/content/docs/features/x.mdx'] = page('sorting/basic', 'sorting/gone');
+    expect(checkExamples(site(files))).toEqual([
+      'src/content/docs/features/x.mdx: example "sorting/gone" does not exist',
+    ]);
+  });
+
+  test('names an island imported from another example', () => {
+    const files = valid('sorting/basic', 'sorting/multi');
+    const text = files['src/content/docs/features/x.mdx'] ?? '';
+    files['src/content/docs/features/x.mdx'] = text.replace(
+      "import V1 from '../../examples/sorting/multi/vue/X.vue';",
+      "import V1 from '../../examples/sorting/basic/vue/X.vue';",
+    );
+    expect(checkExamples(site(files))).toEqual([
+      'src/content/docs/features/x.mdx: the vue island of "sorting/multi" comes from ../../examples/sorting/basic/vue/X.vue, not examples/sorting/multi/vue/',
+    ]);
+  });
+
+  test('names a missing island and one that loads eagerly', () => {
+    const files = valid('sorting/basic');
+    const text = files['src/content/docs/features/x.mdx'] ?? '';
+    files['src/content/docs/features/x.mdx'] = text
+      .replace('  <V0 slot="vue" client:visible />\n', '')
+      .replace('<A0 slot="angular" client:visible />', '<A0 slot="angular" client:load />');
+    expect(checkExamples(site(files))).toEqual([
+      'src/content/docs/features/x.mdx: example "sorting/basic" has no vue island',
+      'src/content/docs/features/x.mdx: the angular island of "sorting/basic" must load client:visible',
+    ]);
+  });
+
+  test('names ids without the example’s prefix, and ids two examples share', () => {
+    const files = valid('sorting/basic', 'sorting/multi');
+    files['src/examples/sorting/multi/html/index.html'] =
+      '<argus-table id="sorting-basic-table"></argus-table><p id="total"></p>';
+    expect(checkExamples(site(files))).toEqual([
+      'src/examples/sorting/multi/html/index.html: id "sorting-basic-table" must start with "sorting-multi-"',
+      'src/examples/sorting/multi/html/index.html: id "sorting-basic-table" is also used by sorting/basic',
+      'src/examples/sorting/multi/html/index.html: id "total" must start with "sorting-multi-"',
+    ]);
+  });
+
+  test('names an example no e2e spec opens', () => {
+    const files = valid('sorting/basic');
+    files['e2e/x.spec.ts'] = '';
+    expect(checkExamples(site(files))).toEqual([
+      'src/examples/sorting/basic: no e2e spec opens it',
     ]);
   });
 });

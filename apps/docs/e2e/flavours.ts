@@ -26,7 +26,7 @@ export async function openFlavour(page: Page, example: string, flavour: Flavour)
   return container;
 }
 
-/** No axe violations (WCAG 2.2 A and AA) inside the container. */
+/** No axe violations inside the container: WCAG 2.2 A and AA, and axe's best practices (as Storybook's). */
 export async function expectAccessible(page: Page, container: Locator): Promise<void> {
   const selector = await container.evaluate(
     (el) =>
@@ -34,7 +34,7 @@ export async function expectAccessible(page: Page, container: Locator): Promise<
   );
   const results = await new AxeBuilder({ page })
     .include(selector)
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'])
     .analyze();
   expect(results.violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
 }

@@ -3,9 +3,9 @@ import { orders } from '../../data.ts';
 
 /** @typedef {import('../../data.ts').Order} Order */
 const table = /** @type {import('argus-table').ArgusTable<Order>} */ (
-  document.querySelector('#sorting-table')
+  document.querySelector('#sorting-basic-table')
 );
-const output = /** @type {HTMLOutputElement} */ (document.querySelector('#sorting-output'));
+const output = /** @type {HTMLOutputElement} */ (document.querySelector('#sorting-basic-output'));
 
 /** @type {import('argus-table').ColumnDef<Order>[]} */
 const columns = [

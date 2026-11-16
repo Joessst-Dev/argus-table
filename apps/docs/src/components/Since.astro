@@ -10,7 +10,9 @@ interface Props {
   since: string;
 }
 
-const badge = releaseBadge(Astro.props.since, table.version);
+const { since } = Astro.props;
+if (!/^\d+\.\d+$/.test(since)) throw new Error(`Since: "${since}" isn't <major>.<minor>`);
+const badge = releaseBadge(since, table.version);
 ---
 
 <Badge text={badge.text} variant={badge.upcoming ? 'caution' : 'note'} />

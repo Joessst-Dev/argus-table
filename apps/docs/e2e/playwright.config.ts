@@ -17,14 +17,15 @@ export default defineConfig({
     ? [['list'], ['html', { open: 'never', outputFolder: '../playwright-report' }]]
     : 'list',
   use: {
-    baseURL: 'http://localhost:4321/argus-table/',
+    baseURL: 'http://localhost:4329/argus-table/',
     trace: 'retain-on-failure',
   },
   projects: engines.map((name) => ({ name, use: { ...devices[device[name]] } })),
   webServer: {
-    // --ignore-lock: a stale lock from an earlier preview mustn't stop the run.
-    command: 'pnpm --filter @argus-table/docs preview --ignore-lock',
-    url: 'http://localhost:4321/argus-table/',
+    // A port of its own, so a running `astro dev` (4321) is never reused; --ignore-lock:
+    // a stale lock from an earlier preview mustn't stop the run.
+    command: 'pnpm --filter @argus-table/docs exec astro preview --port 4329 --ignore-lock',
+    url: 'http://localhost:4329/argus-table/',
     reuseExistingServer: !process.env.CI,
   },
 });

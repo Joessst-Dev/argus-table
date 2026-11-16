@@ -24,6 +24,14 @@
         "dependsOn": [
           "build"
         ]
+      },
+      "build": {
+        "inputs": [
+          "production",
+          "^production",
+          "{workspaceRoot}/brand/**/*",
+          "{workspaceRoot}/packages/table/package.json"
+        ]
       }
     }
   },

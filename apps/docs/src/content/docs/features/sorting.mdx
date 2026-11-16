@@ -5,7 +5,6 @@ since: '0.1'
 ---
 
 import FlavourTabs from '../../../components/FlavourTabs.astro';
-import HtmlExample from '../../../components/HtmlExample.astro';
 import ReactSorting from '../../../examples/sorting/basic/react/Sorting.tsx';
 import VueSorting from '../../../examples/sorting/basic/vue/Sorting.vue';
 import { SortingComponent } from '../../../examples/sorting/basic/angular/sorting.component.ts';
@@ -13,7 +12,6 @@ import { SortingComponent } from '../../../examples/sorting/basic/angular/sortin
 Columns with `sortable: true` sort with a click on their header, or with Enter or Space on a focused header: ascending, then descending, then unsorted. `sorting` holds the order as `{ id, desc }[]`. Once you set it, the table is controlled: a click only proposes the new order in `argus-sorting-change`, and your code applies it, as each example below does.
 
 <FlavourTabs example="sorting/basic">
-  <HtmlExample slot="html" example="sorting/basic" />
   <ReactSorting slot="react" client:visible />
   <VueSorting slot="vue" client:visible />
   <SortingComponent slot="angular" client:visible />
