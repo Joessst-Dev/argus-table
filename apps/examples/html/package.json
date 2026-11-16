@@ -13,6 +13,6 @@
     "argus-table": "^1.2.0"
   },
   "devDependencies": {
-    "vite": "^8.3.5"
+    "vite": "^8.3.8"
   }
 }
