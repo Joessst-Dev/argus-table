@@ -30,8 +30,8 @@ interface SelectionHost extends ReactiveElement {
  * Row selection (`selectionMode`, `selection`, `argus-selection-change`): the
  * state, through `controllable()`, the anchor a Shift range starts from, and
  * what clicks, the checkboxes and the select-all keys do. The rules are core's
- * (`state/selection.ts`); keys that move focus while selecting stay with the
- * table's keyboard handling, which calls `range()`.
+ * (`state/selection.ts`); keys that move focus while selecting are
+ * `NavigationController`'s, which calls `range()`.
  *
  * Only loaded body rows are selectable: not pinned rows, not skeletons. Ids are
  * never pruned.

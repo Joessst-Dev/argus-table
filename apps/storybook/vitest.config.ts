@@ -35,6 +35,9 @@ export default defineConfig({
           name: 'storybook',
           browser: browser(),
           setupFiles: ['.storybook/vitest.setup.ts'],
+          // Million Rows generates its data in the test: ~3 s locally, but over
+          // 15 s (the default) on a busy CI runner, as on #148.
+          testTimeout: 30_000,
         },
       },
       {
