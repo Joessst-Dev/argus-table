@@ -1,5 +1,16 @@
 # @argus-table/export
 
+## 1.3.0
+
+### Patch Changes
+
+- Updated dependencies [39d2808]
+- Updated dependencies [afb3792]
+- Updated dependencies [71eb419]
+- Updated dependencies [077fbf6]
+- Updated dependencies [9350927]
+  - argus-table@1.3.0
+
 ## 1.2.0
 
 ### Minor Changes

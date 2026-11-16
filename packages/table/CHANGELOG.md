@@ -1,5 +1,23 @@
 # argus-table
 
+## 1.3.0
+
+### Minor Changes
+
+- 39d2808: Plugins can now support cell editing (ADR 0009), ahead of the `@argus-table/editing` add-on:
+
+  - `PluginHost.focusCell(index, columnId, section?)` makes a body or pinned-row cell the active one and focuses it after the next update, like `focusHeader()`.
+  - A plugin's optional `editable(columnId, host)` hook says whether it makes a column's cells editable.
+
+  The grid now tells assistive technology that it is read-only (`aria-readonly`) while no plugin makes anything editable; screen readers could announce its cells as editable before. With an editing plugin, the cells of columns it doesn't edit are marked read-only instead.
+
+### Patch Changes
+
+- afb3792: The table no longer depends on `@tanstack/lit-virtual`: it lays out and windows rows itself, the way it already did for `rowHeight: 'auto'`. The CDN bundle is about 10 kB smaller gzipped (60.4 → 50.3 kB), and installs pull in two packages fewer. Scrolling, `scrollToRow()`, saved scroll positions and infinite loading work as before. A body taller than the browser's maximum element height now re-renders on every scroll, so its rows no longer drift by part of a row until scrolling stops.
+- 71eb419: Internal: row selection and the change events of controllable state moved out of the element into their own modules. Nothing changes for apps; the CDN bundle is about 0.2 kB smaller.
+- 077fbf6: Internal: the active cell, focus handling and keyboard navigation moved out of the element into their own module. Nothing changes for apps.
+- 9350927: Internal: column resizing and reordering moved out of the element into their own modules. Nothing changes for apps.
+
 ## 1.2.0
 
 ### Minor Changes
