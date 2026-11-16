@@ -1,0 +1,32 @@
+---
+title: Resizing
+description: Resize columns by dragging, from the keyboard, or as saved state.
+since: '0.1'
+---
+
+import FlavourTabs from '../../../components/FlavourTabs.astro';
+import Since from '../../../components/Since.astro';
+import ReactResizing from '../../../examples/resizing/basic/react/Resizing.tsx';
+import VueResizing from '../../../examples/resizing/basic/vue/Resizing.vue';
+import { ResizingComponent } from '../../../examples/resizing/basic/angular/resizing.component.ts';
+import ReactSaved from '../../../examples/resizing/controlled/react/SavedWidths.tsx';
+import VueSaved from '../../../examples/resizing/controlled/vue/SavedWidths.vue';
+import { SavedWidthsComponent } from '../../../examples/resizing/controlled/angular/saved-widths.component.ts';
+
+Drag the handle on a header's end edge, or focus a header and press Alt+Arrow to resize it by 10 px; a double-click on the handle fits the column to its content <Since since="0.2" />. Widths stay within `minWidth` and `maxWidth`, a resized flex column becomes fixed, and a column with `resizable: false` has no handle.
+
+<FlavourTabs example="resizing/basic">
+  <ReactResizing slot="react" client:visible />
+  <VueResizing slot="vue" client:visible />
+  <ResizingComponent slot="angular" client:visible />
+</FlavourTabs>
+
+## Saving widths
+
+`columnSizing` holds the resized widths by column id. Set it and the table is controlled: each resize proposes new widths in `argus-column-sizing-change`, and your code applies them, here saving them to `localStorage` too, so they survive a reload. Read saved state once the page runs in the browser, not while rendering on a server. To save once a drag ends rather than on every frame, listen to `argus-column-resize-end` <Since since="1.1" />.
+
+<FlavourTabs example="resizing/controlled">
+  <ReactSaved slot="react" client:visible />
+  <VueSaved slot="vue" client:visible />
+  <SavedWidthsComponent slot="angular" client:visible />
+</FlavourTabs>

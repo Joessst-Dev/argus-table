@@ -8,6 +8,9 @@ import FlavourTabs from '../../../components/FlavourTabs.astro';
 import ReactSorting from '../../../examples/sorting/basic/react/Sorting.tsx';
 import VueSorting from '../../../examples/sorting/basic/vue/Sorting.vue';
 import { SortingComponent } from '../../../examples/sorting/basic/angular/sorting.component.ts';
+import ReactControlled from '../../../examples/sorting/controlled/react/ControlledSorting.tsx';
+import VueControlled from '../../../examples/sorting/controlled/vue/ControlledSorting.vue';
+import { ControlledSortingComponent } from '../../../examples/sorting/controlled/angular/controlled-sorting.component.ts';
 
 Columns with `sortable: true` sort with a click on their header, or with Enter or Space on a focused header: ascending, then descending, then unsorted. `sorting` holds the order as `{ id, desc }[]`. Once you set it, the table is controlled: a click only proposes the new order in `argus-sorting-change`, and your code applies it, as each example below does.
 
@@ -18,3 +21,15 @@ Columns with `sortable: true` sort with a click on their header, or with Enter o
 </FlavourTabs>
 
 A sorted header shows the direction with a chevron and in `aria-sort`; its cells get the `cell-sorted` part, so themes can mark the column.
+
+## Refusing a sort
+
+Because the table only proposes a new order, your code can refuse one: apply the proposal or not. Here, every order is applied except Customer descending, so once Customer is ascending, clicking it again changes nothing: each click proposes descending again. Sort by another column to move on. Bind `sorting` one way for this (not `v-model:sorting` or `[(sorting)]`, which apply every proposal).
+
+<FlavourTabs example="sorting/controlled">
+  <ReactControlled slot="react" client:visible />
+  <VueControlled slot="vue" client:visible />
+  <ControlledSortingComponent slot="angular" client:visible />
+</FlavourTabs>
+
+Without `sorting` set, the table sorts on its own and still fires `argus-sorting-change` after each change, for saving the order.

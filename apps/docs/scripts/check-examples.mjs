@@ -90,7 +90,9 @@ export function checkExamples(root) {
       const markup = join(examplesDir, id, 'html/index.html');
       if (!existsSync(markup)) continue;
       const prefix = `${feature}-${example}-`;
-      for (const [, elementId = ''] of readFileSync(markup, 'utf8').matchAll(/\bid="([^"]+)"/g)) {
+      for (const [, elementId = ''] of readFileSync(markup, 'utf8').matchAll(
+        /(?<![\w-])id="([^"]+)"/g,
+      )) {
         if (!elementId.startsWith(prefix)) {
           problems.push(`${where}/html/index.html: id "${elementId}" must start with "${prefix}"`);
         }

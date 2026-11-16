@@ -1,0 +1,31 @@
+---
+title: Column reorder
+description: Move columns by dragging their headers or from the keyboard, and save the order.
+since: '0.2'
+---
+
+import FlavourTabs from '../../../components/FlavourTabs.astro';
+import ReactReorder from '../../../examples/column-reorder/basic/react/Reorder.tsx';
+import VueReorder from '../../../examples/column-reorder/basic/vue/Reorder.vue';
+import { ReorderComponent } from '../../../examples/column-reorder/basic/angular/reorder.component.ts';
+import ReactSaved from '../../../examples/column-reorder/controlled/react/SavedOrder.tsx';
+import VueSaved from '../../../examples/column-reorder/controlled/vue/SavedOrder.vue';
+import { SavedOrderComponent } from '../../../examples/column-reorder/controlled/angular/saved-order.component.ts';
+
+Drag a header to move its column: a line marks where it will land, and Escape cancels. Or focus a header and press Alt+Shift+Arrow to move it one place; screen readers hear where it went. A column with `reorderable: false` (# here) can't be picked up, though other columns can move past it. Pinned columns move only among themselves, and scrolling columns among theirs: a move never pins or unpins a column.
+
+<FlavourTabs example="column-reorder/basic">
+  <ReactReorder slot="react" client:visible />
+  <VueReorder slot="vue" client:visible />
+  <ReorderComponent slot="angular" client:visible />
+</FlavourTabs>
+
+## Saving the order
+
+`columnOrder` holds the column ids in the order the table shows them. Set it and the table is controlled: a move proposes the new order in `argus-column-order-change`, and your code applies it, here saving it to `localStorage` too.
+
+<FlavourTabs example="column-reorder/controlled">
+  <ReactSaved slot="react" client:visible />
+  <VueSaved slot="vue" client:visible />
+  <SavedOrderComponent slot="angular" client:visible />
+</FlavourTabs>

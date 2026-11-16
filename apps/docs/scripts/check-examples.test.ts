@@ -140,6 +140,13 @@ describe('checkExamples', () => {
     ]);
   });
 
+  test('other attributes ending in id are not element ids', () => {
+    const files = valid('sorting/basic');
+    files['src/examples/sorting/basic/html/index.html'] =
+      '<argus-table id="sorting-basic-table"><argus-column column-id="id"></argus-column></argus-table>';
+    expect(checkExamples(site(files))).toEqual([]);
+  });
+
   test('names an example no e2e spec opens', () => {
     const files = valid('sorting/basic');
     files['e2e/x.spec.ts'] = '';

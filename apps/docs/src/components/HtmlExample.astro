@@ -1,7 +1,11 @@
 ---
 // The plain-HTML flavour on a page: the example's `html/index.html` as written,
 // and its `html/main.js`, loaded once the example is visible (like the
-// framework islands, `client:visible`).
+// framework islands, `client:visible`). The markup is rendered on the server,
+// so it shows before scripts run and without them. The HTML pass over the tab
+// panels empties `<template>` elements (a column's static cell content), so
+// markup with one also travels in an attribute and replaces the rendered copy
+// before the example's script runs.
 interface Props {
   /** `<feature>/<example>`. */
   example: string;
@@ -17,13 +21,21 @@ const markup = markups[`/src/examples/${example}/html/index.html`];
 if (markup === undefined) throw new Error(`HtmlExample ${example}: no html/index.html`);
 ---
 
-<argus-html-example data-for={example}><Fragment set:html={markup} /></argus-html-example>
+<argus-html-example
+  data-for={example}
+  data-markup={markup.includes('<template') ? markup : undefined}
+  ><Fragment set:html={markup} /></argus-html-example
+>
 
 <script>
   const scripts = import.meta.glob('/src/examples/**/html/main.js');
 
   class HtmlExample extends HTMLElement {
     connectedCallback(): void {
+      if (this.dataset.markup !== undefined) {
+        this.innerHTML = this.dataset.markup;
+        delete this.dataset.markup;
+      }
       const load = scripts[`/src/examples/${this.dataset.for ?? ''}/html/main.js`];
       if (!load) return;
       const observer = new IntersectionObserver((entries) => {

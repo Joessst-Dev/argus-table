@@ -111,10 +111,12 @@ jobs:
           fetch-depth: 0
       - uses: ./.github/actions/setup
 
-      - name: Playwright e2e against the playground
+      # The playground's suite and the docs site's, one after the other: run together
+      # they compete for the runner's cores, and the docs' axe checks time out.
+      - name: Playwright e2e against the playground and the docs site
         env:
           BROWSERS: ${{ matrix.browser }}
-        run: pnpm nx affected -t e2e --base=${{ needs.setup.outputs.base }} --head=${{ needs.setup.outputs.head }}
+        run: pnpm nx affected -t e2e --parallel=1 --base=${{ needs.setup.outputs.base }} --head=${{ needs.setup.outputs.head }}
 
       - name: Upload the report
         if: failure()
