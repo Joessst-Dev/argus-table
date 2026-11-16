@@ -507,6 +507,16 @@ describe('applyEdit', () => {
     ).toThrow(/meta.edit.set/);
   });
 
+  test("takes a plain element's event detail and a wrapper's columns", () => {
+    const data = rows();
+    // `argus-cell-edit` on a plain element: its detail is CellEditDetail<unknown>.
+    const untyped: CellEditDetail = detail({}, data);
+    // A wrapper's columns: their content isn't the table's (JSX, VNodes, templates).
+    const framework: ColumnDef<Row, { framework: true }>[] = [{ id: 'name', accessor: 'name' }];
+    const next: Row[] = applyEdit(data, untyped, framework);
+    expect(next[0]?.name).toBe('Anna');
+  });
+
   test('a pinned row or a row not in data leaves the rows as they are', () => {
     const data = rows();
     expect(applyEdit(data, detail({ pinned: 'top' }, data), columns)).toEqual(data);

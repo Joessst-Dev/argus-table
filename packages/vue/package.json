@@ -44,6 +44,7 @@
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",
+    "@argus-table/editing": "workspace:*",
     "@vitejs/plugin-vue": "^6.0.11",
     "@vitest/browser-playwright": "^5.1.0",
     "playwright": "1.63.0",

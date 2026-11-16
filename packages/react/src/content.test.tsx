@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, test } from 'vitest';
 import { act, createContext, useContext, useLayoutEffect, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { cellEditing } from '@argus-table/editing';
 import {
   ArgusColumn,
   ArgusColumnGroup,
   ArgusTable,
+  type ArgusPlugin,
   type ArgusTableElement,
   type ReactColumnDef,
 } from './index.js';
@@ -64,6 +66,22 @@ async function settle(el: ArgusTableElement) {
   await new Promise(requestAnimationFrame);
   await new Promise(requestAnimationFrame);
   await el.updateComplete;
+}
+
+/** The editing plugin, created once. */
+const editingPlugins = [cellEditing<Order>()];
+
+/** Focuses a column's cell in the first body row and opens its editor with F2. */
+async function startEditing(el: ArgusTableElement, columnId: string) {
+  const cell = el.shadowRoot?.querySelector<HTMLElement>(
+    `[part~="body"] > [aria-rowindex="2"] > [data-col="${columnId}"]`,
+  );
+  if (!cell) throw new Error(`no cell in ${columnId}`);
+  cell.focus();
+  act(() => {
+    cell.dispatchEvent(new KeyboardEvent('keydown', { key: 'F2', bubbles: true, composed: true }));
+  });
+  await settle(el);
 }
 
 /** Each rendered body row's cell content in a column, in row order. */
@@ -260,5 +278,108 @@ describe('React content in cells and headers', () => {
       '42',
       'text o3',
     ]);
+  });
+});
+
+describe('React content in pinned rows and custom editors', () => {
+  const pinnedCell = (el: ArgusTableElement, columnId: string) =>
+    el.shadowRoot
+      ?.querySelector<HTMLSlotElement>(`[part~="row-pinned-bottom"] [data-col="${columnId}"] slot`)
+      ?.assignedElements()[0];
+
+  test('a cell function sees `pinned` for a pinned row', async () => {
+    const pinnedColumns: ReactColumnDef<Order>[] = [
+      {
+        id: 'customer',
+        width: 200,
+        cell: (order, { pinned }) => <b data-pinned={pinned ?? 'body'}>{order.customer}</b>,
+      },
+    ];
+    const el = await mount(
+      <ArgusTable<Order>
+        style={size}
+        columns={pinnedColumns}
+        data={orders(3)}
+        pinnedRows={{ bottom: [{ id: 'sum', customer: 'Total', total: 0 }] }}
+      />,
+    );
+    expect(pinnedCell(el, 'customer')?.querySelector('b')?.dataset.pinned).toBe('bottom');
+    expect(cells(el, 'customer')[0]?.querySelector('b')?.dataset.pinned).toBe('body');
+  });
+
+  test('a function header names its column in text mode', async () => {
+    const names: (string | undefined)[] = [];
+    const named: ReactColumnDef<Order>[] = [
+      {
+        id: 'customer',
+        width: 200,
+        accessor: 'customer',
+        header: ({ text }) => (text ? 'Customer' : <i>Customer</i>),
+      },
+    ];
+    const plugins: ArgusPlugin<Order>[] = [
+      {
+        name: 'names',
+        columns: (defs, host) => {
+          names.splice(0, Infinity, ...defs.map((d) => host.headerText(d)));
+          return undefined;
+        },
+      },
+    ];
+    const el = await mount(
+      <ArgusTable<Order> style={size} columns={named} data={orders(2)} plugins={plugins} />,
+    );
+    expect(names).toEqual(['Customer']);
+    expect(headerOf(el, 'customer')?.querySelector('i')?.textContent).toBe('Customer');
+  });
+
+  test('a custom editor renders JSX in the cell, takes focus and commits', async () => {
+    const edited: unknown[] = [];
+    const editable: ReactColumnDef<Order>[] = [
+      { id: 'id', header: 'Order', accessor: 'id', width: 90 },
+      {
+        id: 'total',
+        header: 'Total',
+        accessor: 'total',
+        width: 160,
+        meta: {
+          edit: {
+            editor: ({ label, commit }) => (
+              <button
+                type="button"
+                className="three"
+                aria-label={label}
+                onClick={() => {
+                  commit(3);
+                }}
+              >
+                3
+              </button>
+            ),
+          },
+        },
+      },
+    ];
+    const el = await mount(
+      <ArgusTable<Order>
+        style={size}
+        columns={editable}
+        data={orders(3)}
+        plugins={editingPlugins}
+        onCellEdit={(e) => {
+          edited.push(e.detail.value);
+        }}
+      />,
+    );
+    await startEditing(el, 'total');
+    const button = el.querySelector<HTMLButtonElement>('button.three');
+    expect(button?.getAttribute('aria-label')).toBe('Total, row 1');
+    expect(document.activeElement).toBe(button);
+    act(() => {
+      button?.click();
+    });
+    await settle(el);
+    expect(edited).toEqual([3]);
+    expect(el.querySelector('button.three')).toBeNull();
   });
 });

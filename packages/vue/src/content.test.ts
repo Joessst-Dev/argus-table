@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
+import { cellEditing, type CellEditDetail } from '@argus-table/editing';
 import { createApp, defineComponent, h, nextTick, provide, reactive, type App } from 'vue';
 import {
   ArgusTable,
@@ -196,5 +197,93 @@ describe('Vue content in cells and headers', () => {
       ?.querySelector('[role="columnheader"][data-col="c"]')
       ?.getBoundingClientRect().width;
     expect(width).toBeGreaterThan(400);
+  });
+});
+
+describe('Vue content in pinned rows and custom editors', () => {
+  const pinnedCell = (el: ArgusTableElement, columnId: string) =>
+    el.shadowRoot
+      ?.querySelector<HTMLSlotElement>(`[part~="row-pinned-bottom"] [data-col="${columnId}"] slot`)
+      ?.assignedElements()[0];
+
+  test('a #cell-<id> slot gets `pinned` for a pinned row', async () => {
+    const columns: VueColumnDef<Order>[] = [{ id: 'customer', accessor: 'customer', width: 200 }];
+    const el = await mount(() =>
+      createApp(() =>
+        h(
+          ArgusTable<Order>,
+          {
+            style: size,
+            columns,
+            data: orders(3),
+            pinnedRows: { bottom: [{ id: 'sum', customer: 'Total', total: 0 }] },
+          },
+          {
+            'cell-customer': ({ row, pinned }: { row: Order; pinned?: string }) =>
+              h('b', { 'data-pinned': pinned ?? 'body' }, row.customer),
+          },
+        ),
+      ),
+    );
+    expect(pinnedCell(el, 'customer')?.querySelector('b')?.getAttribute('data-pinned')).toBe(
+      'bottom',
+    );
+  });
+
+  test('a custom editor renders a VNode in the cell, takes focus and commits', async () => {
+    const edited: unknown[] = [];
+    const columns: VueColumnDef<Order>[] = [
+      { id: 'id', header: 'Order', accessor: 'id', width: 90 },
+      {
+        id: 'total',
+        header: 'Total',
+        accessor: 'total',
+        width: 160,
+        meta: {
+          edit: {
+            editor: ({ label, commit }) =>
+              h(
+                'button',
+                {
+                  type: 'button',
+                  class: 'three',
+                  'aria-label': label,
+                  onClick: () => {
+                    commit(3);
+                  },
+                },
+                '3',
+              ),
+          },
+        },
+      },
+    ];
+    const plugins = [cellEditing<Order>()];
+    const el = await mount(() =>
+      createApp(() =>
+        h(ArgusTable<Order>, {
+          style: size,
+          columns,
+          data: orders(3),
+          plugins,
+          'onCell-edit': (event: CustomEvent<CellEditDetail<Order>>) => {
+            edited.push(event.detail.value);
+          },
+        }),
+      ),
+    );
+    const cell = el.shadowRoot?.querySelector<HTMLElement>(
+      '[part~="body"] > [aria-rowindex="2"] > [data-col="total"]',
+    );
+    cell?.focus();
+    cell?.dispatchEvent(new KeyboardEvent('keydown', { key: 'F2', bubbles: true, composed: true }));
+    await settle(el);
+    const button = el.querySelector<HTMLButtonElement>('button.three');
+    expect(button?.getAttribute('aria-label')).toBe('Total, row 1');
+    expect(document.activeElement).toBe(button);
+    button?.click();
+    await settle(el);
+    expect(edited).toEqual([3]);
+    expect(el.querySelector('button.three')).toBeNull();
   });
 });

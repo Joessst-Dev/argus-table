@@ -1,0 +1,62 @@
+---
+title: Header menu
+description: A column menu to sort, filter, pin, size and hide columns.
+since: '0.3'
+---
+
+import FlavourTabs from '../../../components/FlavourTabs.astro';
+import Since from '../../../components/Since.astro';
+import ReactMenu from '../../../examples/header-menu/basic/react/HeaderMenu.tsx';
+import VueMenu from '../../../examples/header-menu/basic/vue/HeaderMenu.vue';
+import { HeaderMenuComponent } from '../../../examples/header-menu/basic/angular/header-menu.component.ts';
+import ReactControlled from '../../../examples/header-menu/controlled-sorting/react/ControlledSorting.tsx';
+import VueControlled from '../../../examples/header-menu/controlled-sorting/vue/ControlledSorting.vue';
+import { ControlledSortingComponent } from '../../../examples/header-menu/controlled-sorting/angular/controlled-sorting.component.ts';
+import ReactTemplates from '../../../examples/header-menu/template-headers/react/TemplateHeaders.tsx';
+import VueTemplates from '../../../examples/header-menu/template-headers/vue/TemplateHeaders.vue';
+import { TemplateHeadersComponent } from '../../../examples/header-menu/template-headers/angular/template-headers.component.ts';
+import ReactFilter from '../../../examples/header-menu/filter/react/FilterMenu.tsx';
+import VueFilter from '../../../examples/header-menu/filter/vue/FilterMenu.vue';
+import { FilterMenuComponent } from '../../../examples/header-menu/filter/angular/filter-menu.component.ts';
+
+`@argus-table/header-menu` is a plugin: `plugins: [headerMenu()]`. Each column gets a button in its header, which opens a menu to sort the column, clear its sort, pin it, fit its width to its content, or hide it; every menu lists the hidden columns, to show them again. A right-click on a header opens it too, and so do Alt+ArrowDown, the context menu key and Shift+F10 on a focused header. Arrow keys, Home and End move through it, Enter or Space runs an item, and Escape or Tab closes it; focus goes back to the header.
+
+Create the plugin once: a new instance reconnects and closes an open menu. `headerMenu({ pin: false, hide: false, filter: false })` turns items off (and `sort` and `fitWidth` <Since since="1.1" />), and `pinnable: false` or `hideable: false` leave a column out.
+
+<FlavourTabs example="header-menu/basic">
+  <ReactMenu slot="react" client:visible />
+  <VueMenu slot="vue" client:visible />
+  <HeaderMenuComponent slot="angular" client:visible />
+</FlavourTabs>
+
+The menu is a native popover in the top layer, so a short table or a pinned column never clips it. It follows the table's theme tokens and has its own: `--argus-menu-bg`, `--argus-menu-fg`, `--argus-menu-shadow` and `--argus-menu-item-active-bg`.
+
+## Controlled state
+
+The menu changes the table the way a user would: through `sorting`, `columnPinning`, `columnVisibility` and `columnFilters`. With one of them controlled, the menu only proposes, through the property's change event, and your code decides. Here `sorting` is bound one way and never applied.
+
+<FlavourTabs example="header-menu/controlled-sorting">
+  <ReactControlled slot="react" client:visible />
+  <VueControlled slot="vue" client:visible />
+  <ControlledSortingComponent slot="angular" client:visible />
+</FlavourTabs>
+
+## Headers with content
+
+A header that is framework content still gets its name in the menu ("Show Customer") and in announcements. A `header` function returns plain text when its context asks for it (`({ text }) => …`); a Vue `#header-<id>` slot or an Angular `argusHeader` template takes the name from the definition's `header` text. Without either, the column is named by its id.
+
+<FlavourTabs example="header-menu/template-headers" since="1.2">
+  <ReactTemplates slot="react" client:visible />
+  <VueTemplates slot="vue" client:visible />
+  <TemplateHeadersComponent slot="angular" client:visible />
+</FlavourTabs>
+
+## Filters
+
+Columns with a `filter` kind get Filter… in their menu: a small form for a `text` condition, a `number` or `date` comparison or range, or the values of a `set` (searchable, listed from the rows the other filters leave). Typed values apply as typing pauses, Enter or Done closes the form, Escape closes it as it is, and Clear (or Clear filter in the menu) removes the column's filter. The form sets [`columnFilters`](../filtering/).
+
+<FlavourTabs example="header-menu/filter">
+  <ReactFilter slot="react" client:visible />
+  <VueFilter slot="vue" client:visible />
+  <FilterMenuComponent slot="angular" client:visible />
+</FlavourTabs>

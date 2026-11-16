@@ -12,6 +12,7 @@ import {
   type Type,
 } from '@angular/core';
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
+import { cellEditing, type EditorContext } from '@argus-table/editing';
 import {
   ARGUS_TABLE,
   argusTemplate,
@@ -327,5 +328,87 @@ describe('Angular templates in cells and headers', () => {
       ?.querySelector('[role="columnheader"][data-col="c"]')
       ?.getBoundingClientRect().width;
     expect(width).toBeGreaterThan(400);
+  });
+});
+
+describe('Angular content in pinned rows and custom editors', () => {
+  const pinnedCell = (el: ArgusTableElement, columnId: string) =>
+    el.shadowRoot
+      ?.querySelector<HTMLSlotElement>(`[part~="row-pinned-bottom"] [data-col="${columnId}"] slot`)
+      ?.assignedElements()[0];
+
+  test('an argusCell template gets `pinned` for a pinned row', async () => {
+    @Component({
+      imports: [ARGUS_TABLE],
+      template: `
+        <argus-table style="${SIZE}" [columns]="columns" [data]="rows" [pinnedRows]="pinned">
+          <ng-template argusCell="customer" [argusCellOf]="rows" let-row let-pinned="pinned">
+            <b [attr.data-pinned]="pinned ?? 'body'">{{ row.customer }}</b>
+          </ng-template>
+        </argus-table>
+      `,
+    })
+    class Pinned {
+      readonly rows = orders(3);
+      readonly pinned = { bottom: [{ id: 'sum', customer: 'Total', total: 0 }] };
+      readonly columns = columns;
+    }
+    const { el } = await mount(Pinned);
+    expect(pinnedCell(el, 'customer')?.querySelector('b')?.getAttribute('data-pinned')).toBe(
+      'bottom',
+    );
+  });
+
+  test('a custom editor renders a template in the cell, takes focus and commits', async () => {
+    @Component({
+      imports: [ARGUS_TABLE],
+      template: `
+        <ng-template #three let-label="label" let-commit="commit">
+          <button type="button" class="three" [attr.aria-label]="label" (click)="commit(3)">
+            3
+          </button>
+        </ng-template>
+        <argus-table
+          style="${SIZE}"
+          [columns]="columns"
+          [data]="rows"
+          [plugins]="plugins"
+          (cellEdit)="edited.push($event.detail.value)"
+        />
+      `,
+    })
+    class Editor implements OnInit {
+      @ViewChild('three', { static: true }) three!: TemplateRef<EditorContext<Order>>;
+      readonly rows = orders(3);
+      readonly plugins = [cellEditing<Order>()];
+      readonly edited: unknown[] = [];
+      columns: AngularColumnDef<Order>[] = [];
+      ngOnInit(): void {
+        this.columns = [
+          { id: 'id', header: 'Order', accessor: 'id', width: 90 },
+          {
+            id: 'total',
+            header: 'Total',
+            accessor: 'total',
+            width: 160,
+            meta: { edit: { editor: (context) => argusTemplate(this.three, context) } },
+          },
+        ];
+      }
+    }
+    const { el, fixture, host } = await mount(Editor);
+    const cell = el.shadowRoot?.querySelector<HTMLElement>(
+      '[part~="body"] > [aria-rowindex="2"] > [data-col="total"]',
+    );
+    cell?.focus();
+    cell?.dispatchEvent(new KeyboardEvent('keydown', { key: 'F2', bubbles: true, composed: true }));
+    await settle(fixture, el);
+    const button = el.querySelector<HTMLButtonElement>('button.three');
+    expect(button?.getAttribute('aria-label')).toBe('Total, row 1');
+    expect(document.activeElement).toBe(button);
+    button?.click();
+    await settle(fixture, el);
+    expect(host.edited).toEqual([3]);
+    expect(el.querySelector('button.three')).toBeNull();
   });
 });

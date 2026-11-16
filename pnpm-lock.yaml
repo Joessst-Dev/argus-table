@@ -83,6 +83,15 @@ importers:
       '@argus-table/angular':
         specifier: workspace:*
         version: link:../../packages/angular
+      '@argus-table/editing':
+        specifier: workspace:*
+        version: link:../../packages/editing
+      '@argus-table/export':
+        specifier: workspace:*
+        version: link:../../packages/export
+      '@argus-table/formulas':
+        specifier: workspace:*
+        version: link:../../packages/formulas
       '@argus-table/header-menu':
         specifier: workspace:*
         version: link:../../packages/header-menu
@@ -309,6 +318,9 @@ importers:
       '@arethetypeswrong/cli':
         specifier: ^0.18.5
         version: 0.18.5
+      '@argus-table/editing':
+        specifier: workspace:*
+        version: link:../editing
       '@vitest/browser-playwright':
         specifier: ^5.1.0
         version: 5.1.0(playwright@1.63.0)(vite@8.3.8(@types/node@22.20.5)(esbuild@0.28.2)(less@4.9.1)(sass-embedded@1.108.2)(sass@1.108.2)(yaml@2.9.1))(vitest@5.1.0)
@@ -494,6 +506,9 @@ importers:
       '@arethetypeswrong/cli':
         specifier: ^0.18.5
         version: 0.18.5
+      '@argus-table/editing':
+        specifier: workspace:*
+        version: link:../editing
       '@types/react':
         specifier: ^19.3.0
         version: 19.3.0
@@ -592,6 +607,9 @@ importers:
       '@arethetypeswrong/cli':
         specifier: ^0.18.5
         version: 0.18.5
+      '@argus-table/editing':
+        specifier: workspace:*
+        version: link:../editing
       '@vitejs/plugin-vue':
         specifier: ^6.0.11
         version: 6.0.11(vite@8.3.8(@types/node@22.20.5)(esbuild@0.28.2)(less@4.9.1)(sass-embedded@1.108.2)(sass@1.108.2)(yaml@2.9.1))(vue@3.5.45(typescript@6.0.3))

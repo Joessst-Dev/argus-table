@@ -126,3 +126,11 @@ export function bodyCell(table: Locator, rowIndex: number, columnId = 'customer'
     `[part~="body"] > [aria-rowindex="${String(rowIndex + 2)}"] > [data-col="${columnId}"]`,
   );
 }
+
+/** Clicks a button that downloads a file, and returns the file's text without a BOM. */
+export async function downloadedText(page: Page, button: Locator): Promise<string> {
+  const [download] = await Promise.all([page.waitForEvent('download'), button.click()]);
+  const path = await download.path();
+  const { readFile } = await import('node:fs/promises');
+  return (await readFile(path, 'utf8')).replace(/^\uFEFF/, '');
+}

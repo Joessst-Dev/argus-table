@@ -1,0 +1,33 @@
+---
+title: Export
+description: Download what the table shows as CSV, Excel or PDF.
+since: '1.1'
+---
+
+import FlavourTabs from '../../../components/FlavourTabs.astro';
+import ReactExport from '../../../examples/export/basic/react/ExportButtons.tsx';
+import VueExport from '../../../examples/export/basic/vue/ExportButtons.vue';
+import { ExportButtonsComponent } from '../../../examples/export/basic/angular/export-buttons.component.ts';
+import ReactMeta from '../../../examples/export/column-meta/react/ColumnMeta.tsx';
+import VueMeta from '../../../examples/export/column-meta/vue/ColumnMeta.vue';
+import { ColumnMetaComponent } from '../../../examples/export/column-meta/angular/column-meta.component.ts';
+
+`@argus-table/export` is a plugin: `plugins: [tableExport()]`. `downloadTable(table, 'csv' | 'xlsx' | 'pdf')` saves what the table shows: the columns in their order, the rows sorted and filtered, with the pinned rows and the group headers. `exportTable()` returns the file as a `Blob` instead. Both take the element: through a `ref` in React, a template ref's `element` in Vue, or a view query's `element` in Angular. `rows: 'selected'` exports the selected rows only.
+
+With `headerMenu()` next to it, every column menu offers the formats too. Excel cells keep their types (numbers, dates, booleans), and the header rows and pinned columns are frozen. The Excel and PDF writers load on first use, so the plugin itself stays small.
+
+<FlavourTabs example="export/basic">
+  <ReactExport slot="react" client:visible />
+  <VueExport slot="vue" client:visible />
+  <ExportButtonsComponent slot="angular" client:visible />
+</FlavourTabs>
+
+## Per column
+
+A column's `meta.export` sets how it is exported, next to its definition: `header`, `value` (the value to write, from the one the column reads) and `exclude`. The `columns` option of `tableExport()` or of a call wins field by field. A header that is content names the column through text mode, as in the [header menu](../header-menu/): here Status stays out of the files, Total is exported as whole euros under another header, and Customer keeps its name.
+
+<FlavourTabs example="export/column-meta" since="1.2">
+  <ReactMeta slot="react" client:visible />
+  <VueMeta slot="vue" client:visible />
+  <ColumnMetaComponent slot="angular" client:visible />
+</FlavourTabs>

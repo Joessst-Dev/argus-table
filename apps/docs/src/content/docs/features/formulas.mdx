@@ -1,0 +1,70 @@
+---
+title: Formulas
+description: Columns computed from other columns, with spreadsheet formulas.
+since: '0.3'
+---
+
+import FlavourTabs from '../../../components/FlavourTabs.astro';
+import ReactBasic from '../../../examples/formulas/basic/react/Formulas.tsx';
+import VueBasic from '../../../examples/formulas/basic/vue/Formulas.vue';
+import { FormulasComponent } from '../../../examples/formulas/basic/angular/formulas.component.ts';
+import ReactWhole from '../../../examples/formulas/whole-columns/react/WholeColumns.tsx';
+import VueWhole from '../../../examples/formulas/whole-columns/vue/WholeColumns.vue';
+import { WholeColumnsComponent } from '../../../examples/formulas/whole-columns/angular/whole-columns.component.ts';
+import ReactErrors from '../../../examples/formulas/errors/react/FormulaErrors.tsx';
+import VueErrors from '../../../examples/formulas/errors/vue/FormulaErrors.vue';
+import { FormulaErrorsComponent } from '../../../examples/formulas/errors/angular/formula-errors.component.ts';
+import ReactCustom from '../../../examples/formulas/custom-functions/react/CustomFunctions.tsx';
+import VueCustom from '../../../examples/formulas/custom-functions/vue/CustomFunctions.vue';
+import { CustomFunctionsComponent } from '../../../examples/formulas/custom-functions/angular/custom-functions.component.ts';
+import ReactEditing from '../../../examples/formulas/editing/react/FormulaEditing.tsx';
+import VueEditing from '../../../examples/formulas/editing/vue/FormulaEditing.vue';
+import { FormulaEditingComponent } from '../../../examples/formulas/editing/angular/formula-editing.component.ts';
+
+`@argus-table/formulas` is a plugin: `plugins: [formulas()]`. A column with a `formula` computes its value per row from other columns, named in brackets by id or by header: here Total, Gross, Stock and Month. A formula can use another formula column (Gross uses Total), and a formula column sorts, resizes and moves like any other. Numbers and dates align to the end, and the header gets an `ƒx` mark. Create the plugin once: a new instance compiles every formula again.
+
+<FlavourTabs example="formulas/basic">
+  <ReactBasic slot="react" client:visible />
+  <VueBasic slot="vue" client:visible />
+  <FormulasComponent slot="angular" client:visible />
+</FlavourTabs>
+
+## Whole columns
+
+`[[name]]` is a whole column: its values in every row the filters keep, while `[name]` is the row's own value. Share % divides by `SUM([[Total]])`, Orders of product counts with `COUNTIF`, Rank ranks with `RANK`, and Best seller looks up the product of the largest total with `INDEX` and `MATCH`. Filter Product from its column menu: every total follows. A filter on Share % itself hides rows but leaves its totals alone. List `formulas()` before `headerMenu()`, so the menu button sits after the `ƒx` mark.
+
+<FlavourTabs example="formulas/whole-columns" since="0.4">
+  <ReactWhole slot="react" client:visible />
+  <VueWhole slot="vue" client:visible />
+  <WholeColumnsComponent slot="angular" client:visible />
+</FlavourTabs>
+
+## Errors
+
+Errors are cell values, never crashes: they pass through the rest of the formula, explain themselves in a tooltip, and sort last. `IFERROR` replaces them, and `--argus-formula-error-fg` colours them.
+
+<FlavourTabs example="formulas/errors">
+  <ReactErrors slot="react" client:visible />
+  <VueErrors slot="vue" client:visible />
+  <FormulaErrorsComponent slot="angular" client:visible />
+</FlavourTabs>
+
+## Functions of your own
+
+Functions go in the `functions` option: `formulas({ functions: { VAT: { fn: (net) => Number(net) * 0.19, args: [1, 1] } } })`, where `args` is the least and most number of arguments. Names are case-insensitive.
+
+<FlavourTabs example="formulas/custom-functions">
+  <ReactCustom slot="react" client:visible />
+  <VueCustom slot="vue" client:visible />
+  <CustomFunctionsComponent slot="angular" client:visible />
+</FlavourTabs>
+
+## Editing formulas
+
+With `formulas({ editing: 'edit' })` and the column menu, users add, edit, rename and delete formula columns. The editor colours the formula, suggests columns after `[` and functions by name, shows the arguments of the function the cursor is in, and previews the first five rows. It loads on first use. The table doesn't change its columns itself: the plugin fires `argus-formula-column-add`, `-change` and `-remove`, and your code sets `columns` to `event.detail.columns`.
+
+<FlavourTabs example="formulas/editing">
+  <ReactEditing slot="react" client:visible />
+  <VueEditing slot="vue" client:visible />
+  <FormulaEditingComponent slot="angular" client:visible />
+</FlavourTabs>
