@@ -1,0 +1,19 @@
+<argus-table id="declarative-columns-markup-table" aria-label="Orders" style="block-size: 320px">
+  <argus-column column-id="id" header="Order" accessor="id" width="90" pin="start"></argus-column>
+  <argus-column
+    column-id="customer"
+    header="Customer"
+    accessor="customer"
+    width="1fr"
+    min-width="160"
+    sortable
+  ></argus-column>
+  <argus-column column-id="city" header="City" accessor="city" width="120"></argus-column>
+  <argus-column column-id="status" header="Status" width="110"></argus-column>
+  <argus-column column-id="total" header="Total" accessor="total" width="100" align="end" sortable>
+  </argus-column>
+  <argus-column column-id="actions" header="Actions" width="100" pin="end" resizable="false">
+    <!-- The same content in every cell. -->
+    <template><button type="button">Open</button></template>
+  </argus-column>
+</argus-table>

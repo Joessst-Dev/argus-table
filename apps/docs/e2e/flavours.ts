@@ -54,3 +54,15 @@ export function cellText(table: Locator, rowIndex: number, columnId: string): Pr
         .trim(),
     );
 }
+
+/** The text of each column header, in order (their slotted light-DOM content). */
+export function headerTexts(table: Locator): Promise<string[]> {
+  return table.evaluate((el) =>
+    [...(el.shadowRoot?.querySelectorAll('[role="columnheader"][data-col]') ?? [])].map((header) =>
+      (header.querySelector('slot')?.assignedNodes({ flatten: true }) ?? [])
+        .map((node) => node.textContent ?? '')
+        .join('')
+        .trim(),
+    ),
+  );
+}

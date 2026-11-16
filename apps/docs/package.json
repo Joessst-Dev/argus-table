@@ -31,6 +31,10 @@
           "^production",
           "{workspaceRoot}/brand/**/*",
           "{workspaceRoot}/packages/table/package.json"
+        ],
+        "dependsOn": [
+          "^build",
+          "sync"
         ]
       }
     }

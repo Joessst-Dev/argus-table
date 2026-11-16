@@ -1,0 +1,33 @@
+---
+title: Declarative columns
+description: Write columns as children of the table instead of a columns array.
+since: '0.2'
+---
+
+import FlavourTabs from '../../../components/FlavourTabs.astro';
+import ReactMarkup from '../../../examples/declarative-columns/markup/react/Markup.tsx';
+import VueMarkup from '../../../examples/declarative-columns/markup/vue/Markup.vue';
+import { MarkupComponent } from '../../../examples/declarative-columns/markup/angular/markup.component.ts';
+import ReactDynamic from '../../../examples/declarative-columns/dynamic/react/Dynamic.tsx';
+import VueDynamic from '../../../examples/declarative-columns/dynamic/vue/Dynamic.vue';
+import { DynamicComponent } from '../../../examples/declarative-columns/dynamic/angular/dynamic.component.ts';
+
+Columns can be children of the table instead of the `columns` property: `<argus-column>` in HTML and Angular, `<ArgusColumn>` in React and Vue. Attributes and props cover the plain fields: `column-id`, `header`, `accessor` (a path), `width` (px, `auto` or a flex share such as `1fr`), `min-width`, `max-width`, `pin`, `align`, and the flags `sortable`, `resizable` and `reorderable`. Content that depends on the row comes from the column's `cell`, a `#cell-<id>` slot in Vue or an `argusCell` template in Angular. In plain HTML, a `<template>` child gives every cell the same content.
+
+<FlavourTabs example="declarative-columns/markup">
+  <ReactMarkup slot="react" client:visible />
+  <VueMarkup slot="vue" client:visible />
+  <MarkupComponent slot="angular" client:visible />
+</FlavourTabs>
+
+A non-empty `columns` property wins over the children.
+
+## Columns that come and go
+
+The table follows its children: add, remove or move a column, or change one of its attributes, and the table updates, keeping widths, order and sorting by `column-id`. So conditionals and loops (`.map()`, `v-for`, `@for`) just work.
+
+<FlavourTabs example="declarative-columns/dynamic">
+  <ReactDynamic slot="react" client:visible />
+  <VueDynamic slot="vue" client:visible />
+  <DynamicComponent slot="angular" client:visible />
+</FlavourTabs>
