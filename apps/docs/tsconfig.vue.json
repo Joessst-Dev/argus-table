@@ -1,6 +1,6 @@
 {
   "extends": "./tsconfig.json",
-  "include": ["src/examples/**/vue/*.vue", "src/examples/**/data.ts"],
+  "include": [".astro/types.d.ts", "src/examples/**/vue/*.vue", "src/examples/**/data.ts"],
   "exclude": [],
   "vueCompilerOptions": {
     "checkUnknownEvents": true,
