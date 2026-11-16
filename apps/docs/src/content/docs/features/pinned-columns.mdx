@@ -1,0 +1,20 @@
+---
+title: Pinned columns
+description: Keep columns in place on either side while the rest scroll sideways.
+since: '0.1'
+---
+
+import FlavourTabs from '../../../components/FlavourTabs.astro';
+import ReactPinned from '../../../examples/pinned-columns/basic/react/PinnedColumns.tsx';
+import VuePinned from '../../../examples/pinned-columns/basic/vue/PinnedColumns.vue';
+import { PinnedColumnsComponent } from '../../../examples/pinned-columns/basic/angular/pinned-columns.component.ts';
+
+`pin: 'start'` and `pin: 'end'` keep a column in place while the others scroll sideways. Pinning is logical: in a right-to-left table, `start` is the right side. The pinned cell next to the scrolling columns gets the `cell-pinned-edge` part (`header-cell-pinned-edge` in the header) and the `--argus-pinned-shadow` token, here chosen from the select.
+
+<FlavourTabs example="pinned-columns/basic">
+  <ReactPinned slot="react" client:visible />
+  <VuePinned slot="vue" client:visible />
+  <PinnedColumnsComponent slot="angular" client:visible />
+</FlavourTabs>
+
+To pin and unpin columns while the page runs, see [Column pinning and visibility](../column-visibility/).
