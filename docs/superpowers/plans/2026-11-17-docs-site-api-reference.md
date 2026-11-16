@@ -162,7 +162,7 @@
 - Produces:
 
   ```ts
-  export function renderDoc(markdown: string): Promise<string>; // HTML; '' for ''
+  export function renderDoc(markdown: string): string; // HTML; '' for ''
   export function linkTypes(
     type: string,
     known: ReadonlySet<string>,
