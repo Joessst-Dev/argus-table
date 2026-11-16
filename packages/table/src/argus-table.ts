@@ -1,40 +1,25 @@
 import {
   LitElement,
   html,
-  nothing,
   type CSSResultGroup,
   type PropertyValues,
   type RootPart,
   type TemplateResult,
 } from 'lit';
-import type { ComplexAttributeConverter } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { styleMap } from 'lit/directives/style-map.js';
 import {
   alignOffset,
-  clickSelection,
   controllable,
-  groupKey,
   RowLayout,
   sameUnit,
   spreadWidth,
-  sameSelection,
-  selectAll,
-  selectRange,
   SELECTION_COLUMN_ID,
-  toggleRow,
-  type ColumnFiltersChangeDetail,
-  type ColumnVisibilityChangeDetail,
-  type ColumnPinningChangeDetail,
-  type ColumnOrderChangeDetail,
   type ColumnResizeEndDetail,
-  type ColumnSizingChangeDetail,
   type ColumnView,
   type Controllable,
   type GridRow,
   type OrderUnit,
-  type SelectionStep,
-  type SelectionTarget,
   type TableModel,
 } from '@argus-table/core';
 import { announce } from './announce.js';
@@ -53,6 +38,8 @@ import {
 } from './controllers/reorder-drag.js';
 import { startResizeDrag } from './controllers/resize-drag.js';
 import { TableController } from './controllers/table-controller.js';
+import { SelectionController } from './controllers/selection.js';
+import { StateEvents } from './controllers/state-events.js';
 import { VirtualController, type VirtualWindow } from './controllers/virtual-controller.js';
 import {
   CELL_CLICK,
@@ -69,19 +56,30 @@ import {
   SELECTION_CHANGE,
   SORTING_CHANGE,
 } from './events.js';
-import { fromInteractive, INTERACTIVE } from './interactive.js';
 import { resolveLabels, type TableLabels } from './labels.js';
 import { bodyCap, watchMaxElementHeight } from './max-height.js';
-import { renderBody, type ActiveCell, type Loading, type SelectedAt } from './render/body.js';
+import { renderBody, type ActiveCell, type Loading } from './render/body.js';
 import { renderLightDom } from './render/cells.js';
 import { content, flushContent, type ContentRenderer } from './render/content-directive.js';
-import { columnKey, renderHeader, type CheckAll, type HeaderDrag } from './render/header.js';
+import { renderHeader, type HeaderDrag } from './render/header.js';
 import { headerText } from './render/header-text.js';
-import type { CheckboxHandlers } from './render/content.js';
 import { renderPinnedRows } from './render/pinned-rows.js';
 import type { ArgusPlugin, CellTarget, ColumnInfo, PluginHost, RowSection } from './plugins.js';
 import { baseStyles } from './styles/base.js';
-import { switchConverter } from './attributes.js';
+import { rowHeightConverter, switchConverter } from './attributes.js';
+import {
+  gridCell,
+  gridRowOf,
+  gridRowOfCell,
+  groupCell,
+  layoutOf,
+  pinnedWidth,
+  pinShadow,
+  sortColumnOf,
+  track,
+  unitKey,
+  type Active,
+} from './grid.js';
 import type {
   CellContent,
   ColumnDef,
@@ -119,118 +117,7 @@ function attachGridInternals(host: HTMLElement): ElementInternals {
   return internals;
 }
 
-/**
- * The sortable column a header click came from, if any. Works for slotted content
- * too. Clicks on a resize handle never sort, so a click that ends a drag doesn't,
- * and neither do clicks on interactive content in the header (a button, an input).
- */
-function sortColumnOf(event: Event): string | undefined {
-  for (const target of event.composedPath()) {
-    if (!(target instanceof HTMLElement)) continue;
-    if (target.dataset.resizeCol !== undefined) return undefined;
-    if (target.matches(INTERACTIVE)) return undefined;
-    if (target.dataset.sortCol !== undefined) return target.dataset.sortCol;
-    if (target.getAttribute('role') === 'row') return undefined;
-  }
-  return undefined;
-}
-
 const RESIZE_STEP = 10;
-
-/** `row-height`: px (`48` or `48px`) or `auto`; anything else is unset. */
-const rowHeightConverter: ComplexAttributeConverter<number | 'auto' | undefined> = {
-  fromAttribute(value) {
-    if (value === null) return undefined;
-    const text = value.trim().toLowerCase();
-    if (text === 'auto') return 'auto';
-    const px = Number(text.replace(/px$/, ''));
-    return text !== '' && px > 0 ? px : undefined;
-  },
-};
-
-/**
- * The cell holding the grid's single tab stop: a row (its section, and its index
- * there: in the row model for the body, in its list for a pinned row) and a
- * column. `rowId` keeps it on the same body row when the order changes.
- */
-interface Active extends GridRow {
-  rowId: string | undefined;
-  col: string;
-}
-
-/** Where the rows sit in the grid: header rows, pinned top, body, pinned bottom. */
-function layoutOf<T>(model: TableModel<T, CellContent>): RowLayout {
-  return new RowLayout(
-    model.pinnedCount('top'),
-    model.rowCount,
-    model.pinnedCount('bottom'),
-    model.headerRows,
-  );
-}
-
-/** The drop slot and applied-move key of a column or group (`HeaderDrag.key`). */
-function unitKey(unit: OrderUnit): string {
-  return unit.kind === 'column' ? columnKey(unit.id) : groupKey(unit.id, unit.pin);
-}
-
-/** The grid cell or column header an element is, if any. */
-function gridCell(target: EventTarget): HTMLElement | undefined {
-  if (!(target instanceof HTMLElement) || target.dataset.col === undefined) return undefined;
-  const role = target.getAttribute('role');
-  return role === 'gridcell' || role === 'columnheader' ? target : undefined;
-}
-
-/** The column group header an element is, if any. */
-function groupCell(target: EventTarget): HTMLElement | undefined {
-  return target instanceof HTMLElement && target.dataset.groupKey !== undefined
-    ? target
-    : undefined;
-}
-
-/** The grid row a rendered row element is, from its `aria-rowindex`. */
-function gridRowOf(row: Element | null, layout: RowLayout): GridRow | undefined {
-  const index = row?.getAttribute('aria-rowindex');
-  return index ? layout.fromAriaRowIndex(Number(index)) : undefined;
-}
-
-/** The grid row a cell or column header is in. */
-function gridRowOfCell(cell: HTMLElement, layout: RowLayout): GridRow | undefined {
-  return gridRowOf(cell.parentElement, layout);
-}
-
-/**
- * The pinned edge's shadow, drawn once per side over the scroller rather than
- * per row: a shadow on every pinned cell repaints on every scroll frame. It
- * covers the pinned columns and casts `--argus-pinned-shadow` onto the rest;
- * PinScrollController sizes it to the visible area.
- */
-function pinShadow(side: 'start' | 'end', width: number, contentPx: number) {
-  if (width === 0) return nothing;
-  return html`<div
-    class="pin-shadow"
-    data-side=${side}
-    aria-hidden="true"
-    style=${styleMap({
-      inlineSize: `${String(width)}px`,
-      '--_content-h': `${String(contentPx)}px`,
-    })}
-  ></div>`;
-}
-
-/** CSS grid track for a column: fixed px, or a flex share with the min width as floor. */
-function track<T>(column: ColumnView<T, CellContent>): string {
-  return column.flex === undefined
-    ? `${String(column.width)}px`
-    : `minmax(${String(column.minWidth)}px, ${String(column.flex)}fr)`;
-}
-
-/** Total width of the columns pinned to one side. */
-function pinnedWidth<T>(
-  columns: readonly ColumnView<T, CellContent>[],
-  side: 'start' | 'end',
-): number {
-  return columns.reduce((sum, c) => (c.pin === side ? sum + c.width : sum), 0);
-}
 
 /**
  * A virtualized data table.
@@ -585,10 +472,10 @@ export class ArgusTable<T = unknown> extends LitElement {
    */
   @property({ attribute: false })
   get selection(): SelectionState {
-    return this.#selection.value;
+    return this.#select.state.value;
   }
   set selection(value: SelectionState | undefined) {
-    this.#selection.set(value);
+    this.#select.state.set(value);
   }
 
   /**
@@ -661,38 +548,17 @@ export class ArgusTable<T = unknown> extends LitElement {
   readonly #visibility = controllable<ColumnVisibilityState>({});
   readonly #filters = controllable<ColumnFilterState>({});
   #quickFilter = '';
-  /** Filters the table applied itself, by column; their events fire once the update is done. */
-  readonly #appliedFilters = new Map<string, ColumnFiltersChangeDetail>();
   /** Announce the row count after the update: the filters changed. */
   #announceRows = false;
-  /** Pins the table applied itself, by column; their events fire once the update is done. */
-  readonly #appliedPins = new Map<string, ColumnPinningChangeDetail>();
-  /** Hidden or shown columns the table applied itself; their events fire once the update is done. */
-  readonly #appliedHides = new Map<string, ColumnVisibilityChangeDetail>();
-  readonly #selection = controllable<SelectionState>([]);
-  /** `selection` as a set, for the rows rendered; rebuilt when `selection` changes. */
-  #selectedIds: { of: SelectionState; ids: ReadonlySet<string> } | undefined;
-  /** The row a Shift range starts from: the last row clicked or toggled without Shift. */
-  #anchor: string | undefined;
-  /** A selection the table applied itself; its event fires once the update is done. */
-  #appliedSelection: SelectionState | undefined;
   /** Whether the checkbox column was last shown; a change re-measures the pinned columns. */
   #selectionColumn = false;
   #selectionColumnChanged = false;
-  /** The select-all checkbox's state, kept until the selection or the shown rows change. */
-  #checkAll: { key: readonly unknown[]; state: CheckAll['state'] } | undefined;
-  /** Moves the table applied itself, by column or group; their events fire once the update is done. */
-  readonly #appliedReorders = new Map<string, ColumnOrderChangeDetail>();
   /** The header being dragged to a new position, if any. */
   #drag: HeaderDrag | undefined;
   /** A move from the keyboard, announced once it has rendered: what moved and its old position. */
   #announceMove: { unit: OrderUnit; from: number } | undefined;
-  /** Resizes the table applied itself, by column; their events fire once the update is done. */
-  readonly #appliedResizes = new Map<string, ColumnSizingChangeDetail>();
   /** The resize under way (a drag), or one in this call: the columns it changed and the last sizing. */
   #resizing: ColumnResizeEndDetail | undefined;
-  /** A resize the table applied itself is done; its event fires after the update, like `#appliedResizes`. */
-  #appliedResizeEnd: ColumnResizeEndDetail | undefined;
   /** Columns `autosizeColumns()` renders out of view for its measurement. */
   #measureKeep: readonly string[] = [];
   /** The column `scrollToColumn()` renders out of view to measure where it is. */
@@ -704,8 +570,23 @@ export class ArgusTable<T = unknown> extends LitElement {
   /** The auto widths last passed to the model; a change re-measures the pinned columns' offsets. */
   #pushedAutoWidths: ColumnSizingState | undefined;
   #autoWidthsChanged = false;
-  /** A sort the table applied itself; its event fires once the update is done. */
-  #appliedSort: SortState | undefined;
+  /** Change events of the state above; those the table applied fire once the update is done. */
+  readonly #events = new StateEvents(this, [
+    COLUMN_SIZING_CHANGE,
+    COLUMN_RESIZE_END,
+    COLUMN_ORDER_CHANGE,
+    COLUMN_PINNING_CHANGE,
+    COLUMN_VISIBILITY_CHANGE,
+    COLUMN_FILTERS_CHANGE,
+    SORTING_CHANGE,
+    SELECTION_CHANGE,
+  ]);
+  readonly #select = new SelectionController<T>(
+    this,
+    () => this.#table.model,
+    () => this.#data.rows !== undefined,
+    this.#events,
+  );
   readonly #internals = attachGridInternals(this);
   readonly #table = new TableController<T>();
   readonly #children = new ColumnChildrenController<T>(this);
@@ -1098,7 +979,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       columnPinning: this.#pinning.value,
       columnVisibility: this.#visibility.value,
       columnFilters: this.#filters.value,
-      selection: this.#selection.value,
+      selection: this.#select.state.value,
       quickFilter: this.#quickFilter,
       // Negative in RTL.
       scroll: { row: this.#virtual.topRow, inline: Math.abs(scroller?.scrollLeft ?? 0) },
@@ -1125,7 +1006,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     this.#restore('columnVisibility', this.#visibility, state.columnVisibility);
     this.#restore('columnFilters', this.#filters, state.columnFilters);
     // A Shift range starts over from the restored selection.
-    if (this.#restore('selection', this.#selection, state.selection)) this.#anchor = undefined;
+    if (this.#restore('selection', this.#select.state, state.selection)) this.#select.restored();
     if (state.quickFilter !== undefined) this.quickFilter = state.quickFilter;
     this.#scrollTarget = undefined;
     await this.updateComplete;
@@ -1242,7 +1123,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     const autoWidths = this.#autoWidths.widths;
     this.#autoWidthsChanged = autoWidths !== this.#pushedAutoWidths;
     this.#pushedAutoWidths = autoWidths;
-    const selectionColumn = this.selectionCheckboxes && this.#mode() !== 'none';
+    const selectionColumn = this.#select.column;
     this.#selectionColumnChanged = selectionColumn !== this.#selectionColumn;
     this.#selectionColumn = selectionColumn;
     this.#table.update({ remote: this.#data.rows, autoWidths, selectionColumn });
@@ -1254,7 +1135,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     const layout = layoutOf(model);
     this.#internals.ariaRowCount = unknownTotal ? '-1' : String(layout.total);
     this.#internals.ariaColCount = String(model.columns.length);
-    this.#internals.ariaMultiSelectable = this.#mode() === 'multi' ? 'true' : null;
+    this.#internals.ariaMultiSelectable = this.#select.mode === 'multi' ? 'true' : null;
     // The header and pinned rows scroll with the body.
     const extra = this.#headerAndPinnedPx(layout);
     const auto = this.rowHeight === 'auto';
@@ -1329,7 +1210,7 @@ export class ArgusTable<T = unknown> extends LitElement {
         ?data-auto-rows=${auto}
         @keydown=${this.#onKeydown}
         @focusin=${this.#onFocusin}
-        @mousedown=${this.#onMousedown}
+        @mousedown=${this.#select.onMousedown}
         @click=${this.#onClick}
       >
         ${renderHeader({
@@ -1338,7 +1219,7 @@ export class ArgusTable<T = unknown> extends LitElement {
           handlers: this.#headerHandlers,
           active: activeIn('header'),
           drag: this.#drag,
-          checkAll: this.#checkAllOf(model),
+          checkAll: this.#select.checkAll(),
           labels,
         })}
         ${renderPinnedRows('top', layout.top, rendered, firstIndex('top'), activeIn('top'))}
@@ -1352,9 +1233,9 @@ export class ArgusTable<T = unknown> extends LitElement {
                 activeIn('body'),
                 firstIndex('body'),
                 this.#loading(),
-                this.#selectedAt(model),
+                this.#select.selectedAt(),
                 this.#selectionColumn
-                  ? { ...this.#checkboxHandlers, label: labels.selectRow }
+                  ? { ...this.#select.handlers, label: labels.selectRow }
                   : undefined,
                 auto,
               )
@@ -1412,34 +1293,15 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.#focusActive();
     }
     if (changed.has('density') || changed.has('rowHeight')) this.#measureRowHeight();
-    this.#fireApplied(this.#appliedResizes, COLUMN_SIZING_CHANGE);
-    if (this.#appliedResizeEnd) {
-      const detail = this.#appliedResizeEnd;
-      this.#appliedResizeEnd = undefined;
-      fire(this, COLUMN_RESIZE_END, detail);
-    }
     if (this.#announceMove) {
       this.#announceMoved(model, this.#announceMove);
       this.#announceMove = undefined;
     }
-    this.#fireApplied(this.#appliedReorders, COLUMN_ORDER_CHANGE);
-    this.#fireApplied(this.#appliedPins, COLUMN_PINNING_CHANGE);
-    this.#fireApplied(this.#appliedHides, COLUMN_VISIBILITY_CHANGE);
-    this.#fireApplied(this.#appliedFilters, COLUMN_FILTERS_CHANGE);
     if (this.#announceRows) {
       this.#announceRows = false;
       this.#announceRowCount(model);
     }
-    if (this.#appliedSort) {
-      const sorting = this.#appliedSort;
-      this.#appliedSort = undefined;
-      fire(this, SORTING_CHANGE, { sorting });
-    }
-    if (this.#appliedSelection) {
-      const selection = this.#appliedSelection;
-      this.#appliedSelection = undefined;
-      fire(this, SELECTION_CHANGE, { selection });
-    }
+    this.#events.flush();
     const { range } = this.#window;
     const key = range ? `${String(range.start)}:${String(range.end)}` : '';
     if (range && key !== this.#lastRange) {
@@ -1471,14 +1333,6 @@ export class ArgusTable<T = unknown> extends LitElement {
       ...this.#measureKeep,
       this.#scrollKeep,
     ];
-  }
-
-  /** Fires the events of changes the table applied itself, once the update is done. */
-  #fireApplied(applied: Map<string, unknown>, name: string): void {
-    if (applied.size === 0) return;
-    const details = [...applied.values()];
-    applied.clear();
-    for (const detail of details) fire(this, name, detail);
   }
 
   /**
@@ -1919,7 +1773,8 @@ export class ArgusTable<T = unknown> extends LitElement {
     inHeader: boolean,
     scroller: HTMLElement,
   ): boolean {
-    const mode = this.#mode();
+    const select = this.#select;
+    const mode = select.mode;
     if (mode === 'none' || event.altKey) return false;
     const { key } = event;
     const command = event.ctrlKey || event.metaKey;
@@ -1928,7 +1783,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       if (mode !== 'multi') return false;
       // Not the page's text: the rows.
       event.preventDefault();
-      this.#selectAll();
+      select.selectAll();
       return true;
     }
     if (command) return false;
@@ -1936,7 +1791,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       // Space on the select-all header does what its checkbox does.
       if (key !== ' ' || col !== SELECTION_COLUMN_ID || mode !== 'multi') return false;
       event.preventDefault();
-      this.#toggleAll();
+      select.toggleAll();
       return true;
     }
     const layout = layoutOf(model);
@@ -1945,8 +1800,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     if (key === ' ') {
       // Space would scroll the table.
       event.preventDefault();
-      const id = model.rowAt(from.index)?.id;
-      if (id !== undefined) this.#requestSelection(toggleRow(this.#selection.value, mode, id));
+      select.toggle(from.index);
       return true;
     }
     if (
@@ -1965,15 +1819,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     if (key.startsWith('Page')) {
       this.#virtual.scrollBy(this.#virtual.startOf(to.index) - this.#virtual.startOf(from.index));
     }
-    const fromId = model.rowAt(from.index)?.id;
-    const anchor =
-      this.#anchorAt(model) ??
-      (fromId === undefined ? undefined : { id: fromId, index: from.index });
-    if (anchor) {
-      const idAt = (index: number) => model.rowAt(index)?.id;
-      const selection = selectRange([], anchor.index, to.index, idAt, false);
-      this.#requestSelection({ selection, anchor: anchor.id });
-    }
+    select.range(from.index, to.index);
     this.#moveTo(to, col, model);
     return true;
   }
@@ -2043,201 +1889,9 @@ export class ArgusTable<T = unknown> extends LitElement {
    * with a `selectionMode`, the click selects its row.
    */
   readonly #onClick = (event: MouseEvent) => {
-    const path = event.composedPath();
-    this.#activate(path);
-    const mode = this.#mode();
-    const target = mode === 'none' ? undefined : this.#selectableRowOf(path);
-    if (!target) return;
-    // A click in the checkbox column, beside the checkbox, toggles like it.
-    const inSelectionCell = path.some(
-      (t) => t instanceof HTMLElement && t.dataset.col === SELECTION_COLUMN_ID,
-    );
-    this.#clickRow(target, event, inSelectionCell || event.ctrlKey || event.metaKey);
+    this.#activate(event.composedPath());
+    this.#select.click(event);
   };
-
-  /** Selects for a click on a row, through `clickSelection`. */
-  #clickRow(target: SelectionTarget, event: MouseEvent, toggle: boolean): void {
-    const model = this.#table.model;
-    this.#requestSelection(
-      clickSelection(
-        this.#selection.value,
-        this.#mode(),
-        target,
-        this.#anchorAt(model),
-        { toggle, range: event.shiftKey },
-        (index) => model.rowAt(index)?.id,
-      ),
-    );
-  }
-
-  /**
-   * The checkboxes' handlers. The table owns their state: a click asks for a new
-   * selection, and the render that always follows sets every box back to the
-   * selection (`live()`), so a change a controlled host turns down unticks it
-   * again. Not `preventDefault()`: for a real click the browser runs that render
-   * inside the dispatch, then undoes the toggle after it, over the render. A
-   * press leaves focus on the cell, so the grid's keys keep working.
-   */
-  readonly #checkboxHandlers: CheckboxHandlers = {
-    row: (event) => {
-      const index = Number((event.currentTarget as HTMLElement).dataset.row);
-      const id = this.#table.model.rowAt(index)?.id;
-      if (id !== undefined) this.#clickRow({ id, index }, event, true);
-      this.requestUpdate();
-    },
-    all: () => {
-      this.#toggleAll();
-      this.requestUpdate();
-    },
-    press: (event) => {
-      event.preventDefault();
-      (event.currentTarget as HTMLElement).parentElement?.focus({ preventScroll: true });
-    },
-  };
-
-  /** Selects every selectable row, keeping the others (with a `dataSource`: the loaded ones). */
-  #selectAll(): void {
-    const ids = this.#table.model.selectableIds();
-    this.#requestSelection({
-      selection: selectAll(this.#selection.value, ids),
-      anchor: this.#anchor,
-    });
-  }
-
-  /** The select-all checkbox: clears the selection when every row is selected, else selects all. */
-  #toggleAll(): void {
-    if (this.#checkAllState(this.#table.model) === 'all') {
-      this.#requestSelection({ selection: [], anchor: this.#anchor });
-    } else {
-      this.#selectAll();
-    }
-  }
-
-  /** The select-all checkbox, in the checkbox column of a `multi` table. */
-  #checkAllOf(model: TableModel<T, CellContent>): CheckAll | undefined {
-    if (!this.#selectionColumn || this.#mode() !== 'multi') return undefined;
-    return { state: this.#checkAllState(model), handlers: this.#checkboxHandlers };
-  }
-
-  /**
-   * Whether all, some or none of the selectable rows are selected. With `data`
-   * it's worked out once per selection and rows shown, not on scroll;
-   * with a `dataSource` every time, over the loaded rows, which eviction keeps few.
-   */
-  #checkAllState(model: TableModel<T, CellContent>): CheckAll['state'] {
-    const count = (): CheckAll['state'] => {
-      const ids = model.selectableIds();
-      const selected = this.#selectedSet();
-      const n = ids.reduce((sum, id) => (selected.has(id) ? sum + 1 : sum), 0);
-      if (n === 0) return 'none';
-      return n === ids.length ? 'all' : 'some';
-    };
-    if (this.#data.rows) return count();
-    // Everything the rows of the model depend on: the data and what filters it.
-    const key = [
-      this.#selection.value,
-      this.data,
-      this.getRowId,
-      this.#columns,
-      this.#filters.value,
-      this.#quickFilter,
-      this.#visibility.value,
-    ];
-    const cached = this.#checkAll;
-    if (cached?.key.length === key.length && key.every((k, i) => k === cached.key[i])) {
-      return cached.state;
-    }
-    const state = count();
-    this.#checkAll = { key, state };
-    return state;
-  }
-
-  /**
-   * A Shift+press on a row in `multi` mode selects a range of rows, not the
-   * page's text from the last click: no text selection, and the cell still
-   * takes focus.
-   */
-  readonly #onMousedown = (event: MouseEvent) => {
-    if (!event.shiftKey || event.button !== 0 || this.#mode() !== 'multi') return;
-    const path = event.composedPath();
-    if (!this.#selectableRowOf(path)) return;
-    event.preventDefault();
-    for (const target of path) {
-      const cell = gridCell(target);
-      if (cell) {
-        cell.focus({ preventScroll: true });
-        return;
-      }
-    }
-  };
-
-  /** `selectionMode`, with anything unknown read as `none`. */
-  #mode(): SelectionMode {
-    const mode = this.selectionMode;
-    return mode === 'single' || mode === 'multi' ? mode : 'none';
-  }
-
-  /** Whether each rendered body row is selected; `undefined` without a `selectionMode`. */
-  #selectedAt(model: TableModel<T, CellContent>): SelectedAt | undefined {
-    if (this.#mode() === 'none') return undefined;
-    const ids = this.#selectedSet();
-    return (index) => {
-      const id = model.rowAt(index)?.id;
-      return id === undefined ? undefined : ids.has(id);
-    };
-  }
-
-  /** `selection` as a set, rebuilt only when `selection` changes. */
-  #selectedSet(): ReadonlySet<string> {
-    const selection = this.#selection.value;
-    if (this.#selectedIds?.of !== selection) {
-      this.#selectedIds = { of: selection, ids: new Set(selection) };
-    }
-    return this.#selectedIds.ids;
-  }
-
-  /**
-   * The loaded body row a pointer event is on, as a selection target. None for
-   * the header, pinned rows, rows still loading, and presses on interactive
-   * content in a cell (a button, a link, an input).
-   */
-  #selectableRowOf(path: readonly EventTarget[]): SelectionTarget | undefined {
-    const row = path.find(
-      (t): t is HTMLElement => t instanceof HTMLElement && t.getAttribute('role') === 'row',
-    );
-    if (!row || fromInteractive(path, row)) return undefined;
-    const model = this.#table.model;
-    const at = gridRowOf(row, layoutOf(model));
-    if (at?.section !== 'body') return undefined;
-    const id = model.rowAt(at.index)?.id;
-    return id === undefined ? undefined : { id, index: at.index };
-  }
-
-  /** The anchor row and where it is now; `undefined` if it isn't in the rows (or not loaded). */
-  #anchorAt(model: TableModel<T, CellContent>): SelectionTarget | undefined {
-    const id = this.#anchor;
-    if (id === undefined) return undefined;
-    const index = model.indexOf(id);
-    return index === undefined ? undefined : { id, index };
-  }
-
-  /**
-   * Changes the selection through the controlled/uncontrolled rules, and moves
-   * the anchor. A step that leaves the same rows selected fires nothing.
-   */
-  #requestSelection(step: SelectionStep | undefined): void {
-    if (!step) return;
-    this.#anchor = step.anchor;
-    const old = this.#selection.value;
-    if (sameSelection(step.selection, old)) return;
-    const { value, applied } = this.#selection.request(step.selection);
-    if (applied) {
-      this.#appliedSelection = value;
-      this.requestUpdate('selection', old);
-    } else {
-      fire(this, SELECTION_CHANGE, { selection: value });
-    }
-  }
 
   /**
    * Fires `argus-cell-click` (when a cell is on the path), then `argus-row-click`,
@@ -2514,22 +2168,19 @@ export class ArgusTable<T = unknown> extends LitElement {
       if (target !== undefined && target !== old[columnId]) targets.push([columnId, target]);
     }
     if (targets.length === 0) return;
-    const { value, applied } = this.#sizing.request({ ...old, ...Object.fromEntries(targets) });
-    const details = targets.map(([columnId, width]) => ({ columnSizing: value, columnId, width }));
+    const value = this.#events.change(
+      'columnSizing',
+      this.#sizing,
+      { ...old, ...Object.fromEntries(targets) },
+      COLUMN_SIZING_CHANGE,
+      targets.map(([columnId, width]) => [columnId, { columnId, width }]),
+    );
     // Outside a drag, this call is the whole resize: it ends below.
     const single = !this.#resizing;
     const resize = (this.#resizing ??= { columnSizing: value, columnIds: [] });
     resize.columnSizing = value;
     for (const [columnId] of targets) {
       if (!resize.columnIds.includes(columnId)) resize.columnIds.push(columnId);
-    }
-    if (applied) {
-      // Only the latest width per column fires, all with the latest sizing.
-      for (const detail of this.#appliedResizes.values()) detail.columnSizing = value;
-      for (const detail of details) this.#appliedResizes.set(detail.columnId, detail);
-      this.requestUpdate('columnSizing', old);
-    } else {
-      for (const detail of details) fire(this, COLUMN_SIZING_CHANGE, detail);
     }
     if (single) this.#endResize();
   }
@@ -2547,12 +2198,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     const detail = this.#resizing;
     this.#resizing = undefined;
     if (!detail || detail.columnIds.length === 0) return;
-    if (this.#sizing.controlled) {
-      fire(this, COLUMN_RESIZE_END, detail);
-    } else {
-      this.#appliedResizeEnd = detail;
-      this.requestUpdate();
-    }
+    this.#events.emit(COLUMN_RESIZE_END, '', { ...detail }, this.#sizing.controlled);
   };
 
   /**
@@ -2560,51 +2206,29 @@ export class ArgusTable<T = unknown> extends LitElement {
    * from the latest requested pins, so requests can come faster than renders.
    */
   #requestPin(columnId: string, pin: ColumnPin | false): void {
-    const old = this.#pinning.value;
-    const next = this.#table.model.nextPinning(columnId, pin, old);
+    const next = this.#table.model.nextPinning(columnId, pin, this.#pinning.value);
     if (!next) return;
-    const { value, applied } = this.#pinning.request(next);
-    if (applied) {
-      for (const detail of this.#appliedPins.values()) detail.columnPinning = value;
-      this.#appliedPins.set(columnId, { columnPinning: value, columnId, pin });
-      this.requestUpdate('columnPinning', old);
-    } else {
-      fire(this, COLUMN_PINNING_CHANGE, { columnPinning: value, columnId, pin });
-    }
+    this.#events.change('columnPinning', this.#pinning, next, COLUMN_PINNING_CHANGE, [
+      [columnId, { columnId, pin }],
+    ]);
   }
 
   /** Hides or shows a column through the controlled/uncontrolled rules. */
   #requestHide(columnId: string, hidden: boolean): void {
-    const old = this.#visibility.value;
-    const next = this.#table.model.nextVisibility(columnId, hidden, old);
+    const next = this.#table.model.nextVisibility(columnId, hidden, this.#visibility.value);
     if (!next) return;
-    const { value, applied } = this.#visibility.request(next);
-    if (applied) {
-      for (const detail of this.#appliedHides.values()) detail.columnVisibility = value;
-      this.#appliedHides.set(columnId, { columnVisibility: value, columnId, visible: !hidden });
-      this.requestUpdate('columnVisibility', old);
-    } else {
-      fire(this, COLUMN_VISIBILITY_CHANGE, { columnVisibility: value, columnId, visible: !hidden });
-    }
+    this.#events.change('columnVisibility', this.#visibility, next, COLUMN_VISIBILITY_CHANGE, [
+      [columnId, { columnId, visible: !hidden }],
+    ]);
   }
 
   /** Sets or clears a column's filter through the controlled/uncontrolled rules. */
   #requestFilter(columnId: string, filter: ColumnFilter | undefined): void {
-    const old = this.#filters.value;
-    const next = this.#table.model.nextFilters(columnId, filter, old);
+    const next = this.#table.model.nextFilters(columnId, filter, this.#filters.value);
     if (!next) return;
-    const { value, applied } = this.#filters.request(next);
-    if (applied) {
-      for (const detail of this.#appliedFilters.values()) detail.columnFilters = value;
-      this.#appliedFilters.set(columnId, { columnFilters: value, columnId, columnFilter: filter });
-      this.requestUpdate('columnFilters', old);
-    } else {
-      fire(this, COLUMN_FILTERS_CHANGE, {
-        columnFilters: value,
-        columnId,
-        columnFilter: filter,
-      });
-    }
+    this.#events.change('columnFilters', this.#filters, next, COLUMN_FILTERS_CHANGE, [
+      [columnId, { columnId, columnFilter: filter }],
+    ]);
   }
 
   /**
@@ -2629,18 +2253,9 @@ export class ArgusTable<T = unknown> extends LitElement {
     const next = model.nextMove(unit, to, old);
     const columnId = moving?.columns[0];
     if (!next || columnId === undefined) return false;
-    const detail = (columnOrder: ColumnOrderState): ColumnOrderChangeDetail =>
-      unit.kind === 'group'
-        ? { columnOrder, columnId, groupId: unit.id }
-        : { columnOrder, columnId };
-    const { value, applied } = this.#order.request(next);
-    if (applied) {
-      for (const pending of this.#appliedReorders.values()) pending.columnOrder = value;
-      this.#appliedReorders.set(unitKey(unit), detail(value));
-      this.requestUpdate('columnOrder', old);
-    } else {
-      fire(this, COLUMN_ORDER_CHANGE, detail(value));
-    }
+    this.#events.change('columnOrder', this.#order, next, COLUMN_ORDER_CHANGE, [
+      [unitKey(unit), unit.kind === 'group' ? { columnId, groupId: unit.id } : { columnId }],
+    ]);
     return true;
   }
 
@@ -2817,14 +2432,7 @@ export class ArgusTable<T = unknown> extends LitElement {
 
   /** A new sort order, through the controlled/uncontrolled rules. */
   #applySorting(next: SortState): void {
-    const old = this.#sorting.value;
-    const { value, applied } = this.#sorting.request(next);
-    if (applied) {
-      this.#appliedSort = value;
-      this.requestUpdate('sorting', old);
-    } else {
-      fire(this, SORTING_CHANGE, { sorting: value });
-    }
+    this.#events.change('sorting', this.#sorting, next, SORTING_CHANGE, [['', {}]]);
   }
 
   /**

@@ -26,3 +26,17 @@ export const switchConverter: ComplexAttributeConverter<boolean> = {
     return value !== null && on(value);
   },
 };
+
+/**
+ * `row-height`: px (`48` or `48px`) or `auto`; anything else is unset.
+ * @internal
+ */
+export const rowHeightConverter: ComplexAttributeConverter<number | 'auto' | undefined> = {
+  fromAttribute(value) {
+    if (value === null) return undefined;
+    const text = value.trim().toLowerCase();
+    if (text === 'auto') return 'auto';
+    const px = Number(text.replace(/px$/, ''));
+    return text !== '' && px > 0 ? px : undefined;
+  },
+};
