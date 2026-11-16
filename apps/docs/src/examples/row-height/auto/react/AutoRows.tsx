@@ -12,7 +12,16 @@ const columns: ReactColumnDef<Order>[] = [
     header: 'Bar',
     width: 70,
     // Content taller than a line: the row grows to fit it.
-    cell: (order) => <div className="bar" style={{ blockSize: barHeight(order) }} />,
+    cell: (order) => (
+      <div
+        style={{
+          inlineSize: 12,
+          blockSize: barHeight(order),
+          background: 'currentColor',
+          opacity: 0.4,
+        }}
+      />
+    ),
   },
 ];
 

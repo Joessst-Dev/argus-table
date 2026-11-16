@@ -26,6 +26,9 @@ const columns: ReactColumnDef<Order>[] = [
   },
 ];
 
+const rowId = (order: Order) => order.id;
+const pinnedRows = { bottom: [totals] };
+
 export default function Totals() {
   return (
     <ArgusTable
@@ -33,8 +36,8 @@ export default function Totals() {
       style={{ blockSize: 340 }}
       columns={columns}
       data={orders}
-      getRowId={(order) => order.id}
-      pinnedRows={{ bottom: [totals] }}
+      getRowId={rowId}
+      pinnedRows={pinnedRows}
     />
   );
 }

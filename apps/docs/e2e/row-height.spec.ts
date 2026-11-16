@@ -8,6 +8,17 @@ for (const flavour of FLAVOURS) {
     const row = example.locator('argus-table [part~="row"]').first();
     expect(await row.evaluate((el) => (el as HTMLElement).offsetHeight)).toBe(56);
     await expect(row.locator('[data-col="note"]')).toHaveAttribute('data-wrap');
+    // The second order's note is long: it takes more than one line.
+    const lines = await example.locator('argus-table').evaluate((el) => {
+      const cell = el.shadowRoot?.querySelector('[aria-rowindex="3"] [data-col="note"]');
+      const content = cell?.querySelector('slot')?.assignedElements()[0] as HTMLElement | undefined;
+      if (!content) return 0;
+      const style = getComputedStyle(content);
+      // `normal` line height: about 1.2 times the font size.
+      const line = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.2;
+      return content.scrollHeight / line;
+    });
+    expect(lines).toBeGreaterThan(1.5);
     await expectAccessible(page, example);
   });
 }

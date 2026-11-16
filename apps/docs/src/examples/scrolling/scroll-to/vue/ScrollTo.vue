@@ -21,9 +21,14 @@ const result = ref('');
 const show = (found: boolean) => {
   result.value = found ? 'Scrolled.' : 'Not found.';
 };
-const toRow = () =>
-  table.value?.scrollToRow({ id: rowId.value }, { align: align.value }).then(show);
-const toColumn = () => table.value?.scrollToColumn(column.value, { align: align.value }).then(show);
+const toRow = () => {
+  result.value = 'Scrolling…';
+  void table.value?.scrollToRow({ id: rowId.value }, { align: align.value }).then(show);
+};
+const toColumn = () => {
+  result.value = 'Scrolling…';
+  void table.value?.scrollToColumn(column.value, { align: align.value }).then(show);
+};
 </script>
 
 <template>

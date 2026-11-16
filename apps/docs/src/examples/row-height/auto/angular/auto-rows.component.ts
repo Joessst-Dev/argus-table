@@ -16,7 +16,10 @@ import { barHeight, orders, totals, type Order } from '../../data';
     >
       <!-- Content taller than a line: the row grows to fit it. -->
       <ng-template argusCell="bar" [argusCellOf]="orders" let-row>
-        <div class="bar" [style.block-size.px]="barHeight(row)"></div>
+        <div
+          style="inline-size: 12px; background: currentColor; opacity: 0.4"
+          [style.block-size.px]="barHeight(row)"
+        ></div>
       </ng-template>
     </argus-table>
   `,

@@ -31,13 +31,6 @@
   margin: 0;
 }
 
-/* The row-height example's bars: their height follows the order's total. */
-.bar {
-  inline-size: 12px;
-  background: currentColor;
-  opacity: 0.4;
-}
-
 /* A row of controls above an example's table. */
 .example-controls {
   display: flex;

@@ -66,6 +66,7 @@ export class ScrollToComponent {
 
   // Both methods resolve true once the target is in view, false when there's none.
   protected toRow(): void {
+    this.result.set('Scrolling…');
     void this.table()
       .scrollToRow({ id: this.rowId() }, { align: this.align() })
       .then((found) => {
@@ -74,6 +75,7 @@ export class ScrollToComponent {
   }
 
   protected toColumn(): void {
+    this.result.set('Scrolling…');
     void this.table()
       .scrollToColumn(this.column(), { align: this.align() })
       .then((found) => {

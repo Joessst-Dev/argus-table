@@ -20,8 +20,10 @@ const columns = [
     // Content taller than a line: the row grows to fit it.
     cell: (order) => {
       const bar = document.createElement('div');
-      bar.className = 'bar';
+      bar.style.inlineSize = '12px';
       bar.style.blockSize = `${String(barHeight(order))}px`;
+      bar.style.background = 'currentColor';
+      bar.style.opacity = '0.4';
       return bar;
     },
   },

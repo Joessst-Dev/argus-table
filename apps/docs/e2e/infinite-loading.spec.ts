@@ -53,6 +53,16 @@ for (const flavour of FLAVOURS) {
     const second = await lastLoaded(table);
     await toEnd(table);
     await expect.poll(() => lastLoaded(table), { timeout: 5000 }).toBeGreaterThan(second);
+    // A short page marks the end: 2,350 rows after the header row.
+    await expect
+      .poll(
+        async () => {
+          await toEnd(table);
+          return lastLoaded(table);
+        },
+        { timeout: 30_000 },
+      )
+      .toBe(2351);
     await expectAccessible(page, example);
   });
 }

@@ -36,8 +36,10 @@ const options = () => ({
   align: /** @type {import('argus-table').ScrollAlign} */ (align.value),
 });
 /** @type {HTMLButtonElement} */ ($('row-button')).addEventListener('click', () => {
+  output.textContent = 'Scrolling…';
   void table.scrollToRow({ id: row.value }, options()).then(show);
 });
 /** @type {HTMLButtonElement} */ ($('column-button')).addEventListener('click', () => {
+  output.textContent = 'Scrolling…';
   void table.scrollToColumn(column.value, options()).then(show);
 });

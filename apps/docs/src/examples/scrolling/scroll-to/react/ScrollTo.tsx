@@ -14,6 +14,9 @@ const columns: ColumnDef<Order>[] = [
   { id: 'total', header: 'Total', accessor: 'total', width: 110, align: 'end', pin: 'end' },
 ];
 
+// Rows by id need getRowId; defined once, as a new function would reset the table's rows.
+const rowIdOf = (order: Order) => order.id;
+
 export default function ScrollTo() {
   const table = useRef<ArgusTableElement<Order>>(null);
   const [rowId, setRowId] = useState('o50000');
@@ -40,6 +43,7 @@ export default function ScrollTo() {
         <button
           type="button"
           onClick={() => {
+            setResult('Scrolling…');
             void table.current?.scrollToRow({ id: rowId }, { align }).then(show);
           }}
         >
@@ -63,6 +67,7 @@ export default function ScrollTo() {
         <button
           type="button"
           onClick={() => {
+            setResult('Scrolling…');
             void table.current?.scrollToColumn(column, { align }).then(show);
           }}
         >
@@ -89,8 +94,7 @@ export default function ScrollTo() {
         style={{ blockSize: 340 }}
         columns={columns}
         data={orders}
-        // Rows by id need getRowId.
-        getRowId={(order) => order.id}
+        getRowId={rowIdOf}
       />
     </>
   );

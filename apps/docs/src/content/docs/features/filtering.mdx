@@ -28,7 +28,7 @@ import { DeclarativeComponent } from '../../../examples/filtering/declarative/an
 
 ## Column filters
 
-`columnFilters` holds a filter per column id: `text` (contains, equals, starts with, empty), `number` and `date` (comparisons and ranges), or `set` (one of a list of values). It's a plain object, so it saves as JSON. Here a form sets it; the column menu of `@argus-table/header-menu` lets users set filters on columns with a `filter` kind, and fires `argus-column-filters-change`. Filtered headers get the `header-cell-filtered` part and a funnel mark. A column's `filterFn` replaces the built-in test.
+`columnFilters` holds a filter per column id: `text` (contains, equals, starts with, empty, not empty), `number` and `date` (comparisons, ranges, empty, not empty), or `set` (one of a list of values). It's a plain object, so it saves as JSON. Here a form sets it; the column menu of `@argus-table/header-menu` lets users set filters on columns with a `filter` kind, and fires `argus-column-filters-change`. Filtered headers get the `header-cell-filtered` part and a funnel mark. A column's `filterFn` replaces the built-in test.
 
 <FlavourTabs example="filtering/column-filters">
   <ReactColumns slot="react" client:visible />
@@ -48,7 +48,7 @@ With a [`dataSource`](../infinite-loading/), the table doesn't filter: `columnFi
 
 ## On column children
 
-`filter` on `<argus-column>` gives a column a filter kind in markup.
+`columnFilters` works the same over columns given as children. The `filter` attribute on `<argus-column>` gives a column its filter kind in markup; the kind decides what users can filter through plugins such as the column menu, while `columnFilters` applies whether a column has a kind or not.
 
 <FlavourTabs example="filtering/declarative">
   <ReactDeclarative slot="react" client:visible />

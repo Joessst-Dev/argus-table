@@ -19,7 +19,15 @@ for (const flavour of FLAVOURS) {
         table.evaluate((el) => (el.shadowRoot?.activeElement as HTMLElement | null)?.dataset.col),
       )
       .toBe('c500');
-    await expect(table.locator('[role="columnheader"][data-col="c500"]')).toBeInViewport();
+    // In view, and clear of the pinned Actions column.
+    const box = (id: string) =>
+      table.locator(`[role="columnheader"][data-col="${id}"]`).boundingBox();
+    await expect
+      .poll(async () => {
+        const [target, actions] = [await box('c500'), await box('actions')];
+        return !!target && !!actions && target.x + target.width <= actions.x + 1;
+      })
+      .toBe(true);
     await expectAccessible(page, example);
   });
 }

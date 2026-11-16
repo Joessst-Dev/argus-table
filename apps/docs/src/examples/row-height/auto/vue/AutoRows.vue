@@ -25,7 +25,14 @@ const pinnedRows = { bottom: [totals] };
   >
     <!-- Content taller than a line: the row grows to fit it. -->
     <template #cell-bar="{ row }">
-      <div class="bar" :style="{ blockSize: `${barHeight(row)}px` }" />
+      <div
+        :style="{
+          inlineSize: '12px',
+          blockSize: `${barHeight(row)}px`,
+          background: 'currentColor',
+          opacity: 0.4,
+        }"
+      />
     </template>
   </ArgusTable>
 </template>

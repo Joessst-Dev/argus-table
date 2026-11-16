@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ArgusTable, type ColumnDef } from '@argus-table/react';
 import { average, money, orders, totals, type Order } from '../../data';
 
@@ -25,10 +25,17 @@ const columns: ColumnDef<Order>[] = [
   },
 ];
 
+const rowId = (order: Order) => order.id;
+
 export default function TopAndBottom() {
   const [top, setTop] = useState(true);
   const [bottom, setBottom] = useState(true);
   const [log, setLog] = useState('Click a row.');
+  // A new object on every render would make the table rebuild its pinned rows.
+  const pinnedRows = useMemo(
+    () => ({ top: top ? [average] : [], bottom: bottom ? [totals] : [] }),
+    [top, bottom],
+  );
   return (
     <>
       <p>
@@ -58,8 +65,8 @@ export default function TopAndBottom() {
         style={{ blockSize: 340 }}
         columns={columns}
         data={orders}
-        getRowId={(order) => order.id}
-        pinnedRows={{ top: top ? [average] : [], bottom: bottom ? [totals] : [] }}
+        getRowId={rowId}
+        pinnedRows={pinnedRows}
         // A click or Enter on a pinned row says which side it's on.
         onRowClick={(e) => {
           const { rowId, pinned } = e.detail;
