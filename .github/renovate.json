@@ -1,7 +1,7 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended", "helpers:pinGitHubActionDigests", ":semanticCommitsDisabled"],
-  "schedule": ["before 6am on monday"],
+  "schedule": ["on monday"],
   "labels": ["dependencies"],
   "rangeStrategy": "bump",
   "ignorePaths": [
@@ -15,21 +15,44 @@
   ],
   "lockFileMaintenance": {
     "enabled": true,
-    "schedule": ["before 6am on monday"]
+    "schedule": ["on monday"],
+    "automerge": true
   },
   "packageRules": [
     {
-      "description": "Dev dependencies: one grouped PR, merged automatically when CI is green",
+      "description": "Dev dependencies: one grouped PR, merged automatically when CI is green. They don't ship, so the PR needs no changeset (the label skips the check)",
       "matchDepTypes": ["devDependencies"],
       "matchUpdateTypes": ["minor", "patch", "digest"],
       "groupName": "dev dependencies",
-      "automerge": true
+      "automerge": true,
+      "addLabels": ["no-changeset"]
+    },
+    {
+      "description": "The private tools' dependencies (prettier in generate-wrappers) are dev tooling too: same PR",
+      "matchFileNames": ["tools/*/package.json"],
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "groupName": "dev dependencies",
+      "automerge": true,
+      "addLabels": ["no-changeset"]
+    },
+    {
+      "description": "Runtime dependencies of the published packages: a range users install, so it changes only when a new release is outside it (bump would narrow it to the newest release). In-range releases reach the lockfile through lock file maintenance",
+      "matchFileNames": ["packages/*/package.json"],
+      "matchDepTypes": ["dependencies"],
+      "rangeStrategy": "replace"
     },
     {
       "description": "GitHub Actions: one grouped PR, merged automatically when CI is green",
       "matchManagers": ["github-actions"],
       "groupName": "GitHub Actions",
-      "automerge": true
+      "automerge": true,
+      "matchUpdateTypes": ["minor", "patch", "digest"]
+    },
+    {
+      "description": "GitHub Actions majors (a new action or a new runner image) get a human review. The runners are pinned on purpose (see ci.yml): a new Ubuntu waits for a Playwright image built on it",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["major"],
+      "automerge": false
     },
     {
       "description": "Lit gets its own PR and a human review",
@@ -80,6 +103,22 @@
       "description": "TypeScript 7 (the Go port) waits until typescript-eslint supports it",
       "matchPackageNames": ["typescript"],
       "allowedVersions": "<6.1.0"
+    },
+    {
+      "description": "engines states the oldest versions we support, not the ones we run: raise it by hand",
+      "matchDepTypes": ["engines"],
+      "enabled": false
+    },
+    {
+      "description": ".nvmrc names a major (setup-node takes its latest release): only a new major is an update, and it gets a human review",
+      "matchManagers": ["nvm"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "enabled": false
+    },
+    {
+      "description": "@types/node follows the oldest Node in engines (22), so code doesn't use newer APIs",
+      "matchPackageNames": ["@types/node"],
+      "allowedVersions": "<23"
     }
   ]
 }

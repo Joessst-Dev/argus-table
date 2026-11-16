@@ -43,7 +43,8 @@ jobs:
           token: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
       - uses: ./.github/actions/setup
 
-      # Trusted publishing needs npm 11.5.1 or newer; Node 22 ships npm 10.
+      # Trusted publishing needs npm 11.5.1 or newer, whichever npm the Node
+      # version from .nvmrc ships.
       - name: Update npm
         run: npm install -g npm@11
 
