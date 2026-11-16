@@ -3,6 +3,7 @@ import { html } from 'lit';
 import { expect, userEvent, waitFor } from 'storybook/test';
 import type { ArgusTable, ColumnDef, TableLabels } from 'argus-table';
 import 'argus-table';
+import { cellEditing, type EditingLabels } from '@argus-table/editing';
 import { tableExport, type ExportLabels } from '@argus-table/export';
 import { formulas, type FormulasLabels } from '@argus-table/formulas';
 import { headerMenu, type HeaderMenuLabels } from '@argus-table/header-menu';
@@ -171,6 +172,13 @@ const exportLabels = {
   failed: 'Export fehlgeschlagen',
 } satisfies ExportLabels;
 
+/** The editing add-on's text in German. */
+const editingLabels = {
+  editor: ({ column, row }) => `${column}, Zeile ${String(row)}`,
+  notANumber: 'Bitte eine Zahl eingeben',
+  notEditable: ({ column }) => `${column} kann in dieser Zeile nicht bearbeitet werden`,
+} satisfies EditingLabels;
+
 const columns: ColumnDef<Order>[] = [
   { id: 'id', header: 'Bestellung', accessor: 'id', width: 120, pin: 'start' },
   {
@@ -180,6 +188,7 @@ const columns: ColumnDef<Order>[] = [
     width: { flex: 1 },
     sortable: true,
     filter: 'text',
+    meta: { edit: true },
   },
   { id: 'city', header: 'Stadt', accessor: 'city', width: 140, filter: 'set' },
   {
@@ -205,6 +214,7 @@ const plugins = [
   tableExport<Order>({ labels: exportLabels }),
   formulas<Order>({ editing: 'edit', labels: formulaLabels }),
   headerMenu<Order>({ labels: menuLabels }),
+  cellEditing<Order>({ labels: editingLabels }),
 ];
 
 const meta = {
@@ -237,7 +247,7 @@ const items = (menu: HTMLElement) =>
 
 /**
  * The built-in text in another language: `labels` on the table, and a `labels`
- * option on `headerMenu()`, `formulas()` and `tableExport()`. Text with values in it is a
+ * option on `headerMenu()`, `formulas()`, `tableExport()` and `cellEditing()`. Text with values in it is a
  * function, so it can use `Intl.PluralRules` and `Intl.NumberFormat`. Keys
  * left out stay English; this story sets them all, in German, to copy from.
  * The column headers are the app's own. Function names and error codes
@@ -264,6 +274,19 @@ export const German: Story = {
         .querySelector('[part~="resize-handle"]')
         ?.getAttribute('aria-label'),
     ).toBe('Spaltenbreite ändern');
+
+    const customer = table.shadowRoot?.querySelector<HTMLElement>(
+      '[aria-rowindex="2"] > [data-col="customer"]',
+    );
+    customer?.focus();
+    await userEvent.keyboard('{Enter}');
+    const editor = await waitFor(() => {
+      const input = table.querySelector<HTMLInputElement>('.argus-edit-input');
+      if (!input) throw new Error('no editor');
+      return input;
+    });
+    await expect(editor.getAttribute('aria-label')).toBe('Kunde, Zeile 1');
+    await userEvent.keyboard('{Escape}');
 
     const button = headerOf(table, 'total')
       .querySelector('slot')

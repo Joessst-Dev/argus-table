@@ -28,7 +28,7 @@ export function applyEdit<T>(
   const set = typeof edit === 'object' ? edit.set : undefined;
   let row: T;
   if (set) {
-    row = set(detail.row, detail.value);
+    row = set(detail.row, detail.value) as T;
   } else if (typeof column?.accessor === 'string') {
     row = setPath(detail.row, column.accessor.split('.'), detail.value);
   } else {

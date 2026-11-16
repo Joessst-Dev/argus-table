@@ -1,8 +1,15 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
+import { html } from 'lit';
 import 'argus-table';
 import type { ArgusPlugin, ArgusTable, ColumnDef } from 'argus-table';
-import { applyEdit, cellEditing, type CellEditDetail, type CellEditingOptions } from './index.js';
+import {
+  applyEdit,
+  cellEditing,
+  type CellEditDetail,
+  type CellEditingOptions,
+  type ColumnEditOptions,
+} from './index.js';
 
 interface Row {
   id: string;
@@ -57,7 +64,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-async function settle(el: ArgusTable<Row>) {
+async function settle<R>(el: ArgusTable<R>) {
   await el.updateComplete;
   await new Promise(requestAnimationFrame);
   await new Promise(requestAnimationFrame);
@@ -95,7 +102,7 @@ async function fixture(
 }
 
 /** The body cell of a row (from 0) and column: below the header and the top pinned rows. */
-function cellOf(el: ArgusTable<Row>, row: number, col: string): HTMLElement {
+function cellOf<R>(el: ArgusTable<R>, row: number, col: string): HTMLElement {
   const rowIndex = 2 + (el.pinnedRows?.top?.length ?? 0) + row;
   const cell = el.shadowRoot?.querySelector<HTMLElement>(
     `[aria-rowindex="${String(rowIndex)}"] > [data-col="${col}"]`,
@@ -300,6 +307,154 @@ describe('cellEditing', () => {
     };
     const { el } = await fixture({}, { columns: [...columns, formula] });
     expect(cellOf(el, 0, 'double').getAttribute('aria-readonly')).toBe('true');
+  });
+});
+
+describe('more editors', () => {
+  interface Task {
+    id: string;
+    due: Date | null;
+    day: string;
+    done: boolean;
+    note: string;
+  }
+  const tasks = (): Task[] => [
+    { id: 'a', due: new Date(2026, 10, 16), day: '2026-11-16', done: false, note: 'x' },
+    { id: 'b', due: null, day: '', done: true, note: 'y' },
+  ];
+
+  async function mount(cols: ColumnDef<Task>[], plugins = [cellEditing<Task>()]) {
+    const el = document.createElement('argus-table') as ArgusTable<Task>;
+    Object.assign(el, { columns: cols, data: tasks(), getRowId: (t: Task) => t.id, plugins });
+    el.style.inlineSize = '600px';
+    el.style.blockSize = '300px';
+    const edits: CellEditDetail<Task>[] = [];
+    el.addEventListener('argus-cell-edit', (event) => {
+      const detail = event.detail as CellEditDetail<Task>;
+      edits.push(detail);
+      el.data = applyEdit(el.data, detail, el.columns);
+    });
+    document.body.append(el);
+    await settle(el);
+    return { el, edits };
+  }
+  const cell = cellOf<Task>;
+  /** An element the test needs, or a failure. */
+  const must = <E>(element: E | null | undefined): E => {
+    if (!element) throw new Error('missing element');
+    return element;
+  };
+  const done = settle<Task>;
+
+  test('the date editor keeps a Date a Date and a string a string', async () => {
+    const { el, edits } = await mount([
+      { id: 'due', accessor: 'due', filter: 'date', meta: { edit: true } },
+      { id: 'day', accessor: 'day', meta: { edit: { editor: 'date' } } },
+    ]);
+    cell(el, 0, 'due').focus();
+    await done(el);
+    await userEvent.keyboard('{Enter}');
+    await done(el);
+    const input = el.querySelector<HTMLInputElement>('.argus-edit-input');
+    expect(input?.type).toBe('date');
+    expect(input?.value).toBe('2026-11-16');
+    if (input) {
+      input.value = '2026-12-24';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    await userEvent.keyboard('{Tab}');
+    await done(el);
+    expect(edits.at(-1)?.value).toEqual(new Date(2026, 11, 24));
+    // Tab went on to `day`; Delete starts it empty.
+    await userEvent.keyboard('{Delete}');
+    await done(el);
+    await userEvent.keyboard('{Enter}');
+    await done(el);
+    expect(edits.at(-1)).toMatchObject({ columnId: 'day', value: null, previous: '2026-11-16' });
+  });
+
+  test('a checkbox toggles with Space, Enter or a click, without an editing mode', async () => {
+    const { el, edits } = await mount([
+      { id: 'done', accessor: 'done', meta: { edit: { editor: 'checkbox' } } },
+      { id: 'note', accessor: 'note' },
+    ]);
+    const box = (row: number) =>
+      cell(el, row, 'done')
+        .querySelector('slot')
+        ?.assignedElements()[0]
+        ?.querySelector<HTMLInputElement>('.argus-edit-check');
+    expect(box(0)?.checked).toBe(false);
+    expect(box(1)?.checked).toBe(true);
+    cell(el, 0, 'done').focus();
+    await done(el);
+    await userEvent.keyboard(' ');
+    await done(el);
+    expect(edits.at(-1)).toMatchObject({ rowId: 'a', value: true, previous: false });
+    expect(box(0)?.checked).toBe(true);
+    expect(el.querySelector('.argus-edit-input')).toBeNull();
+    await userEvent.click(must(box(1)));
+    await done(el);
+    expect(edits.at(-1)).toMatchObject({ rowId: 'b', value: false, previous: true });
+    expect(box(1)?.checked).toBe(false);
+  });
+
+  test("a checkbox the app doesn't apply shows the table's value again", async () => {
+    const el = document.createElement('argus-table') as ArgusTable<Task>;
+    Object.assign(el, {
+      columns: [{ id: 'done', accessor: 'done', meta: { edit: { editor: 'checkbox' } } }],
+      data: tasks(),
+      plugins: [cellEditing<Task>()],
+    });
+    el.style.inlineSize = '400px';
+    el.style.blockSize = '200px';
+    document.body.append(el);
+    await done(el);
+    const box = cell(el, 0, 'done')
+      .querySelector('slot')
+      ?.assignedElements()[0]
+      ?.querySelector<HTMLInputElement>('.argus-edit-check');
+    await userEvent.click(must(box));
+    await done(el);
+    expect(box?.checked).toBe(false);
+  });
+
+  test('a custom editor commits and cancels itself; leaving it cancels', async () => {
+    const editor: ColumnEditOptions<Task>['editor'] = ({ value, label, commit, cancel }) =>
+      html`<input
+        class="custom"
+        aria-label=${label}
+        .value=${String(value)}
+        @keydown=${(e: KeyboardEvent) => {
+          if (e.key === 'Enter') commit((e.target as HTMLInputElement).value.toUpperCase());
+          if (e.key === 'q') cancel();
+        }}
+      />`;
+    const { el, edits } = await mount([
+      { id: 'note', accessor: 'note', meta: { edit: { editor } } },
+      { id: 'id', accessor: 'id' },
+    ]);
+    cell(el, 0, 'note').focus();
+    await done(el);
+    await userEvent.keyboard('{Enter}');
+    await done(el);
+    const input = el.querySelector<HTMLInputElement>('input.custom');
+    expect(document.activeElement).toBe(input);
+    expect(input?.getAttribute('aria-label')).toBe('note, row 1');
+    await userEvent.keyboard('{End}yz{Enter}');
+    await done(el);
+    expect(edits.at(-1)).toMatchObject({ value: 'XYZ', previous: 'x' });
+    expect(el.shadowRoot?.activeElement).toBe(cell(el, 0, 'note'));
+    await userEvent.keyboard('{Enter}');
+    await done(el);
+    await userEvent.keyboard('{Escape}');
+    await done(el);
+    expect(el.querySelector('input.custom')).toBeNull();
+    await userEvent.dblClick(cell(el, 1, 'note'));
+    await done(el);
+    cell(el, 0, 'id').focus();
+    await done(el);
+    expect(el.querySelector('input.custom')).toBeNull();
+    expect(edits).toHaveLength(1);
   });
 });
 

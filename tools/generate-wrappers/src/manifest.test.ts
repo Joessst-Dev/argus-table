@@ -189,12 +189,18 @@ describe('readElement', () => {
   test('adds the add-ons’ events after the element’s own, with their type module', () => {
     const table = readElement(manifest(), 'argus-table');
     const names = table.events.map((e) => e.name);
-    expect(names.slice(-3)).toEqual([
+    expect(names.slice(-4)).toEqual([
       'argus-formula-column-add',
       'argus-formula-column-change',
       'argus-formula-column-remove',
+      'argus-cell-edit',
     ]);
-    expect(table.events.at(-2)).toMatchObject({
+    expect(table.events.at(-1)).toMatchObject({
+      type: 'CustomEvent<CellEditDetail<T>>',
+      from: '../cell-edit-events.js',
+      react: 'onCellEdit',
+    });
+    expect(table.events.at(-3)).toMatchObject({
       type: 'CustomEvent<FormulaColumnChangeDetail<T>>',
       from: '../formula-events.js',
       react: 'onFormulaColumnChange',
@@ -252,7 +258,7 @@ describe('emitReact', () => {
     expect(source).toContain("import { ownEvents } from '../own-events.js';");
     expect(source).toContain('export const ArgusTable = ownEvents(createComponent({');
     expect(source).toContain(
-      "}), ['onSortingChange', 'onColumnSizingChange', 'onColumnOrderChange', 'onColumnPinningChange', 'onColumnVisibilityChange', 'onColumnFiltersChange', 'onRowClick', 'onSelectionChange', 'onFormulaColumnAdd', 'onFormulaColumnChange', 'onFormulaColumnRemove'], 'ArgusTable') as unknown as <T = unknown>(props: ArgusTableProps<T>) => React.ReactElement | null;",
+      "}), ['onSortingChange', 'onColumnSizingChange', 'onColumnOrderChange', 'onColumnPinningChange', 'onColumnVisibilityChange', 'onColumnFiltersChange', 'onRowClick', 'onSelectionChange', 'onFormulaColumnAdd', 'onFormulaColumnChange', 'onFormulaColumnRemove', 'onCellEdit'], 'ArgusTable') as unknown as <T = unknown>(props: ArgusTableProps<T>) => React.ReactElement | null;",
     );
     // No events: no event props interface, and no type parameter when nothing uses T.
     expect(source).not.toContain('ArgusColumnEventProps');

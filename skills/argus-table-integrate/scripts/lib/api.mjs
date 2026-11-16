@@ -148,11 +148,12 @@ export const EVENTS = [
   'argus-load-error',
 ];
 
-/** Events add-ons fire on the table (the formula editor's). */
+/** Events add-ons fire on the table (the formula editor's, and cell editing's from 1.3). */
 export const ADDON_EVENTS = [
   'argus-formula-column-add',
   'argus-formula-column-change',
   'argus-formula-column-remove',
+  'argus-cell-edit',
 ];
 
 /** Event names from before 0.4 (ADR 0004), with their replacement. */

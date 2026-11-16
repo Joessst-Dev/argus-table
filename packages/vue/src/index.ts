@@ -24,6 +24,7 @@ export type {
 } from './content.js';
 
 // The formula editor's events (`formulas()` from `@argus-table/formulas`), with this wrapper's content.
+export type { CellEditDetail } from './cell-edit-events.js';
 export type { FormulaColumnChangeDetail, FormulaColumnDetail } from './formula-events.js';
 
 // The element classes, for typing `exposed.element` or a ref to the raw element.

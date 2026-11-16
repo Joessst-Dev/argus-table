@@ -100,6 +100,9 @@ export const TOKENS = [
   '--argus-formula-ref-fg',
   '--argus-formula-number-fg',
   '--argus-formula-text-fg',
+  '--argus-editor-bg',
+  '--argus-editor-border-color',
+  '--argus-editor-error-color',
 ];
 
 const DRAFT_KEYS = ['v', 'name', 'preset', 'seeds', 'overrides', 'parts', 'removedParts'];

@@ -54,6 +54,7 @@ const GROUP_LABELS: Record<TokenGroup, string> = {
   table: 'Table',
   'header-menu': 'Column menu (@argus-table/header-menu)',
   formulas: 'Formula editor (@argus-table/formulas)',
+  editing: 'Cell editors (@argus-table/editing)',
 };
 
 const PART_LABELS: Record<PartOptionName, string> = {
@@ -668,7 +669,7 @@ export class ArgusThemeCreator extends LitElement {
 
       <h2>Tokens</h2>
       <p class="muted">Every token, as the theme sets it. A change here wins over the seeds.</p>
-      ${(['table', 'header-menu', 'formulas'] as TokenGroup[]).map((group) =>
+      ${(['table', 'header-menu', 'formulas', 'editing'] as TokenGroup[]).map((group) =>
         this.#renderTokenGroup(group),
       )}
 

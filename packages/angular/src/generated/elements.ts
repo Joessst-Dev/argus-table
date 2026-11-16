@@ -28,6 +28,7 @@ import type {
   SelectionChangeDetail,
   SortingChangeDetail,
 } from 'argus-table';
+import type { CellEditDetail } from '../cell-edit-events.js';
 import type { FormulaColumnChangeDetail, FormulaColumnDetail } from '../formula-events.js';
 import {
   ArgusTableBase,
@@ -59,6 +60,7 @@ import { setProperty } from '../set-property.js';
     '(argus-formula-column-add)': 'handleFormulaColumnAdd($event)',
     '(argus-formula-column-change)': 'handleFormulaColumnChange($event)',
     '(argus-formula-column-remove)': 'handleFormulaColumnRemove($event)',
+    '(argus-cell-edit)': 'handleCellEdit($event)',
   },
 })
 export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
@@ -233,6 +235,9 @@ export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
   /** `argus-formula-column-remove`: From `formulas()` (`@argus-table/formulas`): the formula editor proposes removing a formula column. The table doesn't change its columns: set `columns` to `detail.columns` to apply it. `detail: { column, columns }`. */
   @Output() readonly formulaColumnRemove = new EventEmitter<CustomEvent<FormulaColumnDetail<T>>>();
 
+  /** `argus-cell-edit`: From `cellEditing()` (`@argus-table/editing`): an edit was committed with a new value. The table doesn't change its data: apply it yourself, for example with `applyEdit()`. `detail: { row, rowId, index, columnId, value, previous, pinned? }`. */
+  @Output() readonly cellEdit = new EventEmitter<CustomEvent<CellEditDetail<T>>>();
+
   /** Calls the element's `refresh()`. */
   refresh(
     ...args: Parameters<ArgusTableElement<T>['refresh']>
@@ -371,6 +376,12 @@ export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
     // Events bubble: skip those of a table nested in a cell.
     if (event.target !== this.element) return;
     this.formulaColumnRemove.emit(event as CustomEvent<FormulaColumnDetail<T>>);
+  }
+
+  protected handleCellEdit(event: Event): void {
+    // Events bubble: skip those of a table nested in a cell.
+    if (event.target !== this.element) return;
+    this.cellEdit.emit(event as CustomEvent<CellEditDetail<T>>);
   }
 }
 

@@ -15,6 +15,7 @@ export interface AddonEvent {
 }
 
 const FORMULAS = '../formula-events.js';
+const EDITING = '../cell-edit-events.js';
 const APPLY =
   "The table doesn't change its columns: set `columns` to `detail.columns` to apply it. `detail: { column, columns }`";
 
@@ -37,6 +38,13 @@ export const ADDON_EVENTS: Readonly<Partial<Record<Tag, readonly AddonEvent[]>>>
       type: 'CustomEvent<FormulaColumnDetail<T>>',
       description: `From \`formulas()\` (\`@argus-table/formulas\`): the formula editor proposes removing a formula column. ${APPLY}.`,
       from: FORMULAS,
+    },
+    {
+      name: 'argus-cell-edit',
+      type: 'CustomEvent<CellEditDetail<T>>',
+      description:
+        "From `cellEditing()` (`@argus-table/editing`): an edit was committed with a new value. The table doesn't change its data: apply it yourself, for example with `applyEdit()`. `detail: { row, rowId, index, columnId, value, previous, pinned? }`.",
+      from: EDITING,
     },
   ],
 };

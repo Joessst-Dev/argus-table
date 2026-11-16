@@ -12,7 +12,7 @@ export type TokenKind =
   /** Text: a font, a shadow, a border shorthand; a field per scheme when it holds colours. */
   | 'text';
 
-export type TokenGroup = 'table' | 'header-menu' | 'formulas';
+export type TokenGroup = 'table' | 'header-menu' | 'formulas' | 'editing';
 
 export interface TokenInfo {
   name: string;
@@ -80,7 +80,7 @@ const addon = (
   ...(defaultValue === undefined ? {} : { default: defaultValue }),
 });
 
-// From packages/header-menu/README.md and packages/formulas/README.md.
+// From the READMEs of packages/header-menu, packages/formulas and packages/editing.
 const addonTokens: TokenInfo[] = [
   addon('header-menu', '--argus-menu-bg', 'Background of the column menu.', 'var(--argus-bg)'),
   addon('header-menu', '--argus-menu-fg', 'Text colour of the column menu.', 'var(--argus-fg)'),
@@ -150,6 +150,18 @@ const addonTokens: TokenInfo[] = [
   addon('formulas', '--argus-formula-ref-fg', 'Column names in a formula.'),
   addon('formulas', '--argus-formula-number-fg', 'Numbers in a formula.'),
   addon('formulas', '--argus-formula-text-fg', 'Text literals in a formula.'),
+  addon('editing', '--argus-editor-bg', 'Background of a cell’s editor.', 'var(--argus-bg)'),
+  addon(
+    'editing',
+    '--argus-editor-border-color',
+    'Border of a cell’s editor.',
+    'var(--argus-border-color)',
+  ),
+  addon(
+    'editing',
+    '--argus-editor-error-color',
+    'A validation message and the border of an editor with an error. Default: the text colour.',
+  ),
 ];
 
 export const TOKENS: readonly TokenInfo[] = [...tableTokens, ...addonTokens];

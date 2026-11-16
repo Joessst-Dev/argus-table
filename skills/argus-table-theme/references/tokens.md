@@ -58,3 +58,11 @@ Every `--argus-*` token a theme can set, for `overrides` in a draft. Most themes
 | `--argus-formula-ref-fg`      |                                                              | Column names in a formula.                                            |
 | `--argus-formula-number-fg`   |                                                              | Numbers in a formula.                                                 |
 | `--argus-formula-text-fg`     |                                                              | Text literals in a formula.                                           |
+
+## Cell editing (`@argus-table/editing`)
+
+| Token                         | Default                     | Meaning                                                                                   |
+| ----------------------------- | --------------------------- | ----------------------------------------------------------------------------------------- |
+| `--argus-editor-bg`           | `var(--argus-bg)`           | Background of a cell's editor.                                                            |
+| `--argus-editor-border-color` | `var(--argus-border-color)` | Border of a cell's editor.                                                                |
+| `--argus-editor-error-color`  |                             | A validation message and the border of an editor with an error. Default: the text colour. |

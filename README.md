@@ -52,14 +52,18 @@ import { ArgusTable } from '@argus-table/react';
 <ArgusTable columns={columns} data={rows} onRowClick={(e) => open(e.detail.row)} />;
 ```
 
-Add-ons are plugins: `@argus-table/header-menu` adds a column menu to every header ([README](packages/header-menu/README.md)), `@argus-table/formulas` adds spreadsheet-style formula columns ([README](packages/formulas/README.md)), and `@argus-table/export` saves what the table shows as CSV, Excel or PDF ([README](packages/export/README.md)):
+Add-ons are plugins: `@argus-table/header-menu` adds a column menu to every header ([README](packages/header-menu/README.md)), `@argus-table/formulas` adds spreadsheet-style formula columns ([README](packages/formulas/README.md)), `@argus-table/export` saves what the table shows as CSV, Excel or PDF ([README](packages/export/README.md)), and `@argus-table/editing` edits cells, with your app applying each edit ([README](packages/editing/README.md)):
 
 ```js
+import { applyEdit, cellEditing } from '@argus-table/editing';
 import { downloadTable, tableExport } from '@argus-table/export';
 import { formulas } from '@argus-table/formulas';
 import { headerMenu } from '@argus-table/header-menu';
 
-table.plugins = [tableExport(), formulas(), headerMenu()];
+table.plugins = [tableExport(), formulas(), headerMenu(), cellEditing()];
+table.addEventListener('argus-cell-edit', (e) => {
+  table.data = applyEdit(table.data, e.detail, table.columns);
+});
 await downloadTable(table, 'xlsx');
 ```
 
@@ -90,6 +94,7 @@ Other agents: `npx skills add Joessst-Dev/argus-table --skill argus-table-integr
 | [`@argus-table/header-menu`](packages/header-menu/README.md) | Optional column menu: sort, filter, pin, hide and fit from the header        | v1.0   |
 | [`@argus-table/formulas`](packages/formulas/README.md)       | Optional formula columns with an editor, spreadsheet style                   | v1.0   |
 | [`@argus-table/export`](packages/export/README.md)           | Optional export of the rows shown as CSV, Excel (.xlsx) or PDF               | v1.1   |
+| [`@argus-table/editing`](packages/editing/README.md)         | Optional cell editing: text, number, date, select, checkbox, custom editors  | v1.3   |
 
 ## Project plan
 
