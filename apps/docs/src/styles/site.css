@@ -16,3 +16,17 @@
 .example argus-table {
   margin-block-end: 0.5rem;
 }
+
+/* Example controls laid out in a row: a fieldset per column. */
+.column-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-block-end: 0.75rem;
+}
+.column-controls fieldset {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0;
+}

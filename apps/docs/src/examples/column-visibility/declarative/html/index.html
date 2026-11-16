@@ -1,0 +1,8 @@
+<button id="column-visibility-declarative-toggle" type="button">Show Owner</button>
+<argus-table id="column-visibility-declarative-table" aria-label="Tasks" style="block-size: 280px">
+  <argus-column column-id="id" header="#" accessor="id" width="70" pin="start" hideable="false">
+  </argus-column>
+  <argus-column column-id="title" header="Title" accessor="title" width="2fr"></argus-column>
+  <argus-column column-id="owner" header="Owner" accessor="owner" hidden></argus-column>
+  <argus-column column-id="status" header="Status" accessor="status"></argus-column>
+</argus-table>
