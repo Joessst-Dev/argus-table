@@ -30,3 +30,11 @@
   align-items: center;
   margin: 0;
 }
+
+/* A row of controls above an example's table. */
+.example-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: center;
+}

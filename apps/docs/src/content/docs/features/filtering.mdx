@@ -1,0 +1,57 @@
+---
+title: Filtering
+description: A quick filter for a search box, and filters per column.
+since: '0.3'
+---
+
+import FlavourTabs from '../../../components/FlavourTabs.astro';
+import ReactQuick from '../../../examples/filtering/quick-filter/react/QuickFilter.tsx';
+import VueQuick from '../../../examples/filtering/quick-filter/vue/QuickFilter.vue';
+import { QuickFilterComponent } from '../../../examples/filtering/quick-filter/angular/quick-filter.component.ts';
+import ReactColumns from '../../../examples/filtering/column-filters/react/ColumnFilters.tsx';
+import VueColumns from '../../../examples/filtering/column-filters/vue/ColumnFilters.vue';
+import { ColumnFiltersComponent } from '../../../examples/filtering/column-filters/angular/column-filters.component.ts';
+import ReactRemote from '../../../examples/filtering/data-source/react/DataSourceFilters.tsx';
+import VueRemote from '../../../examples/filtering/data-source/vue/DataSourceFilters.vue';
+import { DataSourceFiltersComponent } from '../../../examples/filtering/data-source/angular/data-source-filters.component.ts';
+import ReactDeclarative from '../../../examples/filtering/declarative/react/Declarative.tsx';
+import VueDeclarative from '../../../examples/filtering/declarative/vue/Declarative.vue';
+import { DeclarativeComponent } from '../../../examples/filtering/declarative/angular/declarative.component.ts';
+
+`quickFilter` keeps the rows that contain each word of a text in one of their shown columns, ignoring case: wire it to your own search box. Here 100,000 orders are searched as you type ("oslo 777", say). The table announces the number of rows left to screen readers.
+
+<FlavourTabs example="filtering/quick-filter">
+  <ReactQuick slot="react" client:visible />
+  <VueQuick slot="vue" client:visible />
+  <QuickFilterComponent slot="angular" client:visible />
+</FlavourTabs>
+
+## Column filters
+
+`columnFilters` holds a filter per column id: `text` (contains, equals, starts with, empty, not empty), `number` and `date` (comparisons, ranges, empty, not empty), or `set` (one of a list of values). It's a plain object, so it saves as JSON. Here a form sets it; the column menu of `@argus-table/header-menu` lets users set filters on columns with a `filter` kind, and fires `argus-column-filters-change`. Filtered headers get the `header-cell-filtered` part and a funnel mark. A column's `filterFn` replaces the built-in test.
+
+<FlavourTabs example="filtering/column-filters">
+  <ReactColumns slot="react" client:visible />
+  <VueColumns slot="vue" client:visible />
+  <ColumnFiltersComponent slot="angular" client:visible />
+</FlavourTabs>
+
+## With a data source
+
+With a [`dataSource`](../infinite-loading/), the table doesn't filter: `columnFilters` and `quickFilter` go to `getRows({ start, end, sorting, filters, quickFilter, signal })`, and a change reloads from the top. A `set` filter there lists the column's `filterOptions`, since the table can't see every value. This pretend server filters by status and searches the customer; the last request it got is shown below the table.
+
+<FlavourTabs example="filtering/data-source">
+  <ReactRemote slot="react" client:visible />
+  <VueRemote slot="vue" client:visible />
+  <DataSourceFiltersComponent slot="angular" client:visible />
+</FlavourTabs>
+
+## On column children
+
+`columnFilters` works the same over columns given as children. The `filter` attribute on `<argus-column>` gives a column its filter kind in markup; the kind decides what users can filter through plugins such as the column menu, while `columnFilters` applies whether a column has a kind or not.
+
+<FlavourTabs example="filtering/declarative">
+  <ReactDeclarative slot="react" client:visible />
+  <VueDeclarative slot="vue" client:visible />
+  <DeclarativeComponent slot="angular" client:visible />
+</FlavourTabs>

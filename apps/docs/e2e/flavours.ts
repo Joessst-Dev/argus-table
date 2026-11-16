@@ -29,6 +29,7 @@ export async function openFlavour(page: Page, example: string, flavour: Flavour)
   await expect(async () => {
     await table.scrollIntoViewIfNeeded({ timeout: 1000 });
   }).toPass();
+  // Its first body row: a skeleton for a data source still loading.
   await table.locator('[role="row"][aria-rowindex="2"]').waitFor();
   return container;
 }
@@ -92,5 +93,26 @@ export function headerOrder(table: Locator): Promise<string[]> {
     [...(el.shadowRoot?.querySelectorAll<HTMLElement>('[role="columnheader"][data-col]') ?? [])]
       .sort((a, b) => Number(a.ariaColIndex) - Number(b.ariaColIndex))
       .map((header) => header.dataset.col ?? ''),
+  );
+}
+
+/** The rendered body rows in order, each as its cells' text by column id. */
+export function bodyRows(table: Locator): Promise<Record<string, string>[]> {
+  return table.evaluate((el) =>
+    [...(el.shadowRoot?.querySelectorAll<HTMLElement>('[part~="body"] > [role="row"]') ?? [])]
+      .sort(
+        (a, b) => Number(a.getAttribute('aria-rowindex')) - Number(b.getAttribute('aria-rowindex')),
+      )
+      .map((row) =>
+        Object.fromEntries(
+          [...row.querySelectorAll<HTMLElement>('[role="gridcell"]')].map((cell) => [
+            cell.dataset.col ?? '',
+            (cell.querySelector('slot')?.assignedNodes({ flatten: true }) ?? [])
+              .map((node) => node.textContent ?? '')
+              .join('')
+              .trim(),
+          ]),
+        ),
+      ),
   );
 }

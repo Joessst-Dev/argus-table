@@ -1,0 +1,46 @@
+---
+title: Infinite loading
+description: Load rows page by page from a server as the reader scrolls.
+since: '0.2'
+---
+
+import FlavourTabs from '../../../components/FlavourTabs.astro';
+import ReactKnown from '../../../examples/infinite-loading/known-total/react/KnownTotal.tsx';
+import VueKnown from '../../../examples/infinite-loading/known-total/vue/KnownTotal.vue';
+import { KnownTotalComponent } from '../../../examples/infinite-loading/known-total/angular/known-total.component.ts';
+import ReactUnknown from '../../../examples/infinite-loading/unknown-total/react/UnknownTotal.tsx';
+import VueUnknown from '../../../examples/infinite-loading/unknown-total/vue/UnknownTotal.vue';
+import { UnknownTotalComponent } from '../../../examples/infinite-loading/unknown-total/angular/unknown-total.component.ts';
+import ReactFailed from '../../../examples/infinite-loading/failed-page/react/FailedPage.tsx';
+import VueFailed from '../../../examples/infinite-loading/failed-page/vue/FailedPage.vue';
+import { FailedPageComponent } from '../../../examples/infinite-loading/failed-page/angular/failed-page.component.ts';
+
+Give the table a `dataSource` instead of `data`, and it asks `getRows({ start, end, sorting, filters, quickFilter, signal })` for the pages in view (`end` exclusive), showing skeleton rows until they arrive. Fast scrolling loads only where it stops, and pages that scroll away are aborted through `signal`. Sorting happens on the server: a new order reloads from the top. The source here is a pretend server in `data.ts` that answers after a short delay; this one sends the total, 100,000 rows.
+
+Create the source once. A new source object starts again from an empty cache, so building one on every render would reload the table each time.
+
+<FlavourTabs example="infinite-loading/known-total">
+  <ReactKnown slot="react" client:visible />
+  <VueKnown slot="vue" client:visible />
+  <KnownTotalComponent slot="angular" client:visible />
+</FlavourTabs>
+
+## Without a total
+
+Leave `total` out and the table keeps one page of skeletons below the last row it has; a page with fewer rows than asked for marks the end. Until then, `aria-rowcount` is -1, which tells screen readers the size is unknown. This server has 2,350 rows.
+
+<FlavourTabs example="infinite-loading/unknown-total">
+  <ReactUnknown slot="react" client:visible />
+  <VueUnknown slot="vue" client:visible />
+  <UnknownTotalComponent slot="angular" client:visible />
+</FlavourTabs>
+
+## Failed pages
+
+When `getRows()` rejects, the page's rows show as error skeletons, the table fires `argus-load-error` with `{ error, start, end }`, and the first visible row of the page gets a Retry button (Enter on any cell of the row retries too). Here the first page fails once. `refresh()` drops every page and loads the rows in view again.
+
+<FlavourTabs example="infinite-loading/failed-page">
+  <ReactFailed slot="react" client:visible />
+  <VueFailed slot="vue" client:visible />
+  <FailedPageComponent slot="angular" client:visible />
+</FlavourTabs>
