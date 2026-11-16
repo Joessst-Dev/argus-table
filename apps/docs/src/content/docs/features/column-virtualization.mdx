@@ -1,0 +1,20 @@
+---
+title: Column virtualization
+description: Render only the columns in view, for tables hundreds of columns wide.
+since: '0.3'
+---
+
+import FlavourTabs from '../../../components/FlavourTabs.astro';
+import ReactWide from '../../../examples/column-virtualization/wide-table/react/WideTable.tsx';
+import VueWide from '../../../examples/column-virtualization/wide-table/vue/WideTable.vue';
+import { WideTableComponent } from '../../../examples/column-virtualization/wide-table/angular/wide-table.component.ts';
+
+Rows are always virtualized. With `virtualizeColumns` (`virtualize-columns`), columns are too: the scrolling columns in view render, plus two on each side, and pinned columns always render. Here 503 columns and 10,000 rows render a few hundred cells. Keyboard focus still reaches every column: End jumps to the last one, and the table scrolls it into view.
+
+<FlavourTabs example="column-virtualization/wide-table">
+  <ReactWide slot="react" client:visible />
+  <VueWide slot="vue" client:visible />
+  <WideTableComponent slot="angular" client:visible />
+</FlavourTabs>
+
+Turn it on for wide tables. Without it, every column renders in every row: 503 columns here would mean thousands of cells, slow to scroll and, in Safari, slow to render at all. With a few dozen columns, rendering every column costs less than tracking which are in view.
