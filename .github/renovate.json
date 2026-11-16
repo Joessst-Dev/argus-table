@@ -119,6 +119,11 @@
       "description": "@types/node follows the oldest Node in engines (22), so code doesn't use newer APIs",
       "matchPackageNames": ["@types/node"],
       "allowedVersions": "<23"
+    },
+    {
+      "description": "Majors (a new Node, pnpm, Ubuntu runner, framework…) wait on the Dependency Dashboard: a PR opens only when its box is ticked",
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
     }
   ]
 }
