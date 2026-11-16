@@ -543,6 +543,24 @@ describe('plugin host', () => {
     expect(el.shadowRoot?.activeElement).toBe(headerOf(el, 'age'));
   });
 
+  test('focusCell focuses a body or pinned-row cell, clamped to the rows', async () => {
+    const { plugin, host } = hostGrabber();
+    const top = { id: 't', name: 'Top', age: 99, address: { city: 'T' } };
+    const el = await fixture({ columns, data, plugins: [plugin], pinnedRows: { top: [top] } });
+    const cellAt = (rowIndex: number, col: string) =>
+      shadow(el).querySelector(`[aria-rowindex="${String(rowIndex)}"] > [data-col="${col}"]`);
+    host().focusCell(1, 'city');
+    await settle(el);
+    // Header row 1, the pinned row 2, then the body.
+    expect(el.shadowRoot?.activeElement).toBe(cellAt(4, 'city'));
+    host().focusCell(0, 'age', 'top');
+    await settle(el);
+    expect(el.shadowRoot?.activeElement).toBe(cellAt(2, 'age'));
+    host().focusCell(99, 'name');
+    await settle(el);
+    expect(el.shadowRoot?.activeElement).toBe(cellAt(5, 'name'));
+  });
+
   test('row() reads body rows in the current order', async () => {
     const { plugin, host } = hostGrabber();
     const el = await fixture({ columns, data, plugins: [plugin] });
@@ -636,5 +654,90 @@ describe('plugin host', () => {
     expect(host().value(1, 'name')).toBe('Person 1');
     expect(host().rowId(900)).toBeUndefined();
     expect(host().value(900, 'name')).toBeUndefined();
+  });
+});
+
+describe('editable hook', () => {
+  /** What the table sets on ElementInternals.ariaReadOnly, last first. */
+  function watchReadOnly(): (string | null)[] {
+    const values: (string | null)[] = [];
+    vi.spyOn(ElementInternals.prototype, 'ariaReadOnly', 'set').mockImplementation(
+      (value: string | null) => {
+        values.unshift(value);
+      },
+    );
+    return values;
+  }
+  const readonlyOf = (el: HTMLElement, col: string) =>
+    [...shadow(el).querySelectorAll(`[role="gridcell"][data-col="${col}"]`)].map((c) =>
+      c.getAttribute('aria-readonly'),
+    );
+
+  test.runIf('ariaReadOnly' in ElementInternals.prototype)(
+    'without it the grid is read-only and cells carry nothing',
+    async () => {
+      const values = watchReadOnly();
+      const el = await fixture({ columns, data: people(3), plugins: [recorder('a', [])] });
+      expect(values[0]).toBe('true');
+      expect(readonlyOf(el, 'name')).toEqual([null, null, null]);
+    },
+  );
+
+  test.runIf('ariaReadOnly' in ElementInternals.prototype)(
+    "with it the grid is editable and the other columns' cells are read-only",
+    async () => {
+      const values = watchReadOnly();
+      const editing: ArgusPlugin<Person> = { name: 'editing', editable: (id) => id === 'age' };
+      const el = await fixture({
+        columns,
+        data: people(3),
+        plugins: [editing],
+        pinnedRows: { top: [{ id: 't', name: 'Top', age: 99, address: { city: 'T' } }] },
+      });
+      expect(values[0]).toBeNull();
+      // The pinned row and the three body rows.
+      expect(readonlyOf(el, 'age')).toEqual([null, null, null, null]);
+      expect(readonlyOf(el, 'name')).toEqual(['true', 'true', 'true', 'true']);
+      expect(headerOf(el, 'name').hasAttribute('aria-readonly')).toBe(false);
+    },
+  );
+
+  test('is asked once per column, again after invalidateColumns()', async () => {
+    let editableId = 'name';
+    const asked: string[] = [];
+    const { plugin, host } = hostGrabber();
+    const editing: ArgusPlugin<Person> = {
+      name: 'editing',
+      editable: (id) => {
+        asked.push(id);
+        return id === editableId;
+      },
+    };
+    const el = await fixture({ columns, data: people(50), plugins: [plugin, editing] });
+    expect(asked).toEqual(['name', 'age', 'city']);
+    await scrollTo(el, 400);
+    expect(asked).toHaveLength(3);
+    editableId = 'city';
+    host().invalidateColumns();
+    await settle(el);
+    expect(asked).toHaveLength(6);
+    expect(readonlyOf(el, 'city').every((v) => v === null)).toBe(true);
+    expect(readonlyOf(el, 'name').every((v) => v === 'true')).toBe(true);
+  });
+
+  test('a hook that throws is reported and counts as not editable', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const broken: ArgusPlugin<Person> = {
+      name: 'broken',
+      editable: () => {
+        throw new Error('boom');
+      },
+    };
+    const el = await fixture({ columns, data: people(3), plugins: [broken] });
+    expect(error).toHaveBeenCalledWith(
+      'argus-table: plugin "broken" threw in editable',
+      expect.any(Error),
+    );
+    expect(readonlyOf(el, 'age').every((v) => v === 'true')).toBe(true);
   });
 });

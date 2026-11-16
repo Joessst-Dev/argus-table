@@ -307,7 +307,7 @@ import { headerMenu } from '@argus-table/header-menu';
 table.plugins = [headerMenu()];
 ```
 
-A plugin is an object with a `name` and any of five hooks:
+A plugin is an object with a `name` and any of six hooks:
 
 ```ts
 interface ArgusPlugin<T> {
@@ -317,6 +317,7 @@ interface ArgusPlugin<T> {
   columns?(defs: readonly ColumnDef<T, unknown>[], host: PluginHost<T>): readonly ColumnDef<T, unknown>[] | undefined;
   columnGroups?(groups: readonly ColumnGroup<unknown>[], host: PluginHost<T>): readonly ColumnGroup<unknown>[] | undefined;
   keydown?(event: KeyboardEvent, target: CellTarget, host: PluginHost<T>): boolean | undefined;
+  editable?(columnId: string, host: PluginHost<T>): boolean;
 }
 ```
 
@@ -325,6 +326,7 @@ interface ArgusPlugin<T> {
 - `columns` changes the column definitions before the table reads them: add computed columns, wrap a `header`, change defaults. The hooks chain in array order, starting from `columns` (or the `<argus-column>` children). They run again only when those columns or `plugins` change, or after `host.invalidateColumns()`; a `header` or `cell` function a plugin returns still runs on every render, so a plugin's own state shows after `host.requestUpdate()`. Returned columns are ordinary columns: they sort, resize, move and virtualize like any other. Returning `undefined` leaves the columns as they are. Content is `unknown` in these hooks, since a React or Vue table's `header` and `cell` return the framework's own; a plugin nests a column's content in its template through `host.content()`.
 - `columnGroups` does the same for the [column groups](#column-groups), starting from `columnGroups` (or the `<argus-column-group>` children), and runs again when those or `plugins` change, or after `host.invalidateColumns()`. The Vue and Angular wrappers' template plugins use it for group headers.
 - `keydown` sees a key on a focused header or cell (not the checkbox column) before the table does. Returning `true` claims the key and the table ignores it; the plugin calls `preventDefault()` itself. `target` is `{ section, columnId, rowIndex, rowId }`, with `section` `'header'`, `'top'`, `'body'` or `'bottom'`. Keys pressed in content inside a cell never reach the hook, as they never reach the table.
+- `editable` says whether the plugin makes a column's cells editable ([ADR 0009](../../adr/0009-cell-editing.md)). It is asked once per column when the columns or `plugins` change, or after `host.invalidateColumns()`. While no plugin has it, the grid is `aria-readonly="true"`: nothing in it can be edited. With one, the grid isn't, and the cells of columns no plugin calls editable are `aria-readonly="true"`.
 - A new array with the same plugins in the same order changes nothing, so a framework re-render doesn't reconnect them. A new plugin instance does: keep instances stable (a constant, or `useMemo` in React).
 - A hook that throws is reported in the console (`argus-table: plugin "<name>" threw in <hook>`) and skipped; a plugin whose `connect` threw stays off until `plugins` changes. A plugin can't break an update.
 
@@ -343,6 +345,7 @@ interface ArgusPlugin<T> {
 | `filterValues(columnId, limit?)`              | The values a `set` filter offers: `filterOptions`, else the distinct values of the rows the other filters keep, sorted, at most `limit` (1000) with `truncated`. `undefined` with a `dataSource` and no `filterOptions`.              |
 | `filteredIndexes(except?)`                    | The indexes in `data` of the rows the column filters and the quick filter keep, ascending (not sorted), leaving out the filters on the `except` columns and their text in the quick filter. `undefined` with a `dataSource`. An accessor of an `except` column may call it while the table filters or sorts. |
 | `focusHeader(columnId)`                       | Moves the grid's focus to a header after the next update                                                                                                                                                                                          |
+| `focusCell(index, columnId, section?)`        | Moves the grid's focus to a body cell (`index` in the current order) or a pinned row's cell (`section` `'top'` or `'bottom'`) after the next update                                                                                               |
 | `announce(message)`                           | Says something through the table's polite live region                                                                                                                                                                                             |
 | `invalidateColumns()`                         | Runs the `columns` and `columnGroups` hooks again on the next update                                                                                                                                                                              |
 | `requestUpdate()`                             | Re-renders: header and cell functions run again                                                                                                                                                                                                   |

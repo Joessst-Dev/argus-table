@@ -152,6 +152,7 @@ export function renderCell<T>(
     part=${cellParts(c, pinnedRow)}
     role="gridcell"
     aria-colindex=${c.colIndex}
+    aria-readonly=${c.readonly ? 'true' : nothing}
     tabindex=${tabStop ? 0 : -1}
     data-col=${c.id}
     data-align=${c.align}
