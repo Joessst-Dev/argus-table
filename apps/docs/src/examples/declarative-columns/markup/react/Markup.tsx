@@ -20,7 +20,14 @@ export default function Markup() {
         width={110}
         cell={(order) => <strong>{order.status}</strong>}
       />
-      <ArgusColumn columnId="total" header="Total" accessor="total" width={100} align="end" sortable />
+      <ArgusColumn
+        columnId="total"
+        header="Total"
+        accessor="total"
+        width={100}
+        align="end"
+        sortable
+      />
       <ArgusColumn
         columnId="actions"
         header="Actions"

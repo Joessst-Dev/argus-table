@@ -18,7 +18,14 @@ const rowId = (order: Order) => order.id;
     />
     <ArgusColumn column-id="city" header="City" accessor="city" :width="120" />
     <ArgusColumn column-id="status" header="Status" :width="110" />
-    <ArgusColumn column-id="total" header="Total" accessor="total" :width="100" align="end" sortable />
+    <ArgusColumn
+      column-id="total"
+      header="Total"
+      accessor="total"
+      :width="100"
+      align="end"
+      sortable
+    />
     <ArgusColumn column-id="actions" header="Actions" :width="100" pin="end" :resizable="false" />
 
     <template #cell-status="{ row }">

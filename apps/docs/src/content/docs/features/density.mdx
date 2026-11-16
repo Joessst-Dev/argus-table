@@ -1,0 +1,20 @@
+---
+title: Density
+description: Compact, comfortable or spacious rows.
+since: '0.1'
+---
+
+import FlavourTabs from '../../../components/FlavourTabs.astro';
+import ReactDensities from '../../../examples/density/all/react/Densities.tsx';
+import VueDensities from '../../../examples/density/all/vue/Densities.vue';
+import { DensitiesComponent } from '../../../examples/density/all/angular/densities.component.ts';
+
+`density` sets the default row height and cell padding: `compact` (32 px rows, 8 px padding), `comfortable` (40 px, 12 px, the default) or `spacious` (52 px, 16 px). It's reflected to the `density` attribute, so page CSS and themes can match it.
+
+<FlavourTabs example="density/all">
+  <ReactDensities slot="react" client:visible />
+  <VueDensities slot="vue" client:visible />
+  <DensitiesComponent slot="angular" client:visible />
+</FlavourTabs>
+
+The `--argus-row-height` and `--argus-cell-padding-inline` tokens, or the `rowHeight` property, override the density's values.

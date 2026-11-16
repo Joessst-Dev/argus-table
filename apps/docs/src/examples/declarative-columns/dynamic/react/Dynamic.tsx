@@ -19,7 +19,12 @@ export default function Dynamic() {
       {/* The table follows its children. */}
       <ArgusTable aria-label="Orders" style={{ blockSize: 280 }} data={orders}>
         <ArgusColumn columnId="id" header="Order" accessor="id" width={90} />
-        <ArgusColumn columnId="customer" header="Customer" accessor="customer" width={{ flex: 1 }} />
+        <ArgusColumn
+          columnId="customer"
+          header="Customer"
+          accessor="customer"
+          width={{ flex: 1 }}
+        />
         {showCity && <ArgusColumn columnId="city" header="City" accessor="city" width={120} />}
         <ArgusColumn columnId="total" header="Total" accessor="total" width={100} align="end" />
       </ArgusTable>

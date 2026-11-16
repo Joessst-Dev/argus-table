@@ -27,7 +27,14 @@ import { orders, type Order } from '../../data';
       />
       <argus-column column-id="city" header="City" accessor="city" width="120" />
       <argus-column column-id="status" header="Status" width="110" />
-      <argus-column column-id="total" header="Total" accessor="total" width="100" align="end" sortable />
+      <argus-column
+        column-id="total"
+        header="Total"
+        accessor="total"
+        width="100"
+        align="end"
+        sortable
+      />
       <argus-column column-id="actions" header="Actions" width="100" pin="end" resizable="false" />
 
       <ng-template argusCell="status" [argusCellOf]="orders" let-row>
