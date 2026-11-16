@@ -1,0 +1,33 @@
+---
+title: Row height
+description: Wrap text in cells, and fit rows to their content.
+since: '0.3'
+---
+
+import FlavourTabs from '../../../components/FlavourTabs.astro';
+import ReactWrapped from '../../../examples/row-height/wrapped-text/react/WrappedText.tsx';
+import VueWrapped from '../../../examples/row-height/wrapped-text/vue/WrappedText.vue';
+import { WrappedTextComponent } from '../../../examples/row-height/wrapped-text/angular/wrapped-text.component.ts';
+import ReactAuto from '../../../examples/row-height/auto/react/AutoRows.tsx';
+import VueAuto from '../../../examples/row-height/auto/vue/AutoRows.vue';
+import { AutoRowsComponent } from '../../../examples/row-height/auto/angular/auto-rows.component.ts';
+
+`wrap: true` on a column (`wrap` on `<argus-column>`) wraps its text onto more lines instead of cutting it off. Rows keep their height: here `rowHeight` 56 leaves room for two lines. Text that fits stays centred; longer text starts at the top and is clipped below.
+
+<FlavourTabs example="row-height/wrapped-text">
+  <ReactWrapped slot="react" client:visible />
+  <VueWrapped slot="vue" client:visible />
+  <WrappedTextComponent slot="angular" client:visible />
+</FlavourTabs>
+
+## Rows that fit their content
+
+`rowHeight: 'auto'` (`row-height="auto"`) fits each row to its content: wrapped text, and content taller than a line, such as the bars here, whose height follows the total. The row height (from `density` or `--argus-row-height`) is then the least a row is, and the header's height. Content sits at the top of its cell, with the padding that centres one line (`--argus-cell-padding-block`). Pinned rows grow too.
+
+Rows are measured as they render, so rows not seen yet count as one line, and the rows in view stay put while rows above them are measured. Give images a size, so rows don't move when they load.
+
+<FlavourTabs example="row-height/auto">
+  <ReactAuto slot="react" client:visible />
+  <VueAuto slot="vue" client:visible />
+  <AutoRowsComponent slot="angular" client:visible />
+</FlavourTabs>
