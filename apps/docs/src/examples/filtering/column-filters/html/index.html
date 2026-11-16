@@ -1,0 +1,19 @@
+<p class="example-controls">
+  <label>
+    Status
+    <select id="filtering-column-filters-status">
+      <option value="">any</option>
+      <option selected>open</option>
+      <option>paid</option>
+      <option>shipped</option>
+    </select>
+  </label>
+  <label>
+    Total at least <input id="filtering-column-filters-total" type="number" value="500" />
+  </label>
+</p>
+<argus-table
+  id="filtering-column-filters-table"
+  aria-label="Orders"
+  style="block-size: 340px"
+></argus-table>

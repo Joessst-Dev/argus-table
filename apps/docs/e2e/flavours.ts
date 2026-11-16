@@ -95,3 +95,24 @@ export function headerOrder(table: Locator): Promise<string[]> {
       .map((header) => header.dataset.col ?? ''),
   );
 }
+
+/** The rendered body rows in order, each as its cells' text by column id. */
+export function bodyRows(table: Locator): Promise<Record<string, string>[]> {
+  return table.evaluate((el) =>
+    [...(el.shadowRoot?.querySelectorAll<HTMLElement>('[part~="body"] > [role="row"]') ?? [])]
+      .sort(
+        (a, b) => Number(a.getAttribute('aria-rowindex')) - Number(b.getAttribute('aria-rowindex')),
+      )
+      .map((row) =>
+        Object.fromEntries(
+          [...row.querySelectorAll<HTMLElement>('[role="gridcell"]')].map((cell) => [
+            cell.dataset.col ?? '',
+            (cell.querySelector('slot')?.assignedNodes({ flatten: true }) ?? [])
+              .map((node) => node.textContent ?? '')
+              .join('')
+              .trim(),
+          ]),
+        ),
+      ),
+  );
+}
