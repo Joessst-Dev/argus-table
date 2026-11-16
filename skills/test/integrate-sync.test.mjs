@@ -122,6 +122,7 @@ const PACKAGE_DIRS = {
   '@argus-table/header-menu': 'packages/header-menu',
   '@argus-table/formulas': 'packages/formulas',
   '@argus-table/export': 'packages/export',
+  '@argus-table/editing': 'packages/editing',
   '@argus-table/themes': 'packages/themes',
 };
 

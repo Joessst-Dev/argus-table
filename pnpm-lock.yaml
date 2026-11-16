@@ -229,6 +229,42 @@ importers:
         specifier: ^5.1.0
         version: 5.1.0(@types/node@22.20.5)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(vite@8.3.8(@types/node@22.20.5)(esbuild@0.28.2)(less@4.9.1)(sass-embedded@1.108.2)(sass@1.108.2)(yaml@2.9.1))
 
+  packages/editing:
+    devDependencies:
+      '@arethetypeswrong/cli':
+        specifier: ^0.18.5
+        version: 0.18.5
+      '@size-limit/esbuild':
+        specifier: ^14.3.0
+        version: 14.3.0(size-limit@14.3.0)
+      '@size-limit/file':
+        specifier: ^14.3.0
+        version: 14.3.0(size-limit@14.3.0)
+      '@vitest/browser-playwright':
+        specifier: ^5.1.0
+        version: 5.1.0(playwright@1.63.0)(vite@8.3.8(@types/node@22.20.5)(esbuild@0.28.2)(less@4.9.1)(sass-embedded@1.108.2)(sass@1.108.2)(yaml@2.9.1))(vitest@5.1.0)
+      argus-table:
+        specifier: workspace:^
+        version: link:../table
+      lit:
+        specifier: ^3.3.3
+        version: 3.3.3
+      playwright:
+        specifier: 1.63.0
+        version: 1.63.0
+      publint:
+        specifier: ^0.3.25
+        version: 0.3.25
+      size-limit:
+        specifier: ^14.3.0
+        version: 14.3.0
+      vite:
+        specifier: ^8.3.8
+        version: 8.3.8(@types/node@22.20.5)(esbuild@0.28.2)(less@4.9.1)(sass-embedded@1.108.2)(sass@1.108.2)(yaml@2.9.1)
+      vitest:
+        specifier: ^5.1.0
+        version: 5.1.0(@types/node@22.20.5)(@vitest/browser-playwright@5.1.0)(@vitest/ui@5.1.0)(vite@8.3.8(@types/node@22.20.5)(esbuild@0.28.2)(less@4.9.1)(sass-embedded@1.108.2)(sass@1.108.2)(yaml@2.9.1))
+
   packages/export:
     devDependencies:
       '@arethetypeswrong/cli':
