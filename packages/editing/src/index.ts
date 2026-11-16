@@ -5,6 +5,8 @@ export type {
   CellEditDetail,
   CellEditingOptions,
   ColumnEditOptions,
+  CustomEditor,
+  EditorContext,
   EditorKind,
   SelectOption,
 } from './types.js';

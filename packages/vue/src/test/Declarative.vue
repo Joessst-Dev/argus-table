@@ -65,6 +65,9 @@ defineExpose({ sorting, clicked, table, refresh });
       @formula-column-change="(e) => e.detail.previous.id"
       @formula-column-remove="(e) => e.detail.column.id"
     />
+    <ArgusTable :data="orders" @cell-edit="(e) => `${e.detail.row.name} ${e.detail.columnId}`" />
+    <!-- @vue-expect-error an edit has no `columns` -->
+    <ArgusTable :data="orders" @cell-edit="(e) => e.detail.columns" />
     <!-- @vue-expect-error a proposal has no `rows` -->
     <ArgusTable :data="orders" @formula-column-add="(e) => e.detail.rows" />
     <ArgusTable :data="orders" @update:sorting="(s) => s.map((i) => i.id)" />

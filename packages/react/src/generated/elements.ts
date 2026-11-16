@@ -22,6 +22,7 @@ import type {
   SelectionChangeDetail,
   SortingChangeDetail,
 } from 'argus-table';
+import type { CellEditDetail } from '../cell-edit-events.js';
 import type { FormulaColumnChangeDetail, FormulaColumnDetail } from '../formula-events.js';
 import {
   withContent,
@@ -93,6 +94,8 @@ export interface ArgusTableEventProps<T = unknown> {
   onFormulaColumnChange?: (event: CustomEvent<FormulaColumnChangeDetail<T>>) => void;
   /** `argus-formula-column-remove`: From `formulas()` (`@argus-table/formulas`): the formula editor proposes removing a formula column. The table doesn't change its columns: set `columns` to `detail.columns` to apply it. `detail: { column, columns }`. */
   onFormulaColumnRemove?: (event: CustomEvent<FormulaColumnDetail<T>>) => void;
+  /** `argus-cell-edit`: From `cellEditing()` (`@argus-table/editing`): an edit was committed with a new value. The table doesn't change its data: apply it yourself, for example with `applyEdit()`. `detail: { row, rowId, index, columnId, value, previous, pinned? }`. */
+  onCellEdit?: (event: CustomEvent<CellEditDetail<T>>) => void;
 }
 
 /** Props of `<ArgusTable>`: element properties, event handlers and the usual HTML attributes. */
@@ -129,6 +132,7 @@ export const ArgusTable = withContent(
         onFormulaColumnAdd: 'argus-formula-column-add',
         onFormulaColumnChange: 'argus-formula-column-change',
         onFormulaColumnRemove: 'argus-formula-column-remove',
+        onCellEdit: 'argus-cell-edit',
       },
       displayName: 'ArgusTable',
     }),
@@ -148,6 +152,7 @@ export const ArgusTable = withContent(
       'onFormulaColumnAdd',
       'onFormulaColumnChange',
       'onFormulaColumnRemove',
+      'onCellEdit',
     ],
     'ArgusTable',
   ),

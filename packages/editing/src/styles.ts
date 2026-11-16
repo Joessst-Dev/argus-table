@@ -40,6 +40,9 @@ const CSS = `
     border-color: var(--argus-editor-error-color, currentColor);
     border-style: dashed;
   }
+  .argus-edit-check {
+    margin: 0;
+  }
   .argus-edit-error {
     position: fixed;
     inset: auto;

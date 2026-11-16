@@ -105,6 +105,9 @@ importers:
 
   apps/storybook:
     dependencies:
+      '@argus-table/editing':
+        specifier: workspace:*
+        version: link:../../packages/editing
       '@argus-table/export':
         specifier: workspace:*
         version: link:../../packages/export

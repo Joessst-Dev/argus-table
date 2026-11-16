@@ -5,6 +5,6 @@ export default [
     import: '{ cellEditing, applyEdit }',
     ignore: ['lit', 'argus-table'],
     gzip: true,
-    limit: '3.5 kB',
+    limit: '4.2 kB',
   },
 ];

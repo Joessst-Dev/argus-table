@@ -2,7 +2,30 @@ import type { RowPin } from 'argus-table';
 import type { EditingLabelsInput } from './labels.js';
 
 /** The built-in editors. */
-export type EditorKind = 'text' | 'number' | 'select';
+export type EditorKind = 'text' | 'number' | 'date' | 'select' | 'checkbox';
+
+/** What a custom editor gets (`meta.edit.editor` as a function). */
+export interface EditorContext<TData = unknown> {
+  /** The value before the edit (what the column's `accessor` read). */
+  value: unknown;
+  row: TData;
+  rowId: string;
+  columnId: string;
+  /** The editor's accessible name ("Quantity, row 12"): give it to the control that takes focus. */
+  label: string;
+  /** Commits a value: validated, then `argus-cell-edit` fires and focus goes back to the cell. */
+  commit: (value: unknown) => void;
+  /** Closes the editor without a change; focus goes back to the cell. */
+  cancel: () => void;
+}
+
+/**
+ * A custom editor: content for the cell while it is edited, like a column's
+ * `cell` (a Lit template, a node, or a React, Vue or Angular component through
+ * the wrappers). The plugin focuses its first focusable element; the editor
+ * calls `commit(value)` or `cancel()`. Escape, and focus leaving it, cancel.
+ */
+export type CustomEditor<TData = unknown> = (context: EditorContext<TData>) => unknown;
 
 /** A choice of the select editor. */
 export interface SelectOption {
@@ -15,11 +38,12 @@ export interface SelectOption {
 /** How a column is edited: `meta: { edit: { … } }` on its definition. */
 export interface ColumnEditOptions<TData = unknown> {
   /**
-   * The editor. Without one, the column's `filter` kind picks it: `'number'` →
-   * the number editor, `'set'` with `filterOptions` → a select of them, anything
-   * else → the text editor.
+   * The editor, or a function for a custom one. Without one, the column's
+   * `filter` kind picks it: `'number'` → the number editor, `'date'` → the date
+   * editor, `'set'` with `filterOptions` → a select of them, anything else → the
+   * text editor. The checkbox editor toggles a boolean without an editing mode.
    */
-  editor?: EditorKind | undefined;
+  editor?: EditorKind | CustomEditor<TData> | undefined;
   /** The select editor's choices. Default: the column's `filterOptions`. */
   options?: readonly SelectOption[] | undefined;
   /** Whether a row's cell can be edited. Default: every row's. */

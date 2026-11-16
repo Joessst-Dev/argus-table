@@ -37,6 +37,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@argus-table/editing": "workspace:*",
     "@argus-table/export": "workspace:*",
     "@argus-table/formulas": "workspace:*",
     "@argus-table/header-menu": "workspace:*",

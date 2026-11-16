@@ -254,6 +254,7 @@ describe('the catalogue', () => {
       [
         '../../../packages/header-menu/src/**/*.ts',
         '../../../packages/formulas/src/**/*.ts',
+        '../../../packages/editing/src/**/*.ts',
         '!**/*.test.ts',
       ],
       { query: '?raw', import: 'default', eager: true },

@@ -1,6 +1,6 @@
 # @argus-table/editing
 
-Cell editing for [`<argus-table>`](https://www.npmjs.com/package/argus-table): text, number and select editors, the keys of a spreadsheet, and an `argus-cell-edit` event your app applies. The table never changes your data itself.
+Cell editing for [`<argus-table>`](https://www.npmjs.com/package/argus-table): text, number, date, select and checkbox editors, custom ones, the keys of a spreadsheet, and an `argus-cell-edit` event your app applies. The table never changes your data itself.
 
 **[Docs and live examples](https://joessst-dev.github.io/argus-table/)** · [GitHub](https://github.com/Joessst-Dev/argus-table)
 
@@ -81,7 +81,9 @@ cellEditing({
 }
 ```
 
-- `editor`: `'text'`, `'number'` or `'select'`. Without one, the column's `filter` kind picks it: `'number'` → the number editor, `'set'` with `filterOptions` → a select of them, anything else → text.
+- `editor`: `'text'`, `'number'`, `'date'`, `'select'`, `'checkbox'`, or a function for a custom editor (below). Without one, the column's `filter` kind picks it: `'number'` → the number editor, `'date'` → the date editor, `'set'` with `filterOptions` → a select of them, anything else → text.
+  - The date editor keeps the column's kind of value: a string stays `yyyy-mm-dd`, anything else becomes a `Date` at local midnight; empty is `null`.
+  - The checkbox editor has no editing mode: a click on the checkbox, Space, Enter or F2 toggles the value and commits it. The cell shows the checkbox unless the column has a `cell` of its own.
 - `options`: the select's choices, `{ value, label }`. Default: the column's `filterOptions`.
 - `editable(row)`: whether a row's cell can be edited. A key on a cell that can't be is announced to screen readers.
 - `parse(text, row)`: the text and number editors' text to a value. The number editor reads numbers, a decimal comma (`2,5`) and empty text (`null`).
@@ -89,6 +91,20 @@ cellEditing({
 - `set(row, value)`: a copy of the row with the value set, for `applyEdit()` on a column with a function accessor.
 
 Formula columns (`@argus-table/formulas`) can't be edited.
+
+### Custom editors
+
+`editor` as a function returns the cell's content while it is edited, like a column's `cell`: a Lit template, a DOM node, or with the React, Vue and Angular wrappers a component. It gets `{ value, row, rowId, columnId, label, commit(value), cancel() }`:
+
+```js
+editor: ({ value, label, commit, cancel }) => html`<input
+  type="range" min="1" max="5" aria-label=${label} .value=${String(value)}
+  @change=${(e) => commit(Number(e.target.value))}
+  @keydown=${(e) => e.key === 'Tab' && cancel()}
+/>`,
+```
+
+The plugin focuses the editor's first control. `commit(value)` validates the value (`validate`), fires `argus-cell-edit` if it changed and puts focus back on the cell; `cancel()` and Escape close it without a change. Enter and Tab are the editor's own; focus leaving it cancels, since only the editor knows its value.
 
 ## Styling
 
