@@ -10,6 +10,11 @@ const columns: ColumnDef<Product>[] = [
 
 export default function AutoColumns() {
   return (
-    <ArgusTable aria-label="Products" style={{ blockSize: 320 }} columns={columns} data={products} />
+    <ArgusTable
+      aria-label="Products"
+      style={{ blockSize: 320 }}
+      columns={columns}
+      data={products}
+    />
   );
 }

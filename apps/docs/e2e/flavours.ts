@@ -78,3 +78,12 @@ export function truncated(table: Locator, columnId: string): Promise<number> {
     columnId,
   );
 }
+
+/** Column ids in the order the headers show (by `aria-colindex`). */
+export function headerOrder(table: Locator): Promise<string[]> {
+  return table.evaluate((el) =>
+    [...(el.shadowRoot?.querySelectorAll<HTMLElement>('[role="columnheader"][data-col]') ?? [])]
+      .sort((a, b) => Number(a.ariaColIndex) - Number(b.ariaColIndex))
+      .map((header) => header.dataset.col ?? ''),
+  );
+}
