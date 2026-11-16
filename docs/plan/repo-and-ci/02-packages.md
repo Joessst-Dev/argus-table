@@ -6,7 +6,7 @@ Six packages are published to npm; `@argus-table/core` stays private and is bund
 
 | Package | Build | Published | Depends on |
 | --- | --- | --- | --- |
-| `@argus-table/core` | `tsc` only (consumed from source) | No (`"private": true`) | TanStack Table, TanStack Virtual |
+| `@argus-table/core` | `tsc` only (consumed from source) | No (`"private": true`) | TanStack Table |
 | `argus-table` | Vite library mode, ESM, `.d.ts` via `tsc` | Yes | `lit`, TanStack (as `dependencies`, not bundled) |
 | `@argus-table/themes` | Lightning CSS (minify, nesting) | Yes | — |
 | `@argus-table/react` | Vite library mode, `.d.ts` via `tsc`; bindings generated from the manifest | Yes | `argus-table`, `@lit/react`; `react` as peer |

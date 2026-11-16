@@ -5,7 +5,7 @@ description: How to write Lit 3 web components the way argus-table does. Covers 
 
 # Lit 3 components in argus-table
 
-argus-table is a framework-agnostic data table built as Lit 3 custom elements (`<argus-table>`, `<argus-column>`) around TanStack Table and TanStack Virtual. Its public API (properties, attributes, events, CSS tokens, part names, slots) is what users depend on, and part and token names freeze at 1.0. Treat every public name as a promise: pick it on purpose, document it, and don't rename it casually.
+argus-table is a framework-agnostic data table built as Lit 3 custom elements (`<argus-table>`, `<argus-column>`) around TanStack Table, with its own row virtualization. Its public API (properties, attributes, events, CSS tokens, part names, slots) is what users depend on, and part and token names freeze at 1.0. Treat every public name as a promise: pick it on purpose, document it, and don't rename it casually.
 
 The plan in `docs/plan/` is the source of truth for names and behaviour. Before adding public surface, check `docs/plan/plan/07-public-api.md` (properties, events, parts, tokens), `06-styling-and-theming.md`, `08-accessibility.md` and `docs/plan/code-architecture/`. When this skill and the plan disagree, follow the plan and mention the conflict.
 
@@ -241,7 +241,7 @@ export class DataController<T> implements ReactiveController {
 - A controller fires its own `argus-*` events through the host (`this.host.dispatchEvent(…)`), which keeps the element class small.
 - `hostDisconnected` must undo everything `hostConnected` did. Elements get moved in the DOM (disconnect, then reconnect), so `hostConnected` must work again afterwards.
 
-The table model (core's adapter over `@tanstack/table-core`, wrapped by `TableController`), the virtualizer (`VirtualizerController` from `@tanstack/lit-virtual`, wrapped with the row pool by `VirtualController`), memoisation and the one-extra-pass guard: `references/controllers.md`.
+The table model (core's adapter over `@tanstack/table-core`, wrapped by `TableController`), the virtualizer (`VirtualController`: core's `RowSizes` and `ScrollScale` with the row pool), memoisation and the one-extra-pass guard: `references/controllers.md`.
 
 ## Events
 

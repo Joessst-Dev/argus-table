@@ -14,7 +14,7 @@ flowchart TD
     table["argus-table: the argus-table element (Lit)<br/>Renders the div grid: sticky header, pinned rows and columns, skeleton rows<br/>Public API: properties, events, CSS tokens, parts, slotted cell content"]
     core["@argus-table/core (internal)<br/>Column model, dataSource paging, width measuring<br/>Wraps TanStack so its types never leak into the public API"]
     tst["TanStack Table (dependency)<br/>Sorting, filtering, pinning, sizing<br/>Row models and table state"]
-    tsv["TanStack Virtual (dependency)<br/>Which rows and columns are visible<br/>Scroll offsets and measurements"]
+    tsv["Core virtual (RowSizes, ScrollScale, RowPool)<br/>Which rows and columns are visible<br/>Scroll offsets and measurements"]
 
     app --> wrappers
     app --> table

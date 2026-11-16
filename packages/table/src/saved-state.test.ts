@@ -337,10 +337,10 @@ describe('setState()', () => {
       expect(el.getState().scroll.row).toBe(reached);
     });
 
-    // #110: TanStack Virtual keeps the scroll command for a few frames, and the
-    // next page arriving within them made it finish the scroll toward the restored
-    // row (clamped to the rows counted when it started), after the user took over.
-    // A slow frame (as under CI load) lets the debounced page request in first.
+    // #110: a scroll command still pending when the next page arrived finished the
+    // scroll toward the restored row (clamped to the rows counted when it started),
+    // after the user took over. A slow frame (as under CI load) lets the debounced
+    // page request in first.
     test.each([
       ['wheel', () => new WheelEvent('wheel', { deltaY: 10, bubbles: true })],
       ['pointerdown', () => new PointerEvent('pointerdown', { bubbles: true })],

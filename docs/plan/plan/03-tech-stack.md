@@ -2,13 +2,13 @@
 
 [← Back to contents](../README.md)
 
-Lit for the component, TanStack for table logic and virtualization, Vite + TypeScript for builds, Storybook for docs.
+Lit for the component, TanStack for table logic, its own row virtualization, Vite + TypeScript for builds, Storybook for docs.
 
 | Area | Choice | Why | Rejected / alternative |
 | --- | --- | --- | --- |
 | Component layer | [Lit](https://lit.dev/) 3.x | ~5 KB, native custom elements, reactive controllers fit TanStack, OpenJS Foundation | Stencil: compiler lock-in, v5 still alpha in 2026 |
 | Table logic | [TanStack Table](https://tanstack.com/table/latest/docs/framework/lit/quick-start) (`@tanstack/lit-table`) | Pinning, sizing, sorting, filtering, ordering already solved and tested | Own engine: months of work, no ecosystem |
-| Virtualization | [TanStack Virtual](https://tanstack.com/table/latest/docs/framework/lit/guide/virtualization) (`@tanstack/lit-virtual`) | Official Lit adapter, rows and columns, dynamic measuring | `@lit-labs/virtualizer`: lists only, no 2D |
+| Virtualization | Own: core's `RowSizes`, `ScrollScale` and `RowPool` in `VirtualController` ([ADR 0008](../../adr/0008-own-row-virtualization.md)) | Measured heights at 1M rows, scroll scaling and the steady window needed it anyway; ~10 kB less gzipped | TanStack Virtual (`@tanstack/lit-virtual`): used until 1.2; `@lit-labs/virtualizer`: lists only, no 2D |
 | Language | TypeScript (strict) | Public types are part of the API | — |
 | Build | Vite library mode, ESM only | Fast, simple, tree-shakeable | Rollup by hand |
 | Monorepo | pnpm workspaces + Nx (package-based) | Separate packages for core, themes, wrappers; Nx orders tasks (core → table → wrappers), caches results and runs only affected work in CI | Turborepo: lighter, but no Angular build support or task inference |

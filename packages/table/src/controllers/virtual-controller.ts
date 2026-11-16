@@ -1,5 +1,4 @@
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
-import { VirtualizerController } from '@tanstack/lit-virtual';
 import {
   RowPool,
   RowSizes,
@@ -17,7 +16,7 @@ export interface WindowRow {
   /** Offset in the rendered body, in px (scaled bodies: relative to the scroll position). */
   start: number;
   /** Measured row heights (`auto`): the row's height, the least it renders at. */
-  size?: number;
+  size?: number | undefined;
 }
 
 /**
@@ -66,37 +65,32 @@ export interface VirtualConfig {
 }
 
 /**
- * Row virtualization (TanStack Virtual) plus the row pool: which rows render,
- * where, and which pool slot's DOM each one uses. The virtualizer registers itself
- * with the host and requests updates on scroll.
+ * Row virtualization plus the row pool: which rows render, where, and which
+ * pool slot's DOM each one uses. Rows are laid out by `RowSizes` (offsets and
+ * the row at an offset in O(log n); with fixed heights every row is the row
+ * height and nothing is allocated). The controller listens to the scroller's
+ * scroll events and size, and requests an update when the visible rows change.
  *
  * Scroll scaling: engines limit an element's height, so a body taller than the
  * cap renders at the cap and its scroll position maps linearly onto the rows
- * (`ScrollScale`). The virtualizer works in logical offsets: it gets a stand-in
- * for the scroller whose `scrollTop`, `scrollHeight` and `scrollTo()` are
- * logical, and everything else passes through. Rows render relative to the
- * scroll position (`start` minus the difference between the logical and the
- * physical offset). Scroll through this controller (`scrollBy`, `reveal`,
- * `scrollToIndex`): physical px no longer match rows once the body is scaled.
+ * (`ScrollScale`). Offsets here are logical; rows render relative to the scroll
+ * position (`start` minus the difference between the logical and the physical
+ * offset), so a scaled body re-renders on every scroll. Scroll through this
+ * controller (`scrollBy`, `reveal`, `scrollToIndex`): physical px no longer
+ * match rows once the body is scaled.
  *
- * Rows of different heights (`auto`): TanStack's own measuring recomputes every
- * row below a measured one, too slow for a million rows, so in this mode the
- * virtualizer sits idle (no rows) and the controller does its part: the window
- * from `RowSizes` (heights by index, O(log n) offsets), a scroll listener that
- * re-renders when the window moves, and anchoring. Heights follow row ids, so
- * a sort or filter keeps them. A measured row above the top row would move
- * the rows in view: unscaled, the rows render shifted by the difference until
- * scrolling stops (`#hold`); scaled, the mapping pivots at the current offset.
- * Neither writes the scroll position while the user scrolls.
+ * Rows of different heights (`auto`): heights are measured as rows render and
+ * follow row ids, so a sort or filter keeps them. A measured row above the top
+ * row would move the rows in view: unscaled, the rows render shifted by the
+ * difference until scrolling stops (`#hold`); scaled, the mapping pivots at the
+ * current offset. Neither writes the scroll position while the user scrolls.
  */
 export class VirtualController implements ReactiveController {
-  readonly #virtual: VirtualizerController<HTMLElement, Element>;
   readonly #pool = new RowPool();
   readonly #scale = new ScrollScale();
   readonly #host: ReactiveControllerHost;
   readonly #getScrollElement: () => HTMLElement | null;
   #element: HTMLElement | undefined;
-  #standIn: HTMLElement | undefined;
   #config: VirtualConfig = {
     count: 0,
     rowHeight: 40,
@@ -106,8 +100,9 @@ export class VirtualController implements ReactiveController {
   };
   /** A logical offset to restore after the update, once the body has its new height. */
   #anchor: number | undefined;
-  // Auto mode only.
+  /** Row heights by index: all the row height, or measured (auto mode). */
   readonly #sizes = new RowSizes();
+  // Auto mode only.
   /** Measured heights by row id (as read), so they follow rows through a sort or filter. */
   readonly #heights = new Map<string, number>();
   /** Rows are whole multiples of this many px (see `COARSE_BODY`). */
@@ -125,68 +120,16 @@ export class VirtualController implements ReactiveController {
   #order: object | undefined;
   /** The visible rows last rendered, and the logical offset they were rendered for. */
   #rendered: { start: number; end: number; top: number } | undefined;
-  /** The scroller this controller listens to (auto mode). */
+  /** `reveal()` scrolled: render at the new offset even if the visible rows are the same. */
+  #follow = false;
+  /** The scroller this controller listens to. */
   #listening: HTMLElement | undefined;
   #resizeObserver: ResizeObserver | undefined;
 
   constructor(host: ReactiveControllerHost, getScrollElement: () => HTMLElement | null) {
     this.#host = host;
     this.#getScrollElement = getScrollElement;
-    this.#virtual = new VirtualizerController<HTMLElement, Element>(host, {
-      count: 0,
-      getScrollElement: () => this.#scroller(),
-      // The real element: a ResizeObserver can't observe the stand-in.
-      observeElementRect: (_instance, cb) => {
-        const element = this.#element;
-        if (!element) return undefined;
-        const report = () => {
-          cb({ width: element.clientWidth, height: element.clientHeight });
-        };
-        report();
-        const observer = new ResizeObserver(report);
-        observer.observe(element);
-        return () => {
-          observer.disconnect();
-        };
-      },
-      estimateSize: () => this.#config.rowHeight,
-      overscan: this.#config.overscan,
-      // One window size from the first render: the pool never grows while scrolling
-      // (in WebKit, new rows' slots would cut a wheel scroll short; see steadyWindow).
-      rangeExtractor: (range) =>
-        steadyWindow(
-          range,
-          maxVisibleRows(this.#element?.clientHeight ?? 0, this.#config.rowHeight),
-        ),
-    });
     host.addController(this);
-  }
-
-  /** The scroller's stand-in for the virtualizer: vertical offsets and height in logical px. */
-  #scroller(): HTMLElement | null {
-    const element = this.#getScrollElement();
-    if (!element) return null;
-    if (this.#element !== element || !this.#standIn) {
-      this.#element = element;
-      this.#standIn = new Proxy(element, {
-        get: (target, key) => {
-          if (key === 'scrollTop') return this.#top(target);
-          if (key === 'scrollHeight') return target.scrollHeight + this.#scale.excess;
-          if (key === 'scrollTo') {
-            return (options: ScrollToOptions) => {
-              if (options.top === undefined) target.scrollTo(options);
-              else this.#write(target, options.top, options.behavior);
-            };
-          }
-          const value: unknown = Reflect.get(target, key);
-          // Methods run on the element itself (DOM methods reject the proxy).
-          return typeof value === 'function'
-            ? (value as (...args: unknown[]) => unknown).bind(target)
-            : value;
-        },
-      });
-    }
-    return this.#standIn;
   }
 
   /** The scroller's logical offset. */
@@ -202,50 +145,40 @@ export class VirtualController implements ReactiveController {
    * Scrolls to a logical offset. `round` rounds the physical one, so that a
    * scaled offset moves the scroller at all.
    */
-  #write(
-    element: HTMLElement,
-    logical: number,
-    behavior?: ScrollBehavior,
-    round?: (px: number) => number,
-  ): void {
+  #write(element: HTMLElement, logical: number, round?: (px: number) => number): void {
     const scale = this.#scale;
     if (!scale.scaled) {
       this.#dropHold();
-      element.scrollTo({ top: logical, behavior });
+      element.scrollTo({ top: logical });
       return;
     }
     const range = element.scrollHeight - element.clientHeight;
     const target = Math.min(Math.max(logical, 0), range + scale.excess);
     const physical = scale.toPhysical(target, range);
-    element.scrollTo({ top: round ? round(physical) : physical, behavior });
-    if (behavior !== 'smooth') scale.land(target, element.scrollTop);
+    element.scrollTo({ top: round ? round(physical) : physical });
+    scale.land(target, element.scrollTop);
   }
 
   configure(next: VirtualConfig): void {
     const prev = this.#config;
     this.#config = next;
+    const element = this.#element;
+    // Read before the new mapping: a rescale keeps the logical offset.
+    const top = element ? this.#top(element) : 0;
     if (next.auto) {
       this.#configureAuto(next.auto, prev);
-      return;
+    } else {
+      if (prev.auto) {
+        // Back to fixed heights: measured heights no longer apply.
+        this.#heights.clear();
+        this.#order = undefined;
+        this.#quantum = 1;
+        this.#dropHold();
+      }
+      // Every row the row height: allocates nothing.
+      this.#sizes.reset(next.count, next.rowHeight);
     }
-    if (prev.auto) {
-      // Back to fixed heights: the virtualizer takes over again.
-      this.#heights.clear();
-      this.#sizes.reset(0, next.rowHeight);
-      this.#order = undefined;
-      this.#rendered = undefined;
-      this.#dropHold();
-      this.#virtual.setOptions({ count: next.count, overscan: next.overscan });
-      this.#virtual.getVirtualizer().measure();
-    } else if (
-      next.count !== prev.count ||
-      next.overscan !== prev.overscan ||
-      next.rowHeight !== prev.rowHeight
-    ) {
-      this.#virtual.setOptions({ count: next.count, overscan: next.overscan });
-      if (next.rowHeight !== prev.rowHeight) this.#virtual.getVirtualizer().measure();
-    }
-    this.#rescale(next.count * next.rowHeight, this.#virtual.getVirtualizer().scrollOffset);
+    this.#rescale(this.#sizes.total, top);
   }
 
   /**
@@ -253,16 +186,15 @@ export class VirtualController implements ReactiveController {
    * scroll position (a data source growing, a zoom change): keep the logical
    * offset (read before the new mapping) once the body has its new height.
    */
-  #rescale(logical: number, offset: number | null): void {
+  #rescale(logical: number, offset: number): void {
     // Not `scaled`: TypeScript would take it for unchanged after `configure()`.
     const wasScaled = this.#scale.excess > 0;
     if (!this.#scale.configure(logical, this.#config.cap(logical))) return;
-    if ((wasScaled || this.#scale.scaled) && offset !== null && offset > 0) this.#anchor = offset;
+    if ((wasScaled || this.#scale.scaled) && offset > 0) this.#anchor = offset;
   }
 
   #configureAuto(auto: AutoRows, prev: VirtualConfig): void {
     const next = this.#config;
-    if (!prev.auto) this.#virtual.setOptions({ count: 0 });
     const sizes = this.#sizes;
     if (!prev.auto || next.rowHeight !== prev.rowHeight) {
       // A new minimum height (density, a theme): every row measures again.
@@ -285,8 +217,6 @@ export class VirtualController implements ReactiveController {
       this.#quantum = quantum;
       reset();
     }
-    const element = this.#element;
-    this.#rescale(sizes.total, element ? this.#top(element) : 0);
   }
 
   /** The measured heights by index in the current order. Forgets rows long gone. */
@@ -318,8 +248,13 @@ export class VirtualController implements ReactiveController {
     if (anchor === undefined) return;
     this.#anchor = undefined;
     if (this.#element) this.#write(this.#element, anchor);
-    // The logical offset is the same, so the virtualizer sees no change; the
+    // The logical offset is the same, so the visible rows may be too; the
     // rows still have to move to the new physical one.
+    this.#host.requestUpdate();
+  }
+
+  hostConnected(): void {
+    // Back in the document (a move): listen again once the update has rendered.
     this.#host.requestUpdate();
   }
 
@@ -327,21 +262,20 @@ export class VirtualController implements ReactiveController {
     this.#unlisten();
   }
 
-  /**
-   * Auto mode: the virtualizer has no rows, so it reports neither scrolling nor
-   * a new viewport size. Listen to the scroller here.
-   */
+  /** Listens to the scroller's scrolling and size: either can change the visible rows. */
   #listen(): void {
-    const element = this.#config.auto ? this.#getScrollElement() : null;
+    const element = this.#getScrollElement();
     if (element === (this.#listening ?? null)) return;
     this.#unlisten();
     if (!element) return;
-    this.#scroller();
+    this.#element = element;
     this.#listening = element;
     element.addEventListener('scroll', this.#onScroll, { passive: true });
     this.#resizeObserver ??= new ResizeObserver(this.#onScroll);
-    // Reports the size once right away, which renders the first rows.
     this.#resizeObserver.observe(element);
+    // The first rows render with the next update, not a frame later when the
+    // observer first reports: code awaiting `updateComplete` finds them.
+    this.#onScroll();
   }
 
   #unlisten(): void {
@@ -368,7 +302,10 @@ export class VirtualController implements ReactiveController {
     this.#host.requestUpdate();
   };
 
-  /** Re-renders when the visible rows have changed. */
+  /**
+   * Re-renders when the visible rows have changed, and on every scroll of a
+   * scaled body (its rows render relative to the scroll position).
+   */
   readonly #onScroll = () => {
     if (this.#holdTimer !== undefined) {
       clearTimeout(this.#holdTimer);
@@ -376,12 +313,17 @@ export class VirtualController implements ReactiveController {
     }
     const visible = this.#visible();
     const rendered = this.#rendered;
-    if (visible?.start !== rendered?.start || visible?.end !== rendered?.end) {
+    if (
+      this.#scale.scaled ||
+      this.#follow ||
+      visible?.start !== rendered?.start ||
+      visible?.end !== rendered?.end
+    ) {
       this.#host.requestUpdate();
     }
   };
 
-  /** Auto mode: the visible rows (without overscan) and the logical offset, or `undefined` before layout. */
+  /** The visible rows (without overscan) and the logical offset, or `undefined` before layout. */
   #visible(): { start: number; end: number; top: number } | undefined {
     const element = this.#element;
     const sizes = this.#sizes;
@@ -394,44 +336,6 @@ export class VirtualController implements ReactiveController {
     return { start, end, top };
   }
 
-  /**
-   * Computes the rendered window and updates the pool. Call once per render.
-   */
-  computeWindow(): VirtualWindow {
-    if (this.#config.auto) return this.#autoWindow();
-    const v = this.#virtual.getVirtualizer();
-    const items = v.getVirtualItems();
-    // Scaled: rows render relative to the scroll position. The physical offset is
-    // read now, so rows for the virtualizer's offset fill the view even if the
-    // scroller has moved on since its last scroll event.
-    const scaled = this.#scale.scaled;
-    const size = this.#scale.size;
-    const shift = scaled ? (v.scrollOffset ?? 0) - (this.#element?.scrollTop ?? 0) : 0;
-    const byId = new Map<string, { index: number; start: number }>();
-    for (const item of items) {
-      byId.set(this.#config.rowIdAt(item.index), { index: item.index, start: item.start - shift });
-    }
-    const { keep, rowHeight } = this.#config;
-    this.#pool.pin(keep?.id);
-    if (keep && !byId.has(keep.id)) {
-      // Fixed row heights: the virtualizer would place it here too. Scaled, it is
-      // out of view: keep it inside the body (or just above it, under the header),
-      // so it doesn't stretch the scroll range past the cap.
-      const start = keep.index * rowHeight - shift;
-      byId.set(keep.id, {
-        index: keep.index,
-        start: scaled ? Math.min(Math.max(start, -rowHeight), size) : start,
-      });
-    }
-    const rows = this.#pooled(byId);
-    const range = v.range;
-    return {
-      rows,
-      totalSize: scaled ? size : v.getTotalSize(),
-      range: range ? { start: range.startIndex, end: range.endIndex } : null,
-    };
-  }
-
   /** The rows to render, in pool order: each holds its pool slot while in range. */
   #pooled(byId: Map<string, Omit<WindowRow, 'slot'>>): WindowRow[] {
     const rows: WindowRow[] = [];
@@ -442,14 +346,17 @@ export class VirtualController implements ReactiveController {
     return rows;
   }
 
-  /** `computeWindow()` for rows of different heights. */
-  #autoWindow(): VirtualWindow {
+  /** Computes the rendered window and updates the pool. Call once per render. */
+  computeWindow(): VirtualWindow {
     const { count, overscan, rowHeight, keep, rowIdAt } = this.#config;
     const sizes = this.#sizes;
     const scale = this.#scale;
     const element = this.#element;
     const visible = this.#visible();
     this.#rendered = visible;
+    this.#follow = false;
+    // Fixed heights: rows take theirs from CSS.
+    const measured = (size: number) => (this.#config.auto ? size : undefined);
     // Scaled: rows render relative to the scroll position. Unscaled: shifted by the held correction.
     const shift = visible && element ? visible.top - element.scrollTop : 0;
     const byId = new Map<string, { index: number; start: number; size?: number }>();
@@ -462,7 +369,7 @@ export class VirtualController implements ReactiveController {
       let start = first === undefined ? 0 : sizes.startOf(first);
       for (const index of indexes) {
         const size = sizes.sizeOf(index);
-        byId.set(rowIdAt(index), { index, start: start - shift, size });
+        byId.set(rowIdAt(index), { index, start: start - shift, size: measured(size) });
         start += size;
       }
     }
@@ -474,7 +381,7 @@ export class VirtualController implements ReactiveController {
       byId.set(keep.id, {
         index: keep.index,
         start: scale.scaled ? Math.min(Math.max(start, -size), scale.size) : start,
-        size,
+        size: measured(size),
       });
     }
     const rows = this.#pooled(byId);
@@ -529,12 +436,12 @@ export class VirtualController implements ReactiveController {
 
   /** The height of the row at `index` (auto mode: measured, or the row height). */
   sizeOf(index: number): number {
-    return this.#config.auto ? this.#sizes.sizeOf(index) : this.#config.rowHeight;
+    return this.#sizes.sizeOf(index);
   }
 
   /** The logical offset of the row at `index` in the body. */
   startOf(index: number): number {
-    return this.#config.auto ? this.#sizes.startOf(index) : index * this.#config.rowHeight;
+    return this.#sizes.startOf(index);
   }
 
   /**
@@ -559,43 +466,23 @@ export class VirtualController implements ReactiveController {
   /** The index of the row at the top of the body (0 before the first layout). */
   get topRow(): number {
     const element = this.#element;
-    const { count, rowHeight } = this.#config;
-    if (!element || count === 0 || rowHeight <= 0) return 0;
-    if (this.#config.auto) return this.#sizes.indexAt(this.#top(element) + 0.5);
     // Half a px of slack: engines round scroll offsets to device pixels.
-    const row = Math.floor((this.#top(element) + 0.5) / rowHeight);
-    return Math.min(Math.max(row, 0), count - 1);
+    return element ? this.#sizes.indexAt(this.#top(element) + 0.5) : 0;
   }
 
   /**
    * Scrolls row `index` to where `align` says, between the content above the
    * body (`before` px: the header and top pinned rows) and below it (`after`
    * px). An index past the last row counts as the last row. Returns whether it
-   * moved a whole px or more (the virtualizer's own command: always).
+   * moved a whole px or more.
    */
   scrollToIndex(index: number, align: ScrollAlign = 'start', before = 0, after = 0): boolean {
-    if (align === 'start' && !this.#config.auto) {
-      // The virtualizer's own command: it finishes the scroll once the rows it
-      // needs are counted (a data source's next page).
-      this.#virtual.getVirtualizer().scrollToIndex(index, { align });
-      return true;
-    }
     const element = this.#element;
     if (!element) return false;
-    const last = Math.max(0, (this.#config.auto ? this.#sizes.count : this.#config.count) - 1);
+    const last = Math.max(0, this.#sizes.count - 1);
     const moved = this.#align(element, Math.min(Math.max(index, 0), last), align, before, after);
-    if (this.#config.auto) this.#host.requestUpdate();
+    this.#host.requestUpdate();
     return moved;
-  }
-
-  /**
-   * Stops a `scrollToIndex()` still on its way: TanStack Virtual keeps the command
-   * for a few frames and finishes it when the row count changes, which would move
-   * the rows after the user has taken over. Scrolls written directly (`scrollBy`,
-   * `reveal`, `scrollToEdge`, the row-height mode) leave nothing pending.
-   */
-  cancelScroll(): void {
-    this.#virtual.getVirtualizer().cancelScroll();
   }
 
   /** Scrolls by `delta` px of rows (logical px). */
@@ -624,10 +511,9 @@ export class VirtualController implements ReactiveController {
     this.#align(element, index, 'nearest', before, after);
     // Rendered for an offset the scroller has since left: they move with the
     // update after the scroll event.
-    const rendered = this.#config.auto
-      ? this.#rendered?.top
-      : this.#virtual.getVirtualizer().scrollOffset;
-    return rendered !== this.#top(element);
+    const behind = this.#rendered?.top !== this.#top(element);
+    if (behind) this.#follow = true;
+    return behind;
   }
 
   /**
@@ -650,7 +536,7 @@ export class VirtualController implements ReactiveController {
     // Whole px that show the row in full: down from its start, up from its end.
     const round =
       target === start ? Math.floor : target === start + size - view ? Math.ceil : Math.round;
-    this.#write(element, target, undefined, round);
+    this.#write(element, target, round);
     // Not past the end: the scroller stops there.
     return Math.abs(this.#top(element) - offset) >= 1;
   }
