@@ -24,6 +24,16 @@ export default defineConfig({
       sidebar: [
         { label: 'Start here', items: [{ label: 'Introduction', link: '/' }] },
         { label: 'Features', items: [{ autogenerate: { directory: 'features' } }] },
+        {
+          label: 'API reference',
+          items: [
+            { label: 'Overview', link: '/api/' },
+            { label: '<argus-table>', link: '/api/argus-table/' },
+            { label: '<argus-column>', link: '/api/argus-column/' },
+            { label: '<argus-column-group>', link: '/api/argus-column-group/' },
+            { label: 'Types', link: '/api/types/' },
+          ],
+        },
       ],
     }),
     react({ include: ['**/examples/**/react/**'] }),

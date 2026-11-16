@@ -1,0 +1,57 @@
+---
+// The API reference's overview.
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import { ELEMENT_TAGS } from '../../lib/api/elements';
+import { sitePath } from '../../lib/api/site';
+
+const repo = 'https://github.com/Joessst-Dev/argus-table/blob/main/packages';
+const changelogs = [
+  ['argus-table', 'table'],
+  ['@argus-table/react', 'react'],
+  ['@argus-table/vue', 'vue'],
+  ['@argus-table/angular', 'angular'],
+  ['@argus-table/header-menu', 'header-menu'],
+  ['@argus-table/formulas', 'formulas'],
+  ['@argus-table/export', 'export'],
+  ['@argus-table/editing', 'editing'],
+  ['@argus-table/themes', 'themes'],
+] as const;
+---
+
+<StarlightPage
+  frontmatter={{ title: 'API reference', description: "argus-table's elements and types." }}
+>
+  <p>
+    Generated from the sources each time the site is built: the elements from the Custom Elements
+    Manifest, the types from the TypeScript sources. It documents <code>main</code>, which can be
+    ahead of the latest release; the changelogs say what each release brought.
+  </p>
+  <h2 id="elements">Elements</h2>
+  <ul>
+    {
+      ELEMENT_TAGS.map((tag) => (
+        <li>
+          <a href={sitePath(`api/${tag}/`)}>
+            <code>{`<${tag}>`}</code>
+          </a>
+        </li>
+      ))
+    }
+  </ul>
+  <h2 id="types">Types</h2>
+  <p>
+    <a href={sitePath('api/types/')}>Every public type</a>, with its members.
+  </p>
+  <h2 id="changelogs">Changelogs</h2>
+  <ul>
+    {
+      changelogs.map(([name, folder]) => (
+        <li>
+          <a href={`${repo}/${folder}/CHANGELOG.md`}>
+            <code>{name}</code>
+          </a>
+        </li>
+      ))
+    }
+  </ul>
+</StarlightPage>
