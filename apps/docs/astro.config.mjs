@@ -12,7 +12,11 @@ export default defineConfig({
   integrations: [
     starlight({
       title: 'argus-table',
-      components: { PageTitle: './src/components/PageTitle.astro' },
+      components: {
+        Head: './src/components/Head.astro',
+        PageTitle: './src/components/PageTitle.astro',
+      },
+      customCss: ['@argus-table/themes/default.css', './src/styles/site.css'],
       logo: { src: '../../brand/argus-table-logo.svg', replacesTitle: true },
       social: [
         { icon: 'github', label: 'GitHub', href: 'https://github.com/Joessst-Dev/argus-table' },
