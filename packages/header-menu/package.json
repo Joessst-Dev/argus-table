@@ -43,7 +43,7 @@
     "lit": "^3.3.3",
     "playwright": "1.63.0",
     "publint": "^0.3.25",
-    "vite": "^8.3.5",
+    "vite": "^8.3.8",
     "vitest": "^5.1.0"
   },
   "publishConfig": {

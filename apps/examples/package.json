@@ -19,6 +19,6 @@
     "@argus-table/vue": "workspace:*",
     "@playwright/test": "1.63.0",
     "argus-table": "workspace:*",
-    "vite": "^8.3.5"
+    "vite": "^8.3.8"
   }
 }
