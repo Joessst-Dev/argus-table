@@ -1,6 +1,9 @@
 import { afterNextRender, Component, computed, effect, signal } from '@angular/core';
 import { ArgusTableComponent, type ColumnDef, type ColumnSizingState } from '@argus-table/angular';
-import { STORAGE_KEY, tasks, type Task } from '../../data';
+import { tasks, type Task } from '../../data';
+
+// Each flavour on the page saves its own.
+const STORAGE_KEY = 'argus-docs:task-widths:angular';
 
 @Component({
   selector: 'app-saved-widths',

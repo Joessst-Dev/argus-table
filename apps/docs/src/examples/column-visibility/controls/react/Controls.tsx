@@ -62,6 +62,13 @@ export default function Controls() {
         data={tasks}
         columnVisibility={visibility}
         columnPinning={pinning}
+        // Users can change both too (the column menu): apply their proposals.
+        onColumnVisibilityChange={(e) => {
+          setVisibility(e.detail.columnVisibility);
+        }}
+        onColumnPinningChange={(e) => {
+          setPinning(e.detail.columnPinning);
+        }}
       />
     </>
   );

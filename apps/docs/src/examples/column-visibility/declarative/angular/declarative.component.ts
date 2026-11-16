@@ -10,7 +10,14 @@ import { tasks } from '../../data';
       {{ ownerHidden() ? 'Show Owner' : 'Hide Owner' }}
     </button>
     <argus-table aria-label="Tasks" style="display: block; block-size: 280px" [data]="tasks">
-      <argus-column column-id="id" header="#" accessor="id" width="70" pin="start" hideable="false" />
+      <argus-column
+        column-id="id"
+        header="#"
+        accessor="id"
+        width="70"
+        pin="start"
+        hideable="false"
+      />
       <argus-column column-id="title" header="Title" accessor="title" width="2fr" />
       <!-- The standard hidden attribute hides a column. -->
       <argus-column column-id="owner" header="Owner" accessor="owner" [hidden]="ownerHidden()" />

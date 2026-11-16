@@ -1,5 +1,8 @@
 import 'argus-table';
-import { STORAGE_KEY, tasks } from '../../data.ts';
+import { tasks } from '../../data.ts';
+
+// Each flavour on the page saves its own.
+const STORAGE_KEY = 'argus-docs:task-order:html';
 
 /** @typedef {import('../../data.ts').Task} Task */
 /** @typedef {import('argus-table').ColumnOrderState} ColumnOrderState */

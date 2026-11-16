@@ -9,7 +9,7 @@ import ReactPinned from '../../../examples/pinned-columns/basic/react/PinnedColu
 import VuePinned from '../../../examples/pinned-columns/basic/vue/PinnedColumns.vue';
 import { PinnedColumnsComponent } from '../../../examples/pinned-columns/basic/angular/pinned-columns.component.ts';
 
-`pin: 'start'` and `pin: 'end'` keep a column in place while the others scroll sideways. Pinning is logical: in a right-to-left table, `start` is the right side. The pinned cell next to the scrolling columns gets the `cell-pinned-edge` part (`header-cell-pinned-edge` in the header) and the `--argus-pinned-shadow` token, here chosen from the select.
+`pin: 'start'` and `pin: 'end'` keep a column in place while the others scroll sideways. Pinning is logical: in a right-to-left table, `start` is the right side. The pinned cell next to the scrolling columns gets the `cell-pinned-edge` part (`header-cell-pinned-edge` in the header), and a shadow along that edge falls over the scrolling columns: the `--argus-pinned-shadow` token, here chosen from the select. The shadow is drawn beside the cells, not by them, so style it through the token rather than `::part(cell-pinned-edge)`.
 
 <FlavourTabs example="pinned-columns/basic">
   <ReactPinned slot="react" client:visible />

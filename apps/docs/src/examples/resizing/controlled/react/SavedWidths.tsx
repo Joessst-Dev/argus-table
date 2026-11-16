@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { ArgusTable, type ColumnDef, type ColumnSizingState } from '@argus-table/react';
-import { STORAGE_KEY, tasks, type Task } from '../../data';
+import { tasks, type Task } from '../../data';
+
+// Each flavour on the page saves its own.
+const STORAGE_KEY = 'argus-docs:task-widths:react';
 
 const columns: ColumnDef<Task>[] = [
   { id: 'id', header: '#', accessor: 'id', width: 70, align: 'end', resizable: false },

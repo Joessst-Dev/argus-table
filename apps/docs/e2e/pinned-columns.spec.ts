@@ -18,6 +18,21 @@ for (const flavour of FLAVOURS) {
     });
     await expect.poll(async () => (await moving.boundingBox())?.x).not.toBe(movingBefore?.x);
     expect((await pinned.boundingBox())?.x).toBe(before?.x);
+
+    // The controls: start is the right side in RTL, and the select sets the token.
+    await example.getByRole('checkbox', { name: 'Right to left' }).check();
+    await expect
+      .poll(async () => {
+        const [name, month] = [await pinned.boundingBox(), await moving.boundingBox()];
+        return (name?.x ?? 0) > (month?.x ?? 0);
+      })
+      .toBe(true);
+    const shadow = () =>
+      table.evaluate((el) => getComputedStyle(el).getPropertyValue('--argus-pinned-shadow').trim());
+    await example.getByRole('combobox', { name: 'Edge shadow' }).selectOption('None');
+    await expect.poll(shadow).toBe('none');
+    await example.getByRole('combobox', { name: 'Edge shadow' }).selectOption('Strong');
+    await expect.poll(shadow).toContain('rgb');
     await expectAccessible(page, example);
   });
 }

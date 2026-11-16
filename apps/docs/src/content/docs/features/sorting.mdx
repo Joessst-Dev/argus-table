@@ -24,7 +24,7 @@ A sorted header shows the direction with a chevron and in `aria-sort`; its cells
 
 ## Refusing a sort
 
-Because the table only proposes a new order, your code can refuse one: apply the proposal or not. Here, every order is applied except Customer descending. Bind `sorting` one way for this (not `v-model:sorting` or `[(sorting)]`, which apply every proposal).
+Because the table only proposes a new order, your code can refuse one: apply the proposal or not. Here, every order is applied except Customer descending, so once Customer is ascending, clicking it again changes nothing: each click proposes descending again. Sort by another column to move on. Bind `sorting` one way for this (not `v-model:sorting` or `[(sorting)]`, which apply every proposal).
 
 <FlavourTabs example="sorting/controlled">
   <ReactControlled slot="react" client:visible />

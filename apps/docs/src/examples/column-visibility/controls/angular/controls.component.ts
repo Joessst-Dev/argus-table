@@ -49,7 +49,15 @@ export class ControlsComponent {
   protected readonly tasks = tasks;
   protected readonly choices: PinChoice[] = ['none', 'start', 'end'];
   protected readonly columns: ColumnDef<Task>[] = [
-    { id: 'id', header: '#', accessor: 'id', width: 70, align: 'end', pin: 'start', hideable: false },
+    {
+      id: 'id',
+      header: '#',
+      accessor: 'id',
+      width: 70,
+      align: 'end',
+      pin: 'start',
+      hideable: false,
+    },
     { id: 'title', header: 'Title', accessor: 'title', width: 180 },
     { id: 'owner', header: 'Owner', accessor: 'owner', width: 110 },
     { id: 'estimate', header: 'Estimate (h)', accessor: 'estimate', width: 120, align: 'end' },

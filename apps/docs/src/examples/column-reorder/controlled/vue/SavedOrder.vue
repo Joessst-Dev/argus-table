@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue';
 import { ArgusTable, type ColumnDef, type ColumnOrderState } from '@argus-table/vue';
-import { STORAGE_KEY, tasks, type Task } from '../../data';
+import { tasks, type Task } from '../../data';
+
+// Each flavour on the page saves its own.
+const STORAGE_KEY = 'argus-docs:task-order:vue';
 
 const columns: ColumnDef<Task>[] = [
   { id: 'id', header: '#', accessor: 'id', width: 70, align: 'end', reorderable: false },

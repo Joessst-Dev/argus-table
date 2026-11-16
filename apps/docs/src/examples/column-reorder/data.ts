@@ -1,5 +1,4 @@
-// Shared by the column-reorder examples' four flavours: the rows, and the key
-// the saved order goes under.
+// Shared by the column-reorder examples' four flavours: the rows.
 export interface Task {
   id: number;
   title: string;
@@ -18,5 +17,3 @@ export const tasks: Task[] = Array.from({ length: 200 }, (_, i) => ({
   status: statuses[i % statuses.length] ?? '',
   estimate: (i * 7) % 40,
 }));
-
-export const STORAGE_KEY = 'argus-docs:task-order';

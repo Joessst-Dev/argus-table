@@ -12,7 +12,7 @@ import ReactDeclarative from '../../../examples/column-visibility/declarative/re
 import VueDeclarative from '../../../examples/column-visibility/declarative/vue/Declarative.vue';
 import { DeclarativeComponent } from '../../../examples/column-visibility/declarative/angular/declarative.component.ts';
 
-`columnPinning` pins and unpins columns over their own `pin`, and `columnVisibility` hides and shows them over their own `hidden` (Status starts hidden here). Both are plain records by column id, so they save as JSON: `false` unpins or hides, and a column not listed keeps its definition. A hidden column still sorts and keeps its place in the order. `hideable: false` keeps a column from being hidden (#), and `pinnable: false` from being pinned; the last shown column can't be hidden either.
+`columnPinning` pins and unpins columns over their own `pin`, and `columnVisibility` hides and shows them over their own `hidden` (Status starts hidden here). Both are plain records by column id, so they save as JSON: `false` unpins or hides, and a column not listed keeps its definition. A hidden column still sorts and keeps its place in the order. `hideable: false` keeps users from hiding a column through plugins such as the column menu, and `pinnable: false` from pinning it; nor can they hide the last shown column. These flags don't limit your own code: the records apply whatever they say, so controls like these respect the flags themselves (# can't be unticked here).
 
 <FlavourTabs example="column-visibility/controls">
   <ReactControls slot="react" client:visible />

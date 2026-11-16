@@ -1,5 +1,4 @@
-// Shared by the resizing examples' four flavours: the rows, and the key the
-// controlled example saves its widths under.
+// Shared by the resizing examples' four flavours: the rows.
 export interface Task {
   id: number;
   title: string;
@@ -15,5 +14,3 @@ export const tasks: Task[] = Array.from({ length: 200 }, (_, i) => ({
   owner: owners[i % owners.length] ?? '',
   estimate: (i * 7) % 40,
 }));
-
-export const STORAGE_KEY = 'argus-docs:task-widths';

@@ -11,6 +11,15 @@ for (const flavour of FLAVOURS) {
       .toEqual(['Order', 'Customer', 'City', 'Status', 'Total', 'Actions']);
     await expect(table.getByRole('button', { name: 'Open' }).first()).toBeVisible();
     await expect(table.locator('strong').first()).toBeVisible();
+    // The flag attributes arrive: Actions isn't resizable, Customer sorts, Order is pinned.
+    await expect(table.locator('[part~="resize-handle"]')).toHaveCount(5);
+    await expect(table.locator('[role="columnheader"][data-col="id"]')).toHaveAttribute(
+      'part',
+      /\bheader-cell-pinned\b/,
+    );
+    const customer = table.locator('[role="columnheader"][data-col="customer"]');
+    await customer.click();
+    await expect(customer).toHaveAttribute('aria-sort', 'ascending');
     await expectAccessible(page, example);
   });
 }
