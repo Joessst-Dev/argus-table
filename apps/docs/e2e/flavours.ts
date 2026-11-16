@@ -29,6 +29,7 @@ export async function openFlavour(page: Page, example: string, flavour: Flavour)
   await expect(async () => {
     await table.scrollIntoViewIfNeeded({ timeout: 1000 });
   }).toPass();
+  // Its first body row: a skeleton for a data source still loading.
   await table.locator('[role="row"][aria-rowindex="2"]').waitFor();
   return container;
 }
