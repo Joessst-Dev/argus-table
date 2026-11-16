@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { h, ref } from 'vue';
+import { h, shallowRef } from 'vue';
 import { applyEdit, cellEditing, type CellEditDetail } from '@argus-table/editing';
 import { ArgusTable, type VueColumnDef } from '@argus-table/vue';
 import { priorities, tasks, type Task } from '../../data';
@@ -60,7 +60,7 @@ const columns: VueColumnDef<Task>[] = [
 const rowId = (task: Task) => task.id;
 const plugins = [cellEditing<Task>()];
 
-const data = ref(tasks);
+const data = shallowRef(tasks);
 const onCellEdit = (event: CustomEvent<CellEditDetail<Task>>) => {
   data.value = applyEdit(data.value, event.detail, columns);
 };

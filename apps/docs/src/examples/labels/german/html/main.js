@@ -1,5 +1,5 @@
 import 'argus-table';
-import { cellEditing } from '@argus-table/editing';
+import { applyEdit, cellEditing } from '@argus-table/editing';
 import { tableExport } from '@argus-table/export';
 import { formulas } from '@argus-table/formulas';
 import { headerMenu } from '@argus-table/header-menu';
@@ -61,3 +61,13 @@ table.columns = columns;
 table.data = orders;
 table.labels = tableLabels;
 table.plugins = plugins;
+
+// The add-ons propose; this code applies: edits to data, formula columns to columns.
+table.addEventListener('argus-cell-edit', (event) => {
+  table.data = applyEdit(table.data, event.detail, table.columns);
+});
+for (const type of ['argus-formula-column-add', 'argus-formula-column-change', 'argus-formula-column-remove']) {
+  table.addEventListener(type, (event) => {
+    table.columns = /** @type {CustomEvent<{ columns: import('argus-table').ColumnDef<Order>[] }>} */ (event).detail.columns;
+  });
+}

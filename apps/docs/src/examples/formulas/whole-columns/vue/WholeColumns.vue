@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from 'vue';
 import { formulas } from '@argus-table/formulas';
 import { headerMenu } from '@argus-table/header-menu';
 import { ArgusTable, type ColumnDef, type SortState } from '@argus-table/vue';
@@ -39,7 +40,8 @@ const columns: ColumnDef<Item>[] = [
 ];
 const plugins = [formulas<Item>(), headerMenu<Item>()];
 const data = items;
-const sorting: SortState = [{ id: 'rank', desc: false }];
+// Starts sorted by rank; v-model applies each change.
+const sorting = ref<SortState>([{ id: 'rank', desc: false }]);
 </script>
 
 <template>
@@ -49,6 +51,6 @@ const sorting: SortState = [{ id: 'rank', desc: false }];
     :columns="columns"
     :data="data"
     :plugins="plugins"
-    :sorting="sorting"
+    v-model:sorting="sorting"
   />
 </template>

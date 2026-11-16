@@ -26,7 +26,7 @@ With `headerMenu()` next to it, every column menu offers the formats too. Excel 
 
 A column's `meta.export` sets how it is exported, next to its definition: `header`, `value` (the value to write, from the one the column reads) and `exclude`. The `columns` option of `tableExport()` or of a call wins field by field. A header that is content names the column through text mode, as in the [header menu](../header-menu/): here Status stays out of the files, Total is exported as whole euros under another header, and Customer keeps its name.
 
-<FlavourTabs example="export/column-meta">
+<FlavourTabs example="export/column-meta" since="1.2">
   <ReactMeta slot="react" client:visible />
   <VueMeta slot="vue" client:visible />
   <ColumnMetaComponent slot="angular" client:visible />

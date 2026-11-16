@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { shallowRef } from 'vue';
 import { applyEdit, cellEditing, type CellEditDetail } from '@argus-table/editing';
 import { ArgusTable, type ColumnDef } from '@argus-table/vue';
 import { orders, validateTotal, type Order } from '../../data';
@@ -27,7 +27,7 @@ const columns: ColumnDef<Order>[] = [
 const rowId = (order: Order) => order.id;
 const plugins = [cellEditing<Order>()];
 
-const data = ref(orders);
+const data = shallowRef(orders);
 // The table never changes data: apply each committed edit.
 const onCellEdit = (event: CustomEvent<CellEditDetail<Order>>) => {
   data.value = applyEdit(data.value, event.detail, columns);

@@ -31,7 +31,7 @@ import { FormulaEditingComponent } from '../../../examples/formulas/editing/angu
 
 ## Whole columns
 
-`[[name]]` is a whole column: its values in every row the filters keep, while `[name]` is the row's own value. Share % divides by `SUM([[Total]])`, Orders of product counts with `COUNTIF`, Rank ranks with `RANK`, and Best seller looks up the product of the largest total with `INDEX` and `MATCH`. Filter Product from its column menu: every total follows. A filter on Share % itself hides rows but leaves its totals alone. List `formulas()` before `headerMenu()`, so the menu wraps the headers formulas name columns by.
+`[[name]]` is a whole column: its values in every row the filters keep, while `[name]` is the row's own value. Share % divides by `SUM([[Total]])`, Orders of product counts with `COUNTIF`, Rank ranks with `RANK`, and Best seller looks up the product of the largest total with `INDEX` and `MATCH`. Filter Product from its column menu: every total follows. A filter on Share % itself hides rows but leaves its totals alone. List `formulas()` before `headerMenu()`, so the menu button sits after the `ƒx` mark.
 
 <FlavourTabs example="formulas/whole-columns" since="0.4">
   <ReactWhole slot="react" client:visible />

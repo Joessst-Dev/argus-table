@@ -1,8 +1,9 @@
-import { cellEditing } from '@argus-table/editing';
+import { useState } from 'react';
+import { applyEdit, cellEditing } from '@argus-table/editing';
 import { tableExport } from '@argus-table/export';
 import { formulas } from '@argus-table/formulas';
 import { headerMenu } from '@argus-table/header-menu';
-import { ArgusTable, type ColumnDef } from '@argus-table/react';
+import { ArgusTable, type FormulaColumnDetail, type ReactColumnDef } from '@argus-table/react';
 import {
   editingLabels,
   exportLabels,
@@ -13,7 +14,7 @@ import {
   type Order,
 } from '../../data';
 
-const columns: ColumnDef<Order>[] = [
+const initialColumns: readonly ReactColumnDef<Order>[] = [
   { id: 'id', header: 'Bestellung', accessor: 'id', width: 120, pin: 'start' },
   {
     id: 'customer',
@@ -51,6 +52,12 @@ const plugins = [
 ];
 
 export default function German() {
+  const [data, setData] = useState(orders);
+  const [columns, setColumns] = useState(initialColumns);
+  // The add-ons propose; this code applies: edits to data, formula columns to columns.
+  const applyColumns = (e: CustomEvent<FormulaColumnDetail<Order>>) => {
+    setColumns(e.detail.columns);
+  };
   return (
     <ArgusTable
       lang="de"
@@ -59,9 +66,15 @@ export default function German() {
       selectionMode="multi"
       selectionCheckboxes
       columns={columns}
-      data={orders}
+      data={data}
       labels={tableLabels}
       plugins={plugins}
+      onCellEdit={(e) => {
+        setData((rows) => applyEdit(rows, e.detail, columns));
+      }}
+      onFormulaColumnAdd={applyColumns}
+      onFormulaColumnChange={applyColumns}
+      onFormulaColumnRemove={applyColumns}
     />
   );
 }

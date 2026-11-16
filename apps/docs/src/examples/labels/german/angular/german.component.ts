@@ -1,9 +1,13 @@
-import { Component } from '@angular/core';
-import { cellEditing } from '@argus-table/editing';
+import { Component, signal } from '@angular/core';
+import { applyEdit, cellEditing, type CellEditDetail } from '@argus-table/editing';
 import { tableExport } from '@argus-table/export';
 import { formulas } from '@argus-table/formulas';
 import { headerMenu } from '@argus-table/header-menu';
-import { ArgusTableComponent, type ColumnDef } from '@argus-table/angular';
+import {
+  ArgusTableComponent,
+  type AngularColumnDef,
+  type FormulaColumnDetail,
+} from '@argus-table/angular';
 import {
   editingLabels,
   exportLabels,
@@ -24,17 +28,21 @@ import {
       style="display: block; block-size: 320px"
       selectionMode="multi"
       selectionCheckboxes
-      [columns]="columns"
-      [data]="orders"
+      [columns]="columns()"
+      [data]="data()"
       [labels]="labels"
       [plugins]="plugins"
+      (cellEdit)="onCellEdit($event)"
+      (formulaColumnAdd)="applyColumns($event)"
+      (formulaColumnChange)="applyColumns($event)"
+      (formulaColumnRemove)="applyColumns($event)"
     />
   `,
 })
 export class GermanComponent {
-  protected readonly orders = orders;
+  protected readonly data = signal(orders);
   protected readonly labels = tableLabels;
-  protected readonly columns: ColumnDef<Order>[] = [
+  protected readonly columns = signal<readonly AngularColumnDef<Order>[]>([
     { id: 'id', header: 'Bestellung', accessor: 'id', width: 120, pin: 'start' },
     {
       id: 'customer',
@@ -62,7 +70,7 @@ export class GermanComponent {
       width: 110,
       sortable: true,
     },
-  ];
+  ]);
   // Each add-on takes its own labels; keys left out stay English.
   protected readonly plugins = [
     tableExport<Order>({ labels: exportLabels }),
@@ -70,4 +78,13 @@ export class GermanComponent {
     headerMenu<Order>({ labels: menuLabels }),
     cellEditing<Order>({ labels: editingLabels }),
   ];
+
+  // The add-ons propose; this code applies: edits to data, formula columns to columns.
+  protected onCellEdit(event: CustomEvent<CellEditDetail<Order>>): void {
+    this.data.update((rows) => applyEdit(rows, event.detail, this.columns()));
+  }
+
+  protected applyColumns(event: CustomEvent<FormulaColumnDetail<Order>>): void {
+    this.columns.set(event.detail.columns);
+  }
 }

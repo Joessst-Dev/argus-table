@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { shallowRef } from 'vue';
 import { formulas } from '@argus-table/formulas';
 import { headerMenu } from '@argus-table/header-menu';
 import { ArgusTable, type FormulaColumnDetail, type VueColumnDef } from '@argus-table/vue';
 import { dataColumns, items, type Item } from '../../data';
 
-const columns = ref<readonly VueColumnDef<Item>[]>([
+const columns = shallowRef<readonly VueColumnDef<Item>[]>([
   ...dataColumns,
   // Columns by header or id, in brackets; a formula can read another (Gross reads Total).
   {

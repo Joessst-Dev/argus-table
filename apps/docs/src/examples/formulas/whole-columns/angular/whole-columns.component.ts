@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { formulas } from '@argus-table/formulas';
 import { headerMenu } from '@argus-table/header-menu';
 import { ArgusTableComponent, type ColumnDef, type SortState } from '@argus-table/angular';
@@ -14,7 +14,7 @@ import { dataColumns, items, type Item } from '../../data';
       [columns]="columns"
       [data]="data"
       [plugins]="plugins"
-      [sorting]="sorting"
+      [(sorting)]="sorting"
     />
   `,
 })
@@ -54,5 +54,6 @@ export class WholeColumnsComponent {
   ];
   protected readonly plugins = [formulas<Item>(), headerMenu<Item>()];
   protected readonly data = items;
-  protected readonly sorting: SortState = [{ id: 'rank', desc: false }];
+  // Starts sorted by rank; the two-way binding applies each change.
+  protected readonly sorting = signal<SortState>([{ id: 'rank', desc: false }]);
 }

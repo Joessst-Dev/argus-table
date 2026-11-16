@@ -49,4 +49,8 @@ const plugins = [formulas(), headerMenu()];
 table.columns = columns;
 table.data = items;
 table.plugins = plugins;
+// Starts sorted by rank. Setting sorting makes it controlled: apply each change.
 table.sorting = [{ id: 'rank', desc: false }];
+table.addEventListener('argus-sorting-change', (event) => {
+  table.sorting = event.detail.sorting;
+});

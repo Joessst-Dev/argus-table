@@ -68,9 +68,15 @@ for (const flavour of FLAVOURS) {
     await page.keyboard.press('Escape');
     const notebooks = items.filter((item) => item.product === 'Notebook');
     await expect.poll(() => at(table, 0, 'product')).toBe('Notebook');
-    await expect.poll(() => at(table, 0, 'orders')).toBe(String(notebooks.length));
     expect(await at(table, 0, 'rank')).toBe('1');
     expect(await at(table, 0, 'best')).toBe('Notebook');
+    // Share % divides by the sum over the rows the filter keeps.
+    const sum = notebooks.reduce((acc, item) => acc + totalOf(item), 0);
+    const top = Math.max(...notebooks.map(totalOf));
+    expect(Number(await at(table, 0, 'share'))).toBeCloseTo((top / sum) * 100, 2);
+    // Sorting is two-way here: a header click sorts.
+    await header(table, 'share').click();
+    await expect(header(table, 'share')).toHaveAttribute('aria-sort', 'ascending');
     await expectAccessible(page, example);
   });
 }

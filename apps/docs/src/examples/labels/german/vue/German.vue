@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { cellEditing } from '@argus-table/editing';
+import { shallowRef } from 'vue';
+import { applyEdit, cellEditing, type CellEditDetail } from '@argus-table/editing';
 import { tableExport } from '@argus-table/export';
 import { formulas } from '@argus-table/formulas';
 import { headerMenu } from '@argus-table/header-menu';
-import { ArgusTable, type ColumnDef } from '@argus-table/vue';
+import { ArgusTable, type FormulaColumnDetail, type VueColumnDef } from '@argus-table/vue';
 import {
   editingLabels,
   exportLabels,
@@ -14,7 +15,7 @@ import {
   type Order,
 } from '../../data';
 
-const columns: ColumnDef<Order>[] = [
+const columns = shallowRef<readonly VueColumnDef<Order>[]>([
   { id: 'id', header: 'Bestellung', accessor: 'id', width: 120, pin: 'start' },
   {
     id: 'customer',
@@ -42,7 +43,8 @@ const columns: ColumnDef<Order>[] = [
     width: 110,
     sortable: true,
   },
-];
+]);
+
 // Each add-on takes its own labels; keys left out stay English.
 const plugins = [
   tableExport<Order>({ labels: exportLabels }),
@@ -50,6 +52,15 @@ const plugins = [
   headerMenu<Order>({ labels: menuLabels }),
   cellEditing<Order>({ labels: editingLabels }),
 ];
+
+// The add-ons propose; this code applies: edits to data, formula columns to columns.
+const data = shallowRef(orders);
+const onCellEdit = (event: CustomEvent<CellEditDetail<Order>>) => {
+  data.value = applyEdit(data.value, event.detail, columns.value);
+};
+const applyColumns = (event: CustomEvent<FormulaColumnDetail<Order>>) => {
+  columns.value = event.detail.columns;
+};
 </script>
 
 <template>
@@ -60,8 +71,12 @@ const plugins = [
     selection-mode="multi"
     selection-checkboxes
     :columns="columns"
-    :data="orders"
+    :data="data"
     :labels="tableLabels"
     :plugins="plugins"
+    @cell-edit="onCellEdit"
+    @formula-column-add="applyColumns"
+    @formula-column-change="applyColumns"
+    @formula-column-remove="applyColumns"
   />
 </template>

@@ -9,7 +9,7 @@ import ReactGerman from '../../../examples/labels/german/react/German.tsx';
 import VueGerman from '../../../examples/labels/german/vue/German.vue';
 import { GermanComponent } from '../../../examples/labels/german/angular/german.component.ts';
 
-The table has little text of its own (labels for screen readers, "No rows", a Retry button, announcements), and the add-ons add their menus, forms and messages. `labels` on the table, and a `labels` option on `headerMenu()`, `formulas()`, `tableExport()` and `cellEditing()`, put all of it in another language. Text with values in it is a function of one object, so it can use `Intl.PluralRules` and `Intl.NumberFormat`. Keys left out stay English. This example sets them all, in German, to copy from; the label objects are in `data.ts`. The column headers are your own, and function names and error codes (`#VALUE!`) in formulas stay as they are.
+The table has little text of its own (labels for screen readers, "No rows", a Retry button, announcements), and the add-ons add their menus, forms and messages. `labels` on the table, and a `labels` option on `headerMenu()`, `formulas()`, `tableExport()` and `cellEditing()`, put all of it in another language. Text with values in it is a function of one object, so it can use `Intl.PluralRules` and `Intl.NumberFormat`. Keys left out stay English. This example sets them all, in German, to copy from; the label objects are in `data.ts`. The column headers are your own. In formulas, function names, error codes such as `#VALUE!`, error messages and the function descriptions stay English.
 
 <FlavourTabs example="labels/german">
   <ReactGerman slot="react" client:visible />

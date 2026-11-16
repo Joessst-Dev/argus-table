@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { bodyCell, expectAccessible, FLAVOURS, openFlavour } from './flavours';
+import { bodyCell, cellText, expectAccessible, FLAVOURS, openFlavour } from './flavours';
 
 for (const flavour of FLAVOURS) {
   test(`${flavour}: the table and its add-ons speak German`, async ({ page }) => {
@@ -23,7 +23,10 @@ for (const flavour of FLAVOURS) {
       'aria-label',
       'Kunde, Zeile 1',
     );
-    await page.keyboard.press('Escape');
+    // The example applies edits: the new value stays.
+    await table.locator('.argus-edit-input').fill('Ada Lovelace');
+    await page.keyboard.press('Enter');
+    await expect.poll(() => cellText(table, 2, 'customer')).toBe('Ada Lovelace');
 
     // The column menu, with the export and formula items. Room below the header first:
     // the menu is long.

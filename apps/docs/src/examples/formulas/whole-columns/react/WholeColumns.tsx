@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { formulas } from '@argus-table/formulas';
 import { headerMenu } from '@argus-table/header-menu';
 import { ArgusTable, type ColumnDef, type SortState } from '@argus-table/react';
@@ -38,9 +39,10 @@ const columns: ColumnDef<Item>[] = [
 ];
 const plugins = [formulas<Item>(), headerMenu<Item>()];
 const data = items;
-const sorting: SortState = [{ id: 'rank', desc: false }];
 
 export default function WholeColumns() {
+  // Starts sorted by rank; the table proposes each change, applied here.
+  const [sorting, setSorting] = useState<SortState>([{ id: 'rank', desc: false }]);
   return (
     <ArgusTable
       aria-label="Order items"
@@ -49,6 +51,9 @@ export default function WholeColumns() {
       data={data}
       plugins={plugins}
       sorting={sorting}
+      onSortingChange={(e) => {
+        setSorting(e.detail.sorting);
+      }}
     />
   );
 }

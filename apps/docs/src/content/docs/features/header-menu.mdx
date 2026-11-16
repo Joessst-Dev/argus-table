@@ -5,6 +5,7 @@ since: '0.3'
 ---
 
 import FlavourTabs from '../../../components/FlavourTabs.astro';
+import Since from '../../../components/Since.astro';
 import ReactMenu from '../../../examples/header-menu/basic/react/HeaderMenu.tsx';
 import VueMenu from '../../../examples/header-menu/basic/vue/HeaderMenu.vue';
 import { HeaderMenuComponent } from '../../../examples/header-menu/basic/angular/header-menu.component.ts';
@@ -20,7 +21,7 @@ import { FilterMenuComponent } from '../../../examples/header-menu/filter/angula
 
 `@argus-table/header-menu` is a plugin: `plugins: [headerMenu()]`. Each column gets a button in its header, which opens a menu to sort the column, clear its sort, pin it, fit its width to its content, or hide it; every menu lists the hidden columns, to show them again. A right-click on a header opens it too, and so do Alt+ArrowDown, the context menu key and Shift+F10 on a focused header. Arrow keys, Home and End move through it, Enter or Space runs an item, and Escape or Tab closes it; focus goes back to the header.
 
-Create the plugin once: a new instance reconnects and closes an open menu. `headerMenu({ sort: false, fitWidth: false, pin: false, hide: false, filter: false })` turns items off, and `pinnable: false` or `hideable: false` leave a column out.
+Create the plugin once: a new instance reconnects and closes an open menu. `headerMenu({ pin: false, hide: false, filter: false })` turns items off (and `sort` and `fitWidth` <Since since="1.1" />), and `pinnable: false` or `hideable: false` leave a column out.
 
 <FlavourTabs example="header-menu/basic">
   <ReactMenu slot="react" client:visible />

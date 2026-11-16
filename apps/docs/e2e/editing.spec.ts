@@ -32,6 +32,15 @@ for (const flavour of FLAVOURS) {
     await page.keyboard.press('Escape');
     await expect(table.locator('.argus-edit-input')).toHaveCount(0);
     await expect.poll(() => cellText(table, 2, 'total')).toBe(before);
+    // A valid value commits.
+    await bodyCell(table, 0, 'total').focus();
+    await page.keyboard.type('5');
+    await page.keyboard.press('Enter');
+    await expect.poll(() => cellText(table, 2, 'total')).toBe('5');
+    // The third order is shipped: its total can't be edited.
+    await bodyCell(table, 2, 'total').focus();
+    await page.keyboard.press('Enter');
+    await expect(table.locator('.argus-edit-input')).toHaveCount(0);
     await expectAccessible(page, example);
   });
 }
@@ -41,8 +50,8 @@ for (const flavour of FLAVOURS) {
     await page.goto('features/editing/');
     const example = await openFlavour(page, 'editing/more-editors', flavour);
     const table = example.locator('argus-table');
-    // Task 2 isn't done; its checkbox toggles without an editing mode.
-    const box = table.locator('.argus-edit-check').nth(1);
+    // Task 2 isn't done; its checkbox (named by column and row) toggles without an editing mode.
+    const box = table.getByRole('checkbox', { name: 'Done, row 2', exact: true });
     await expect(box).not.toBeChecked();
     await box.click();
     await expect(box).toBeChecked();
