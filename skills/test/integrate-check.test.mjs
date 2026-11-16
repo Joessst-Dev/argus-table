@@ -106,22 +106,22 @@ describe('check.mjs', () => {
   it('passes the references’ full examples', async () => {
     const deps = {
       argus: {
-        'argus-table': '^1.2.0',
-        '@argus-table/themes': '^1.2.0',
-        '@argus-table/header-menu': '^1.2.0',
+        'argus-table': '^1.3.0',
+        '@argus-table/themes': '^1.3.0',
+        '@argus-table/header-menu': '^1.3.0',
       },
     };
     const examples = {
       react: {
-        deps: { react: '^19.1.0', 'react-dom': '^19.1.0', '@argus-table/react': '^1.2.0' },
+        deps: { react: '^19.1.0', 'react-dom': '^19.1.0', '@argus-table/react': '^1.3.0' },
         theme: ['src/main.tsx', "import '@argus-table/themes/default.css';\n"],
       },
       vue: {
-        deps: { vue: '^3.5.0', '@argus-table/vue': '^1.2.0' },
+        deps: { vue: '^3.5.0', '@argus-table/vue': '^1.3.0' },
         theme: ['src/main.ts', "import '@argus-table/themes/default.css';\n"],
       },
       angular: {
-        deps: { '@angular/core': '^20.1.0', '@argus-table/angular': '^1.2.0' },
+        deps: { '@angular/core': '^20.1.0', '@argus-table/angular': '^1.3.0' },
         theme: ['src/styles.css', "@import '@argus-table/themes/default.css';\n"],
       },
       vanilla: { deps: {}, theme: null },
@@ -198,7 +198,7 @@ describe('check.mjs', () => {
           dependencies: Object.fromEntries(
             ['argus-table', 'themes', 'formulas', 'header-menu', 'export'].map((p) => [
               p === 'argus-table' ? p : `@argus-table/${p}`,
-              '^1.2.0',
+              '^1.3.0',
             ]),
           ),
         },
@@ -231,8 +231,8 @@ describe('check.mjs', () => {
       'package.json': {
         dependencies: {
           react: '^19.1.0',
-          '@argus-table/react': '^1.2.0',
-          '@argus-table/themes': '^1.2.0',
+          '@argus-table/react': '^1.3.0',
+          '@argus-table/themes': '^1.3.0',
         },
       },
       'src/main.tsx': "import '@argus-table/themes/default.css';\n",
@@ -270,8 +270,8 @@ describe('check.mjs', () => {
       'package.json': {
         dependencies: {
           '@angular/core': '^20.1.0',
-          '@argus-table/angular': '^1.2.0',
-          '@argus-table/themes': '^1.2.0',
+          '@argus-table/angular': '^1.3.0',
+          '@argus-table/themes': '^1.3.0',
         },
       },
       'src/styles.css': "@import '@argus-table/themes/default.css';\n",
@@ -300,7 +300,7 @@ describe('check.mjs', () => {
 
     const vanilla = project(undefined, {
       'package.json': {
-        dependencies: { 'argus-table': '^1.2.0', '@argus-table/themes': '^1.2.0' },
+        dependencies: { 'argus-table': '^1.3.0', '@argus-table/themes': '^1.3.0' },
       },
       'index.html':
         '<h2 id="title">Orders</h2>\n<argus-table id="t" aria-labelledby="heading"></argus-table>\n',
@@ -328,9 +328,9 @@ describe('check.mjs', () => {
       'package.json': {
         dependencies: {
           '@angular/core': '^20.1.0',
-          '@argus-table/angular': '^1.2.0',
-          '@argus-table/header-menu': '^1.2.0',
-          '@argus-table/themes': '^1.2.0',
+          '@argus-table/angular': '^1.3.0',
+          '@argus-table/header-menu': '^1.3.0',
+          '@argus-table/themes': '^1.3.0',
         },
       },
       'src/styles.css': "@import '@argus-table/themes/default.css';\n",
@@ -372,7 +372,7 @@ describe('check.mjs', () => {
     writeFileSync(scanFile, JSON.stringify(scan));
     // Half-way through: argus-table is installed and used next to the old grid.
     const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
-    pkg.dependencies['@argus-table/react'] = '^1.2.0';
+    pkg.dependencies['@argus-table/react'] = '^1.3.0';
     writeFileSync(join(dir, 'package.json'), JSON.stringify(pkg));
     writeFileSync(
       join(dir, 'app/orders/new-grid.tsx'),

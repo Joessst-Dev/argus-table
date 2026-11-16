@@ -50,7 +50,7 @@ All bubble and are composed `CustomEvent`s. The wrappers' names: React `on<Name>
 | `argus-range-change`             | `onRangeChange`            | `range-change`             | `rangeChange`            | `{ first, last }`: the rows in view, inclusive                         |
 | `argus-load-error`               | `onLoadError`              | `load-error`               | `loadError`              | `{ error, start, end }`: a `dataSource` page failed                    |
 
-`formulas()` adds `argus-formula-column-add`, `-change` and `-remove` (`onFormulaColumnAdd`, `@formula-column-add`, `(formulaColumnAdd)`), see [addons.md](addons.md). From 1.3, `cellEditing()` (`@argus-table/editing`) adds `argus-cell-edit` (`onCellEdit`, `@cell-edit`, `(cellEdit)`).
+`formulas()` adds `argus-formula-column-add`, `-change` and `-remove` (`onFormulaColumnAdd`, `@formula-column-add`, `(formulaColumnAdd)`), see [addons.md](addons.md). `cellEditing()` (`@argus-table/editing`) adds `argus-cell-edit` (`onCellEdit`, `@cell-edit`, `(cellEdit)`).
 
 ## Methods
 

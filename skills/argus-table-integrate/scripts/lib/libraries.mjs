@@ -189,7 +189,10 @@ export const LIBRARIES = [
         'builtin',
       ),
       f('footer', /\bfooter\s*:|\bgetFooterGroups\b/, 'partial', { props: ['pinnedRows'] }),
-      f('editing', /\bmeta\??\.updateData\b|\bupdateData\s*[:(]/, 'gap', {}, { gap: 'editing' }),
+      f('editing', /\bmeta\??\.updateData\b|\bupdateData\s*[:(]/, 'partial', {
+        addons: ['@argus-table/editing'],
+        events: ['argus-cell-edit'],
+      }),
       f('cell-selection', /\bcellSelectionFeature\b/, 'gap', {}, { gap: 'range-selection' }),
       f('cell-spanning', /\bcellSpanningFeature\b/, 'gap', {}, { gap: 'cell-spanning' }),
       f('flex-render', /\bflexRender\b|\bFlexRender\b/, 'maps', { column: ['cell', 'header'] }),
@@ -305,9 +308,8 @@ export const LIBRARIES = [
       f(
         'editing',
         /\beditable\s*:|\bcellEditor\b|\bonCellValueChanged\b|\bsingleClickEdit\b|\bstopEditing\b/,
-        'gap',
-        {},
-        { gap: 'editing' },
+        'partial',
+        { addons: ['@argus-table/editing'], events: ['argus-cell-edit'] },
       ),
       f(
         'row-grouping',
@@ -506,9 +508,8 @@ export const LIBRARIES = [
       f(
         'editing',
         /\beditMode\b|\bprocessRowUpdate\b|\beditable\s*:\s*true|\bonCellEditStop\b/,
-        'gap',
-        {},
-        { gap: 'editing' },
+        'partial',
+        { addons: ['@argus-table/editing'], events: ['argus-cell-edit'] },
       ),
       f(
         'grouping-tree',
@@ -629,13 +630,10 @@ export const LIBRARIES = [
       }),
       f('virtual', /\bvirtualScroll\b|\bvirtualScrollerOptions\b/, 'builtin'),
       f('scroll-height', /\bscrollHeight\b/, 'maps'),
-      f(
-        'edit',
-        /\bpEditableColumn\b|\beditMode\b|\bpInitEditableRow\b/,
-        'gap',
-        {},
-        { gap: 'editing' },
-      ),
+      f('edit', /\bpEditableColumn\b|\beditMode\b|\bpInitEditableRow\b/, 'partial', {
+        addons: ['@argus-table/editing'],
+        events: ['argus-cell-edit'],
+      }),
       f('row-group', /\browGroupMode\b|\bgroupRowsBy\b/, 'gap', {}, { gap: 'row-grouping' }),
       f(
         'expansion',
@@ -739,13 +737,10 @@ export const LIBRARIES = [
         props: ['columnGroups'],
       }),
       f('tree-data', /\bchildrenColumnName\b|\bindentSize\b/, 'gap', {}, { gap: 'tree-data' }),
-      f(
-        'editable',
-        /\bEditableCell\b|\bcomponents\s*=\s*\{\{\s*body/,
-        'gap',
-        {},
-        { gap: 'editing' },
-      ),
+      f('editable', /\bEditableCell\b|\bcomponents\s*=\s*\{\{\s*body/, 'partial', {
+        addons: ['@argus-table/editing'],
+        events: ['argus-cell-edit'],
+      }),
       f('locale', /<Table\b[^>]*\blocale\s*=/, 'maps', { props: ['labels'] }),
       f('row-click', /\bonRow\s*=/, 'maps', { events: ['argus-row-click'] }),
     ],
@@ -824,9 +819,8 @@ export const LIBRARIES = [
       f(
         'editing',
         /<td\b[^>]*\bcontenteditable\b|<td\b[^>]*>\s*<(?:input|select|textarea)\b(?![^>]*type\s*=\s*['"]checkbox)/,
-        'gap',
-        {},
-        { gap: 'editing' },
+        'partial',
+        { addons: ['@argus-table/editing'], events: ['argus-cell-edit'] },
       ),
       f('row-click', /<tr\b[^>]*(?:onClick|@click|\(click\)|on:click|onclick)\s*=/, 'maps', {
         events: ['argus-row-click'],
@@ -838,7 +832,6 @@ export const LIBRARIES = [
 /** Gap sections in references/gaps.md. */
 export const GAPS = [
   'pagination',
-  'editing',
   'row-grouping',
   'tree-data',
   'master-detail',
@@ -852,13 +845,7 @@ export const GAPS = [
 ];
 
 /** Gaps that usually decide whether a screen can move (shown first, and make the effort `high`). */
-export const HARD_GAPS = [
-  'editing',
-  'row-grouping',
-  'tree-data',
-  'master-detail',
-  'range-selection',
-];
+export const HARD_GAPS = ['row-grouping', 'tree-data', 'master-detail', 'range-selection'];
 
 /** A feature's argus-table equivalent as one line, for the scan's output. */
 export function describeArgus(argus) {

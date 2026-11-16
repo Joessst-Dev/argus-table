@@ -1,6 +1,6 @@
 # Gaps
 
-Features of other tables that argus-table doesn't have. For each: what to tell the user, and what you can offer. Name them before any edit (workflow B2). If a screen depends on one of the hard gaps (editing, row grouping, tree data, master/detail, range selection), recommend keeping the old table on that screen and migrating the others.
+Features of other tables that argus-table doesn't have. For each: what to tell the user, and what you can offer. Name them before any edit (workflow B2). If a screen depends on one of the hard gaps (row grouping, tree data, master/detail, range selection), recommend keeping the old table on that screen and migrating the others.
 
 ## pagination
 
@@ -9,14 +9,6 @@ argus-table scrolls instead of paging: it virtualizes rows, so 100k rows scroll 
 - **Client data:** pass all rows as `data` and drop the paginator. Users scroll; search and filters narrow the rows.
 - **Server data:** a `dataSource` loads pages as they scroll into view ([server-data.md](server-data.md)), with the same API.
 - **If the user needs page numbers** (a requirement, a "page 3 of 10" link): keep the paginator outside the table and pass one page as `data`. Virtualization doesn't matter for 25–100 rows; sorting and filtering then apply to that page only (or let the server do them, as before).
-
-## editing
-
-No cell editing: no editors, no edit mode, no cell validation.
-
-- Read-only screens move as they are.
-- **Workarounds:** a `cell` with a real input (`<input>`, a select, a checkbox) that writes to your data and replaces `data` (clicks on inputs don't select the row or start a drag; check the arrow keys in the input, since the grid uses them to move between cells); or a row action that opens an edit form or dialog. Both work well for a few editable columns. Spreadsheet-like editing (type to edit, Enter to commit, fill handle, undo) does not.
-- Keep the old grid on screens built around editing.
 
 ## row-grouping
 

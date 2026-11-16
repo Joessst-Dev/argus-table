@@ -18,7 +18,7 @@ Covers hand-written tables filled from data: a `<table>` with `v-for`, `*ngFor` 
 | `tfoot`        | `<tfoot>` with totals                            | `pinnedRows.bottom`                                 | partial | A totals row object                                                                                                                                                                                                                                                   |
 | `header-spans` | `colspan` in `<thead>`                           | `columnGroups`                                      | maps    |                                                                                                                                                                                                                                                                       |
 | `body-spans`   | `colspan` / `rowspan` in `<tbody>`               | none                                                | gap     | [gaps.md](../gaps.md#cell-spanning)                                                                                                                                                                                                                                   |
-| `editing`      | inputs or `contenteditable` in cells             | inputs in `cell` content                            | gap     | [gaps.md](../gaps.md#editing)                                                                                                                                                                                                                                         |
+| `editing`      | inputs or `contenteditable` in cells             | `meta.edit`, `cellEditing()`                        | partial | Inputs in cells become editors; inputs in `cell` content still work. `cellEditing()` with `meta.edit` per column; the app applies `argus-cell-edit` (`applyEdit()`). See [addons.md](../addons.md#cell-editing-argus-tableediting)                                    |
 | `row-click`    | click handlers on `<tr>`                         | `argus-row-click` / `onRowClick` / `@row-click`     | maps    | Also fires on Enter                                                                                                                                                                                                                                                   |
 
 ## Columns
@@ -75,7 +75,7 @@ table.data = orders;
 
 ## Gaps
 
-Pagination, body cell spans, inline editing. See [gaps.md](../gaps.md).
+Pagination, body cell spans. See [gaps.md](../gaps.md).
 
 ## Remove
 
