@@ -118,3 +118,8 @@ export function pinnedWidth<T>(
 ): number {
   return columns.reduce((sum, c) => (c.pin === side ? sum + c.width : sum), 0);
 }
+
+/** `1` for left-to-right, `-1` for right-to-left: logical arrow keys and offsets. */
+export function directionOf(element: Element): 1 | -1 {
+  return getComputedStyle(element).direction === 'rtl' ? -1 : 1;
+}

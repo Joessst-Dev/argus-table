@@ -38,6 +38,7 @@ import {
 } from './controllers/reorder-drag.js';
 import { startResizeDrag } from './controllers/resize-drag.js';
 import { TableController } from './controllers/table-controller.js';
+import { NavigationController } from './controllers/navigation.js';
 import { SelectionController } from './controllers/selection.js';
 import { StateEvents } from './controllers/state-events.js';
 import { VirtualController, type VirtualWindow } from './controllers/virtual-controller.js';
@@ -68,6 +69,7 @@ import type { ArgusPlugin, CellTarget, ColumnInfo, PluginHost, RowSection } from
 import { baseStyles } from './styles/base.js';
 import { rowHeightConverter, switchConverter } from './attributes.js';
 import {
+  directionOf,
   gridCell,
   gridRowOf,
   gridRowOfCell,
@@ -78,7 +80,6 @@ import {
   sortColumnOf,
   track,
   unitKey,
-  type Active,
 } from './grid.js';
 import type {
   CellContent,
@@ -616,7 +617,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     },
     focusHeader: (columnId) => {
       const model = this.#table.model;
-      this.#moveTo(layoutOf(model).leafHeader, columnId, model);
+      this.#nav.moveTo(layoutOf(model).leafHeader, columnId);
     },
     announce: (message) => {
       announce(this.ownerDocument, message);
@@ -675,8 +676,6 @@ export class ArgusTable<T = unknown> extends LitElement {
   #columns: readonly ColumnDef<T>[] = [];
   #columnsChanged = false;
   #warnedColumns = false;
-  /** The header row of column headers at the last reconcile (`#reconcileActive`). */
-  #leafLevel = 0;
   /** End of the light-DOM part holding cell content, so later children stay outside it. */
   #contentEnd: Comment | undefined;
   /** The light-DOM part: disconnected with the table, so foreign content is released. */
@@ -707,9 +706,18 @@ export class ArgusTable<T = unknown> extends LitElement {
     minimum: () => this.#rowPx,
   });
   #window: VirtualWindow = { rows: [], totalSize: 0, range: null };
-  #active: Active | undefined;
-  /** Move focus to the active cell after the next update (keyboard navigation). */
-  #focusPending = false;
+  /** The active cell, its focus and the keys that move it. */
+  readonly #nav = new NavigationController<T>(
+    this,
+    () => this.#table.model,
+    this.#virtual,
+    this.#select,
+    {
+      rowPx: () => this.#rowPx,
+      aroundPx: (layout) => this.#headerAndPinnedPx(layout),
+      insets: (layout) => this.#bodyInsets(layout),
+    },
+  );
   #lastRange = '';
   #unwatchMaxHeight: (() => void) | undefined;
 
@@ -934,7 +942,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     const header = `[role='row'][aria-rowindex="${String(layout.header)}"]`;
     const cell = this.renderRoot.querySelector(`${header} > [data-col="${CSS.escape(id)}"]`);
     if (!scroller || !cell) return;
-    const direction = this.#direction();
+    const direction = directionOf(this);
     const ltr = direction === 1;
     const box = scroller.getBoundingClientRect();
     const rect = cell.getBoundingClientRect();
@@ -1021,7 +1029,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     }
     const scroller = this.#scroller();
     if (scroller && scroll.inline >= 0) {
-      scroller.scrollLeft = scroll.inline * this.#direction();
+      scroller.scrollLeft = scroll.inline * directionOf(this);
     }
     // The scroll event comes before the next frame, and the rows move with its update.
     await new Promise(requestAnimationFrame);
@@ -1128,8 +1136,8 @@ export class ArgusTable<T = unknown> extends LitElement {
     this.#selectionColumn = selectionColumn;
     this.#table.update({ remote: this.#data.rows, autoWidths, selectionColumn });
     const model = this.#table.model;
-    this.#reconcileActive(model);
-    const active = this.#active;
+    this.#nav.reconcile(model);
+    const active = this.#nav.active;
     // -1 tells assistive tech the total is unknown (a data source still growing).
     const unknownTotal = this.#data.rows?.totalKnown === false;
     const layout = layoutOf(model);
@@ -1148,7 +1156,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       cap: (logical) => bodyCap(logical, extra),
       auto: auto ? { order: model.rowOrder, indexOf: (id) => model.indexOf(id) } : undefined,
       overscan: Math.max(0, this.overscan),
-      rowIdAt: (index) => this.#rowId(model, index),
+      rowIdAt: (index) => this.#nav.rowId(model, index),
       // The active body row stays rendered, so the tab stop and focus survive scrolling.
       keep:
         active?.section !== 'body' || active.rowId === undefined
@@ -1192,7 +1200,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       style['--_pin-top-h'] = `${String(this.#pinnedPx('top', layout))}px`;
       style['--_pin-bottom-h'] = `${String(this.#pinnedPx('bottom', layout))}px`;
     }
-    const active = this.#active;
+    const active = this.#nav.active;
     const activeIn = (section: GridRow['section']): ActiveCell | undefined =>
       active?.section === section ? { index: active.index, col: active.col } : undefined;
     const firstIndex = (section: GridRow['section']) => layout.ariaRowIndex({ section, index: 0 });
@@ -1209,7 +1217,7 @@ export class ArgusTable<T = unknown> extends LitElement {
         ?data-dragging=${this.#drag !== undefined}
         ?data-auto-rows=${auto}
         @keydown=${this.#onKeydown}
-        @focusin=${this.#onFocusin}
+        @focusin=${this.#nav.onFocusin}
         @mousedown=${this.#select.onMousedown}
         @click=${this.#onClick}
       >
@@ -1288,10 +1296,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.#pinScroll.measure();
     }
     // Rows that just changed height move with the next update: focus them there.
-    if (this.#focusPending && !resized) {
-      this.#focusPending = false;
-      this.#focusActive();
-    }
+    this.#nav.focusPending(resized);
     if (changed.has('density') || changed.has('rowHeight')) this.#measureRowHeight();
     if (this.#announceMove) {
       this.#announceMoved(model, this.#announceMove);
@@ -1325,7 +1330,7 @@ export class ArgusTable<T = unknown> extends LitElement {
    */
   #keptColumns(model: TableModel<T, CellContent>): (string | undefined)[] {
     return [
-      this.#active?.col,
+      this.#nav.active?.col,
       // A dragged column, not a group's: their headers needn't render out of view.
       ...(this.#drag?.key.startsWith('c:') ? this.#drag.columns : []),
       this.dataSource ? model.columns.find((c) => c.kind === 'data')?.id : undefined,
@@ -1384,24 +1389,6 @@ export class ArgusTable<T = unknown> extends LitElement {
     this.#data.retry(Number(button.dataset.row));
   };
 
-  /**
-   * A row's id. A data source row that hasn't loaded gets a stand-in: the
-   * active cell's row id if it sits there (so its DOM and focus stay put), else
-   * the index, which is also its real id when there is no `getRowId`.
-   */
-  #rowId(model: TableModel<T, CellContent>, index: number): string {
-    const id = model.rowAt(index)?.id;
-    if (id !== undefined) return id;
-    const active = this.#active;
-    if (active?.index === index && active.rowId !== undefined) return active.rowId;
-    return this.#placeholderId(index);
-  }
-
-  /** The id of an unloaded row: its index, or a reserved string if `getRowId` makes the ids. */
-  #placeholderId(index: number): string {
-    return this.getRowId ? `\u0000${String(index)}` : String(index);
-  }
-
   readonly #headerHandlers = {
     click: (event: MouseEvent) => {
       const id = sortColumnOf(event);
@@ -1420,7 +1407,7 @@ export class ArgusTable<T = unknown> extends LitElement {
           handle,
           event,
           total,
-          this.#direction(),
+          directionOf(this),
           (w) => {
             this.#requestGroupResize(group.columns, starts, w);
           },
@@ -1436,7 +1423,7 @@ export class ArgusTable<T = unknown> extends LitElement {
           handle,
           event,
           cell.getBoundingClientRect().width,
-          this.#direction(),
+          directionOf(this),
           (w) => {
             this.#requestResize(id, w);
           },
@@ -1463,10 +1450,11 @@ export class ArgusTable<T = unknown> extends LitElement {
   };
 
   /**
-   * Keys on a focused cell or header: arrows by cell, Home/End along the row,
-   * PageUp/PageDown by a page of rows (the view scrolls with it), Ctrl+Home/End
-   * (or Cmd) to the first header and the last cell. Keys from content inside a
-   * cell (an input, a button) are left to that content.
+   * Keys on a focused cell or header. The table's own come first: Shift+Tab out
+   * of the grid, plugins' keys, Alt+Arrow on a header (resize; with Shift, move),
+   * Enter or Space on a sortable header, Enter on a body cell (a click, or Retry
+   * on a failed row). The rest move the active cell (`NavigationController`).
+   * Keys from content inside a cell (an input, a button) are left to that content.
    */
   readonly #onKeydown = (event: KeyboardEvent) => {
     const origin = event.composedPath()[0] ?? event.target ?? this;
@@ -1504,7 +1492,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       event.preventDefault();
       // Logical: the arrow pointing toward the inline end grows the column, or
       // moves it that way with Shift.
-      const towardEnd = (key === 'ArrowRight') === (this.#direction() === 1);
+      const towardEnd = (key === 'ArrowRight') === (directionOf(this) === 1);
       if (event.shiftKey) {
         this.#moveByKey({ kind: 'column', id }, towardEnd ? 1 : -1);
       } else {
@@ -1520,16 +1508,17 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.#requestSort(id);
       return;
     }
-    if (this.#selectionKey(event, cell, id, inHeader, scroller)) return;
-    // Ctrl (Cmd on macOS) only goes with Home and End: to the corners.
-    const corner = event.ctrlKey || event.metaKey;
-    if (event.altKey || event.shiftKey || (corner && key !== 'Home' && key !== 'End')) return;
-    const model = this.#table.model;
-    const layout = layoutOf(model);
-    const from = gridRowOfCell(cell, layout);
-    if (!from) return;
-    if (!inHeader && key === 'Enter') {
+    if (
+      !inHeader &&
+      key === 'Enter' &&
+      !event.altKey &&
+      !event.shiftKey &&
+      !event.ctrlKey &&
+      !event.metaKey
+    ) {
       // Enter on a body cell does what a click does; on a failed row, it retries.
+      const from = gridRowOfCell(cell, layoutOf(this.#table.model));
+      if (!from) return;
       event.preventDefault();
       if (from.section === 'body' && this.#data.stateAt(from.index) === 'error') {
         this.#data.retry(from.index);
@@ -1538,113 +1527,21 @@ export class ArgusTable<T = unknown> extends LitElement {
       }
       return;
     }
-    const columns = model.columns;
-    // Rows step by grid position: header, pinned top, body, pinned bottom.
-    let pos = layout.position(from);
-    const last = layout.total - 1;
-    let col = columns.findIndex((c) => c.id === id);
-    switch (key) {
-      case 'PageDown':
-      case 'PageUp':
-      case 'ArrowDown':
-      case 'ArrowUp':
-        pos = this.#verticalStep(key, pos, layout, scroller);
-        break;
-      case 'ArrowRight':
-        col += this.#direction();
-        break;
-      case 'ArrowLeft':
-        col -= this.#direction();
-        break;
-      case 'Home':
-        col = 0;
-        if (corner) {
-          // The top header of the first column: its outermost group, else its header.
-          pos = this.#headerLevelDown(model, 0, columns[0]?.id ?? id);
-          this.#virtual.scrollToEdge('start');
-        }
-        break;
-      case 'End':
-        col = columns.length - 1;
-        if (corner) pos = last;
-        break;
-      default:
-        return;
-    }
-    event.preventDefault();
-    let row = layout.at(pos) ?? layout.leafHeader;
-    const target = columns[Math.min(Math.max(col, 0), columns.length - 1)];
-    if (!target) return;
-    if (row.section === 'header' && row.index < layout.header - 1 && key === 'ArrowUp') {
-      // Up from a column header: to the nearest group above it, if there is one.
-      const level = this.#headerLevelUp(model, row.index, target.id);
-      if (level === undefined) return;
-      row = { section: 'header', index: level };
-    }
-    // PageUp/PageDown scroll by as many rows as focus moved, so the focused cell
-    // keeps its place on screen. The ends clamp; focusing scrolls the rest of
-    // the way. Through the virtualizer: a scaled body's px aren't rows.
-    if (key.startsWith('Page') && from.section === 'body' && row.section === 'body') {
-      this.#virtual.scrollBy(this.#virtual.startOf(row.index) - this.#virtual.startOf(from.index));
-    }
-    // Ctrl+End onto a bottom pinned row: show the end of the body too, as
-    // Ctrl+Home shows its start.
-    if (corner && key === 'End' && row.section === 'bottom') {
-      this.#virtual.scrollToEdge('end');
-    }
-    this.#moveTo(row, target.id, model);
+    this.#nav.key(event, cell, id, inHeader, scroller);
   };
 
   /**
-   * The header row to go to from header row `level` down, over a column: the first
-   * group row from `level` with a group over it, else the column headers.
-   */
-  #headerLevelDown(model: TableModel<T, CellContent>, level: number, columnId: string): number {
-    const leaf = model.headerGroups.length;
-    for (let l = level; l < leaf; l++) {
-      if (model.headerCell(l, columnId)?.kind === 'group') return l;
-    }
-    return leaf;
-  }
-
-  /** The first group row from `level` up with a group over a column, or `undefined`. */
-  #headerLevelUp(
-    model: TableModel<T, CellContent>,
-    level: number,
-    columnId: string,
-  ): number | undefined {
-    for (let l = Math.min(level, model.headerGroups.length - 1); l >= 0; l--) {
-      if (model.headerCell(l, columnId)?.kind === 'group') return l;
-    }
-    return undefined;
-  }
-
-  /**
-   * Keys on a focused group header. Arrows move between group headers in its row
-   * (fillers are skipped) and to the headers above and below it; ArrowDown ends on
-   * the column headers. Home and End go to the row's first and last group,
-   * PageDown into the body, Ctrl+Home and Ctrl+End to the corners, and
-   * Alt+Shift+Arrow moves the group. Groups don't sort or resize.
+   * Keys on a focused group header: Alt+Arrow resizes the group, or moves it
+   * with Shift; Enter and Space do nothing (groups don't sort). The rest move
+   * the active cell (`NavigationController.groupKey`).
    */
   #groupKey(event: KeyboardEvent, cell: HTMLElement, scroller: HTMLElement): void {
-    const model = this.#table.model;
-    const layout = layoutOf(model);
-    const at = gridRowOf(cell.parentElement, layout);
-    const row = at?.section === 'header' ? model.headerGroups[at.index] : undefined;
-    const here = row?.find((c) => c.key === cell.dataset.groupKey);
-    if (!at || !row || here?.groupId === undefined) return;
-    const level = at.index;
-    const active = this.#active;
-    const anchor =
-      active?.section === 'header' && active.index === level && here.columns.includes(active.col)
-        ? active.col
-        : here.columns[0];
-    if (anchor === undefined) return;
+    const here = this.#groupCellOf(cell.dataset.groupKey);
+    if (here?.groupId === undefined) return;
     const { key } = event;
-    const arrow = key === 'ArrowLeft' || key === 'ArrowRight';
-    const towardEnd = (key === 'ArrowRight') === (this.#direction() === 1);
-    if (arrow && event.altKey) {
+    if ((key === 'ArrowLeft' || key === 'ArrowRight') && event.altKey) {
       event.preventDefault();
+      const towardEnd = (key === 'ArrowRight') === (directionOf(this) === 1);
       if (event.shiftKey) {
         this.#moveByKey({ kind: 'group', id: here.groupId, pin: here.pin }, towardEnd ? 1 : -1);
       } else if (here.resizable) {
@@ -1662,226 +1559,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       event.preventDefault();
       return;
     }
-    if (this.#selectionKey(event, cell, anchor, true, scroller)) return;
-    const corner = event.ctrlKey || event.metaKey;
-    if (event.altKey || event.shiftKey || (corner && key !== 'Home' && key !== 'End')) return;
-    const groups = row.filter((c) => c.kind === 'group');
-    const columns = model.columns;
-    let to: { row: GridRow; col: string } | undefined;
-    switch (key) {
-      case 'ArrowLeft':
-      case 'ArrowRight': {
-        const col = groups[groups.indexOf(here) + (towardEnd ? 1 : -1)]?.columns[0];
-        if (col !== undefined) to = { row: at, col };
-        break;
-      }
-      case 'Home':
-      case 'End':
-        if (corner) {
-          const first = key === 'Home';
-          const col = (first ? columns[0] : columns.at(-1))?.id;
-          if (col === undefined) break;
-          if (first) this.#virtual.scrollToEdge('start');
-          else if (layout.bottom > 0) this.#virtual.scrollToEdge('end');
-          const pos = first ? this.#headerLevelDown(model, 0, col) : layout.total - 1;
-          to = { row: layout.at(pos) ?? layout.leafHeader, col };
-        } else {
-          const col = (key === 'Home' ? groups[0] : groups.at(-1))?.columns[0];
-          if (col !== undefined) to = { row: at, col };
-        }
-        break;
-      case 'ArrowDown':
-        to = {
-          row: { section: 'header', index: this.#headerLevelDown(model, level + 1, anchor) },
-          col: anchor,
-        };
-        break;
-      case 'ArrowUp': {
-        const up = this.#headerLevelUp(model, level - 1, anchor);
-        if (up !== undefined) to = { row: { section: 'header', index: up }, col: anchor };
-        break;
-      }
-      case 'PageDown': {
-        const pos = this.#verticalStep(key, layout.position(at), layout, scroller);
-        to = { row: layout.at(pos) ?? at, col: anchor };
-        break;
-      }
-      case 'PageUp':
-        break;
-      default:
-        return;
-    }
-    event.preventDefault();
-    if (to) this.#moveTo(to.row, to.col, model);
-  }
-
-  /**
-   * The grid position ArrowUp/ArrowDown (one row) or PageUp/PageDown (a page of
-   * the body) moves to from `pos`. PageDown from above the body lands a page
-   * into it and stops at its last row; PageUp stays in the body.
-   */
-  #verticalStep(
-    key: 'PageDown' | 'PageUp' | 'ArrowDown' | 'ArrowUp',
-    pos: number,
-    layout: RowLayout,
-    scroller: HTMLElement,
-  ): number {
-    const bodyFirst = layout.position({ section: 'body', index: 0 });
-    const bodyLast = bodyFirst + layout.body - 1;
-    const page = this.#pageRows(key, pos, layout, scroller);
-    switch (key) {
-      case 'PageDown':
-        return layout.body > 0 && pos <= bodyLast
-          ? Math.min(Math.max(pos, bodyFirst - 1) + page, bodyLast)
-          : pos;
-      case 'PageUp':
-        return layout.body > 0 && pos > bodyFirst
-          ? Math.max(Math.min(pos, bodyLast + 1) - page, bodyFirst)
-          : pos;
-      case 'ArrowDown':
-        return Math.min(pos + 1, layout.total - 1);
-      case 'ArrowUp':
-        return Math.max(pos - 1, 0);
-    }
-  }
-
-  /** How many rows PageUp/PageDown move from grid position `pos`. */
-  #pageRows(key: string, pos: number, layout: RowLayout, scroller: HTMLElement): number {
-    if (this.rowHeight !== 'auto') {
-      // Whole rows between the sticky header rows and pinned rows (each one row tall).
-      const fit = Math.floor(scroller.clientHeight / this.#rowPx + 0.01);
-      return Math.max(1, fit - layout.header - layout.top - layout.bottom);
-    }
-    // The body rows that fit between the header and the pinned rows, from the
-    // focused body row (or the body's first or last row).
-    const view = scroller.clientHeight - this.#headerAndPinnedPx(layout);
-    const bodyFirst = layout.position({ section: 'body', index: 0 });
-    const from = Math.min(Math.max(pos - bodyFirst, 0), Math.max(layout.body - 1, 0));
-    return this.#virtual.pageRows(from, key === 'PageDown', view);
-  }
-
-  /**
-   * Selection keys, with a `selectionMode`: Space (or Shift+Space) toggles the
-   * focused body row; in `multi` mode, Shift+ArrowUp/ArrowDown and
-   * Shift+PageUp/PageDown move focus through the body and select from the
-   * anchor to it, and Ctrl/Cmd+A selects every row. `true` if it took the key.
-   */
-  #selectionKey(
-    event: KeyboardEvent,
-    cell: HTMLElement,
-    col: string,
-    inHeader: boolean,
-    scroller: HTMLElement,
-  ): boolean {
-    const select = this.#select;
-    const mode = select.mode;
-    if (mode === 'none' || event.altKey) return false;
-    const { key } = event;
-    const command = event.ctrlKey || event.metaKey;
-    const model = this.#table.model;
-    if (command && !event.shiftKey && key.toLowerCase() === 'a') {
-      if (mode !== 'multi') return false;
-      // Not the page's text: the rows.
-      event.preventDefault();
-      select.selectAll();
-      return true;
-    }
-    if (command) return false;
-    if (inHeader) {
-      // Space on the select-all header does what its checkbox does.
-      if (key !== ' ' || col !== SELECTION_COLUMN_ID || mode !== 'multi') return false;
-      event.preventDefault();
-      select.toggleAll();
-      return true;
-    }
-    const layout = layoutOf(model);
-    const from = gridRowOf(cell.parentElement, layout);
-    if (from?.section !== 'body') return false;
-    if (key === ' ') {
-      // Space would scroll the table.
-      event.preventDefault();
-      select.toggle(from.index);
-      return true;
-    }
-    if (
-      !event.shiftKey ||
-      mode !== 'multi' ||
-      (key !== 'ArrowDown' && key !== 'ArrowUp' && key !== 'PageDown' && key !== 'PageUp')
-    ) {
-      return false;
-    }
-    event.preventDefault();
-    // A range stays in the body: the header and pinned rows can't be selected.
-    const bodyFirst = layout.position({ section: 'body', index: 0 });
-    const pos = this.#verticalStep(key, layout.position(from), layout, scroller);
-    const to = layout.at(Math.min(Math.max(pos, bodyFirst), bodyFirst + layout.body - 1));
-    if (to?.section !== 'body' || to.index === from.index) return true;
-    if (key.startsWith('Page')) {
-      this.#virtual.scrollBy(this.#virtual.startOf(to.index) - this.#virtual.startOf(from.index));
-    }
-    select.range(from.index, to.index);
-    this.#moveTo(to, col, model);
-    return true;
-  }
-
-  /** Focus that lands in a cell (a click, or content inside it) makes that cell active. */
-  readonly #onFocusin = (event: FocusEvent) => {
-    // Tab into the grid landed on the scroll container (Firefox makes it a tab
-    // stop): move on to the grid's one tab stop, the active cell. Only when focus
-    // came from outside the grid: coming from inside means the user is leaving,
-    // and sending them back would trap the keyboard.
-    const scroller = event.currentTarget as HTMLElement;
-    if (event.composedPath()[0] === scroller) {
-      const from = event.relatedTarget;
-      if (!(from instanceof Node && scroller.contains(from))) {
-        this.#focusPending = true;
-        this.requestUpdate();
-      }
-      return;
-    }
-    for (const target of event.composedPath()) {
-      const group = groupCell(target);
-      if (group) {
-        this.#focusGroup(group);
-        return;
-      }
-      const cell = gridCell(target);
-      if (cell?.dataset.col !== undefined) {
-        const model = this.#table.model;
-        const row = gridRowOfCell(cell, layoutOf(model));
-        const { col } = cell.dataset;
-        const prev = this.#active;
-        if (
-          row &&
-          (row.section !== prev?.section || row.index !== prev.index || col !== prev.col)
-        ) {
-          this.#active = { ...row, rowId: this.#gridRowId(model, row), col };
-          this.requestUpdate();
-        }
-        return;
-      }
-      if (target === event.currentTarget) return;
-    }
-  };
-
-  /** Focus on a group header makes it active, on the column it was active on, else its first. */
-  #focusGroup(cell: HTMLElement): void {
-    const model = this.#table.model;
-    const row = gridRowOf(cell.parentElement, layoutOf(model));
-    const group =
-      row && model.headerGroups[row.index]?.find((c) => c.key === cell.dataset.groupKey);
-    const first = group?.columns[0];
-    if (!row || !group || first === undefined) return;
-    const prev = this.#active;
-    if (
-      prev?.section === 'header' &&
-      prev.index === row.index &&
-      group.columns.includes(prev.col)
-    ) {
-      return;
-    }
-    this.#active = { ...row, rowId: undefined, col: first };
-    this.requestUpdate();
+    this.#nav.groupKey(event, cell, scroller);
   }
 
   /**
@@ -1941,146 +1619,6 @@ export class ArgusTable<T = unknown> extends LitElement {
       fire(this, ROW_CLICK, { row: row.original, rowId: row.id, index, pinned });
       return;
     }
-  }
-
-  /** The id of a grid row: a body or pinned row's id; none for the header. */
-  #gridRowId(model: TableModel<T, CellContent>, row: GridRow): string | undefined {
-    switch (row.section) {
-      case 'header':
-        return undefined;
-      case 'body':
-        return this.#rowId(model, row.index);
-      default:
-        return model.pinnedRowAt(row.section, row.index)?.id;
-    }
-  }
-
-  /** Makes a cell active and focuses it after the update. The keep-rendered rule renders its row. */
-  #moveTo(row: GridRow, col: string, model: TableModel<T, CellContent>): void {
-    this.#active = { ...row, rowId: this.#gridRowId(model, row), col };
-    this.#focusPending = true;
-    this.requestUpdate();
-  }
-
-  #focusActive(): void {
-    const active = this.#active;
-    if (!active) return;
-    const col = CSS.escape(active.col);
-    const model = this.#table.model;
-    const layout = layoutOf(model);
-    // aria-rowindex is unique across the grid: header, pinned and body rows.
-    const index = layout.ariaRowIndex(active);
-    const row = `[role='row'][aria-rowindex="${String(index)}"]`;
-    if (active.section === 'header' && active.index < layout.header - 1) {
-      // A group header: focus it, and show the column it is active on.
-      const key = model.headerCell(active.index, active.col)?.key ?? '';
-      const group = this.renderRoot.querySelector<HTMLElement>(
-        `${row} > [data-group-key="${CSS.escape(key)}"]`,
-      );
-      if (!group) return;
-      group.focus({ preventScroll: true });
-      const leaf = `[role='row'][aria-rowindex="${String(layout.header)}"] > [data-col="${col}"]`;
-      this.renderRoot.querySelector(leaf)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-      return;
-    }
-    const cell = this.renderRoot.querySelector<HTMLElement>(`${row} > [data-col="${col}"]`);
-    if (!cell) return;
-    cell.focus({ preventScroll: true });
-    // A scaled body moves `ratio` px of rows per px scrolled, so the browser can't
-    // scroll a body row into view: the virtualizer does, and the next update
-    // (from its scroll) shows the row and scrolls sideways. Rows of different
-    // heights too: rows measured on the way can move the row again, so it
-    // scrolls until they're done.
-    if (active.section === 'body' && (this.#virtual.scaled || this.rowHeight === 'auto')) {
-      const { before, after } = this.#bodyInsets(layout);
-      if (this.#virtual.reveal(active.index, before, after)) {
-        this.#focusPending = true;
-        return;
-      }
-    }
-    cell.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-  }
-
-  /**
-   * Keeps the active cell valid after columns or rows change. In the body: on the
-   * same row id when it still exists (it may have moved), else at the same
-   * index, clamped. A data source row that isn't loaded (yet, or any more) keeps
-   * its id. A pinned row stays at its index, clamped to its list. A row whose
-   * section has no rows left gives way to the header, the default. If its row
-   * went away while the grid had focus, focus follows to the replacement.
-   */
-  #reconcileActive(model: TableModel<T, CellContent>): void {
-    const columns = model.columns;
-    const first = columns[0];
-    if (!first) {
-      this.#active = undefined;
-      return;
-    }
-    const layout = layoutOf(model);
-    const leaf = layout.header - 1;
-    const prev = this.#active ?? { ...layout.leafHeader, rowId: undefined, col: first.id };
-    const col = columns.some((c) => c.id === prev.col)
-      ? prev.col
-      : this.#columnInPlaceOf(model, prev.col, first.id);
-    let { section, index, rowId } = prev;
-    // The cell went away with its column while focused: focus its replacement.
-    let moved = col !== prev.col && this.#active !== undefined;
-    if (section === 'header') {
-      if (!this.#active || index === this.#leafLevel) {
-        // On the column headers: still there, though group rows came or went above.
-        index = leaf;
-      } else if (index >= leaf || model.headerCell(index, col)?.kind !== 'group') {
-        // Its group went away: to the column's header.
-        index = leaf;
-        moved = true;
-      }
-    }
-    this.#leafLevel = leaf;
-    if (section === 'body' && rowId !== undefined) {
-      const found = model.indexOf(rowId);
-      const unloaded = index < model.rowCount && model.rowAt(index) === undefined;
-      if (found !== undefined) {
-        index = found;
-      } else if (!unloaded) {
-        index = Math.min(index, model.rowCount - 1);
-        rowId = index >= 0 ? (model.rowAt(index)?.id ?? this.#placeholderId(index)) : undefined;
-        moved = true;
-      }
-    } else if (section === 'top' || section === 'bottom') {
-      const count = model.pinnedCount(section);
-      if (index >= count) {
-        index = count - 1;
-        moved = true;
-      }
-      rowId = index >= 0 ? model.pinnedRowAt(section, index)?.id : undefined;
-    }
-    if (index < 0) {
-      ({ section, index } = layout.leafHeader);
-      rowId = undefined;
-    }
-    if (moved && this.matches(':focus-within')) this.#focusPending = true;
-    if (
-      section !== prev.section ||
-      index !== prev.index ||
-      rowId !== prev.rowId ||
-      col !== prev.col ||
-      !this.#active
-    ) {
-      this.#active = { section, index, rowId, col };
-    }
-  }
-
-  /**
-   * The shown column that takes a hidden column's place: the next one in the
-   * column order, else the one before it. `fallback` for a column that is gone
-   * altogether.
-   */
-  #columnInPlaceOf(model: TableModel<T, CellContent>, id: string, fallback: string): string {
-    const all = model.allColumns;
-    const at = all.findIndex((c) => c.id === id);
-    if (at < 0) return fallback;
-    const shown = (c: ColumnView<T, CellContent>) => !c.hidden;
-    return (all.slice(at + 1).find(shown) ?? all.slice(0, at).findLast(shown))?.id ?? fallback;
   }
 
   /**
@@ -2143,10 +1681,6 @@ export class ArgusTable<T = unknown> extends LitElement {
     }
     if (spread.length === 0) return;
     this.#requestResizes(spreadWidth(spread, total - fixed));
-  }
-
-  #direction(): 1 | -1 {
-    return getComputedStyle(this).direction === 'rtl' ? -1 : 1;
   }
 
   /** Sets one column's width (clamped by core), through the controlled/uncontrolled rules. */
@@ -2271,7 +1805,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     if (from < 0 || at === undefined) return;
     if (!this.#requestReorder(unit, from + step)) return;
     // The header node moves, which drops its focus: focus it again once rendered.
-    this.#focusPending = true;
+    this.#nav.refocus();
     this.#announceMove ??= { unit, from: at };
     this.requestUpdate();
   }
@@ -2356,7 +1890,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     const pin = unit.kind === 'group' ? unit.pin : model.columns.find((c) => c.id === unit.id)?.pin;
     startReorderDrag(cell, down, {
       scroller,
-      targetAt: (x) => dropTarget(this.#dropSlots(unit), key, x, this.#direction()),
+      targetAt: (x) => dropTarget(this.#dropSlots(unit), key, x, directionOf(this)),
       scrollArea: () => (pin === undefined ? this.#scrollArea(scroller) : undefined),
       onStart: () => {
         this.#drag = { key, columns, target: undefined };
@@ -2370,7 +1904,7 @@ export class ArgusTable<T = unknown> extends LitElement {
         this.#drag = undefined;
         if (target && this.#requestReorder(unit, target.to)) {
           // The header node moves, which drops its focus: focus it again once rendered.
-          if (this.matches(':focus-within')) this.#focusPending = true;
+          if (this.matches(':focus-within')) this.#nav.refocus();
         }
         this.requestUpdate();
       },
@@ -2403,7 +1937,7 @@ export class ArgusTable<T = unknown> extends LitElement {
   /** Where the scrolling columns show: the scroller's inside, less the pinned columns. */
   #scrollArea(scroller: HTMLElement): { left: number; right: number } {
     const width = (side: 'start' | 'end') => pinnedWidth(this.#table.model.columns, side);
-    const ltr = this.#direction() === 1;
+    const ltr = directionOf(this) === 1;
     const left = scroller.getBoundingClientRect().left + scroller.clientLeft;
     return {
       left: left + width(ltr ? 'start' : 'end'),
@@ -2483,7 +2017,7 @@ export class ArgusTable<T = unknown> extends LitElement {
         columnId,
         // `0` for the column headers, whatever group rows are above them.
         rowIndex: row.section === 'header' ? 0 : row.index,
-        rowId: this.#gridRowId(model, row),
+        rowId: this.#nav.gridRowId(model, row),
       };
     }
     return undefined;
