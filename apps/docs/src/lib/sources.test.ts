@@ -28,6 +28,19 @@ describe('filesOf', () => {
     expect(files.vue.at(-1)).toEqual({ name: 'data.ts', code: 'rows', lang: 'ts' });
   });
 
+  test('shows the feature’s styles.css after data.ts in each flavour', () => {
+    const files = filesOf(
+      {
+        ...raw,
+        '/src/examples/sorting/data.ts': 'rows',
+        '/src/examples/sorting/styles.css': 'css',
+      },
+      'sorting/basic',
+    );
+    expect(files.react.map((f) => f.name)).toEqual(['Sorting.tsx', 'data.ts', 'styles.css']);
+    expect(files.html.at(-1)).toEqual({ name: 'styles.css', code: 'css', lang: 'css' });
+  });
+
   test('an example with no files has empty flavours', () => {
     expect(filesOf(raw, 'nope/none').vue).toEqual([]);
   });
