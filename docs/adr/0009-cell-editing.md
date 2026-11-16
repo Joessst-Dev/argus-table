@@ -40,7 +40,7 @@ What shapes the design:
 ### The app applies edits
 
 - **A commit fires `argus-cell-edit`** on the table: `detail: { row, rowId, index, columnId, value, previous, pinned? }`. The table and the plugin change nothing: the app updates `data` (or its server, then `refresh()` with a `dataSource`). It isn't an `argus-<property>-change` event, since no property holds the value (ADR 0004's naming rule).
-- **`applyEdit(data, detail, set?)`** is exported as a helper: it returns a new array with the edited row replaced by a copy where the column's `accessor` path holds the value (`set(row, value)` for function accessors, which have no path).
+- **`applyEdit(data, detail, columns)`** is exported as a helper: it returns a new array with the edited row replaced by a copy where the column's `accessor` path holds the value. A column with a function accessor, which has no path, gives `meta.edit.set(row, value)`.
 - A commit with a value equal to `previous` (`Object.is`) fires nothing.
 - After the app applies it, the row may move or vanish (sorting, filters): the active cell follows the row id, as for any data change.
 

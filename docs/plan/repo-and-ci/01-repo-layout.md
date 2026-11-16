@@ -23,7 +23,8 @@ argus-table/
 │  ├─ vue/                  @argus-table/vue
 │  ├─ angular/              @argus-table/angular  standalone components, built with ng-packagr
 │  ├─ formulas/             @argus-table/formulas added in Phase 3
-│  └─ export/               @argus-table/export   CSV, XLSX and PDF export, added after 1.0
+│  ├─ export/               @argus-table/export   CSV, XLSX and PDF export, added after 1.0
+│  └─ editing/              @argus-table/editing  cell editing, added after 1.0
 ├─ apps/
 │  ├─ storybook/            docs site (Storybook 10)
 │  ├─ playground/           Vite sandbox for quick manual testing

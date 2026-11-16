@@ -35,6 +35,12 @@ packages/export/src/     (added after 1.0, ADR 0006)
 ├─ csv.ts                RFC 4180, formula-injection escaping
 ├─ xlsx/                 zip.ts (CRC-32, deflate-raw) · xlsx.ts (SpreadsheetML), loaded on first use
 └─ pdf/                  pdf.ts (PDF 1.4, base-14 Helvetica) · metrics.ts, loaded on first use
+
+packages/editing/src/    (added after 1.0, ADR 0009)
+├─ plugin.ts             cellEditing(): the editable hook, keys, the editor in the cell, commit and argus-cell-edit
+├─ apply.ts              applyEdit(): the edited row replaced by a copy, along the accessor path or meta.edit.set
+├─ types.ts              ColumnEditOptions (the ColumnMeta augmentation), CellEditDetail, options
+├─ labels.ts · styles.ts EditingLabels; the root-node stylesheet (@layer argus-editing)
 ```
 
 Each controller gets its own test file next to it; `core` tests run in plain Vitest, `table` tests in Vitest browser mode.

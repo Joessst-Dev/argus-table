@@ -15,6 +15,7 @@ export const PACKAGES = [
   '@argus-table/header-menu',
   '@argus-table/formulas',
   '@argus-table/export',
+  '@argus-table/editing',
   '@argus-table/themes',
 ];
 
