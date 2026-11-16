@@ -1,0 +1,59 @@
+---
+title: Row selection
+description: Select rows with clicks, keys and checkboxes, and decide which selections to allow.
+since: '0.3'
+---
+
+import FlavourTabs from '../../../components/FlavourTabs.astro';
+import ReactMulti from '../../../examples/selection/multi/react/MultiSelection.tsx';
+import VueMulti from '../../../examples/selection/multi/vue/MultiSelection.vue';
+import { MultiSelectionComponent } from '../../../examples/selection/multi/angular/multi-selection.component.ts';
+import ReactSingle from '../../../examples/selection/single/react/SingleSelection.tsx';
+import VueSingle from '../../../examples/selection/single/vue/SingleSelection.vue';
+import { SingleSelectionComponent } from '../../../examples/selection/single/angular/single-selection.component.ts';
+import ReactBoxes from '../../../examples/selection/checkboxes/react/Checkboxes.tsx';
+import VueBoxes from '../../../examples/selection/checkboxes/vue/Checkboxes.vue';
+import { CheckboxesComponent } from '../../../examples/selection/checkboxes/angular/checkboxes.component.ts';
+import ReactControlled from '../../../examples/selection/controlled/react/ControlledSelection.tsx';
+import VueControlled from '../../../examples/selection/controlled/vue/ControlledSelection.vue';
+import { ControlledSelectionComponent } from '../../../examples/selection/controlled/angular/controlled-selection.component.ts';
+
+`selectionMode: 'multi'` (`selection-mode="multi"`): a click selects one row, Ctrl+click (Cmd+click on macOS) adds or removes a row, and Shift+click selects the range from the last row clicked. From the keyboard, Space toggles the focused row, Shift+ArrowUp/ArrowDown and Shift+PageUp/PageDown extend the selection from the last toggled row, and Ctrl+A (Cmd+A) selects every row. Selected rows get the `row-selected` part and `--argus-row-selected-bg`. `selection` holds their ids, from `getRowId`, and `argus-selection-change` reports each change.
+
+<FlavourTabs example="selection/multi">
+  <ReactMulti slot="react" client:visible />
+  <VueMulti slot="vue" client:visible />
+  <MultiSelectionComponent slot="angular" client:visible />
+</FlavourTabs>
+
+## One row at a time
+
+`selectionMode: 'single'` keeps one row selected. Ctrl+click or Space on the selected row clears it.
+
+<FlavourTabs example="selection/single">
+  <ReactSingle slot="react" client:visible />
+  <VueSingle slot="vue" client:visible />
+  <SingleSelectionComponent slot="angular" client:visible />
+</FlavourTabs>
+
+## Checkboxes
+
+`selectionCheckboxes` adds a checkbox column, pinned first. A row's checkbox toggles that row and keeps the others; Shift+click adds the range from the last row clicked. The header's checkbox selects every row, shows a mixed state when some are selected, and clears the selection when all are. Space on a focused checkbox cell does the same as clicking its checkbox.
+
+<FlavourTabs example="selection/checkboxes">
+  <ReactBoxes slot="react" client:visible />
+  <VueBoxes slot="vue" client:visible />
+  <CheckboxesComponent slot="angular" client:visible />
+</FlavourTabs>
+
+## Deciding what to allow
+
+Set `selection` and the table is controlled: every change fires `argus-selection-change` with the proposed ids, and the table only changes once your code sets them. This one allows at most five rows: Shift+click a range of ten and nothing changes. Bind `selection` one way for this (not `v-model:selection` or `[(selection)]`, which apply every proposal).
+
+<FlavourTabs example="selection/controlled">
+  <ReactControlled slot="react" client:visible />
+  <VueControlled slot="vue" client:visible />
+  <ControlledSelectionComponent slot="angular" client:visible />
+</FlavourTabs>
+
+With a [`dataSource`](../infinite-loading/), only loaded rows can be selected: skeleton rows can't, and Ctrl+A selects the rows loaded so far. `selection` keeps its ids while pages are evicted and loaded again.
