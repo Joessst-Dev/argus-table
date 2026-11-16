@@ -20,3 +20,26 @@ test('every flavour of Sorting sorts on a header click and follows its own state
     });
   }
 });
+
+test('every flavour of controlled sorting applies proposals, except the one it refuses', async ({
+  page,
+}) => {
+  await page.goto('features/sorting/');
+  for (const flavour of FLAVOURS) {
+    await test.step(flavour, async () => {
+      const example = await openFlavour(page, 'sorting/controlled', flavour);
+      const table = example.locator('argus-table');
+      const output = example.locator('output');
+      const customer = table.locator('[role="columnheader"][data-col="customer"]');
+      await expect(output).toHaveText('total descending');
+      await customer.click();
+      await expect(output).toHaveText('customer ascending');
+      await expect(customer).toHaveAttribute('aria-sort', 'ascending');
+      // The second click proposes descending: refused, so the table stays ascending.
+      await customer.click();
+      await expect(output).toHaveText('Refused: customer descending');
+      await expect(customer).toHaveAttribute('aria-sort', 'ascending');
+      await expectAccessible(page, example);
+    });
+  }
+});
