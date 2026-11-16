@@ -5,6 +5,7 @@ since: '0.4'
 ---
 
 import FlavourTabs from '../../../components/FlavourTabs.astro';
+import Since from '../../../components/Since.astro';
 import ReactGroups from '../../../examples/column-groups/basic/react/Groups.tsx';
 import VueGroups from '../../../examples/column-groups/basic/vue/Groups.vue';
 import { GroupsComponent } from '../../../examples/column-groups/basic/angular/groups.component.ts';
@@ -43,9 +44,9 @@ Groups nest, and each level adds a header row. Here "Shipping" sits inside "Who"
 
 ## Groups as children
 
-`<argus-column-group>` (`<ArgusColumnGroup>` in React and Vue) writes the groups as markup, around column children and other groups. A non-empty `columnGroups` property wins over them. A group's header can be content other than text: a function in HTML and React, a `#group-<id>` slot in Vue, an `argusGroupHeader` template in Angular. Give it a name for text mode too (the `header` text, or the function's answer when it's asked for `text`), so announcements and plugins can name the group.
+`<argus-column-group>` (`<ArgusColumnGroup>` in React and Vue) writes the groups as markup, around column children and other groups. A non-empty `columnGroups` property wins over them. A group's header can be content other than text: a function in HTML and React, a `#group-<id>` slot in Vue, an `argusGroupHeader` template in Angular. Give it a name for text mode too (the `header` text, or the function's answer when it's asked for `text`), so announcements and plugins can name the group <Since since="1.2" />.
 
-<FlavourTabs example="column-groups/declarative">
+<FlavourTabs example="column-groups/declarative" since="1.2">
   <ReactDeclarative slot="react" client:visible />
   <VueDeclarative slot="vue" client:visible />
   <DeclarativeGroupsComponent slot="angular" client:visible />

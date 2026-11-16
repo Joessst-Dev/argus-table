@@ -30,10 +30,15 @@ for (const flavour of FLAVOURS) {
     await page.goto('features/selection/');
     const example = await openFlavour(page, 'selection/single', flavour);
     const table = example.locator('argus-table');
-    await bodyCell(table, 2).click();
+    const output = example.locator('output');
     await bodyCell(table, 4).click();
-    await expect(example.locator('output')).toHaveText('1 selected: o5');
+    await expect(output).toHaveText('1 selected: o5');
+    // Ctrl+click replaces the row (multi mode would add it), and clears the selected one.
+    await bodyCell(table, 2).click({ modifiers: ['ControlOrMeta'] });
+    await expect(output).toHaveText('1 selected: o3');
     await expect(table.locator('[part~="row-selected"]')).toHaveCount(1);
+    await bodyCell(table, 2).click({ modifiers: ['ControlOrMeta'] });
+    await expect(output).toHaveText('0 selected');
     await expectAccessible(page, example);
   });
 }
@@ -48,7 +53,12 @@ for (const flavour of FLAVOURS) {
     await box(1).click();
     await box(3).click();
     await expect(example.locator('output')).toHaveText('2 selected: o2, o4');
-    expect(await all.evaluate((el) => (el as HTMLInputElement).indeterminate)).toBe(true);
+    // Shift+click adds the range from the last row clicked.
+    await box(6).click({ modifiers: ['Shift'] });
+    await expect(example.locator('output')).toHaveText('5 selected: o2, o4, o5, o6, o7');
+    await expect
+      .poll(() => all.evaluate((el) => (el as HTMLInputElement).indeterminate))
+      .toBe(true);
     await all.click();
     await expect(example.locator('output')).toHaveText(/^200 selected/);
     await expect(all).toBeChecked();

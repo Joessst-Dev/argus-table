@@ -41,6 +41,8 @@ for (const flavour of FLAVOURS) {
     const table = example.locator('argus-table');
     await expect(table.locator('[part~="header-group-row"]')).toHaveCount(2);
     await expect(table.locator('[part~="header-row"]')).toHaveAttribute('aria-rowindex', '3');
+    // Shipping sits over City alone.
+    await expect(group(table, 'g:center:shipping')).toHaveAttribute('aria-colspan', '1');
     await expectAccessible(page, example);
   });
 }
@@ -87,13 +89,14 @@ for (const flavour of FLAVOURS) {
     await expect(example.locator('output')).toHaveText(
       /"status":\d+.*"total":\d+|"total":\d+.*"status":\d+/,
     );
-    // "Who" has reorderable: false.
+    // "Who" has reorderable: false: it stays, while its columns still move within it.
     await group(table, 'g:center:who').focus();
     await page.keyboard.press('Alt+Shift+ArrowRight');
-    await page.keyboard.press('Alt+Shift+ArrowLeft');
+    await table.locator('[role="columnheader"][data-col="customer"]').focus();
+    await page.keyboard.press('Alt+Shift+ArrowRight');
     await expect
       .poll(() => headerOrder(table))
-      .toEqual(['id', 'customer', 'city', 'status', 'total']);
+      .toEqual(['id', 'city', 'customer', 'status', 'total']);
     await expectAccessible(page, example);
   });
 }
