@@ -76,8 +76,9 @@ describe('scan.mjs', () => {
     assert.equal(feature(u, 'sorting').fit, 'maps');
     assert.equal(feature(u, 'server-side-row-model').fit, 'partial');
     assert.deepEqual(feature(u, 'editing').at, ['app/orders/columns.ts:15']);
-    assert.deepEqual(u.summary.gaps, ['pagination', 'editing', 'row-grouping', 'tool-panels']);
-    assert.deepEqual(u.summary.hardGaps, ['editing', 'row-grouping']);
+    assert.equal(feature(u, 'editing').fit, 'partial');
+    assert.deepEqual(u.summary.gaps, ['pagination', 'row-grouping', 'tool-panels']);
+    assert.deepEqual(u.summary.hardGaps, ['row-grouping']);
   });
 
   it('reads MUI X with server-side paging', async () => {
@@ -169,9 +170,9 @@ describe('scan.mjs', () => {
     );
     const web = report.projects.find((p) => p.path === 'apps/web');
     assert.equal(web.argus.packages['argus-table'].version, '1.0.0');
-    assert.equal(web.argus.packages['@argus-table/react'].version, '1.2.0');
-    assert.deepEqual(web.argus.mismatched, ['argus-table@1.0.0', '@argus-table/react@1.2.0']);
-    assert.deepEqual(web.argus.duplicates, ['1.0.0', '1.2.0']);
+    assert.equal(web.argus.packages['@argus-table/react'].version, '1.3.0');
+    assert.deepEqual(web.argus.mismatched, ['argus-table@1.0.0', '@argus-table/react@1.3.0']);
+    assert.deepEqual(web.argus.duplicates, ['1.0.0', '1.3.0']);
     assert.equal(web.argus.wrapperMatchesFramework, true);
     assert.deepEqual(
       report.usages.map((u) => [u.library, u.project, u.file]),

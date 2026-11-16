@@ -3,10 +3,10 @@
 Add-ons are plugins: create each once and pass them in `plugins`, with `formulas()` before `headerMenu()`:
 
 ```ts
-const plugins = [formulas(), headerMenu(), tableExport()]; // the ones you use; tableExport() goes anywhere
+const plugins = [formulas(), headerMenu(), tableExport(), cellEditing()]; // the ones you use; tableExport() and cellEditing() go anywhere
 ```
 
-Each is its own package, released with the table at the same version. `@argus-table/header-menu` and `@argus-table/formulas` have `lit` as a peer dependency (npm, pnpm and bun install it; with Yarn, add `lit@^3.3.0`). Define `plugins` once (module scope, `useMemo`, a class field): new instances reconnect and close open menus. One instance can serve several tables.
+Each is its own package, released with the table at the same version. `@argus-table/header-menu`, `@argus-table/formulas` and `@argus-table/editing` have `lit` as a peer dependency (npm, pnpm and bun install it; with Yarn, add `lit@^3.3.0`). Define `plugins` once (module scope, `useMemo`, a class field): new instances reconnect and close open menus. One instance can serve several tables.
 
 ## Column menu: `@argus-table/header-menu`
 
@@ -40,6 +40,36 @@ const blob = await exportTable(tableElement, 'csv'); // to upload instead
 - A column can carry its own export options as `meta: { export: { header, value, exclude } }` (since 1.2); the `columns` option wins field by field.
 - `tableElement` is the element: a React `ref`'s `current`, a Vue template ref's `.element`, Angular `viewChild(ArgusTableComponent)` then `.element`, or `document.querySelector('argus-table')`.
 - Since 1.1.
+
+## Cell editing: `@argus-table/editing`
+
+`cellEditing({ enterMoves?, typeToEdit?, labels? })` edits the cells of columns with `meta.edit`. The table never changes `data`: a commit fires `argus-cell-edit` (`onCellEdit`, `@cell-edit`, `(cellEdit)`) with `{ row, rowId, index, columnId, value, previous, pinned? }`, and the app applies it, often with `applyEdit(data, detail, columns)`:
+
+```ts
+import { applyEdit, cellEditing } from '@argus-table/editing';
+
+const columns = [
+  { id: 'name', header: 'Name', accessor: 'name', meta: { edit: true } },
+  {
+    id: 'qty',
+    header: 'Qty',
+    accessor: 'qty',
+    filter: 'number',
+    meta: {
+      edit: { validate: (v) => (typeof v === 'number' && v < 0 ? 'Not below 0' : undefined) },
+    },
+  },
+];
+table.plugins = [cellEditing()];
+table.addEventListener('argus-cell-edit', (e) => {
+  table.data = applyEdit(table.data, e.detail, table.columns);
+});
+```
+
+- `meta.edit`: `true`, or `{ editor, options, editable(row), parse, validate, set }`. `editor` is `'text'`, `'number'`, `'date'`, `'select'`, `'checkbox'` or a function returning content (a custom editor, framework components included); by default the column's `filter` kind picks it.
+- Keys: Enter, F2, typing, Delete or a double-click edit; Enter commits and moves down, Tab moves to the next editable column, Escape cancels. `enterMoves: false` and `typeToEdit: false` give data-grid behaviour.
+- `applyEdit` needs an accessor path, or `meta.edit.set(row, value)` for a function accessor. With a `dataSource`, save the edit on the server and call `refresh()`. Pinned rows are the app's own objects.
+- There is no row editing mode, fill handle, paste or undo: name those as gaps if the old table used them.
 
 ## Formula columns: `@argus-table/formulas`
 

@@ -4,7 +4,7 @@
 // Custom Elements Manifest, the core types, the wrappers and the themes.
 
 /** The lowest release this skill's references are written for. */
-export const MIN_VERSION = '1.2.0';
+export const MIN_VERSION = '1.3.0';
 
 /** Every published package, released together at one version (changesets `fixed`). */
 export const PACKAGES = [
@@ -40,6 +40,12 @@ export const FRAMEWORK_PEERS = {
 
 /** The add-ons: plugins for `plugins`, with their factory, options and peers. */
 export const ADDONS = {
+  '@argus-table/editing': {
+    factory: 'cellEditing',
+    exports: ['cellEditing', 'applyEdit'],
+    options: ['enterMoves', 'typeToEdit', 'labels'],
+    peers: ['argus-table', 'lit'],
+  },
   '@argus-table/export': {
     factory: 'tableExport',
     exports: ['tableExport', 'exportTable', 'downloadTable'],
@@ -148,7 +154,7 @@ export const EVENTS = [
   'argus-load-error',
 ];
 
-/** Events add-ons fire on the table (the formula editor's, and cell editing's from 1.3). */
+/** Events add-ons fire on the table (the formula editor's, and cell editing's). */
 export const ADDON_EVENTS = [
   'argus-formula-column-add',
   'argus-formula-column-change',

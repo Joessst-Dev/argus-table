@@ -284,6 +284,10 @@ describe('api.mjs', () => {
       /type ExportOptions<T = unknown> = CollectOptions<T> & CsvOptions & XlsxOptions & PdfOptions;/,
     );
     assert.deepEqual(sorted(api.ADDONS['@argus-table/export'].options), sorted(exportOptions));
+    assert.deepEqual(
+      sorted(api.ADDONS['@argus-table/editing'].options),
+      sorted(interfaceMembers(text('packages/editing/src/types.ts'), 'CellEditingOptions')),
+    );
   });
 
   it('targets a released or upcoming version of the same major', () => {
@@ -318,7 +322,7 @@ describe('libraries.mjs', () => {
         for (const c of f.argus.column ?? [])
           assert.ok(api.COLUMN_FIELDS.includes(c), `${where}: column field ${c}`);
         for (const e of f.argus.events ?? [])
-          assert.ok(api.EVENTS.includes(e), `${where}: event ${e}`);
+          assert.ok([...api.EVENTS, ...api.ADDON_EVENTS].includes(e), `${where}: event ${e}`);
         for (const m of f.argus.methods ?? [])
           assert.ok(api.METHODS.includes(m), `${where}: method ${m}`);
         for (const a of f.argus.addons ?? []) assert.ok(a in api.ADDONS, `${where}: add-on ${a}`);
