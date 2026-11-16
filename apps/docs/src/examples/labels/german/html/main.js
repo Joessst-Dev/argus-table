@@ -66,8 +66,15 @@ table.plugins = plugins;
 table.addEventListener('argus-cell-edit', (event) => {
   table.data = applyEdit(table.data, event.detail, table.columns);
 });
-for (const type of ['argus-formula-column-add', 'argus-formula-column-change', 'argus-formula-column-remove']) {
+for (const type of [
+  'argus-formula-column-add',
+  'argus-formula-column-change',
+  'argus-formula-column-remove',
+]) {
   table.addEventListener(type, (event) => {
-    table.columns = /** @type {CustomEvent<{ columns: import('argus-table').ColumnDef<Order>[] }>} */ (event).detail.columns;
+    table.columns =
+      /** @type {CustomEvent<{ columns: import('argus-table').ColumnDef<Order>[] }>} */ (
+        event
+      ).detail.columns;
   });
 }
