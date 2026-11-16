@@ -1,0 +1,23 @@
+---
+title: Saved state
+description: Save what users changed, and put it back later.
+since: '0.3'
+---
+
+import FlavourTabs from '../../../components/FlavourTabs.astro';
+import Since from '../../../components/Since.astro';
+import ReactSaved from '../../../examples/saved-state/save-restore/react/SaveRestore.tsx';
+import VueSaved from '../../../examples/saved-state/save-restore/vue/SaveRestore.vue';
+import { SaveRestoreComponent } from '../../../examples/saved-state/save-restore/angular/save-restore.component.ts';
+
+`getState()` returns what users changed as one object of plain JSON: sort order, column widths, order, pins, hidden columns, filters, selection, `quickFilter` and the scroll position. `setState(state)` puts it back. Sort, resize, move or hide columns (the column menu of `@argus-table/header-menu` pins, hides and filters them), scroll, then Save: the layout goes to `localStorage` and comes back with Restore, after a reload too.
+
+`setState()` changes only the keys it's given, leaves properties you control alone, and fires no events. It resolves once the state is applied, scroll position included. A state saved by another version of the format is ignored <Since since="0.4" />.
+
+<FlavourTabs example="saved-state/save-restore">
+  <ReactSaved slot="react" client:visible />
+  <VueSaved slot="vue" client:visible />
+  <SaveRestoreComponent slot="angular" client:visible />
+</FlavourTabs>
+
+Call the methods on the element: through a `ref` in React, a template ref in Vue, or a view query in Angular.

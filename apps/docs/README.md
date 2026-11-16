@@ -42,7 +42,7 @@ Every example on a feature page has all four flavours; `lint` and the build fail
 
    `FlavourTabs` mounts the HTML flavour itself; the three islands are imported from the example's own folders and load `client:visible` (`lint` checks both). It takes `since` for an example newer than its page; `<Since since="1.4" />` marks a section.
 
-3. **The spec**, `e2e/<feature>.spec.ts` (`lint` fails for an example no spec opens): a test per flavour (`for (const flavour of FLAVOURS) test(...)`, each in a fresh page, so saved state starts empty) that opens it with `openFlavour(page, '<feature>/<example>', flavour)`, does the feature's interaction, asserts on the flavour's own state, and ends with `expectAccessible(page, example)`. `e2e/flavours.ts` has helpers to read the table: `cellText`, `headerTexts`, `headerOrder`, `truncated`. See `e2e/sorting.spec.ts`.
+3. **The spec**, `e2e/<feature>.spec.ts` (`lint` fails for an example no spec opens): a test per flavour (`for (const flavour of FLAVOURS) test(...)`, each in a fresh page, so saved state starts empty) that opens it with `openFlavour(page, '<feature>/<example>', flavour)`, does the feature's interaction, asserts on the flavour's own state, and ends with `expectAccessible(page, example)`. `e2e/flavours.ts` has helpers to read the table: `cellText`, `bodyCell`, `bodyRows`, `headerTexts`, `headerOrder`, `truncated`. See `e2e/sorting.spec.ts`.
 
 ## How it fits together
 

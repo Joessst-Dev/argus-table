@@ -1,0 +1,12 @@
+<argus-table
+  id="column-groups-declarative-table"
+  aria-label="Declarative groups"
+  style="block-size: 300px"
+>
+  <argus-column column-id="id" header="Order" accessor="id" width="100"></argus-column>
+  <argus-column-group group-id="who">
+    <argus-column column-id="customer" header="Customer" accessor="customer"></argus-column>
+    <argus-column column-id="city" header="City" accessor="city" width="120"></argus-column>
+  </argus-column-group>
+  <argus-column column-id="total" header="Total" accessor="total" align="end"></argus-column>
+</argus-table>

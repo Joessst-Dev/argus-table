@@ -1,0 +1,73 @@
+---
+title: Column groups
+description: Headers over several columns, nested, pinned and resized as one.
+since: '0.4'
+---
+
+import FlavourTabs from '../../../components/FlavourTabs.astro';
+import Since from '../../../components/Since.astro';
+import ReactGroups from '../../../examples/column-groups/basic/react/Groups.tsx';
+import VueGroups from '../../../examples/column-groups/basic/vue/Groups.vue';
+import { GroupsComponent } from '../../../examples/column-groups/basic/angular/groups.component.ts';
+import ReactNested from '../../../examples/column-groups/nested/react/NestedGroups.tsx';
+import VueNested from '../../../examples/column-groups/nested/vue/NestedGroups.vue';
+import { NestedGroupsComponent } from '../../../examples/column-groups/nested/angular/nested-groups.component.ts';
+import ReactDeclarative from '../../../examples/column-groups/declarative/react/DeclarativeGroups.tsx';
+import VueDeclarative from '../../../examples/column-groups/declarative/vue/DeclarativeGroups.vue';
+import { DeclarativeGroupsComponent } from '../../../examples/column-groups/declarative/angular/declarative-groups.component.ts';
+import ReactSplit from '../../../examples/column-groups/pinned-split/react/PinnedSplit.tsx';
+import VueSplit from '../../../examples/column-groups/pinned-split/vue/PinnedSplit.vue';
+import { PinnedSplitComponent } from '../../../examples/column-groups/pinned-split/angular/pinned-split.component.ts';
+import ReactResize from '../../../examples/column-groups/resize/react/ResizeGroups.tsx';
+import VueResize from '../../../examples/column-groups/resize/vue/ResizeGroups.vue';
+import { ResizeGroupsComponent } from '../../../examples/column-groups/resize/angular/resize-groups.component.ts';
+
+`columnGroups` puts headers over several columns: `{ id, header, columns }`, where `columns` lists column ids. `columns` itself stays a flat list, and so do sorting, widths, order and events. Columns without a group sit under an empty filler, and the group headers take the header's tokens and the parts `header-group-row`, `header-group-cell` and `header-group-filler`.
+
+A group's columns stay together: drag a group header to move the whole group, or press Alt+Shift+Arrow on it; a column moves only within its group, and `argus-column-order-change` carries the `groupId`. Group headers are part of the keyboard navigation: ArrowUp from a column header goes to its group, ArrowDown back to the column, and Left and Right move between the groups of a row. Groups don't sort.
+
+<FlavourTabs example="column-groups/basic">
+  <ReactGroups slot="react" client:visible />
+  <VueGroups slot="vue" client:visible />
+  <GroupsComponent slot="angular" client:visible />
+</FlavourTabs>
+
+## Nested groups
+
+Groups nest, and each level adds a header row. Here "Shipping" sits inside "Who", over City alone: three header rows. Groups are top-aligned, so a column with fewer groups over it has fillers below its groups.
+
+<FlavourTabs example="column-groups/nested">
+  <ReactNested slot="react" client:visible />
+  <VueNested slot="vue" client:visible />
+  <NestedGroupsComponent slot="angular" client:visible />
+</FlavourTabs>
+
+## Groups as children
+
+`<argus-column-group>` (`<ArgusColumnGroup>` in React and Vue) writes the groups as markup, around column children and other groups. A non-empty `columnGroups` property wins over them. A group's header can be content other than text: a function in HTML and React, a `#group-<id>` slot in Vue, an `argusGroupHeader` template in Angular. Give it a name for text mode too (the `header` text, or the function's answer when it's asked for `text`), so announcements and plugins can name the group <Since since="1.2" />.
+
+<FlavourTabs example="column-groups/declarative" since="1.2">
+  <ReactDeclarative slot="react" client:visible />
+  <VueDeclarative slot="vue" client:visible />
+  <DeclarativeGroupsComponent slot="angular" client:visible />
+</FlavourTabs>
+
+## Pinned columns in a group
+
+A group whose columns are pinned to different sides shows on each side: here Order is pinned to the start, so "Ids" has a sticky part over it and a scrolling part over Reference. Scroll sideways: the pinned part stays.
+
+<FlavourTabs example="column-groups/pinned-split">
+  <ReactSplit slot="react" client:visible />
+  <VueSplit slot="vue" client:visible />
+  <PinnedSplitComponent slot="angular" client:visible />
+</FlavourTabs>
+
+## Resizing a group
+
+Drag the handle on a group's edge, or press Alt+Arrow on a focused group, to resize it: the change is spread over its resizable columns in proportion to their widths, and `argus-column-sizing-change` fires for each column. A double-click fits them to their content. `reorderable: false` keeps a group in place ("Who" here); its columns still move within it.
+
+<FlavourTabs example="column-groups/resize">
+  <ReactResize slot="react" client:visible />
+  <VueResize slot="vue" client:visible />
+  <ResizeGroupsComponent slot="angular" client:visible />
+</FlavourTabs>

@@ -116,3 +116,13 @@ export function bodyRows(table: Locator): Promise<Record<string, string>[]> {
       ),
   );
 }
+
+/**
+ * A body cell by row position (0-based in the current order) and column. Assumes one
+ * header row and no top pinned rows (`aria-rowindex` = position + 2).
+ */
+export function bodyCell(table: Locator, rowIndex: number, columnId = 'customer'): Locator {
+  return table.locator(
+    `[part~="body"] > [aria-rowindex="${String(rowIndex + 2)}"] > [data-col="${columnId}"]`,
+  );
+}
