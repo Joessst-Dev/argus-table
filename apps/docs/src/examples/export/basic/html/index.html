@@ -1,0 +1,14 @@
+<div role="toolbar" aria-label="Export" class="example-controls">
+  <label>Search <input id="export-basic-search" type="search" /></label>
+  <label><input id="export-basic-selected" type="checkbox" /> Selected rows only</label>
+  <button type="button" data-format="csv">CSV</button>
+  <button type="button" data-format="xlsx">Excel</button>
+  <button type="button" data-format="pdf">PDF</button>
+</div>
+<argus-table
+  id="export-basic-table"
+  aria-label="Orders"
+  selection-mode="multi"
+  selection-checkboxes
+  style="block-size: 320px"
+></argus-table>

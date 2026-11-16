@@ -86,6 +86,9 @@ importers:
       '@argus-table/editing':
         specifier: workspace:*
         version: link:../../packages/editing
+      '@argus-table/export':
+        specifier: workspace:*
+        version: link:../../packages/export
       '@argus-table/header-menu':
         specifier: workspace:*
         version: link:../../packages/header-menu
