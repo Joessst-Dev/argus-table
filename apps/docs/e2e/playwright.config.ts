@@ -11,7 +11,8 @@ const device = { chromium: 'Desktop Chrome', firefox: 'Desktop Firefox', webkit:
 export default defineConfig({
   testDir: '.',
   outputDir: '../test-results',
-  // Each test opens every flavour of an example and runs axe on each: four times a page's work.
+  // A test opens one flavour of an example (one test per flavour, so the work spreads
+  // over the workers) and runs axe on it, which is slow on a large table.
   timeout: 60_000,
   forbidOnly: !!process.env.CI,
   retries: 0,
