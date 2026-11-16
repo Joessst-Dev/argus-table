@@ -147,6 +147,20 @@ describe('checkExamples', () => {
     expect(checkExamples(site(files))).toEqual([]);
   });
 
+  test("names a flavour that doesn't load its feature's styles.css", () => {
+    const files = valid('sorting/basic');
+    for (const path of Object.keys(files)) {
+      if (/\/(main\.js|X\.tsx|X\.vue|x\.component\.ts)$/.test(path)) {
+        files[path] = "import '../../styles.css';";
+      }
+    }
+    files['src/examples/sorting/styles.css'] = '.x {}';
+    files['src/examples/sorting/basic/vue/X.vue'] = '';
+    expect(checkExamples(site(files))).toEqual([
+      "src/examples/sorting/basic/vue: doesn't load ../../styles.css",
+    ]);
+  });
+
   test('names an example no e2e spec opens', () => {
     const files = valid('sorting/basic');
     files['e2e/x.spec.ts'] = '';

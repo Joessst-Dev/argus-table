@@ -8,8 +8,15 @@ for (const flavour of FLAVOURS) {
   test(`${flavour}: ::part() rules style the table`, async ({ page }) => {
     await page.goto('features/styling/');
     const example = await openFlavour(page, 'styling/parts', flavour);
-    const header = example.locator('argus-table [part~="header-cell"]').first();
+    const table = example.locator('argus-table');
+    const header = table.locator('[part~="header-cell"]').first();
     expect(await style(header, 'text-transform')).toBe('uppercase');
+    // Sorting adds header-cell-sorted and cell-sorted.
+    const customer = table.locator('[role="columnheader"][data-col="customer"]');
+    await customer.click();
+    await expect.poll(() => style(customer, 'text-decoration-line')).toBe('underline');
+    const cell = table.locator('[part~="cell-sorted"]').first();
+    expect(await style(cell, 'font-weight')).toBe('600');
     await expectAccessible(page, example);
   });
 }
@@ -23,7 +30,10 @@ for (const flavour of FLAVOURS) {
     const hidden = table.locator('.visually-hidden', { hasText: 'Actions' });
     await expect(hidden).toHaveCount(1);
     const box = await hidden.boundingBox();
-    expect(box?.width ?? 0).toBeLessThanOrEqual(1);
+    expect(box).not.toBeNull();
+    expect(box?.width).toBeLessThanOrEqual(1);
+    // Hidden from sight, not from screen readers.
+    await expect(table.getByRole('columnheader', { name: 'Actions' })).toBeAttached();
     await expectAccessible(page, example);
   });
 }

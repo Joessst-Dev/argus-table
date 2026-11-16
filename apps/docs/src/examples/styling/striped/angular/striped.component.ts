@@ -1,11 +1,13 @@
-import { Component } from '@angular/core';
+import { Component, ViewEncapsulation } from '@angular/core';
 import { ArgusTableComponent, type ColumnDef } from '@argus-table/angular';
-import '../../styles.css';
 import { orderColumns, orders, type Order } from '../../data';
 
 @Component({
   selector: 'app-striped',
   imports: [ArgusTableComponent],
+  // The rules style ::part()s and light-DOM content: not scoped to this component.
+  styleUrl: '../../styles.css',
+  encapsulation: ViewEncapsulation.None,
   template: `
     <argus-table
       class="styling-striped"

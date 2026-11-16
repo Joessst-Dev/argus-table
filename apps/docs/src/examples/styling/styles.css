@@ -10,8 +10,8 @@
 .styling-parts::part(header-cell-sorted) {
   text-decoration: underline;
 }
-.styling-parts::part(row-odd) {
-  background: light-dark(#f7f7f2, #1c1c18);
+.styling-parts::part(cell-sorted) {
+  font-weight: 600;
 }
 .styling-parts::part(cell-pinned-edge) {
   border-inline-end: 1px solid currentColor;

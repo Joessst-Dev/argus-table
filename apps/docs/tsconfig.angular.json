@@ -15,6 +15,6 @@
     "strictTemplates": true,
     "strictInjectionParameters": true
   },
-  "include": [".astro/types.d.ts", "src/examples/**/angular/*.ts"],
+  "include": ["src/examples/**/angular/*.ts"],
   "exclude": []
 }
