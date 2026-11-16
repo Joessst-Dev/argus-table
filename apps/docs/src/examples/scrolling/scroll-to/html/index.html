@@ -1,0 +1,24 @@
+<p class="example-controls">
+  <label>Order id <input id="scrolling-scroll-to-row" value="o50000" size="8" /></label>
+  <button id="scrolling-scroll-to-row-button" type="button">Scroll to row</button>
+  <label>
+    Column
+    <select id="scrolling-scroll-to-column"></select>
+  </label>
+  <button id="scrolling-scroll-to-column-button" type="button">Scroll to column</button>
+  <label>
+    Align
+    <select id="scrolling-scroll-to-align">
+      <option>start</option>
+      <option selected>center</option>
+      <option>end</option>
+      <option>nearest</option>
+    </select>
+  </label>
+  <output id="scrolling-scroll-to-output" aria-live="polite"></output>
+</p>
+<argus-table
+  id="scrolling-scroll-to-table"
+  aria-label="Orders"
+  style="block-size: 340px"
+></argus-table>

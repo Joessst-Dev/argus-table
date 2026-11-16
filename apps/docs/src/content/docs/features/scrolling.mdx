@@ -1,0 +1,20 @@
+---
+title: Scrolling
+description: Scroll to a row or a column from code.
+since: '1.1'
+---
+
+import FlavourTabs from '../../../components/FlavourTabs.astro';
+import ReactScroll from '../../../examples/scrolling/scroll-to/react/ScrollTo.tsx';
+import VueScroll from '../../../examples/scrolling/scroll-to/vue/ScrollTo.vue';
+import { ScrollToComponent } from '../../../examples/scrolling/scroll-to/angular/scroll-to.component.ts';
+
+`scrollToRow()` scrolls to a row by its index in the current order, or by `{ id }` with an id from `getRowId`. `scrollToColumn(id)` scrolls sideways to a column. `align` says where the target lands: `'start'`, `'center'`, `'end'`, or `'nearest'` (only as far as needed; the default for columns). The header, pinned rows and pinned columns are left out of the view, so the target never ends up behind them. Both resolve `true` once the target is in view, and `false` when there's nothing to scroll to.
+
+<FlavourTabs example="scrolling/scroll-to">
+  <ReactScroll slot="react" client:visible />
+  <VueScroll slot="vue" client:visible />
+  <ScrollToComponent slot="angular" client:visible />
+</FlavourTabs>
+
+Call the methods on the element: through a `ref` in React, a template ref in Vue, or a view query in Angular. Any number of rows scrolls: past the height a browser allows an element, the table maps the scroll position onto the rows, so the 100,000 rows here and a million behave the same.
