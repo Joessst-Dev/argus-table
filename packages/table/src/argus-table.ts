@@ -12,14 +12,10 @@ import {
   alignOffset,
   controllable,
   RowLayout,
-  sameUnit,
-  spreadWidth,
   SELECTION_COLUMN_ID,
-  type ColumnResizeEndDetail,
   type ColumnView,
   type Controllable,
   type GridRow,
-  type OrderUnit,
   type TableModel,
 } from '@argus-table/core';
 import { announce } from './announce.js';
@@ -30,14 +26,9 @@ import { DataController } from './controllers/data-controller.js';
 import { PinScrollController } from './controllers/pin-scroll-controller.js';
 import { PluginController, sameItems } from './controllers/plugins.js';
 import { RowMeasure } from './controllers/row-measure.js';
-import {
-  canStartReorder,
-  dropTarget,
-  startReorderDrag,
-  type DropSlot,
-} from './controllers/reorder-drag.js';
-import { startResizeDrag } from './controllers/resize-drag.js';
 import { TableController } from './controllers/table-controller.js';
+import { ColumnReorder } from './controllers/column-reorder.js';
+import { ColumnResize } from './controllers/column-resize.js';
 import { NavigationController } from './controllers/navigation.js';
 import { SelectionController } from './controllers/selection.js';
 import { StateEvents } from './controllers/state-events.js';
@@ -62,7 +53,7 @@ import { bodyCap, watchMaxElementHeight } from './max-height.js';
 import { renderBody, type ActiveCell, type Loading } from './render/body.js';
 import { renderLightDom } from './render/cells.js';
 import { content, flushContent, type ContentRenderer } from './render/content-directive.js';
-import { renderHeader, type HeaderDrag } from './render/header.js';
+import { renderHeader } from './render/header.js';
 import { headerText } from './render/header-text.js';
 import { renderPinnedRows } from './render/pinned-rows.js';
 import type { ArgusPlugin, CellTarget, ColumnInfo, PluginHost, RowSection } from './plugins.js';
@@ -71,6 +62,7 @@ import { rowHeightConverter, switchConverter } from './attributes.js';
 import {
   directionOf,
   gridCell,
+  groupCellOf,
   gridRowOf,
   gridRowOfCell,
   groupCell,
@@ -79,7 +71,6 @@ import {
   pinShadow,
   sortColumnOf,
   track,
-  unitKey,
 } from './grid.js';
 import type {
   CellContent,
@@ -117,8 +108,6 @@ function attachGridInternals(host: HTMLElement): ElementInternals {
   internals.role = 'grid';
   return internals;
 }
-
-const RESIZE_STEP = 10;
 
 /**
  * A virtualized data table.
@@ -352,10 +341,10 @@ export class ArgusTable<T = unknown> extends LitElement {
    */
   @property({ attribute: false })
   get columnSizing(): ColumnSizingState {
-    return this.#sizing.value;
+    return this.#resize.state.value;
   }
   set columnSizing(value: ColumnSizingState | undefined) {
-    this.#sizing.set(value);
+    this.#resize.state.set(value);
   }
 
   /**
@@ -369,10 +358,10 @@ export class ArgusTable<T = unknown> extends LitElement {
    */
   @property({ attribute: false })
   get columnOrder(): ColumnOrderState {
-    return this.#order.value;
+    return this.#reorder.state.value;
   }
   set columnOrder(value: ColumnOrderState | undefined) {
-    this.#order.set(value);
+    this.#reorder.state.set(value);
   }
 
   /**
@@ -543,8 +532,6 @@ export class ArgusTable<T = unknown> extends LitElement {
   #dataProp: readonly T[] = [];
   #overscan = 6;
   readonly #sorting = controllable<SortState>([]);
-  readonly #sizing = controllable<ColumnSizingState>({});
-  readonly #order = controllable<ColumnOrderState>([]);
   readonly #pinning = controllable<ColumnPinningState>({});
   readonly #visibility = controllable<ColumnVisibilityState>({});
   readonly #filters = controllable<ColumnFilterState>({});
@@ -554,12 +541,6 @@ export class ArgusTable<T = unknown> extends LitElement {
   /** Whether the checkbox column was last shown; a change re-measures the pinned columns. */
   #selectionColumn = false;
   #selectionColumnChanged = false;
-  /** The header being dragged to a new position, if any. */
-  #drag: HeaderDrag | undefined;
-  /** A move from the keyboard, announced once it has rendered: what moved and its old position. */
-  #announceMove: { unit: OrderUnit; from: number } | undefined;
-  /** The resize under way (a drag), or one in this call: the columns it changed and the last sizing. */
-  #resizing: ColumnResizeEndDetail | undefined;
   /** Columns `autosizeColumns()` renders out of view for its measurement. */
   #measureKeep: readonly string[] = [];
   /** The column `scrollToColumn()` renders out of view to measure where it is. */
@@ -718,6 +699,17 @@ export class ArgusTable<T = unknown> extends LitElement {
       insets: (layout) => this.#bodyInsets(layout),
     },
   );
+  /** Column widths: resize handles, Alt+Arrow and fits. */
+  readonly #resize = new ColumnResize<T>(this, () => this.#table.model, this.#events);
+  /** Column order: header drags and Alt+Shift+Arrow. */
+  readonly #reorder = new ColumnReorder<T>(
+    this,
+    () => this.#table.model,
+    this.#events,
+    this.#nav,
+    () => this.#labels,
+    () => this.#scroller(),
+  );
   #lastRange = '';
   #unwatchMaxHeight: (() => void) | undefined;
 
@@ -847,7 +839,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.#measureKeep = [];
       this.requestUpdate();
     }
-    this.#requestResizes(widths);
+    this.#resize.request(widths);
     await this.updateComplete;
   }
 
@@ -982,8 +974,8 @@ export class ArgusTable<T = unknown> extends LitElement {
     return structuredClone({
       version: 1 as const,
       sorting: this.#sorting.value,
-      columnSizing: this.#sizing.value,
-      columnOrder: this.#order.value,
+      columnSizing: this.#resize.state.value,
+      columnOrder: this.#reorder.state.value,
       columnPinning: this.#pinning.value,
       columnVisibility: this.#visibility.value,
       columnFilters: this.#filters.value,
@@ -1008,8 +1000,8 @@ export class ArgusTable<T = unknown> extends LitElement {
     // Another format (a later version's): nothing it holds can be trusted to mean the same.
     if (((state.version as number | undefined) ?? 1) !== 1) return;
     this.#restore('sorting', this.#sorting, state.sorting);
-    this.#restore('columnSizing', this.#sizing, state.columnSizing);
-    this.#restore('columnOrder', this.#order, state.columnOrder);
+    this.#restore('columnSizing', this.#resize.state, state.columnSizing);
+    this.#restore('columnOrder', this.#reorder.state, state.columnOrder);
     this.#restore('columnPinning', this.#pinning, state.columnPinning);
     this.#restore('columnVisibility', this.#visibility, state.columnVisibility);
     this.#restore('columnFilters', this.#filters, state.columnFilters);
@@ -1117,8 +1109,8 @@ export class ArgusTable<T = unknown> extends LitElement {
         data: this.data,
         getRowId: this.getRowId,
         sorting: this.#sorting.value,
-        columnSizing: this.#sizing.value,
-        columnOrder: this.#order.value,
+        columnSizing: this.#resize.state.value,
+        columnOrder: this.#reorder.state.value,
         columnPinning: this.#pinning.value,
         columnVisibility: this.#visibility.value,
         columnFilters: this.#filters.value,
@@ -1214,7 +1206,7 @@ export class ArgusTable<T = unknown> extends LitElement {
         part="table"
         role="presentation"
         style=${styleMap(style)}
-        ?data-dragging=${this.#drag !== undefined}
+        ?data-dragging=${this.#reorder.drag !== undefined}
         ?data-auto-rows=${auto}
         @keydown=${this.#onKeydown}
         @focusin=${this.#nav.onFocusin}
@@ -1226,7 +1218,7 @@ export class ArgusTable<T = unknown> extends LitElement {
           groups: model.headerGroups,
           handlers: this.#headerHandlers,
           active: activeIn('header'),
-          drag: this.#drag,
+          drag: this.#reorder.drag,
           checkAll: this.#select.checkAll(),
           labels,
         })}
@@ -1298,10 +1290,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     // Rows that just changed height move with the next update: focus them there.
     this.#nav.focusPending(resized);
     if (changed.has('density') || changed.has('rowHeight')) this.#measureRowHeight();
-    if (this.#announceMove) {
-      this.#announceMoved(model, this.#announceMove);
-      this.#announceMove = undefined;
-    }
+    this.#reorder.announce(model);
     if (this.#announceRows) {
       this.#announceRows = false;
       this.#announceRowCount(model);
@@ -1329,10 +1318,11 @@ export class ArgusTable<T = unknown> extends LitElement {
    * first data column, which holds the Retry buttons.
    */
   #keptColumns(model: TableModel<T, CellContent>): (string | undefined)[] {
+    const drag = this.#reorder.drag;
     return [
       this.#nav.active?.col,
       // A dragged column, not a group's: their headers needn't render out of view.
-      ...(this.#drag?.key.startsWith('c:') ? this.#drag.columns : []),
+      ...(drag?.key.startsWith('c:') ? drag.columns : []),
       this.dataSource ? model.columns.find((c) => c.kind === 'data')?.id : undefined,
       ...this.#autoWidths.pending(model.columns),
       ...this.#measureKeep,
@@ -1398,54 +1388,10 @@ export class ArgusTable<T = unknown> extends LitElement {
       if (event.button !== 0) return;
       const handle = event.composedPath()[0];
       if (!(handle instanceof HTMLElement)) return;
-      const group = this.#groupCellOf(handle.dataset.resizeGroup);
-      if (group) {
-        const starts = this.#groupWidths(group.columns);
-        const total = [...starts.values()].reduce((sum, w) => sum + w, 0);
-        this.#startResize();
-        startResizeDrag(
-          handle,
-          event,
-          total,
-          directionOf(this),
-          (w) => {
-            this.#requestGroupResize(group.columns, starts, w);
-          },
-          this.#endResize,
-        );
-        return;
-      }
-      const id = handle.dataset.resizeCol;
-      const cell = handle.parentElement;
-      if (id !== undefined && cell) {
-        this.#startResize();
-        startResizeDrag(
-          handle,
-          event,
-          cell.getBoundingClientRect().width,
-          directionOf(this),
-          (w) => {
-            this.#requestResize(id, w);
-          },
-          this.#endResize,
-        );
-        return;
-      }
-      this.#startReorder(event);
+      if (!this.#resize.pointerdown(handle, event)) this.#reorder.start(event);
     },
-    /** A double-click on a resize handle fits the column to its rendered content. */
     dblclick: (event: MouseEvent) => {
-      const handle = event.composedPath()[0];
-      if (!(handle instanceof HTMLElement)) return;
-      // A group's handle fits each of its columns (`autosizeColumns()` for them).
-      const group = this.#groupCellOf(handle.dataset.resizeGroup);
-      if (group) {
-        void this.autosizeColumns([...group.columns]);
-        return;
-      }
-      const id = handle.dataset.resizeCol;
-      if (id === undefined) return;
-      this.#requestResizes(measureColumns(this.renderRoot, [id]));
+      this.#resize.dblclick(event);
     },
   };
 
@@ -1493,14 +1439,8 @@ export class ArgusTable<T = unknown> extends LitElement {
       // Logical: the arrow pointing toward the inline end grows the column, or
       // moves it that way with Shift.
       const towardEnd = (key === 'ArrowRight') === (directionOf(this) === 1);
-      if (event.shiftKey) {
-        this.#moveByKey({ kind: 'column', id }, towardEnd ? 1 : -1);
-      } else {
-        this.#requestResize(
-          id,
-          this.#currentWidth(id, cell) + (towardEnd ? RESIZE_STEP : -RESIZE_STEP),
-        );
-      }
+      if (event.shiftKey) this.#reorder.byKey({ kind: 'column', id }, towardEnd ? 1 : -1);
+      else this.#resize.step(id, cell, towardEnd);
       return;
     }
     if (inHeader && (key === 'Enter' || key === ' ') && cell.dataset.sortCol !== undefined) {
@@ -1536,22 +1476,16 @@ export class ArgusTable<T = unknown> extends LitElement {
    * the active cell (`NavigationController.groupKey`).
    */
   #groupKey(event: KeyboardEvent, cell: HTMLElement, scroller: HTMLElement): void {
-    const here = this.#groupCellOf(cell.dataset.groupKey);
+    const here = groupCellOf(this.#table.model, cell.dataset.groupKey);
     if (here?.groupId === undefined) return;
     const { key } = event;
     if ((key === 'ArrowLeft' || key === 'ArrowRight') && event.altKey) {
       event.preventDefault();
       const towardEnd = (key === 'ArrowRight') === (directionOf(this) === 1);
       if (event.shiftKey) {
-        this.#moveByKey({ kind: 'group', id: here.groupId, pin: here.pin }, towardEnd ? 1 : -1);
-      } else if (here.resizable) {
-        const starts = this.#groupWidths(here.columns);
-        const total = [...starts.values()].reduce((sum, w) => sum + w, 0);
-        this.#requestGroupResize(
-          here.columns,
-          starts,
-          total + (towardEnd ? RESIZE_STEP : -RESIZE_STEP),
-        );
+        this.#reorder.byKey({ kind: 'group', id: here.groupId, pin: here.pin }, towardEnd ? 1 : -1);
+      } else {
+        this.#resize.stepGroup(here, towardEnd);
       }
       return;
     }
@@ -1622,120 +1556,6 @@ export class ArgusTable<T = unknown> extends LitElement {
   }
 
   /**
-   * The width a resize starts from: the latest requested width (key presses can
-   * come faster than renders), else the model's fixed width, else the rendered
-   * width of a flex column.
-   */
-  #currentWidth(columnId: string, cell: HTMLElement): number {
-    const sized = this.#sizing.value[columnId];
-    if (sized !== undefined) return sized;
-    const view = this.#table.model.columns.find((c) => c.id === columnId);
-    return view && view.flex === undefined ? view.width : cell.getBoundingClientRect().width;
-  }
-
-  /** The group header cell with a key, from the model. */
-  #groupCellOf(key: string | undefined) {
-    if (key === undefined) return undefined;
-    return this.#table.model.headerGroups.flat().find((c) => c.key === key);
-  }
-
-  /**
-   * The widths a group resize starts from, by column: the latest requested ones
-   * (key presses can come faster than renders), else the model's, else the
-   * rendered width of a flex column.
-   */
-  #groupWidths(columnIds: readonly string[]): Map<string, number> {
-    const widths = new Map<string, number>();
-    for (const id of columnIds) {
-      const header = this.renderRoot.querySelector<HTMLElement>(
-        `[part~='header-cell'][data-col="${CSS.escape(id)}"]`,
-      );
-      const view = this.#table.model.columns.find((c) => c.id === id);
-      const sized = this.#sizing.value[id];
-      widths.set(id, sized ?? (header ? this.#currentWidth(id, header) : (view?.width ?? 0)));
-    }
-    return widths;
-  }
-
-  /**
-   * Resizes a group to `total` px: the change is spread over its resizable columns
-   * in proportion to their widths, within their bounds (one `argus-column-sizing-change`
-   * per column that changes). The other columns keep their width.
-   */
-  #requestGroupResize(
-    columnIds: readonly string[],
-    starts: ReadonlyMap<string, number>,
-    total: number,
-  ): void {
-    const views = new Map(this.#table.model.columns.map((c) => [c.id, c]));
-    let fixed = 0;
-    const spread = [];
-    for (const id of columnIds) {
-      const view = views.get(id);
-      const width = starts.get(id) ?? view?.width ?? 0;
-      if (view?.resizable) {
-        spread.push({ id, width, minWidth: view.minWidth, maxWidth: view.maxWidth });
-      } else {
-        fixed += width;
-      }
-    }
-    if (spread.length === 0) return;
-    this.#requestResizes(spreadWidth(spread, total - fixed));
-  }
-
-  /** Sets one column's width (clamped by core), through the controlled/uncontrolled rules. */
-  #requestResize(columnId: string, width: number): void {
-    this.#requestResizes(new Map([[columnId, width]]));
-  }
-
-  /**
-   * Sets column widths (clamped by core) in one change, through the
-   * controlled/uncontrolled rules. One `argus-column-sizing-change` per column
-   * that changes, each with the whole new sizing.
-   */
-  #requestResizes(widths: ReadonlyMap<string, number>): void {
-    const model = this.#table.model;
-    const old = this.#sizing.value;
-    const targets: [string, number][] = [];
-    for (const [columnId, width] of widths) {
-      const target = model.nextSizing(columnId, width)?.[columnId];
-      if (target !== undefined && target !== old[columnId]) targets.push([columnId, target]);
-    }
-    if (targets.length === 0) return;
-    const value = this.#events.change(
-      'columnSizing',
-      this.#sizing,
-      { ...old, ...Object.fromEntries(targets) },
-      COLUMN_SIZING_CHANGE,
-      targets.map(([columnId, width]) => [columnId, { columnId, width }]),
-    );
-    // Outside a drag, this call is the whole resize: it ends below.
-    const single = !this.#resizing;
-    const resize = (this.#resizing ??= { columnSizing: value, columnIds: [] });
-    resize.columnSizing = value;
-    for (const [columnId] of targets) {
-      if (!resize.columnIds.includes(columnId)) resize.columnIds.push(columnId);
-    }
-    if (single) this.#endResize();
-  }
-
-  /** A drag on a resize handle starts: its changes add up to one `argus-column-resize-end`. */
-  #startResize(): void {
-    this.#resizing = { columnSizing: this.#sizing.value, columnIds: [] };
-  }
-
-  /**
-   * The resize is done: `argus-column-resize-end` fires if it changed a width,
-   * after the update when the table applied it, right away when `columnSizing` is controlled.
-   */
-  readonly #endResize = (): void => {
-    const detail = this.#resizing;
-    this.#resizing = undefined;
-    if (!detail || detail.columnIds.length === 0) return;
-    this.#events.emit(COLUMN_RESIZE_END, '', { ...detail }, this.#sizing.controlled);
-  };
-
-  /**
    * Pins or unpins a column through the controlled/uncontrolled rules. Starts
    * from the latest requested pins, so requests can come faster than renders.
    */
@@ -1772,177 +1592,6 @@ export class ArgusTable<T = unknown> extends LitElement {
   #announceRowCount(model: TableModel<T, CellContent>): void {
     if (this.#data.rows) return;
     announce(this.ownerDocument, this.#labels.rowCount({ count: model.rowCount }));
-  }
-
-  /**
-   * Moves a column or group to position `to` among its siblings (the columns and
-   * groups of its parent group on its pin side), through the controlled/uncontrolled
-   * rules. Starts from the latest requested order, so moves can come faster than
-   * renders. `false` if it can't move there.
-   */
-  #requestReorder(unit: OrderUnit, to: number): boolean {
-    const old = this.#order.value;
-    const model = this.#table.model;
-    const moving = model.siblingUnits(unit, old).find((s) => sameUnit(s.unit, unit));
-    const next = model.nextMove(unit, to, old);
-    const columnId = moving?.columns[0];
-    if (!next || columnId === undefined) return false;
-    this.#events.change('columnOrder', this.#order, next, COLUMN_ORDER_CHANGE, [
-      [unitKey(unit), unit.kind === 'group' ? { columnId, groupId: unit.id } : { columnId }],
-    ]);
-    return true;
-  }
-
-  /** Alt+Shift+Arrow on a column or group header: one step toward the start (-1) or the end (1). */
-  #moveByKey(unit: OrderUnit, step: 1 | -1): void {
-    const model = this.#table.model;
-    // From the latest requested order, so presses can come faster than renders.
-    // Positions count the shown columns and groups: hidden columns keep their place.
-    const from = model
-      .siblingUnits(unit, this.#order.value)
-      .findIndex((s) => sameUnit(s.unit, unit));
-    const at = this.#colIndexOf(model, unit);
-    if (from < 0 || at === undefined) return;
-    if (!this.#requestReorder(unit, from + step)) return;
-    // The header node moves, which drops its focus: focus it again once rendered.
-    this.#nav.refocus();
-    this.#announceMove ??= { unit, from: at };
-    this.requestUpdate();
-  }
-
-  /** `aria-colindex` of a column's header, or of a group's first column on its side. */
-  #colIndexOf(model: TableModel<T, CellContent>, unit: OrderUnit): number | undefined {
-    if (unit.kind === 'column') return model.columns.find((c) => c.id === unit.id)?.colIndex;
-    const key = unitKey(unit);
-    return model.headerGroups.flat().find((c) => c.key === key)?.colIndex;
-  }
-
-  /** Tells screen readers where a column or group moved from the keyboard went. */
-  #announceMoved(model: TableModel<T, CellContent>, move: { unit: OrderUnit; from: number }): void {
-    const { unit } = move;
-    const total = model.columns.length;
-    const labels = this.#labels;
-    if (unit.kind === 'column') {
-      const view = model.columns.find((c) => c.id === unit.id);
-      if (!view || view.colIndex === move.from) return;
-      const name =
-        headerText(view.header, { columnId: unit.id, text: true }) ??
-        this.#slotText(`[role='columnheader'][data-col="${CSS.escape(unit.id)}"] > slot`);
-      announce(
-        this.ownerDocument,
-        labels.columnMoved({ column: name || unit.id, position: view.colIndex, total }),
-      );
-      return;
-    }
-    const key = unitKey(unit);
-    const cell = model.headerGroups.flat().find((c) => c.key === key);
-    if (!cell || cell.colIndex === move.from) return;
-    const name =
-      headerText(cell.header, { groupId: unit.id, text: true }) ??
-      this.#slotText(`[data-group-key="${CSS.escape(key)}"] slot`);
-    announce(
-      this.ownerDocument,
-      labels.groupMoved({
-        group: name || unit.id,
-        first: cell.colIndex,
-        last: cell.colIndex + cell.span - 1,
-        total,
-      }),
-    );
-  }
-
-  /** The text slotted into a header, read through the slot's assigned nodes. */
-  #slotText(selector: string): string {
-    const slot = this.renderRoot.querySelector(selector);
-    return slot instanceof HTMLSlotElement
-      ? slot
-          .assignedNodes({ flatten: true })
-          .map((n) => n.textContent)
-          .join('')
-          .trim()
-      : '';
-  }
-
-  /** A press on a reorderable column or group header: becomes a drag once the pointer moves. */
-  #startReorder(down: PointerEvent): void {
-    const cell = down
-      .composedPath()
-      .find(
-        (t): t is HTMLElement =>
-          t instanceof HTMLElement && t.getAttribute('role') === 'columnheader',
-      );
-    if (!cell || !canStartReorder(down, cell)) return;
-    const model = this.#table.model;
-    let unit: OrderUnit;
-    if (cell.dataset.moveCol !== undefined) {
-      unit = { kind: 'column', id: cell.dataset.moveCol };
-    } else {
-      const key = cell.dataset.moveGroup;
-      const group = model.headerGroups.flat().find((c) => c.key === key);
-      if (group?.groupId === undefined) return;
-      unit = { kind: 'group', id: group.groupId, pin: group.pin };
-    }
-    const scroller = this.#scroller();
-    const moving = model.siblingUnits(unit).find((s) => sameUnit(s.unit, unit));
-    if (!scroller || !moving) return;
-    const key = unitKey(unit);
-    const columns = new Set(moving.columns);
-    const pin = unit.kind === 'group' ? unit.pin : model.columns.find((c) => c.id === unit.id)?.pin;
-    startReorderDrag(cell, down, {
-      scroller,
-      targetAt: (x) => dropTarget(this.#dropSlots(unit), key, x, directionOf(this)),
-      scrollArea: () => (pin === undefined ? this.#scrollArea(scroller) : undefined),
-      onStart: () => {
-        this.#drag = { key, columns, target: undefined };
-        this.requestUpdate();
-      },
-      onTarget: (target) => {
-        this.#drag = { key, columns, target };
-        this.requestUpdate();
-      },
-      onDrop: (target) => {
-        this.#drag = undefined;
-        if (target && this.#requestReorder(unit, target.to)) {
-          // The header node moves, which drops its focus: focus it again once rendered.
-          if (this.matches(':focus-within')) this.#nav.refocus();
-        }
-        this.requestUpdate();
-      },
-      onCancel: () => {
-        this.#drag = undefined;
-        this.requestUpdate();
-      },
-    });
-  }
-
-  /**
-   * The rendered headers of what a column or group moves among (see
-   * `siblingUnits`), with their positions there. With `virtualizeColumns`, columns
-   * out of view have no header and no slot.
-   */
-  #dropSlots(unit: OrderUnit): DropSlot[] {
-    const slots: DropSlot[] = [];
-    this.#table.model.siblingUnits(unit).forEach((sibling, index) => {
-      const id = unitKey(sibling.unit);
-      const cell = this.renderRoot.querySelector(
-        sibling.unit.kind === 'column'
-          ? `[role='columnheader'][data-col="${CSS.escape(sibling.unit.id)}"]`
-          : `[data-group-key="${CSS.escape(id)}"]`,
-      );
-      if (cell) slots.push({ id, index, rect: cell.getBoundingClientRect() });
-    });
-    return slots;
-  }
-
-  /** Where the scrolling columns show: the scroller's inside, less the pinned columns. */
-  #scrollArea(scroller: HTMLElement): { left: number; right: number } {
-    const width = (side: 'start' | 'end') => pinnedWidth(this.#table.model.columns, side);
-    const ltr = directionOf(this) === 1;
-    const left = scroller.getBoundingClientRect().left + scroller.clientLeft;
-    return {
-      left: left + width(ltr ? 'start' : 'end'),
-      right: left + scroller.clientWidth - width(ltr ? 'end' : 'start'),
-    };
   }
 
   /** asc → desc → unsorted, through the controlled/uncontrolled rules. */
