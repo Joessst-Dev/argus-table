@@ -74,11 +74,13 @@ const plugin: ArgusPlugin<Order> = {
   ],
   // A key on a focused header or cell, before the table: return true to claim it.
   keydown: (event, target, host) => false,
+  // Whether this plugin makes a column's cells editable (marks the others aria-readonly).
+  editable: (columnId, host) => false,
 };
 table.plugins = [plugin];
 ```
 
-The `host` reads resolved columns (`column(id)`), finds the header or cell of an event (`cellOf(event)`), sorts (`setSort(id, 'asc' | 'desc' | undefined)`, under the `sorting` rules), focuses a header (`focusHeader(id)`), announces to screen readers (`announce(message)`), runs the `columns` hooks again (`invalidateColumns()`), re-renders (`requestUpdate()`) and reads rows: the body in the current order or a pinned side (`row(index, section?)`, `rowCount(section?)`, `rowId(index, section?)`, a column's value with `value(index, columnId, section?)`, or with `readValue(row, columnId, index)` for a row the plugin has itself), and the group header rows (`headerGroups()`). It also pins, hides and filters columns (`setPin`, `setHidden`, `setFilter`), lists them (`columns()`), and wraps a column's own content for a plugin's template (`content(value)`, or `header(def)` for a column's or group's own header), or names it as plain text (`headerText(def)`): every member is always there. The table itself is `host.element`. Plugins run in array order; one that throws is reported in the console and skipped.
+The `host` reads resolved columns (`column(id)`), finds the header or cell of an event (`cellOf(event)`), sorts (`setSort(id, 'asc' | 'desc' | undefined)`, under the `sorting` rules), focuses a header or a cell (`focusHeader(id)`, `focusCell(index, columnId, section?)`), announces to screen readers (`announce(message)`), runs the `columns` hooks again (`invalidateColumns()`), re-renders (`requestUpdate()`) and reads rows: the body in the current order or a pinned side (`row(index, section?)`, `rowCount(section?)`, `rowId(index, section?)`, a column's value with `value(index, columnId, section?)`, or with `readValue(row, columnId, index)` for a row the plugin has itself), and the group header rows (`headerGroups()`). It also pins, hides and filters columns (`setPin`, `setHidden`, `setFilter`), lists them (`columns()`), and wraps a column's own content for a plugin's template (`content(value)`, or `header(def)` for a column's or group's own header), or names it as plain text (`headerText(def)`): every member is always there. The table itself is `host.element`. Plugins run in array order; one that throws is reported in the console and skipped.
 
 ### Header text and column meta
 

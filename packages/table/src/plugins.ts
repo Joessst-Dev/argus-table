@@ -68,6 +68,14 @@ export interface ArgusPlugin<T = unknown> {
    * don't come here, nor do keys on the checkbox column.
    */
   keydown?(event: KeyboardEvent, target: CellTarget, host: PluginHost<T>): boolean | undefined;
+  /**
+   * Whether the plugin makes a column's cells editable (an editing add-on).
+   * Asked once per column whenever the columns or the plugins change, or after
+   * `host.invalidateColumns()`. While no plugin has this hook, the grid is
+   * marked read-only (`aria-readonly`); with one, the cells of columns no
+   * plugin calls editable are.
+   */
+  editable?(columnId: string, host: PluginHost<T>): boolean;
 }
 
 /** A header or cell of the grid, as plugins see it. */
@@ -188,6 +196,12 @@ export interface PluginHost<T = unknown> {
   filteredIndexes(except?: readonly string[]): readonly number[] | undefined;
   /** Moves focus to a column's header, after the next update. */
   focusHeader(columnId: string): void;
+  /**
+   * Makes a cell the active one and moves focus to it after the next update:
+   * a body row by its index in the current order, or a pinned row by its index
+   * on its side. An index past the rows lands on the last one.
+   */
+  focusCell(index: number, columnId: string, section?: RowSection): void;
   /** Says something to screen readers through a polite live region. */
   announce(message: string): void;
   /** Runs the plugins' `columns` and `columnGroups` again on the next update. */

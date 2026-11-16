@@ -600,6 +600,9 @@ export class ArgusTable<T = unknown> extends LitElement {
       const model = this.#table.model;
       this.#nav.moveTo(layoutOf(model).leafHeader, columnId);
     },
+    focusCell: (index, columnId, section = 'body') => {
+      this.#nav.moveTo({ section, index }, columnId);
+    },
     announce: (message) => {
       announce(this.ownerDocument, message);
     },
@@ -669,6 +672,8 @@ export class ArgusTable<T = unknown> extends LitElement {
   readonly #virtual = new VirtualController(this, () => this.#scroller());
   readonly #pinScroll = new PinScrollController(this, () => this.#scroller());
   readonly #columnWindow = new ColumnWindowController<T>(this, () => this.#scroller());
+  /** Columns an `editable` plugin hook calls editable; `undefined` without one (read-only grid). */
+  #editable: ReadonlySet<string> | undefined;
   /** The columns the last render rendered (all of them, unless `virtualizeColumns`). */
   #rendered: RenderedColumn<T>[] = [];
   #rowPx = 40;
@@ -1136,6 +1141,9 @@ export class ArgusTable<T = unknown> extends LitElement {
     this.#internals.ariaRowCount = unknownTotal ? '-1' : String(layout.total);
     this.#internals.ariaColCount = String(model.columns.length);
     this.#internals.ariaMultiSelectable = this.#select.mode === 'multi' ? 'true' : null;
+    this.#editable = this.#plugins.editable(columns);
+    // Without an editing plugin nothing can be edited: say so once, on the grid.
+    this.#internals.ariaReadOnly = this.#editable ? null : 'true';
     // The header and pinned rows scroll with the body.
     const extra = this.#headerAndPinnedPx(layout);
     const auto = this.rowHeight === 'auto';
@@ -1168,6 +1176,8 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.virtualizeColumns ? this.#keptColumns(model) : [],
     );
     this.#rendered = rendered;
+    const editable = this.#editable;
+    if (editable) for (const c of rendered) c.readonly = !editable.has(c.id);
     const pinStart = pinnedWidth(columns, 'start');
     const pinEnd = pinnedWidth(columns, 'end');
     const cols = columns.map(track).join(' ');

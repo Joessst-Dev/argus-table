@@ -15,6 +15,8 @@ export type RenderedColumn<T> = ColumnView<T, CellContent> & {
   key: unknown;
   /** Grid column the cells are placed in; `undefined`: in DOM order. */
   place: number | undefined;
+  /** Its cells can't be edited while others can: `aria-readonly` on them (`editable` plugins). */
+  readonly?: boolean;
 };
 
 type Column<T> = ColumnView<T, CellContent>;

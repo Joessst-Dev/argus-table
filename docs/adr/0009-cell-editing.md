@@ -66,7 +66,7 @@ What shapes the design:
 
 All additions are optional members or hooks (ADR 0004):
 
-- **`PluginHost.focusCell(section, index, columnId)`**: makes a cell active and focuses it after the update, like `focusHeader`. Escape, Enter and Tab need it to put focus back on a cell.
+- **`PluginHost.focusCell(index, columnId, section?)`** (the argument order of `value()` and `row()`): makes a cell active and focuses it after the update, like `focusHeader`. Escape, Enter and Tab need it to put focus back on a cell.
 - **`ArgusPlugin.editable?(columnId, host): boolean`**, read when the model's columns change. With no plugin implementing it, the grid gets `aria-readonly="true"`: today's table is read-only, and saying so is an accessibility fix on its own. With one, the grid gets no `aria-readonly`, and cells of columns no plugin calls editable get `aria-readonly="true"`. A per-row `editable(row)` isn't reflected in ARIA; the editor doesn't open there and the plugin announces why (`labels.notEditable`).
 - Nothing else: the editor is the plugin's content in the cell, so the table's rendering, pooling and measuring don't change. The estimate is under 150 B gzipped for the element; the budget stays 51 kB if it fits, else the PR asks.
 

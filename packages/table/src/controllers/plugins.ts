@@ -2,7 +2,8 @@ import type { ReactiveController, ReactiveControllerHost } from 'lit';
 import type { ArgusPlugin, CellTarget, PluginHost } from '../plugins.js';
 import type { ColumnDef, ColumnGroup } from '../types.js';
 
-type Hook = 'connect' | 'cleanup' | 'willUpdate' | 'columns' | 'columnGroups' | 'keydown';
+type Hook =
+  'connect' | 'cleanup' | 'willUpdate' | 'columns' | 'columnGroups' | 'keydown' | 'editable';
 
 interface Memo<V> {
   input: readonly V[];
@@ -25,6 +26,14 @@ export class PluginController<T> implements ReactiveController {
   readonly #connected = new Map<ArgusPlugin<T>, (() => void) | undefined>();
   /** Plugins whose `connect` threw: off until `plugins` changes. */
   readonly #failed = new Set<ArgusPlugin<T>>();
+  #editable:
+    | {
+        input: readonly ColumnDef<T>[];
+        plugins: readonly ArgusPlugin<T>[];
+        version: number;
+        output: ReadonlySet<string> | undefined;
+      }
+    | undefined;
   #version = 0;
   #memo: Memo<ColumnDef<T, unknown>> | undefined;
   #groupsMemo: Memo<ColumnGroup<unknown>> | undefined;
@@ -100,6 +109,34 @@ export class PluginController<T> implements ReactiveController {
     // Plugins may return a fresh array each time: keep the old one when its items are the same.
     if (memo && sameItems(memo.output, output)) output = memo.output;
     return { input, plugins: this.#plugins, version: this.#version, output };
+  }
+
+  /**
+   * The ids of the columns some plugin's `editable` hook calls editable, or
+   * `undefined` while no plugin has the hook. Asked again only for new
+   * columns, new plugins or after `invalidate()`.
+   */
+  editable(columns: readonly ColumnDef<T>[]): ReadonlySet<string> | undefined {
+    const memo = this.#editable;
+    if (
+      memo?.input === columns &&
+      memo.plugins === this.#plugins &&
+      memo.version === this.#version
+    ) {
+      return memo.output;
+    }
+    let output: Set<string> | undefined;
+    for (const plugin of this.#plugins) {
+      if (!plugin.editable || this.#failed.has(plugin)) continue;
+      output ??= new Set();
+      for (const { id } of columns) {
+        if (output.has(id)) continue;
+        const result = this.#guard(plugin, 'editable', () => plugin.editable?.(id, this.#api));
+        if (result.ok && result.value === true) output.add(id);
+      }
+    }
+    this.#editable = { input: columns, plugins: this.#plugins, version: this.#version, output };
+    return output;
   }
 
   /** Runs the transforms again on the next `transform()`. */
