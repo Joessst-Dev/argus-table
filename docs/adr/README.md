@@ -11,3 +11,4 @@ Decisions contributors will ask about, with the evidence behind them. One file p
 | [0005](0005-labels.md)                      | Translatable built-in text through `labels`                       | Accepted |
 | [0006](0006-export.md)                      | Export to CSV, XLSX and PDF as a dependency-free add-on           | Accepted |
 | [0007](0007-header-text-and-column-meta.md) | Header text through the header's context, and `ColumnDef.meta`    | Accepted |
+| [0008](0008-own-row-virtualization.md)      | Own row virtualization, without TanStack Virtual                  | Accepted |

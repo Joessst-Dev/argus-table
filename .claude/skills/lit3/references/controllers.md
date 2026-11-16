@@ -18,7 +18,7 @@ Register with `host.addController(this)` in the controller constructor. If the h
 ```
 properties ─▶ element.willUpdate ─▶ controller setters ─▶ controller state
 user input ─▶ InteractionController ─▶ table state ─▶ host.requestUpdate()
-scroll ─────▶ VirtualController (TanStack Virtual) ─▶ range ─▶ host.requestUpdate()
+scroll ─────▶ VirtualController (core RowSizes) ───▶ range ─▶ host.requestUpdate()
                                                  └▶ DataController.load(range)
 render() reads: TableController (model) + VirtualController (window) + InteractionController (active cell)
 ```
@@ -58,10 +58,10 @@ render() {
 - Read cells through the model: `valueAt(index, columnId)`, `cellContext(index, columnId)` for `cell` functions, `rowAt(index)` for `{ id, index, original }`.
 - Server-side sorting and filtering (Phase 2): the adapter gets `manualSorting` / `manualFiltering`, and the state goes to `dataSource.getRows`.
 
-### Virtualizer (`@tanstack/lit-virtual`, wrapped with the row pool by `VirtualController`)
+### Virtualizer (`VirtualController`: core's `RowSizes`, `ScrollScale` and the row pool)
 
 ```ts
-// The virtualizer registers itself with the host. Its hostUpdated runs *before*
+// The controller registers itself with the host. Its hostUpdated runs *before*
 // the element's firstUpdated, so look the scroll element up lazily.
 readonly #virtual = new VirtualController(this, () =>
   this.renderRoot.querySelector<HTMLElement>('[part~="table"]'),
@@ -83,9 +83,10 @@ render() {
 
 - Body rows are keyed by their **row-pool slot**, not by row id or index, so DOM is recycled instead of recreated, and they stay in pool order (ADR 0001 and its addendum). Screen readers get the position from `aria-rowindex`.
 - `computeWindow()` updates the pool, so call it once per render.
-- Rows are fixed height in v0.1. The height comes from CSS (`--argus-row-height`, density defaults), measured from a hidden probe element with a `ResizeObserver`, so themes change the virtualizer too. When it changes, `configure()` calls `measure()`.
-- Auto row heights (Phase 2): attach `v.measureElement` via the `ref` directive on rows with `data-index`, and give the virtualizer `getItemKey` so measurements follow the row. This can trigger the one allowed extra pass.
-- Column virtualization (for >30 columns, off by default) is a second virtualizer with `horizontal: true`; pinned columns are always rendered outside it.
+- The controller listens to the scroller's `scroll` events and size itself and requests an update only when the visible rows change (every scroll when the body is scaled). It has no third-party virtualizer (ADR 0008).
+- The row height comes from CSS (`--argus-row-height`, density defaults), measured from a hidden probe element with a `ResizeObserver`, so themes change the virtualizer too; `configure()` resets `RowSizes` with it, which allocates nothing while every row is that tall.
+- Auto row heights (`rowHeight: 'auto'`): `RowMeasure` reads rendered rows in `updated()` and passes them to `measureRows()`; heights follow row ids. This can trigger the one allowed extra pass.
+- Column virtualization (`virtualizeColumns`, off by default) is `ColumnWindowController`, a second `RowPool` over the scrolling columns; pinned columns are always rendered outside it.
 
 ## The one-extra-pass guard
 
