@@ -31,8 +31,15 @@ table.columns = columns;
 table.data = items;
 table.plugins = plugins;
 // The plugin never changes columns itself: it proposes them, and this code applies them.
-for (const type of ['argus-formula-column-add', 'argus-formula-column-change', 'argus-formula-column-remove']) {
+for (const type of [
+  'argus-formula-column-add',
+  'argus-formula-column-change',
+  'argus-formula-column-remove',
+]) {
   table.addEventListener(type, (event) => {
-    table.columns = /** @type {CustomEvent<{ columns: import('argus-table').ColumnDef<Item>[] }>} */ (event).detail.columns;
+    table.columns =
+      /** @type {CustomEvent<{ columns: import('argus-table').ColumnDef<Item>[] }>} */ (
+        event
+      ).detail.columns;
   });
 }

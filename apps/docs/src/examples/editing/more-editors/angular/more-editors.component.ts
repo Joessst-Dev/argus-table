@@ -55,7 +55,13 @@ export class MoreEditorsComponent {
       meta: { edit: true },
     },
     // Toggled by a click, Space or Enter, with no editing mode.
-    { id: 'done', header: 'Done', accessor: 'done', width: 80, meta: { edit: { editor: 'checkbox' } } },
+    {
+      id: 'done',
+      header: 'Done',
+      accessor: 'done',
+      width: 80,
+      meta: { edit: { editor: 'checkbox' } },
+    },
     {
       id: 'priority',
       header: 'Priority',

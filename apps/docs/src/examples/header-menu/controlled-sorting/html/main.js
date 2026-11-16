@@ -24,7 +24,9 @@ table.data = orders;
 table.plugins = [menu];
 
 // Controlled: the menu, like a header click, only proposes an order.
-const output = /** @type {HTMLOutputElement} */ (document.querySelector('#header-menu-controlled-sorting-output'));
+const output = /** @type {HTMLOutputElement} */ (
+  document.querySelector('#header-menu-controlled-sorting-output')
+);
 table.sorting = [];
 table.addEventListener('argus-sorting-change', (event) => {
   output.textContent = `Proposed: ${JSON.stringify(event.detail.sorting)}`;

@@ -31,7 +31,8 @@ const selectedOnly = ref(false);
 // What the table shows: its columns in order, its rows sorted and filtered.
 const download = (format: ExportFormat) => {
   const element = table.value?.element;
-  if (element) void downloadTable(element, format, { rows: selectedOnly.value ? 'selected' : 'view' });
+  if (element)
+    void downloadTable(element, format, { rows: selectedOnly.value ? 'selected' : 'view' });
 };
 </script>
 

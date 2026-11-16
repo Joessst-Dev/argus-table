@@ -36,5 +36,7 @@ const onSortingChange = (event: CustomEvent<SortingChangeDetail>) => {
     :sorting="sorting"
     @sorting-change="onSortingChange"
   />
-  <p><output>Proposed: {{ proposed }}</output></p>
+  <p>
+    <output>Proposed: {{ proposed }}</output>
+  </p>
 </template>

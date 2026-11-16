@@ -20,7 +20,6 @@ const plugins = [formulas<Item>()];
 const data = itemsOf(5);
 
 export default function FormulaErrors() {
-
   return (
     <ArgusTable
       aria-label="Order items"

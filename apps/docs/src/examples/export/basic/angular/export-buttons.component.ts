@@ -13,7 +13,11 @@ import { formats, orders, type Order } from '../../data';
         Search <input type="search" [value]="search()" (input)="search.set(valueOf($event))" />
       </label>
       <label>
-        <input type="checkbox" [checked]="selectedOnly()" (change)="selectedOnly.set(checked($event))" />
+        <input
+          type="checkbox"
+          [checked]="selectedOnly()"
+          (change)="selectedOnly.set(checked($event))"
+        />
         Selected rows only
       </label>
       @for (f of formats; track f.format) {
@@ -40,7 +44,13 @@ export class ExportButtonsComponent {
   protected readonly formats = formats;
   protected readonly columns: ColumnDef<Order>[] = [
     { id: 'id', header: 'Order', accessor: 'id', width: 100 },
-    { id: 'customer', header: 'Customer', accessor: 'customer', width: { flex: 1 }, sortable: true },
+    {
+      id: 'customer',
+      header: 'Customer',
+      accessor: 'customer',
+      width: { flex: 1 },
+      sortable: true,
+    },
     { id: 'city', header: 'City', accessor: 'city', width: 120, filter: 'set' },
     { id: 'status', header: 'Status', accessor: 'status', width: 110 },
     {
@@ -53,7 +63,9 @@ export class ExportButtonsComponent {
       filter: 'number',
     },
   ];
-  protected readonly groups: ColumnGroup[] = [{ id: 'where', header: 'Delivery', columns: ['city', 'status'] }];
+  protected readonly groups: ColumnGroup[] = [
+    { id: 'where', header: 'Delivery', columns: ['city', 'status'] },
+  ];
   protected readonly rowId = (order: Order) => order.id;
   // With headerMenu(), every column menu offers the formats too.
   protected readonly plugins = [

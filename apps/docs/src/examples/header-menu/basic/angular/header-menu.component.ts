@@ -20,7 +20,13 @@ export class HeaderMenuComponent {
   protected readonly orders = orders;
   protected readonly columns: ColumnDef<Order>[] = [
     { id: 'id', header: 'Order', accessor: 'id', width: 100 },
-    { id: 'customer', header: 'Customer', accessor: 'customer', width: { flex: 1 }, sortable: true },
+    {
+      id: 'customer',
+      header: 'Customer',
+      accessor: 'customer',
+      width: { flex: 1 },
+      sortable: true,
+    },
     { id: 'city', header: 'City', accessor: 'city', width: 140 },
     { id: 'status', header: 'Status', accessor: 'status', width: 120 },
     { id: 'total', header: 'Total', accessor: 'total', width: 110, align: 'end', sortable: true },

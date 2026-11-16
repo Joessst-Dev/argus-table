@@ -34,9 +34,9 @@ export default function FormulaEditing() {
       columns={columns}
       data={data}
       plugins={plugins}
-        onFormulaColumnAdd={apply}
-        onFormulaColumnChange={apply}
-        onFormulaColumnRemove={apply}
+      onFormulaColumnAdd={apply}
+      onFormulaColumnChange={apply}
+      onFormulaColumnRemove={apply}
     />
   );
 }

@@ -27,7 +27,13 @@ export class FormulasComponent {
       width: 110,
       sortable: true,
     },
-    { id: 'gross', header: 'Gross', formula: 'ROUND([Total] * 1.19, 2)', width: 110, sortable: true },
+    {
+      id: 'gross',
+      header: 'Gross',
+      formula: 'ROUND([Total] * 1.19, 2)',
+      width: 110,
+      sortable: true,
+    },
     { id: 'stock', header: 'Stock', formula: 'IF([qty] < 10, "Low", "OK")', width: 90 },
     { id: 'month', header: 'Month', formula: 'TEXT([Ordered], "mmm yyyy")', width: 110 },
   ];

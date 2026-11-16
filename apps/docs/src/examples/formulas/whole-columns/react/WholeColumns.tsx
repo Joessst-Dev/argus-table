@@ -41,7 +41,6 @@ const data = items;
 const sorting: SortState = [{ id: 'rank', desc: false }];
 
 export default function WholeColumns() {
-
   return (
     <ArgusTable
       aria-label="Order items"
@@ -49,7 +48,7 @@ export default function WholeColumns() {
       columns={columns}
       data={data}
       plugins={plugins}
-        sorting={sorting}
+      sorting={sorting}
     />
   );
 }

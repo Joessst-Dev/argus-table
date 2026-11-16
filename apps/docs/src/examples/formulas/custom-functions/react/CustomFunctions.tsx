@@ -16,7 +16,6 @@ const plugins = [
 const data = itemsOf(20);
 
 export default function CustomFunctions() {
-
   return (
     <ArgusTable
       aria-label="Order items"
