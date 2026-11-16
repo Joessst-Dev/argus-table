@@ -27,6 +27,7 @@ argus-table/
 │  └─ editing/              @argus-table/editing  cell editing, added after 1.0
 ├─ apps/
 │  ├─ storybook/            docs site (Storybook 10)
+│  ├─ docs/                 the coming docs site (Astro + Starlight), every feature in four flavours
 │  ├─ playground/           Vite sandbox for quick manual testing
 │  └─ examples/
 │     ├─ html/  ├─ react/  ├─ vue/  └─ angular/   smoke-test apps, also StackBlitz starters

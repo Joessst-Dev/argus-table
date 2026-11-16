@@ -32,6 +32,19 @@ jobs:
           path: apps/storybook/dist
           retention-days: 7
 
+      # The new docs site (apps/docs): built and kept as an artifact on every
+      # event until it replaces Storybook on Pages (docs/superpowers/specs/
+      # 2026-11-16-docs-site-design.md, "Rollout").
+      - name: Build the docs site
+        run: pnpm nx run docs:build
+
+      - name: Upload docs site artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: docs-site
+          path: apps/docs/dist
+          retention-days: 7
+
       - name: Upload Pages artifact
         if: github.event_name == 'push'
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
