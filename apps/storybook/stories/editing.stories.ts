@@ -58,8 +58,8 @@ const orderColumns: ColumnDef<Order>[] = [
 ];
 
 /** The app's side: apply each edit to `data`. */
-function apply(event: CustomEvent<CellEditDetail<unknown>>) {
-  const table = event.currentTarget as ArgusTable<unknown>;
+function apply(event: CustomEvent<CellEditDetail>) {
+  const table = event.currentTarget as ArgusTable;
   table.data = applyEdit(table.data, event.detail, table.columns);
 }
 

@@ -58,9 +58,10 @@ export interface ColumnEditOptions<TData = unknown> {
   /**
    * A copy of `row` with the column's value set, for `applyEdit()`. Needed when
    * the column's `accessor` is a function; a path (`'address.city'`) is set
-   * without it.
+   * without it. (Typed `unknown` so that `ColumnDef<T>` stays assignable across
+   * row types, as without this add-on.)
    */
-  set?: ((row: TData, value: unknown) => TData) | undefined;
+  set?: ((row: TData, value: unknown) => unknown) | undefined;
 }
 
 declare module 'argus-table' {

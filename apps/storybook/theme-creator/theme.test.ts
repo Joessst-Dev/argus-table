@@ -261,7 +261,7 @@ describe('the catalogue', () => {
     );
     const used = new Set<string>();
     for (const text of Object.values(sources))
-      for (const [, name] of text.matchAll(/var\((--argus-[\w-]+)/g)) if (name) used.add(name);
+      for (const [, name] of text.matchAll(/var\(\s*(--argus-[\w-]+)/g)) if (name) used.add(name);
     const addons = [...used].filter((n) => !TABLE_TOKEN_NAMES.has(n)).sort();
     const listed = TOKENS.filter((t) => t.group !== 'table')
       .map((t) => t.name)

@@ -258,7 +258,7 @@ describe('emitReact', () => {
     expect(source).toContain("import { ownEvents } from '../own-events.js';");
     expect(source).toContain('export const ArgusTable = ownEvents(createComponent({');
     expect(source).toContain(
-      "}), ['onSortingChange', 'onColumnSizingChange', 'onColumnOrderChange', 'onColumnPinningChange', 'onColumnVisibilityChange', 'onColumnFiltersChange', 'onRowClick', 'onSelectionChange', 'onFormulaColumnAdd', 'onFormulaColumnChange', 'onFormulaColumnRemove'], 'ArgusTable') as unknown as <T = unknown>(props: ArgusTableProps<T>) => React.ReactElement | null;",
+      "}), ['onSortingChange', 'onColumnSizingChange', 'onColumnOrderChange', 'onColumnPinningChange', 'onColumnVisibilityChange', 'onColumnFiltersChange', 'onRowClick', 'onSelectionChange', 'onFormulaColumnAdd', 'onFormulaColumnChange', 'onFormulaColumnRemove', 'onCellEdit'], 'ArgusTable') as unknown as <T = unknown>(props: ArgusTableProps<T>) => React.ReactElement | null;",
     );
     // No events: no event props interface, and no type parameter when nothing uses T.
     expect(source).not.toContain('ArgusColumnEventProps');
