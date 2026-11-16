@@ -138,6 +138,9 @@ importers:
         specifier: ^3.5.45
         version: 3.5.45(typescript@6.0.3)
     devDependencies:
+      '@argus-table/generate-wrappers':
+        specifier: workspace:*
+        version: link:../../tools/generate-wrappers
       '@astrojs/check':
         specifier: ^0.9.12
         version: 0.9.12(prettier@3.10.1)(typescript@6.0.3)

@@ -82,6 +82,7 @@
     "vue": "^3.5.45"
   },
   "devDependencies": {
+    "@argus-table/generate-wrappers": "workspace:*",
     "@astrojs/check": "^0.9.12",
     "@axe-core/playwright": "^4.14.0",
     "@playwright/test": "1.63.0",

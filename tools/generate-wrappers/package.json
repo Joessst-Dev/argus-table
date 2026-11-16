@@ -3,6 +3,9 @@
   "private": true,
   "type": "module",
   "description": "Generates the framework wrappers' element bindings from argus-table's Custom Elements Manifest.",
+  "exports": {
+    "./manifest": "./src/manifest.ts"
+  },
   "nx": {
     "name": "generate-wrappers"
   },

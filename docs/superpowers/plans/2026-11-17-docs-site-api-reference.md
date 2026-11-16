@@ -4,9 +4,9 @@
 
 **Goal:** The docs site gets an API reference generated at build time: one page per element (`<argus-table>`, `<argus-column>`, `<argus-column-group>`) and one page of the public types, so it can't drift from the code.
 
-**Architecture:** Two pure readers in `apps/docs/src/lib/api/` turn sources into page models: `elements.ts` reads `argus-table/custom-elements.json` through the wrapper generator's `readElement()` (so binding names are the ones the wrappers really have) plus the manifest's parts, tokens, slots and method signatures; `types.ts` reads the types `argus-table` exports with the TypeScript compiler API, from source. Astro pages in `src/pages/api/` render the models inside `StarlightPage`, descriptions through Astro's Markdown processor, type texts linked to the types page.
+**Architecture:** Two pure readers in `apps/docs/src/lib/api/` turn sources into page models: `elements.ts` reads `argus-table/custom-elements.json` through the wrapper generator's `readElement()` (so binding names are the ones the wrappers really have) plus the manifest's parts, tokens, slots and method signatures; `types.ts` reads the types `argus-table` exports with the TypeScript compiler API, from source. Astro pages in `src/pages/api/` render the models inside `StarlightPage`, descriptions through `marked`, type texts linked to the types page.
 
-**Tech Stack:** Astro 7 + Starlight 0.43 (`StarlightPage`), TypeScript 6 compiler API (`typescript`, already a dev dependency), `@astrojs/markdown-remark`, Vitest (Node), Playwright + axe.
+**Tech Stack:** Astro 7 + Starlight 0.43 (`StarlightPage`), TypeScript 6 compiler API (`typescript`, already a dev dependency), `marked`, Vitest (Node), Playwright + axe.
 
 **Spec:** `docs/superpowers/specs/2026-11-16-docs-site-design.md` ("API reference", "Release badges"). Plans 1 and 2 (`docs/superpowers/plans/2026-11-16-docs-site-foundation.md`, `…-feature-pages.md`) built `apps/docs` and every feature page; read `apps/docs/README.md` first.
 
@@ -153,7 +153,7 @@
 
 **Files:**
 
-- Modify: `apps/docs/package.json` (dependency `@astrojs/markdown-remark`, the version `astro` depends on)
+- Modify: `apps/docs/package.json` (dependency `marked`; Astro 7 no longer has `@astrojs/markdown-remark`, and its replacement, `@astrojs/markdown-satteri`, has no plain render function)
 - Create: `apps/docs/src/lib/api/render.ts`
 - Test: `apps/docs/src/lib/api/render.test.ts`
 
@@ -171,7 +171,7 @@
   export function anchorOf(name: string): string; // 'ColumnDef' → 'columndef'
   ```
 
-  `renderDoc` uses one `createMarkdownProcessor()` instance (created on first use). `linkTypes` HTML-escapes the text and wraps each whole-word occurrence of a known type name in `<a href="…">`; the row type parameter `T` and names not in `known` stay plain.
+  `renderDoc` renders with `marked` (GitHub-flavoured, no raw HTML passed through). `linkTypes` HTML-escapes the text and wraps each whole-word occurrence of a known type name in `<a href="…">`; the row type parameter `T` and names not in `known` stay plain.
 
 - [ ] **Step 1: Write the failing tests:**
   - `test('renders code spans, links and lists')`: ``renderDoc('Use `sorting`. See [ADR](https://x.y).\n\n- a\n- b')`` contains `<code>sorting</code>`, `<a href="https://x.y">ADR</a>` and `<li>a</li>`.
