@@ -2,10 +2,9 @@ import { defineConfig } from 'vitest/config';
 import { playwright } from '@vitest/browser-playwright';
 import { storybookTest } from '@storybook/addon-vitest/vitest-plugin';
 
-// Two projects:
-// - storybook: every story runs as a test: it renders, its play function runs,
-//   and axe checks it (`a11y.test: 'error'` in preview.ts makes a violation fail).
-// - theme-creator: the creator's unit tests, next to its code.
+// Every story runs as a test: it renders, its play function runs, and axe
+// checks it (`a11y.test: 'error'` in preview.ts makes a violation fail). The
+// theme creator's unit tests are in packages/theme-creator.
 // Chromium only by default; BROWSERS=firefox,webkit or all for more.
 const ALL = ['chromium', 'firefox', 'webkit'] as const;
 type Browser = (typeof ALL)[number];
@@ -38,13 +37,6 @@ export default defineConfig({
           // Million Rows generates its data in the test: ~3 s locally, but over
           // 15 s (the default) on a busy CI runner, as on #148.
           testTimeout: 30_000,
-        },
-      },
-      {
-        test: {
-          name: 'theme-creator',
-          include: ['theme-creator/**/*.test.ts'],
-          browser: browser(),
         },
       },
     ],

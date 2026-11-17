@@ -1,0 +1,39 @@
+---
+title: Default theme
+description: "The neutral default theme: the page's font, light and dark, one accent colour."
+since: '0.1'
+---
+
+import ThemePreview from '../../../components/themes/ThemePreview.astro';
+
+```js
+import '@argus-table/themes/default.css';
+```
+
+Neutral. It uses the page's font, follows the system's light or dark setting, and has one accent colour for focus, the sorted column's header and the resize handle. This site's own tables use it.
+
+- **Corners and outline:** the table is square with no outer border. Round it and draw one with `argus-table { --argus-border-radius: 8px; --argus-border: 1px solid #e3e6ea; }`.
+- **Density:** the theme keeps the table's row heights and padding per `density`. Override one density with `argus-table[density='compact'] { --argus-row-height: 28px; }`.
+- **Light and dark:** `data-argus-theme="dark"` or `"light"` on the table or an ancestor forces a scheme; any token can be set after the theme. See [Themes](/argus-table/themes/).
+
+The preview follows this site's light and dark switch. The status chips are the page's own CSS: cell content is light DOM.
+
+<ThemePreview theme="default" label="Default theme" />
+
+## Variants
+
+Dark, whatever the site's mode (`data-argus-theme="dark"` on an ancestor):
+
+<ThemePreview theme="default" scheme="dark" label="Default theme, dark" />
+
+Light, whatever the site's mode:
+
+<ThemePreview theme="default" scheme="light" label="Default theme, light" />
+
+Compact (`density="compact"`):
+
+<ThemePreview theme="default" density="compact" label="Default theme, compact" />
+
+With row selection (`selection-mode="multi"` and `selection-checkboxes`):
+
+<ThemePreview theme="default" selection label="Default theme, with selection" />

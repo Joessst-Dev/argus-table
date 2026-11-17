@@ -5,7 +5,16 @@ import { lookupIn, resolveColor, systemColor } from './values.js';
 import { emptyTheme } from './model.js';
 import { newDraft } from './presets.js';
 import { resolveTheme } from './resolve.js';
-import { decodeDraft, encodeDraft, fromStored, hashDraft, loadDraft, saveDraft } from './share.js';
+import {
+  decodeDraft,
+  encodeDraft,
+  fromStored,
+  hashDraft,
+  loadDraft,
+  saveDraft,
+  shareBase,
+  shareLink,
+} from './share.js';
 
 describe('system colours', () => {
   it('are this browser’s Canvas and CanvasText', () => {
@@ -132,6 +141,29 @@ describe('share', () => {
     expect(await decodeDraft('not-a-theme')).toBeUndefined();
     expect(fromStored({ v: 2 })).toBeUndefined();
     expect(fromStored(null)).toBeUndefined();
+  });
+
+  it('share links open the page that embeds the creator', async () => {
+    const draft = newDraft('fluent', 'Ocean');
+    const link = await shareLink(draft, 'https://x.dev/argus-table/themes/creator/');
+    expect(link).toMatch(/^https:\/\/x\.dev\/argus-table\/themes\/creator\/#theme=[\w-]+$/);
+    expect(await decodeDraft(hashDraft(link) ?? '')).toEqual(draft);
+    // A hash the page had gives way; its query stays.
+    expect(await shareLink(draft, 'https://x.dev/p?a=1#theme=old')).toMatch(
+      /^https:\/\/x\.dev\/p\?a=1#theme=[\w-]+$/,
+    );
+  });
+
+  it('shareBase: the set URL, else the page without its hash', () => {
+    expect(shareBase(undefined, 'https://x.dev/argus-table/themes/creator/#theme=abc')).toBe(
+      'https://x.dev/argus-table/themes/creator/',
+    );
+    const story = 'https://sb.dev/iframe.html?id=themes-theme-creator--creator&viewMode=story';
+    expect(shareBase(story, 'https://sb.dev/iframe.html?id=x&args=y')).toBe(story);
+    // Relative to the page, like a link.
+    expect(shareBase('/argus-table/themes/creator/', 'https://x.dev/argus-table/api/#a')).toBe(
+      'https://x.dev/argus-table/themes/creator/',
+    );
   });
 
   it('saves and loads a draft', () => {

@@ -1,0 +1,41 @@
+---
+title: Minimal theme
+description: 'A quiet, airy table that reads like a timeline, with one amber accent.'
+since: '0.3'
+---
+
+import ThemePreview from '../../../components/themes/ThemePreview.astro';
+import '@fontsource/instrument-sans/400.css';
+import '@fontsource/instrument-sans/500.css';
+import '@fontsource/instrument-sans/600.css';
+
+```js
+import '@fontsource/instrument-sans/400.css';
+import '@fontsource/instrument-sans/500.css';
+import '@fontsource/instrument-sans/600.css';
+import '@argus-table/themes/minimal.css';
+```
+
+A quiet, airy table that reads like a timeline: header and body on one surface, no column lines, faint hairlines between rows, small uppercase column labels and one amber accent for focus, the sorted column, the resize handle and selection. Designed dark first, with a light version.
+
+- **Fonts:** the theme loads no fonts. Load Instrument Sans 400, 500 and 600 on the page, from [`@fontsource/instrument-sans`](https://fontsource.org/fonts/instrument-sans) as above or from Google Fonts. Without it, the table uses the system font.
+- **Rows:** 44, 56 and 68px for `compact`, `comfortable` (the default) and `spacious`, with 12, 16 and 24px of inline padding.
+- **Light and dark:** `data-argus-theme="dark"` or `"light"` on the table or an ancestor forces a scheme; any token can be set after the theme. See [Themes](/argus-table/themes/).
+
+The preview follows this site's light and dark switch. The status chips are the page's own CSS: cell content is light DOM.
+
+<ThemePreview theme="minimal" label="Minimal theme" />
+
+## Variants
+
+Dark, whatever the site's mode (`data-argus-theme="dark"` on an ancestor):
+
+<ThemePreview theme="minimal" scheme="dark" label="Minimal theme, dark" />
+
+Compact (`density="compact"`):
+
+<ThemePreview theme="minimal" density="compact" label="Minimal theme, compact" />
+
+With row selection (`selection-mode="multi"` and `selection-checkboxes`):
+
+<ThemePreview theme="minimal" selection label="Minimal theme, with selection" />

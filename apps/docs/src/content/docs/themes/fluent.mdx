@@ -1,0 +1,35 @@
+---
+title: Fluent-inspired theme
+description: 'Borrows the feel of Fluent 2 on the web: neutral greys, one brand blue, Segoe UI.'
+since: '0.3'
+---
+
+import ThemePreview from '../../../components/themes/ThemePreview.astro';
+
+```js
+import '@argus-table/themes/fluent.css';
+```
+
+It borrows the feel of Fluent 2 on the web, not Microsoft's exact spec: neutral greys, one brand blue, Segoe UI, a flat header on the body colour and the sizes of Fluent's Table. Selected rows get a light brand tint, and the focus ring is black (white in dark mode), as in Fluent.
+
+- **Fonts:** the theme loads no fonts. Segoe UI comes with Windows and isn't on npm; elsewhere the table uses the system font.
+- **Rows:** 34, 44 and 52px for `compact`, `comfortable` (the default) and `spacious`, with 8, 12 and 16px of inline padding.
+- **Light and dark:** `data-argus-theme="dark"` or `"light"` on the table or an ancestor forces a scheme; any token can be set after the theme. See [Themes](/argus-table/themes/).
+
+The preview follows this site's light and dark switch. The status chips are the page's own CSS: cell content is light DOM.
+
+<ThemePreview theme="fluent" label="Fluent-inspired theme" />
+
+## Variants
+
+Dark, whatever the site's mode (`data-argus-theme="dark"` on an ancestor):
+
+<ThemePreview theme="fluent" scheme="dark" label="Fluent-inspired theme, dark" />
+
+Compact (`density="compact"`):
+
+<ThemePreview theme="fluent" density="compact" label="Fluent-inspired theme, compact" />
+
+With row selection (`selection-mode="multi"` and `selection-checkboxes`):
+
+<ThemePreview theme="fluent" selection label="Fluent-inspired theme, with selection" />

@@ -3,7 +3,13 @@ import { html } from 'lit';
 import { expect } from 'storybook/test';
 import type { PinnedRows } from 'argus-table';
 import 'argus-table';
-import { getOrderId, orderColumns, orders, totals, type Order } from './theme-orders.js';
+import {
+  getOrderId,
+  orderColumns,
+  orders,
+  totals,
+  type Order,
+} from '@argus-table/theme-creator/orders';
 
 interface Args {
   scheme: 'auto' | 'light' | 'dark';

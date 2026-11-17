@@ -1,0 +1,39 @@
+---
+title: Material-inspired theme
+description: 'Borrows the feel of Material 3: its palette, Roboto, an outlined surface with rounded corners.'
+since: '0.2'
+---
+
+import ThemePreview from '../../../components/themes/ThemePreview.astro';
+import '@fontsource/roboto/400.css';
+import '@fontsource/roboto/500.css';
+
+```js
+import '@fontsource/roboto/400.css';
+import '@fontsource/roboto/500.css';
+import '@argus-table/themes/material.css';
+```
+
+It borrows the feel of Material 3, not Google's exact spec: the baseline purple palette, Roboto, an outlined surface with 12px corners, a tinted header and deeper shadows on pinned columns.
+
+- **Fonts:** the theme loads no fonts. Load Roboto 400 and 500 on the page, from [`@fontsource/roboto`](https://fontsource.org/fonts/roboto) as above or from Google Fonts. Without Roboto, the table uses the system font.
+- **Rows:** taller than the table's defaults: 40, 52 and 60px for `compact`, `comfortable` (the default) and `spacious`, with 12, 16 and 20px of inline padding.
+- **Light and dark:** `data-argus-theme="dark"` or `"light"` on the table or an ancestor forces a scheme; any token can be set after the theme. See [Themes](/argus-table/themes/).
+
+The preview follows this site's light and dark switch. The status chips are the page's own CSS: cell content is light DOM.
+
+<ThemePreview theme="material" label="Material-inspired theme" />
+
+## Variants
+
+Dark, whatever the site's mode (`data-argus-theme="dark"` on an ancestor):
+
+<ThemePreview theme="material" scheme="dark" label="Material-inspired theme, dark" />
+
+Compact (`density="compact"`):
+
+<ThemePreview theme="material" density="compact" label="Material-inspired theme, compact" />
+
+With row selection (`selection-mode="multi"` and `selection-checkboxes`):
+
+<ThemePreview theme="material" selection label="Material-inspired theme, with selection" />

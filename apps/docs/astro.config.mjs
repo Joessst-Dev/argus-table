@@ -35,6 +35,18 @@ export default defineConfig({
         { label: 'Start here', items: [{ label: 'Introduction', link: '/' }] },
         { label: 'Features', items: [{ autogenerate: { directory: 'features' } }] },
         {
+          label: 'Themes',
+          items: [
+            { label: 'Overview', link: '/themes/' },
+            { label: 'Default', link: '/themes/default/' },
+            { label: 'Material-inspired', link: '/themes/material/' },
+            { label: 'Fluent-inspired', link: '/themes/fluent/' },
+            { label: 'Bootstrap-inspired', link: '/themes/bootstrap/' },
+            { label: 'Minimal', link: '/themes/minimal/' },
+            { label: 'Theme creator', link: '/themes/creator/' },
+          ],
+        },
+        {
           label: 'API reference',
           items: [
             { label: 'Overview', link: '/api/' },

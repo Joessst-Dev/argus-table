@@ -3,7 +3,11 @@
   "compilerOptions": {
     "noUncheckedIndexedAccess": true,
     "verbatimModuleSyntax": true,
-    "checkJs": true
+    "checkJs": true,
+    // Lit's decorators as the repo writes them (the theme previews, and the
+    // theme creator's sources, which the site compiles).
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false
   },
   "include": [".astro/types.d.ts", "**/*"],
   "exclude": ["dist", "src/examples/**/vue/**"]

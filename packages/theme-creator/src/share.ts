@@ -176,15 +176,28 @@ export function hashDraft(url: string): string | undefined {
 }
 
 /**
- * A link to the creator on its own page (the story's iframe), which keeps the
- * hash; the Storybook manager's URL doesn't carry one reliably.
+ * Where Storybook's creator story lives, from Storybook's root: the page its
+ * share links open, and the theme skill's links too (until the docs site
+ * replaces Storybook).
  */
-export async function shareLink(draft: ThemeDraft, location: Location): Promise<string> {
-  const url = new URL('iframe.html', location.href);
-  url.search = new URLSearchParams({
-    id: 'themes-theme-creator--creator',
-    viewMode: 'story',
-  }).toString();
+export const STORYBOOK_SHARE_PATH = 'iframe.html?id=themes-theme-creator--creator&viewMode=story';
+
+/**
+ * The page a share link opens: `shareUrl` if the embedder set one (Storybook:
+ * the story's own iframe, since the manager's URL doesn't carry a hash
+ * reliably), else the current page without its hash.
+ */
+export function shareBase(shareUrl: string | undefined, href: string): string {
+  // Relative to the page, like a link's href.
+  if (shareUrl !== undefined) return new URL(shareUrl, href).href;
+  const url = new URL(href);
+  url.hash = '';
+  return url.href;
+}
+
+/** A link to the creator at `base` that opens `draft`. */
+export async function shareLink(draft: ThemeDraft, base: string): Promise<string> {
+  const url = new URL(base);
   url.hash = `${HASH_KEY}=${await encodeDraft(draft)}`;
   return url.href;
 }

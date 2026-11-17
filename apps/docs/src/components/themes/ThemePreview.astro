@@ -1,0 +1,26 @@
+---
+// A shipped theme on the orders table (`theme-preview.ts`): in a shadow root
+// of its own, so the site's default.css doesn't reach it.
+interface Props {
+  theme: 'default' | 'material' | 'fluent' | 'bootstrap' | 'minimal';
+  /** `auto` follows the site's light or dark mode. */
+  scheme?: 'auto' | 'light' | 'dark';
+  density?: 'compact' | 'comfortable' | 'spacious';
+  selection?: boolean;
+  /** The table's accessible name, unique on the page. */
+  label: string;
+}
+
+const { theme, scheme = 'auto', density = 'comfortable', selection = false, label } = Astro.props;
+---
+
+<argus-theme-preview
+  theme={theme}
+  scheme={scheme}
+  density={density}
+  selection={selection}
+  label={label}></argus-theme-preview>
+
+<script>
+  import './theme-preview.ts';
+</script>

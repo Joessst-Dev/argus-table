@@ -3,7 +3,13 @@ import { html, nothing } from 'lit';
 import { expect, userEvent } from 'storybook/test';
 import type { ArgusTable, ColumnDef, PinnedRows } from 'argus-table';
 import 'argus-table';
-import { getOrderId, orderColumns, orders, totals, type Order } from './theme-orders.js';
+import {
+  getOrderId,
+  orderColumns,
+  orders,
+  totals,
+  type Order,
+} from '@argus-table/theme-creator/orders';
 
 // Status as a coloured dot plus the label, no badge (page CSS: cell content is
 // light DOM). The label is plain text in the cell, so axe reads it against the
