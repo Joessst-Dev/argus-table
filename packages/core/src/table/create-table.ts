@@ -14,6 +14,7 @@ import {
 } from '../columns/column-order.js';
 import { resolveColumns, type ResolvedColumn } from '../columns/resolve-columns.js';
 import { distinctValues, rowPredicate } from '../filters/filter.js';
+import { DisplayRows } from './display-rows.js';
 import { sortRows } from './sorted-row-model.js';
 import type {
   CellContext,
@@ -27,6 +28,7 @@ import type {
   ColumnPinningState,
   ColumnSizingState,
   ColumnVisibilityState,
+  ExpandedState,
   FilterKind,
   FilterValue,
   PinnedRows,
@@ -47,11 +49,24 @@ export const SELECTION_COLUMN_ID = '--argus-selection';
 /** Width of the selection column in px. */
 export const SELECTION_COLUMN_WIDTH = 40;
 
+/**
+ * Id of the toggle column, the column of chevrons that open rows' detail panels,
+ * which the model adds after the selection column when `detail` is set. Not a
+ * column of `columns`, like the selection column.
+ */
+export const EXPAND_COLUMN_ID = '--argus-expand';
+
+/** Width of the toggle column in px. */
+export const EXPAND_COLUMN_WIDTH = 40;
+
 /** A column as the renderer sees it, in visual order: start-pinned, scrolling, end-pinned. */
 export interface ColumnView<TData, TContent> {
   id: string;
-  /** `'data'` for a column of `columns`; `'selection'` for the checkbox column. */
-  kind: 'data' | 'selection';
+  /**
+   * `'data'` for a column of `columns`; `'selection'` for the checkbox column,
+   * `'expand'` for the toggle column of detail panels.
+   */
+  kind: 'data' | 'selection' | 'expand';
   /** 1-based position in visual order, for `aria-colindex`. `0` for a hidden column. */
   colIndex: number;
   /** The pin in effect: `columnPinning`'s, else the column's own. */
@@ -172,6 +187,16 @@ export interface TableModelOptions<TData, TContent> {
    * sizing or the column order.
    */
   selectionColumn?: boolean | undefined;
+  /**
+   * Rows can open a detail panel (the table's `rowDetail` is set): adds the toggle
+   * column (`EXPAND_COLUMN_ID`) after the selection column, and a panel row after
+   * each expanded row in `display`.
+   */
+  detail?: boolean | undefined;
+  /** The ids of the rows whose panel is open; its owner is the caller. */
+  expanded?: ExpandedState | undefined;
+  /** Rows that can open a panel; default: every row. */
+  rowExpandable?: ((row: TData) => boolean) | undefined;
 }
 
 export interface TableModel<TData, TContent> {
@@ -202,6 +227,22 @@ export interface TableModel<TData, TContent> {
   readonly headerRows: number;
   /** The cell of group header row `level` over a column, or `undefined`. */
   headerCell(level: number, columnId: string): HeaderGroupCell<TContent> | undefined;
+  /**
+   * The rows the body shows: every row of the current row model, and a panel row
+   * after each expanded row that can show one (loaded, allowed by `rowExpandable`).
+   * The identity without `detail`. Keeps its identity while the row order,
+   * `expanded`, `rowExpandable` and `detail` stay the same (for remote rows, also
+   * while no more rows have loaded).
+   */
+  readonly display: DisplayRows;
+  /** Whether the row at a data index can open a panel: `detail` is set, it's loaded and `rowExpandable` allows it. */
+  expandable(index: number): boolean;
+  /**
+   * The expanded ids after opening or closing a row's panel, starting from `base`
+   * (default: the current `expanded`). `undefined` when nothing changes or the row
+   * can't expand (unknown, not loaded, refused by `rowExpandable`, no `detail`).
+   */
+  nextExpanded(rowId: string, open: boolean, base?: ExpandedState): ExpandedState | undefined;
   /** The row at an index of the current row model; `undefined` for a remote row not loaded yet. */
   rowAt(index: number): RowView<TData> | undefined;
   /** The index of a row id in the current row model (after filtering and sorting), or `undefined`. */
@@ -318,21 +359,30 @@ function changedAccessors<TData, TContent>(
   return after.filter((c) => old.has(c.id) && old.get(c.id) !== c.accessor).map((c) => c.id);
 }
 
-/** The selection column's view: first, pinned to the start, fixed, and inert to sorting, sizing and moves. */
-function selectionView<TData, TContent>(pinEdge: boolean): ColumnView<TData, TContent> {
+/**
+ * A system column's view (the selection or the toggle column): pinned to the start
+ * ahead of the data columns, fixed, and inert to sorting, sizing and moves.
+ */
+function systemView<TData, TContent>(
+  kind: 'selection' | 'expand',
+  colIndex: number,
+  offset: number,
+  pinEdge: boolean,
+): ColumnView<TData, TContent> {
+  const width = kind === 'selection' ? SELECTION_COLUMN_WIDTH : EXPAND_COLUMN_WIDTH;
   return {
-    id: SELECTION_COLUMN_ID,
-    kind: 'selection',
-    colIndex: 1,
+    id: kind === 'selection' ? SELECTION_COLUMN_ID : EXPAND_COLUMN_ID,
+    kind,
+    colIndex,
     pin: 'start',
-    offset: 0,
+    offset,
     pinEdge,
     hidden: false,
-    width: SELECTION_COLUMN_WIDTH,
+    width,
     flex: undefined,
     auto: false,
-    minWidth: SELECTION_COLUMN_WIDTH,
-    maxWidth: SELECTION_COLUMN_WIDTH,
+    minWidth: width,
+    maxWidth: width,
     sortable: false,
     resizable: false,
     reorderable: false,
@@ -501,6 +551,52 @@ export function createTableModel<TData, TContent>(
       : String(dataIndex);
   const pinned = (side: RowPin): readonly TData[] => options.pinnedRows?.[side] ?? [];
 
+  /** The row object at an index of the current order; `undefined` for a remote row not loaded. */
+  const rowObjectAt = (index: number): TData | undefined => {
+    if (options.remote) return options.remote.entryAt(index)?.row;
+    const row = rows()[index];
+    return row === undefined ? undefined : options.data[row];
+  };
+  const expandableAt = (index: number): boolean => {
+    if (!options.detail) return false;
+    const row = rowObjectAt(index);
+    return row !== undefined && (options.rowExpandable?.(row) ?? true);
+  };
+  const indexOfId = (rowId: string): number | undefined => {
+    if (options.remote) return options.remote.indexOf(rowId);
+    const current = rows();
+    if (indexById?.rows !== current) {
+      indexById = { rows: current, map: new Map(current.map((r, i) => [rowIdOf(r), i])) };
+    }
+    return indexById.map.get(rowId);
+  };
+  // The displayed rows. With data, kept while what they read is the same. Remote
+  // rows load without a new order, so those are built again on each read and the
+  // previous object is kept when nothing differs.
+  let display: { key: readonly unknown[] | undefined; rows: DisplayRows } | undefined;
+  const displayRows = (): DisplayRows => {
+    const count = options.remote?.rowCount ?? rows().length;
+    const key = options.remote
+      ? undefined
+      : [rows(), options.expanded, options.rowExpandable, options.detail];
+    const prev = display;
+    if (key && prev?.key?.every((part, i) => part === key[i])) return prev.rows;
+    const open: number[] = [];
+    if (options.detail) {
+      for (const id of options.expanded ?? []) {
+        const index = indexOfId(id);
+        if (index !== undefined && expandableAt(index)) open.push(index);
+      }
+    }
+    const next = new DisplayRows(count, open);
+    const same =
+      prev?.rows.count === next.count &&
+      prev.rows.dataCount === next.dataCount &&
+      prev.rows.open.every((index, i) => index === next.open[i]);
+    display = { key, rows: same ? prev.rows : next };
+    return display.rows;
+  };
+
   // The width in effect: the sizing state's (resized, measured, pinned flex), else
   // the column's own, within its bounds.
   const widthOf = (id: string) => {
@@ -560,15 +656,26 @@ export function createTableModel<TData, TContent>(
       if (def && !hiddenOf(def)) groups[pinOf(def) ?? 'center'].push(def);
     }
     const { start, center, end } = groups;
-    // The selection column comes first: it shifts every column one place on, and
-    // the other start-pinned columns its width further from the start edge.
-    const lead = options.selectionColumn ? 1 : 0;
-    if (lead && byId.has(SELECTION_COLUMN_ID)) {
-      throw new Error(`argus-table: the column id '${SELECTION_COLUMN_ID}' is reserved.`);
+    // The system columns come first (the selection column, then the toggle column):
+    // they shift every column on, and the start-pinned ones by their widths.
+    const system: ('selection' | 'expand')[] = [];
+    if (options.selectionColumn) system.push('selection');
+    if (options.detail) system.push('expand');
+    for (const id of [SELECTION_COLUMN_ID, EXPAND_COLUMN_ID]) {
+      if (system.length && byId.has(id)) {
+        throw new Error(`argus-table: the column id '${id}' is reserved.`);
+      }
     }
-    // Offsets: start columns from the start edge (after the selection column), the
+    const lead = system.length;
+    const systemViews: ColumnView<TData, TContent>[] = [];
+    let x = 0;
+    for (const [i, kind] of system.entries()) {
+      const v = systemView<TData, TContent>(kind, i + 1, x, i === lead - 1 && start.length === 0);
+      systemViews.push(v);
+      x += v.width;
+    }
+    // Offsets: start columns from the start edge (after the system columns), the
     // scrolling ones within the scrolling area, end columns from the end edge.
-    let x = lead * SELECTION_COLUMN_WIDTH;
     const list = start.map((def, i) => {
       const v = view(def, lead + i + 1, x, i === start.length - 1);
       x += v.width;
@@ -588,7 +695,7 @@ export function createTableModel<TData, TContent>(
       x += v.width;
     }
     list.push(...ends);
-    if (lead) list.unshift(selectionView(start.length === 0));
+    list.unshift(...systemViews);
     return list;
   };
 
@@ -708,12 +815,23 @@ export function createTableModel<TData, TContent>(
     },
 
     indexOf(rowId) {
-      if (options.remote) return options.remote.indexOf(rowId);
-      const current = rows();
-      if (indexById?.rows !== current) {
-        indexById = { rows: current, map: new Map(current.map((r, i) => [rowIdOf(r), i])) };
-      }
-      return indexById.map.get(rowId);
+      return indexOfId(rowId);
+    },
+
+    get display() {
+      return displayRows();
+    },
+
+    expandable(index) {
+      return expandableAt(index);
+    },
+
+    nextExpanded(rowId, open, base = options.expanded ?? []) {
+      const index = indexOfId(rowId);
+      if (index === undefined || !expandableAt(index)) return undefined;
+      const has = base.includes(rowId);
+      if (has === open) return undefined;
+      return open ? [...base, rowId] : base.filter((id) => id !== rowId);
     },
 
     selectableIds() {

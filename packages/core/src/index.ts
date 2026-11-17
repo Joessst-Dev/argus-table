@@ -28,6 +28,8 @@ export {
 export { spreadWidth, type SpreadColumn } from './columns/spread-width.js';
 export {
   createTableModel,
+  EXPAND_COLUMN_ID,
+  EXPAND_COLUMN_WIDTH,
   SELECTION_COLUMN_ID,
   SELECTION_COLUMN_WIDTH,
   type ColumnView,
