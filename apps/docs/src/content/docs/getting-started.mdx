@@ -31,7 +31,7 @@ Or, without a build step, from a CDN, with every dependency bundled:
 
 ## A first table
 
-Three columns of orders: the order number pinned to the start, a sortable customer name read from a nested object (`customer.name`), and a sortable total. Click a header to sort, and a row to select it.
+Three columns of orders: the order number pinned to the start, a sortable customer name read from a nested object (`customer.name`), and a sortable total. Click a header to sort, and a row to show its order number below.
 
 <FlavourTabs example="getting-started/first-table">
   <ReactFirstTable slot="react" client:visible />
@@ -41,7 +41,7 @@ Three columns of orders: the order number pinned to the start, a sortable custom
 
 Three things every table needs:
 
-- **A bounded height.** The table virtualizes its rows, so it needs a height to fill: `block-size` (or `height`) on the element, or a parent that bounds it. Without one it's 400 px tall.
+- **A bounded height.** The table virtualizes its rows, so it needs a height to fill: `block-size` (or `height`) on the element, or `block-size: 100%` inside a parent with a height. Without either it's 400 px tall.
 - **An accessible name.** Give it `aria-label` or `aria-labelledby`. It has `role="grid"`, and screen readers announce the name.
 - **Columns and data as properties,** not attributes: they hold objects and functions. The wrappers set them for you. `getRowId` gives each row a stable id, which selection, saved state and a `dataSource` rely on.
 
@@ -52,6 +52,8 @@ The examples on this site use the default theme. Load one theme on your page:
 ```js
 import '@argus-table/themes/default.css';
 ```
+
+Or, without a build step: `<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@argus-table/themes/dist/default.css">`.
 
 There are five, each one CSS file: Default, Material-inspired, Fluent-inspired, Bootstrap-inspired and Minimal. See [Themes](/argus-table/themes/), or make your own in the [theme creator](/argus-table/themes/creator/).
 

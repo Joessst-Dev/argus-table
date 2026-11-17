@@ -13,6 +13,7 @@ const columns = [
   ['steady', 'steady p95'],
   ['fast', 'fast p95'],
   ['jumps', 'jumps p95'],
+  ['sideways', 'sideways p95'],
   ['longTasks', 'long tasks'],
   ['blankWrong', 'blank / wrong'],
   ['load', 'load'],
@@ -33,6 +34,10 @@ const browsers = Object.entries(meta.versions)
   } runs, with {meta.columns} columns.
 </p>
 <p><small>{meta.runner} · {meta.os} · {meta.cpu} · {browsers}</small></p>
+<p>
+  The gate: a p95 of at most {meta.gate.p95} ms and no long task over {meta.gate.longTask} ms in
+  every scroll scenario, and the last row reached.
+</p>
 {
   meta.rows.map((rows) => (
     <>

@@ -7,7 +7,6 @@ import {
   renderedMarkdownIntegration,
   renderedPlugins,
   rewriteHref,
-  type HastContext,
   type MdContext,
   type MdNode,
 } from './rendered';
@@ -65,7 +64,7 @@ describe('rewriteHref', () => {
 });
 
 describe('renderedPlugins', () => {
-  const { mdast: factory, hast } = renderedPlugins({ repoRoot: repo, base: '/argus-table', pages });
+  const { mdast: factory } = renderedPlugins({ repoRoot: repo, base: '/argus-table', pages });
   const guide = pathToFileURL(
     join(repo, 'skills/argus-table-integrate/references/migrate/tanstack.md'),
   );
@@ -103,26 +102,11 @@ describe('renderedPlugins', () => {
     ]);
   });
 
-  test('makes tables focusable: they scroll sideways', () => {
-    const set: unknown[][] = [];
-    const ctx: HastContext = {
-      setProperty: (...args) => {
-        set.push(args);
-      },
-    };
-    const plugin = hast({ fileURL: guide });
-    expect(plugin?.element.filter).toEqual(['table']);
-    const table = { tagName: 'table' };
-    plugin?.element.visit(table, ctx);
-    expect(set).toEqual([[table, 'tabIndex', 0]]);
-  });
-
   test('leaves other markdown alone', () => {
     expect(
       factory({ fileURL: pathToFileURL(join(repo, 'apps/docs/src/content/docs/index.mdx')) }),
     ).toBeUndefined();
     expect(factory({ fileURL: undefined })).toBeUndefined();
-    expect(hast({ fileURL: undefined })).toBeUndefined();
   });
 
   test('markdown from outside the site that is no page fails', () => {
@@ -147,14 +131,12 @@ describe('renderedPlugins', () => {
 describe('renderedMarkdownIntegration', () => {
   test("adds the plugins to the processor's", () => {
     const mdastPlugins: unknown[] = ['starlight'];
-    const hastPlugins: unknown[] = [];
-    const config = { markdown: { processor: { options: { mdastPlugins, hastPlugins } } } };
+    const config = { markdown: { processor: { options: { mdastPlugins } } } };
     renderedMarkdownIntegration({ repoRoot: repo, base: '/argus-table', pages }).hooks[
       'astro:config:setup'
     ]({ config });
     expect(mdastPlugins).toHaveLength(2);
     expect(typeof mdastPlugins[1]).toBe('function');
-    expect(hastPlugins).toHaveLength(1);
   });
 
   test('fails without a Sätteri processor', () => {

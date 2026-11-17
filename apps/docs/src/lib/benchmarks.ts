@@ -18,6 +18,7 @@ export interface BenchmarkRow {
   steady: string;
   fast: string;
   jumps: string;
+  sideways: string;
   longTasks: string;
   blankWrong: string;
   load: string;
@@ -66,6 +67,7 @@ export function benchmarkRows(results: Results, rows: number): BenchmarkRow[] {
         steady: p95('steady'),
         fast: p95('fast'),
         jumps: p95('jumps'),
+        sideways: p95('horizontal'),
         longTasks,
         blankWrong: `${String(blank)} / ${String(wrong)}`,
         load: `${String(page.loadMs)} ms`,

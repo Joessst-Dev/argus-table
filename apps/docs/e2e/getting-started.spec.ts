@@ -9,7 +9,7 @@ import {
 } from './flavours';
 
 for (const flavour of FLAVOURS) {
-  test(`${flavour}: the first table sorts, and a row click selects`, async ({ page }) => {
+  test(`${flavour}: the first table sorts, and a row click shows its order`, async ({ page }) => {
     await page.goto('getting-started/');
     const example = await openFlavour(page, 'getting-started/first-table', flavour);
     const table = example.locator('argus-table');

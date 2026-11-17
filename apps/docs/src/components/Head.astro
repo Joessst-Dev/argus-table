@@ -36,7 +36,9 @@ import Default from '@astrojs/starlight/components/Head.astro';
     for (const entry of entries) update(entry.target as HTMLTableElement);
   });
   const watch = () => {
-    for (const table of document.querySelectorAll<HTMLTableElement>('.sl-markdown-content table')) {
+    for (const table of document.querySelectorAll<HTMLTableElement>(
+      '.sl-markdown-content table:not(.not-content *)',
+    )) {
       observer.observe(table);
     }
   };

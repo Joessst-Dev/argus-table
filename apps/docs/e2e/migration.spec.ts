@@ -1,13 +1,5 @@
-import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
-
-async function expectAccessible(page: Page) {
-  const results = await new AxeBuilder({ page })
-    .include('main')
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'])
-    .analyze();
-  expect(results.violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
-}
+import { expect, test } from '@playwright/test';
+import { expectPageAccessible as expectAccessible } from './pages';
 
 /** Each page's id and title (the file's first line, without `# ` and backticks). */
 const GUIDES = {
@@ -41,7 +33,8 @@ test('a guide keeps its tables and code', async ({ page }) => {
   await page.goto('migration/tanstack/');
   const concepts = page.locator('main table', { has: page.locator('th', { hasText: 'Fit' }) });
   await expect(concepts).toBeVisible();
-  // It scrolls sideways on narrow screens: keyboard users can reach it.
+  // It scrolls sideways on a phone: then keyboard users can reach it.
+  await page.setViewportSize({ width: 390, height: 844 });
   await expect(concepts).toHaveAttribute('tabindex', '0');
   const code = page.locator('main .expressive-code', { hasText: 'useReactTable' }).first();
   await expect(code).toBeVisible();
@@ -119,17 +112,7 @@ test('every guide fits a narrow viewport', async ({ page }) => {
       () => document.documentElement.scrollWidth - window.innerWidth,
     );
     expect(overflow, id).toBeLessThanOrEqual(0);
-    // A code block that still scrolls (deep indents) gets a tabindex from
-    // Expressive Code's script, after a resize observer settles.
-    await expect
-      .poll(() =>
-        page.evaluate(() =>
-          [...document.querySelectorAll('.expressive-code pre')].every(
-            (pre) => pre.scrollWidth <= pre.clientWidth || pre.getAttribute('tabindex') === '0',
-          ),
-        ),
-      )
-      .toBe(true);
+    // Waits for the tab stops of what still scrolls (deep code indents, tables).
     await expectAccessible(page);
   }
 });

@@ -17,7 +17,7 @@ The grid is one tab stop. Inside, the arrow keys move between cells, Home and En
 
 ## Announcements
 
-What changes without moving focus is announced through a polite live region: the row count after a filter changes, and where a column moved to. A sort is read from the header's `aria-sort`. The text comes from `labels`, so it can be translated with the rest (see [Labels](/argus-table/features/labels/)); add-ons announce through the table too.
+What changes without moving focus is announced through a polite live region: the row count after a filter changes (for `data`; a `dataSource` filters on the server), and where a column moved to with the keyboard. A sort is read from the header's `aria-sort`. The text comes from `labels`, so it can be translated with the rest (see [Labels](/argus-table/features/labels/)); add-ons announce through the table too.
 
 ## Content in cells
 
@@ -25,4 +25,4 @@ Your content is real DOM in the cells, so it's read as written: give buttons and
 
 ## Tested
 
-Every story in the repository's Storybook and every page of this site, including each example in all four flavours, is checked with axe (WCAG 2.2 AA and best practices) in Chromium, Firefox and WebKit on every change. axe's contrast check runs on every theme, in light and dark, and the [theme creator](/argus-table/themes/creator/) checks the contrast of yours.
+Every change is checked with axe (WCAG 2.2 AA and best practices): every story in the repository's Storybook in Chromium, and every page of this site, including each example in all four flavours, in Chromium, Firefox and WebKit. axe's contrast check runs on every theme, in light and dark, and the [theme creator](/argus-table/themes/creator/) checks the contrast of yours.

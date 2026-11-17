@@ -34,7 +34,10 @@
             "env": "BROWSERS"
           },
           "{workspaceRoot}/skills/argus-table-integrate/references/**/*.md",
-          "{workspaceRoot}/packages/*/README.md"
+          "{workspaceRoot}/packages/*/README.md",
+          "{workspaceRoot}/benchmarks/published/**/*",
+          "{workspaceRoot}/benchmarks/markdown.ts",
+          "{workspaceRoot}/benchmarks/types.ts"
         ]
       },
       "build": {
@@ -62,7 +65,10 @@
             "env": "BROWSERS"
           },
           "{workspaceRoot}/skills/argus-table-integrate/references/**/*.md",
-          "{workspaceRoot}/packages/*/README.md"
+          "{workspaceRoot}/packages/*/README.md",
+          "{workspaceRoot}/benchmarks/published/**/*",
+          "{workspaceRoot}/benchmarks/markdown.ts",
+          "{workspaceRoot}/benchmarks/types.ts"
         ]
       }
     }

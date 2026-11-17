@@ -25,8 +25,9 @@ const { Content, headings } = await render(entry);
 
 <StarlightPage frontmatter={{ title: guide.title, description }} headings={headings}>
   <Aside type="note">
-    This page is the README of <code>{pkg}</code>, the same as
-    <a href={`https://www.npmjs.com/package/${pkg}`}>on npm</a>.
+    This page is the README of <code>{pkg}</code>, as
+    <a href={`https://www.npmjs.com/package/${pkg}`}>on npm</a>, from the repository's main branch:
+    it can be ahead of the latest release.
   </Aside>
   <Content />
 </StarlightPage>

@@ -2,8 +2,9 @@
 // guides (migration.ts) and the packages' READMEs (packages.ts). Each stays one
 // source with what reads it elsewhere (the skill, npm). Astro's Markdown
 // processor (Sätteri) renders them through a content collection; these plugins
-// drop each file's `# ` title (the page shows it), rewrite its relative links
-// and make its tables focusable. Runs at build time, in Node.
+// drop each file's `# ` title (the page shows it) and rewrite its relative
+// links. (A table that scrolls gets its tab stop from Head.astro, as every
+// Markdown table on the site does.) Runs at build time, in Node.
 import { existsSync, readFileSync } from 'node:fs';
 import { join, posix, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -78,17 +79,6 @@ export interface MdPlugin {
   definition(node: MdNode, ctx: MdContext): void;
 }
 
-/** The parts of Sätteri's hast visitor context the plugin uses. */
-export interface HastContext {
-  setProperty(node: object, key: string, value: unknown): void;
-}
-
-/** A Sätteri hast plugin, as far as this one goes. */
-export interface HastPlugin {
-  name: string;
-  element: { filter: string[]; visit(node: object, ctx: HastContext): void };
-}
-
 /** What Sätteri tells a plugin factory about the document. */
 interface Document {
   fileURL: URL | undefined;
@@ -120,11 +110,9 @@ function pageFile(repoRoot: string, pages: readonly RenderedPage[], fileURL: URL
 }
 
 /**
- * Sätteri plugin factories for the rendered pages (Astro 7's Markdown processor
- * calls them once per document). `mdast` drops a page's `# ` title and rewrites
- * its links (`rewriteHref`); `hast` makes its tables focusable: they scroll
- * sideways, so keyboard users need to reach them. (Code blocks wrap site-wide:
- * Expressive Code's `wrap`, in astro.config.mjs.) For the site's own
+ * The Sätteri plugin factory for the rendered pages (Astro 7's Markdown
+ * processor calls it once per document): `mdast` drops a page's `# ` title and
+ * rewrites its links (`rewriteHref`). For the site's own
  * documents they return nothing, so those pass through.
  */
 export function renderedPlugins({ repoRoot, base, pages }: RenderedOptions) {
@@ -150,19 +138,7 @@ export function renderedPlugins({ repoRoot, base, pages }: RenderedOptions) {
       definition: rewrite,
     };
   };
-  const hast = ({ fileURL }: Document): HastPlugin | undefined =>
-    pageFile(repoRoot, pages, fileURL)
-      ? {
-          name: 'argus-rendered-tables',
-          element: {
-            filter: ['table'],
-            visit(node, ctx) {
-              ctx.setProperty(node, 'tabIndex', 0);
-            },
-          },
-        }
-      : undefined;
-  return { mdast, hast };
+  return { mdast };
 }
 
 /**
@@ -175,15 +151,12 @@ export function renderedMarkdownIntegration(options: RenderedOptions) {
     hooks: {
       'astro:config:setup': ({ config }: { config: { markdown: { processor?: unknown } } }) => {
         const processor = config.markdown.processor as
-          { options?: { mdastPlugins?: unknown[]; hastPlugins?: unknown[] } } | undefined;
+          { options?: { mdastPlugins?: unknown[] } } | undefined;
         const mdastPlugins = processor?.options?.mdastPlugins;
-        const hastPlugins = processor?.options?.hastPlugins;
-        if (!Array.isArray(mdastPlugins) || !Array.isArray(hastPlugins)) {
+        if (!Array.isArray(mdastPlugins)) {
           throw new Error('The rendered pages need the Sätteri Markdown processor (mdastPlugins).');
         }
-        const { mdast, hast } = renderedPlugins(options);
-        mdastPlugins.push(mdast);
-        hastPlugins.push(hast);
+        mdastPlugins.push(renderedPlugins(options).mdast);
       },
     },
   };
