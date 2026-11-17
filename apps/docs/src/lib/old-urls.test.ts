@@ -104,11 +104,11 @@ test('every Storybook title maps to a page', () => {
 
 describe('redirectScript', () => {
   // The script as the browser runs it: its own text, with only `location`.
-  const run = (href: string) => {
+  const run = (href: string, orHome = false) => {
     const location = { href, replace: vi.fn() };
     // On purpose: the script is text the page runs inline.
     // eslint-disable-next-line @typescript-eslint/no-implied-eval
-    const script = new Function('location', redirectScript(base)) as (location: {
+    const script = new Function('location', redirectScript(base, orHome)) as (location: {
       href: string;
       replace: (url: string) => void;
     }) => void;
@@ -124,5 +124,12 @@ describe('redirectScript', () => {
 
   test('leaves the home page alone', () => {
     expect(run('https://x.io/argus-table/')).not.toHaveBeenCalled();
+  });
+
+  test('the iframe page sends anything else home', () => {
+    expect(run('https://x.io/argus-table/iframe.html', true)).toHaveBeenCalledWith('/argus-table/');
+    expect(run('https://x.io/argus-table/iframe.html?viewMode=story', true)).toHaveBeenCalledWith(
+      '/argus-table/',
+    );
   });
 });

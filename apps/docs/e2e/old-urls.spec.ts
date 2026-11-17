@@ -29,6 +29,8 @@ test('an unknown Storybook page lands on the home page', async ({ page }) => {
   await expect(page.locator('h1')).toBeVisible();
   await page.goto('iframe.html?id=nope--x');
   await expect(page).toHaveURL(/\/argus-table\/$/);
+  await page.goto('iframe.html');
+  await expect(page).toHaveURL(/\/argus-table\/$/);
 });
 
 test('the home page on its own stays', async ({ page }) => {

@@ -13,7 +13,7 @@ import { readFile } from 'node:fs/promises';
 import { decodeLink, themeLink, validateDraft } from './draft.mjs';
 
 const USAGE = `Usage:
-  node theme-link.mjs <draft.json | -> [--base-url <storybook url>]
+  node theme-link.mjs <draft.json | -> [--base-url <docs site url, e.g. http://localhost:4321/argus-table/>]
   node theme-link.mjs --decode <link>`;
 
 async function readStdin() {

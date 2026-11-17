@@ -75,11 +75,16 @@ export function oldUrlTarget(
   return `${base}/${page ?? ''}${url.hash}`;
 }
 
-/** The inline script that sends an old Storybook URL on to its page. */
-export function redirectScript(base: string): string {
+/**
+ * The inline script that sends an old Storybook URL on to its page. With
+ * `orHome` (the iframe.html page, which has nothing of its own to show), any
+ * other URL goes to the home page too.
+ */
+export function redirectScript(base: string, orHome = false): string {
   const pages = JSON.stringify(STORYBOOK_PAGES);
+  const fallback = orHome ? JSON.stringify(`${base}/`) : 'undefined';
   return `(() => {
-  const target = (${oldUrlTarget.toString()})(location.href, ${JSON.stringify(base)}, ${pages});
+  const target = (${oldUrlTarget.toString()})(location.href, ${JSON.stringify(base)}, ${pages}) ?? ${fallback};
   if (target !== undefined) location.replace(target);
 })();`;
 }
