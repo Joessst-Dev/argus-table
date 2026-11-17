@@ -1,4 +1,5 @@
-// <argus-theme-creator>: the Storybook theme creator. Private to the docs:
+// <argus-theme-creator>: the theme creator, on the docs site and in Storybook.
+// Private to the docs (@argus-table/theme-creator is never published):
 // pick a preset, change seeds, override tokens and part options, see the
 // result in light and dark, export CSS. The preview tables live in this
 // element's shadow root, with the generated sheet adopted there, so the
@@ -11,7 +12,7 @@ import type { ArgusTable, ColumnDef, ColumnGroup, DataSource, PinnedRows } from 
 import 'argus-table';
 import { headerMenu } from '@argus-table/header-menu';
 import { formulas } from '@argus-table/formulas';
-import { orderColumns, orders, totals, getOrderId, type Order } from '../stories/theme-orders.js';
+import { orderColumns, orders, totals, getOrderId, type Order } from './orders.js';
 import { TOKENS, type TokenGroup, type TokenInfo } from './catalog.js';
 import { parseColor, toHex } from './color.js';
 import { checkContrast, fixAccent, fixFor, type ContrastResult } from './contrast.js';
@@ -36,7 +37,15 @@ import { parseTheme, parseValue } from './parse.js';
 import { BASE_LABELS, isPreset, newDraft } from './presets.js';
 import { effectiveSeeds, readPartOptions, resolveTheme, type ResolvedTheme } from './resolve.js';
 import { serializeTheme, valueText } from './serialize.js';
-import { clearDraft, decodeDraft, hashDraft, loadDraft, saveDraft, shareLink } from './share.js';
+import {
+  clearDraft,
+  decodeDraft,
+  hashDraft,
+  loadDraft,
+  saveDraft,
+  shareBase,
+  shareLink,
+} from './share.js';
 import { lookupIn, resolveColor } from './values.js';
 
 const SEED_LABELS: Record<SeedName, string> = {
@@ -399,6 +408,12 @@ export class ArgusThemeCreator extends LitElement {
     }
   `;
 
+  /**
+   * The page a "Copy link" link opens. Unset, it's this page (without its
+   * hash); Storybook sets its story's iframe.
+   */
+  shareUrl: string | undefined;
+
   @state() private draft: ThemeDraft = newDraft('default');
   @state() private preview: Preview = 'both';
   @state() private density: Density = 'comfortable';
@@ -584,7 +599,7 @@ export class ArgusThemeCreator extends LitElement {
   }
 
   async #share() {
-    const link = await shareLink(this.draft, location);
+    const link = await shareLink(this.draft, shareBase(this.shareUrl, location.href));
     await this.#copy(link, 'Copied a link to this theme.');
   }
 

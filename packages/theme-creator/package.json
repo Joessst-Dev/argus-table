@@ -1,0 +1,53 @@
+{
+  "name": "@argus-table/theme-creator",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The theme creator (<argus-theme-creator>) for the docs site and Storybook. Not published.",
+  "license": "MIT",
+  "type": "module",
+  "nx": {
+    "name": "theme-creator",
+    "implicitDependencies": [
+      "skills",
+      "themes"
+    ],
+    "targets": {
+      "test": {
+        "inputs": [
+          "default",
+          "^production",
+          "{workspaceRoot}/skills/argus-table-theme/**/*",
+          "{workspaceRoot}/packages/themes/src/**/*",
+          {
+            "env": "BROWSERS"
+          }
+        ]
+      }
+    }
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./orders": "./src/orders.ts"
+  },
+  "sideEffects": [
+    "./src/index.ts",
+    "./src/theme-creator.ts"
+  ],
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@argus-table/formulas": "workspace:*",
+    "@argus-table/header-menu": "workspace:*",
+    "argus-table": "workspace:*",
+    "lit": "^3.3.3"
+  },
+  "devDependencies": {
+    "@vitest/browser-playwright": "^5.1.0",
+    "playwright": "1.63.0",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.0"
+  }
+}

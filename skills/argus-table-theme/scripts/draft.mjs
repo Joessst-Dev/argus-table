@@ -2,7 +2,7 @@
 // that opens the creator with a draft. No dependencies and no Node built-ins,
 // so it runs in Node 18+ and in browsers alike.
 //
-// The link format is the creator's own (apps/storybook/theme-creator/share.ts
+// The link format is the creator's own (packages/theme-creator/src/share.ts
 // in the argus-table repo): `#theme=` and the draft's JSON, deflated
 // (`deflate-raw`) and base64url-encoded. A test there checks this file
 // against the creator.

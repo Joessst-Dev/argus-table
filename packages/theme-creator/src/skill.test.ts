@@ -52,8 +52,13 @@ describe('the skill’s draft script', () => {
 
   it('makes the link the creator makes', async () => {
     const draft = valid({ name: 'Acme', preset: 'fluent' });
-    const docs = 'https://joessst-dev.github.io/argus-table/iframe.html?id=x&viewMode=story';
-    const creator = await shareLink(newDraft('fluent', 'Acme'), { href: docs } as Location);
+    // The published creator is Storybook's story, whose links open its iframe
+    // (theme-creator.stories.ts sets that as the creator's shareUrl).
+    const story = new URL(
+      'iframe.html?id=themes-theme-creator--creator&viewMode=story',
+      'https://joessst-dev.github.io/argus-table/',
+    ).href;
+    const creator = await shareLink(newDraft('fluent', 'Acme'), story);
     const skill = await themeLink(draft);
     expect(skill.split('#')[0]).toBe(creator.split('#')[0]);
     const local = await themeLink(draft, 'http://localhost:6006');
@@ -85,9 +90,7 @@ describe('the skill’s draft script', () => {
     expect(opened?.base).toEqual(presetTheme('material'));
 
     const theirs = { ...newDraft('minimal', 'Night'), overrides: { '--argus-bg': '#000000' } };
-    const decoded = await decodeLink(
-      await shareLink(theirs, { href: 'https://x.test/' } as Location),
-    );
+    const decoded = await decodeLink(await shareLink(theirs, 'https://x.test/'));
     expect(decoded).toMatchObject({
       name: 'Night',
       preset: 'minimal',

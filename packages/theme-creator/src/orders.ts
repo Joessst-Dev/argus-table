@@ -1,4 +1,5 @@
-// The orders table the theme stories share: a pinned id and total, sortable
+// The orders table the creator's previews, the theme stories and the docs
+// site's theme pages share: a pinned id and total, sortable
 // columns, a status chip (styled by each story's page CSS) and a totals row.
 import { html } from 'lit';
 import type { ColumnDef } from 'argus-table';

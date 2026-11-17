@@ -56,12 +56,20 @@ it('share links open the page that embeds the creator', async () => {
   const link = await shareLink(draft, 'https://x.dev/argus-table/themes/creator/');
   expect(link).toMatch(/^https:\/\/x\.dev\/argus-table\/themes\/creator\/#theme=[\w-]+$/);
   expect(await decodeDraft(hashDraft(link) ?? '')).toEqual(draft); // the round trip, as before
-  expect(await shareLink(draft, 'https://x.dev/p?a=1#theme=old')).toMatch(/^https:\/\/x\.dev\/p\?a=1#theme=/);
+  expect(await shareLink(draft, 'https://x.dev/p?a=1#theme=old')).toMatch(
+    /^https:\/\/x\.dev\/p\?a=1#theme=/,
+  );
 });
 it('shareBase: the set URL, else the page without its hash', () => {
-  expect(shareBase(undefined, 'https://x.dev/argus-table/themes/creator/#theme=abc')).toBe('https://x.dev/argus-table/themes/creator/');
-  expect(shareBase('https://sb.dev/iframe.html?id=themes-theme-creator--creator&viewMode=story', 'https://sb.dev/iframe.html?id=x&args=y'))
-    .toBe('https://sb.dev/iframe.html?id=themes-theme-creator--creator&viewMode=story');
+  expect(shareBase(undefined, 'https://x.dev/argus-table/themes/creator/#theme=abc')).toBe(
+    'https://x.dev/argus-table/themes/creator/',
+  );
+  expect(
+    shareBase(
+      'https://sb.dev/iframe.html?id=themes-theme-creator--creator&viewMode=story',
+      'https://sb.dev/iframe.html?id=x&args=y',
+    ),
+  ).toBe('https://sb.dev/iframe.html?id=themes-theme-creator--creator&viewMode=story');
 });
 ```
 
@@ -95,14 +103,24 @@ Expected: all pass; the `theme-creator` tests (≈ the same count as before the 
 - [ ] **Step 1: Write the failing spec** (`e2e/themes.spec.ts`, axe as in `api.spec.ts`; the light/dark `--argus-bg` values come from `packages/themes/src/*.css`):
 
 ```ts
-const THEMES = { material: ['rgb(254, 247, 255)', 'rgb(20, 18, 24)'], fluent: ['rgb(255, 255, 255)', 'rgb(41, 41, 41)'],
-  bootstrap: ['rgb(255, 255, 255)', 'rgb(33, 37, 41)'], minimal: ['rgb(255, 255, 255)', 'rgb(15, 16, 18)'] };
+const THEMES = {
+  material: ['rgb(254, 247, 255)', 'rgb(20, 18, 24)'],
+  fluent: ['rgb(255, 255, 255)', 'rgb(41, 41, 41)'],
+  bootstrap: ['rgb(255, 255, 255)', 'rgb(33, 37, 41)'],
+  minimal: ['rgb(255, 255, 255)', 'rgb(15, 16, 18)'],
+};
 // the preview's table, through its shadow root: page.locator('argus-theme-preview').nth(i).locator('argus-table')
-test('<theme>: the preview follows the site, forced variants stay', /* site light (Starlight's theme select) → main preview bg = light value; select dark → dark value; a scheme="light" preview stays light; axe */);
-test('default: follows the site too', /* bg light ≠ bg dark (Canvas differs per engine) */);
-test('variants: compact rows are shorter, selection has checkboxes', /* material page: compact preview's first body row height < main's; selection preview has a checkbox in its header */);
-test('Material-inspired and Minimal load their fonts', /* table computed font-family starts with Roboto / "Instrument Sans"; await page.evaluate(() => document.fonts.ready); document.fonts.check('400 14px Roboto') is true */);
-test('the overview links every theme page and the creator', /* 6 links; axe */);
+test(
+  '<theme>: the preview follows the site, forced variants stay' /* site light (Starlight's theme select) → main preview bg = light value; select dark → dark value; a scheme="light" preview stays light; axe */,
+);
+test('default: follows the site too' /* bg light ≠ bg dark (Canvas differs per engine) */);
+test(
+  'variants: compact rows are shorter, selection has checkboxes' /* material page: compact preview's first body row height < main's; selection preview has a checkbox in its header */,
+);
+test(
+  'Material-inspired and Minimal load their fonts' /* table computed font-family starts with Roboto / "Instrument Sans"; await page.evaluate(() => document.fonts.ready); document.fonts.check('400 14px Roboto') is true */,
+);
+test('the overview links every theme page and the creator' /* 6 links; axe */);
 ```
 
 - [ ] **Step 2: Run it to see it fail**: `BROWSERS=chromium pnpm exec playwright test -c e2e/playwright.config.ts themes.spec.ts` (after a build) → 404s.
@@ -129,12 +147,24 @@ test('the overview links every theme page and the creator', /* 6 links; axe */);
 - [ ] **Step 1: Write the failing spec** (`e2e/creator.spec.ts`), a port of Storybook's `CreatorTest` against `themes/creator/`, each test starting with `localStorage` cleared (`page.addInitScript` before the first load):
 
 ```ts
-test('a preset reaches both previews', /* #preset → material: creator.css contains '--argus-border-radius: 12px;'; the two argus-table.main backgrounds are ['rgb(254, 247, 255)', 'rgb(20, 18, 24)'] */);
-test('the accent changes the focus ring', /* #accent-light = #0a7d5a, 'input' → --argus-focus-ring of the first preview contains '#0a7d5a' */);
-test('a link opens its theme and leaves the URL', /* the hash of `await themeLink({ name: 'Linked', preset: 'bootstrap' })` from `skills/argus-table-theme/scripts/draft.mjs` (run in the spec, in Node: the skill's own encoder, so this also proves the skill's links open on the site); goto `themes/creator/${hash}`: text 'Opened the theme from the link.', css contains 'Linked: an argus-table theme, based on the Bootstrap-inspired theme.', location.hash '' */);
-test('an unreadable link keeps the theme', /* '#theme=not-a-theme' → 'The link’s theme couldn’t be read; kept the current theme.' */);
-test('copy link points at this page', /* chromium only (clipboard permission): click "Copy link"; clipboard matches new RegExp(`/argus-table/themes/creator/#theme=[\\w-]+$`); open it in a new page → 'Opened the theme from the link.' */);
-test('fits a phone and fills a desktop', /* 390×844: documentElement.scrollWidth <= innerWidth; 1440×900: the creator's width > 1000; axe at 1440 */);
+test(
+  'a preset reaches both previews' /* #preset → material: creator.css contains '--argus-border-radius: 12px;'; the two argus-table.main backgrounds are ['rgb(254, 247, 255)', 'rgb(20, 18, 24)'] */,
+);
+test(
+  'the accent changes the focus ring' /* #accent-light = #0a7d5a, 'input' → --argus-focus-ring of the first preview contains '#0a7d5a' */,
+);
+test(
+  'a link opens its theme and leaves the URL' /* the hash of `await themeLink({ name: 'Linked', preset: 'bootstrap' })` from `skills/argus-table-theme/scripts/draft.mjs` (run in the spec, in Node: the skill's own encoder, so this also proves the skill's links open on the site); goto `themes/creator/${hash}`: text 'Opened the theme from the link.', css contains 'Linked: an argus-table theme, based on the Bootstrap-inspired theme.', location.hash '' */,
+);
+test(
+  'an unreadable link keeps the theme' /* '#theme=not-a-theme' → 'The link’s theme couldn’t be read; kept the current theme.' */,
+);
+test(
+  'copy link points at this page' /* chromium only (clipboard permission): click "Copy link"; clipboard matches new RegExp(`/argus-table/themes/creator/#theme=[\\w-]+$`); open it in a new page → 'Opened the theme from the link.' */,
+);
+test(
+  'fits a phone and fills a desktop' /* 390×844: documentElement.scrollWidth <= innerWidth; 1440×900: the creator's width > 1000; axe at 1440 */,
+);
 ```
 
 - [ ] **Step 2: Run it to see it fail** → 404.

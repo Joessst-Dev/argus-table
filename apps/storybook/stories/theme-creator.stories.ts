@@ -1,10 +1,12 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { html } from 'lit';
 import { expect, userEvent, waitFor } from 'storybook/test';
-import '../theme-creator/theme-creator.js';
-import type { ArgusThemeCreator } from '../theme-creator/theme-creator.js';
-import { newDraft } from '../theme-creator/presets.js';
-import { clearDraft, encodeDraft } from '../theme-creator/share.js';
+import {
+  clearDraft,
+  encodeDraft,
+  newDraft,
+  type ArgusThemeCreator,
+} from '@argus-table/theme-creator';
 
 const meta = {
   title: 'Themes/Theme creator',
@@ -12,7 +14,13 @@ const meta = {
   globals: { theme: 'none' },
   tags: ['!autodocs'],
   parameters: { layout: 'fullscreen' },
-  render: () => html`<argus-theme-creator></argus-theme-creator>`,
+  // Links open the story's own iframe: the manager's URL doesn't carry a hash reliably.
+  render: () =>
+    html`<argus-theme-creator
+      .shareUrl=${
+        new URL('iframe.html?id=themes-theme-creator--creator&viewMode=story', location.href).href
+      }
+    ></argus-theme-creator>`,
 } satisfies Meta;
 
 export default meta;

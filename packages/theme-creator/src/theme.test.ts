@@ -252,9 +252,9 @@ describe('the catalogue', () => {
   it('lists every token the add-ons read', () => {
     const sources = import.meta.glob<string>(
       [
-        '../../../packages/header-menu/src/**/*.ts',
-        '../../../packages/formulas/src/**/*.ts',
-        '../../../packages/editing/src/**/*.ts',
+        '../../header-menu/src/**/*.ts',
+        '../../formulas/src/**/*.ts',
+        '../../editing/src/**/*.ts',
         '!**/*.test.ts',
       ],
       { query: '?raw', import: 'default', eager: true },

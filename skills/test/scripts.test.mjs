@@ -1,7 +1,7 @@
 // The argus-table-theme skill's scripts as an agent runs them: the CLI's
 // output and exit codes, and the palette read from a local fixture site.
 // The draft format itself is checked against the creator in
-// apps/storybook/theme-creator/skill.test.ts.
+// packages/theme-creator/src/skill.test.ts.
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { createServer } from 'node:http';
