@@ -23,6 +23,7 @@ import { AutoWidths, measureColumns } from './controllers/auto-width.js';
 import { ColumnChildrenController } from './controllers/column-children.js';
 import { ColumnWindowController, type RenderedColumn } from './controllers/column-window.js';
 import { DataController } from './controllers/data-controller.js';
+import { FitHeight } from './controllers/fit-height.js';
 import { PinScrollController } from './controllers/pin-scroll-controller.js';
 import { PluginController, sameItems } from './controllers/plugins.js';
 import { RowMeasure } from './controllers/row-measure.js';
@@ -672,6 +673,10 @@ export class ArgusTable<T = unknown> extends LitElement {
   readonly #virtual = new VirtualController(this, () => this.#scroller());
   readonly #pinScroll = new PinScrollController(this, () => this.#scroller());
   readonly #columnWindow = new ColumnWindowController<T>(this, () => this.#scroller());
+  /** `block-size: auto` without a maximum: capped at the window's height. */
+  readonly #fit = new FitHeight(this, () => this.#scroller());
+  /** The header, pinned rows and body last rendered, in px. */
+  #contentPx = 0;
   /** Columns an `editable` plugin hook calls editable; `undefined` without one (read-only grid). */
   #editable: ReadonlySet<string> | undefined;
   /** The columns the last render rendered (all of them, unless `virtualizeColumns`). */
@@ -1212,6 +1217,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     // The header, the pinned rows and the body: what the pinned-column shadows cover.
     const contentPx =
       this.#headerAndPinnedPx(layout) + (model.rowCount === 0 ? 0 : this.#window.totalSize);
+    this.#contentPx = contentPx;
     return html`<div
         part="table"
         role="presentation"
@@ -1285,6 +1291,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       if (scroller) scroller.scrollTop = 0;
     }
     this.#chaseScrollTarget(model.rowCount);
+    this.#fit.check(this.#contentPx);
     if (
       this.#columnsChanged ||
       this.#groupsChanged ||

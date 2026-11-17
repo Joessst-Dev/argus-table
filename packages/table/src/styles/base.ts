@@ -45,6 +45,12 @@ export const baseStyles = css`
     [part~='table'] {
       position: relative;
       block-size: 100%;
+      /*
+       * With block-size: auto on the host, the table is as tall as its rows up to
+       * the host's max-block-size (a length). Without one, --_auto-cap holds the
+       * window's height (FitHeight).
+       */
+      max-block-size: var(--_auto-cap, inherit);
       overflow: auto;
       overscroll-behavior: contain;
       /* The header: one row tall, and a row more per level of column groups. */
