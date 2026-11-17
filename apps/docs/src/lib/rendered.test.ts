@@ -103,17 +103,6 @@ describe('renderedPlugins', () => {
     ]);
   });
 
-  test("wraps code blocks' long lines", () => {
-    const plugin = factory({ fileURL: guide });
-    const { ctx, fields } = context();
-    plugin?.code({ type: 'code', meta: null }, ctx);
-    plugin?.code({ type: 'code', meta: 'title="a.ts"' }, ctx);
-    expect(fields).toEqual([
-      ['code', 'meta', 'wrap'],
-      ['code', 'meta', 'title="a.ts" wrap'],
-    ]);
-  });
-
   test('makes tables focusable: they scroll sideways', () => {
     const set: unknown[][] = [];
     const ctx: HastContext = {

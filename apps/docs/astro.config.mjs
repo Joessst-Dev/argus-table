@@ -29,6 +29,9 @@ export default defineConfig({
         PageTitle: './src/components/PageTitle.astro',
       },
       customCss: ['@argus-table/themes/default.css', './src/styles/site.css'],
+      // Long lines wrap: a code block that scrolled sideways would need a tab
+      // stop, and Expressive Code's unnamed regions repeat on a page.
+      expressiveCode: { defaultProps: { wrap: true } },
       logo: { src: '../../brand/argus-table-logo.svg', replacesTitle: true },
       social: [
         { icon: 'github', label: 'GitHub', href: 'https://github.com/Joessst-Dev/argus-table' },
@@ -42,6 +45,24 @@ export default defineConfig({
           ],
         },
         { label: 'Features', items: [{ autogenerate: { directory: 'features' } }] },
+        {
+          label: 'Guides',
+          items: [
+            { label: 'Controlled and uncontrolled state', link: '/guides/state/' },
+            { label: 'Server data', link: '/guides/server-data/' },
+            { label: 'Styling and themes', link: '/guides/styling/' },
+            { label: 'Tailwind', link: '/guides/tailwind/' },
+            { label: 'Plugins', link: '/guides/plugins/' },
+            { label: 'Accessibility', link: '/guides/accessibility/' },
+            { label: 'Performance', link: '/guides/performance/' },
+            ...['Add-ons', 'Frameworks'].map((group) => ({
+              label: group,
+              items: packageGuides(repoRoot)
+                .filter((g) => g.group === group)
+                .map((g) => ({ label: g.label, link: `/${g.path}` })),
+            })),
+          ],
+        },
         {
           label: 'Themes',
           items: [

@@ -2,9 +2,8 @@
 // guides (migration.ts) and the packages' READMEs (packages.ts). Each stays one
 // source with what reads it elsewhere (the skill, npm). Astro's Markdown
 // processor (Sätteri) renders them through a content collection; these plugins
-// drop each file's `# ` title (the page shows it), rewrite its relative links,
-// wrap its code blocks' long lines and make its tables focusable. Runs at build
-// time, in Node.
+// drop each file's `# ` title (the page shows it), rewrite its relative links
+// and make its tables focusable. Runs at build time, in Node.
 import { existsSync, readFileSync } from 'node:fs';
 import { join, posix, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -63,13 +62,12 @@ export interface MdNode {
   type: string;
   depth?: number;
   url?: string;
-  meta?: string | null;
 }
 
 /** The parts of Sätteri's mdast visitor context the plugin uses. */
 export interface MdContext {
   removeNode(node: MdNode): void;
-  setField(node: MdNode, key: 'url' | 'meta', value: string): void;
+  setField(node: MdNode, key: 'url', value: string): void;
 }
 
 /** A Sätteri mdast plugin, as far as this one goes. */
@@ -78,7 +76,6 @@ export interface MdPlugin {
   heading(node: MdNode, ctx: MdContext): void;
   link(node: MdNode, ctx: MdContext): void;
   definition(node: MdNode, ctx: MdContext): void;
-  code(node: MdNode, ctx: MdContext): void;
 }
 
 /** The parts of Sätteri's hast visitor context the plugin uses. */
@@ -124,10 +121,10 @@ function pageFile(repoRoot: string, pages: readonly RenderedPage[], fileURL: URL
 
 /**
  * Sätteri plugin factories for the rendered pages (Astro 7's Markdown processor
- * calls them once per document). `mdast` drops a page's `# ` title, rewrites its
- * links (`rewriteHref`) and wraps its code blocks' long lines (Expressive Code's
- * `wrap`, as the feature pages' code); `hast` makes its tables focusable: they
- * scroll sideways, so keyboard users need to reach them. For the site's own
+ * calls them once per document). `mdast` drops a page's `# ` title and rewrites
+ * its links (`rewriteHref`); `hast` makes its tables focusable: they scroll
+ * sideways, so keyboard users need to reach them. (Code blocks wrap site-wide:
+ * Expressive Code's `wrap`, in astro.config.mjs.) For the site's own
  * documents they return nothing, so those pass through.
  */
 export function renderedPlugins({ repoRoot, base, pages }: RenderedOptions) {
@@ -151,9 +148,6 @@ export function renderedPlugins({ repoRoot, base, pages }: RenderedOptions) {
       },
       link: rewrite,
       definition: rewrite,
-      code(node, ctx) {
-        ctx.setField(node, 'meta', node.meta ? `${node.meta} wrap` : 'wrap');
-      },
     };
   };
   const hast = ({ fileURL }: Document): HastPlugin | undefined =>

@@ -1,0 +1,62 @@
+---
+title: Styling and themes
+description: 'How argus-table is styled: a theme, tokens, parts named for state, and your own CSS in cells.'
+---
+
+The table is built so that plain CSS can style it from the outside, without fighting its internals.
+
+## How it's built
+
+- **The grid is in a shadow root:** headers, rows and cells, with their ARIA roles. Page CSS can't reach in by accident, so a `td { … }` rule elsewhere on your page doesn't break it.
+- **Your content is in the light DOM.** What `cell` and `header` return is rendered as children of `<argus-table>` and slotted into the cells. Your page's CSS, utility classes and components work there as anywhere else.
+- **Tokens** (`--argus-*` custom properties) set colours, fonts, sizes and borders. They inherit, so you set them on `argus-table` or any ancestor.
+- **Parts** (`::part()`) style the grid's own elements, and are named for their state: `row-odd`, `row-selected`, `cell-sorted`, `cell-pinned-edge`, `header-cell-filtered`. `::part()` can't take attribute selectors, so the state is in the name.
+
+## Themes
+
+A theme is a CSS file of tokens and `::part()` rules, nothing else. Load one per page:
+
+```js
+import '@argus-table/themes/default.css';
+```
+
+[Themes](/argus-table/themes/) shows the five shipped ones, and the [theme creator](/argus-table/themes/creator/) makes your own from a few seeds. Without a theme the table uses neutral system colours (`Canvas`, `CanvasText`), so it's readable but plain.
+
+## Changing a value
+
+Set a token after the theme:
+
+```css
+argus-table {
+  --argus-border-radius: 8px;
+  --argus-border: 1px solid #e3e6ea;
+  --argus-focus-ring: 2px solid teal;
+}
+```
+
+For one table, use a class or an id instead of the element name. Every token, with its default, is in the [API reference](/argus-table/api/argus-table/).
+
+## Light and dark
+
+The themes use `light-dark()` and follow the system setting. `data-argus-theme="dark"` or `"light"` on the table or an ancestor forces a scheme. If your own overrides use `light-dark()`, declare `color-scheme: light dark` on `argus-table` in the same stylesheet: build tools that polyfill `light-dark()` (such as Vite's Lightning CSS minifier) only switch colours where the stylesheet sets `color-scheme`.
+
+## Parts
+
+```css
+argus-table::part(row-selected) {
+  font-weight: 600;
+}
+argus-table::part(header-cell-sorted) {
+  text-decoration: underline;
+}
+```
+
+## Your CSS in cells
+
+Content is light DOM, so it takes your classes:
+
+```js
+{ id: 'status', header: 'Status', cell: (order) => html`<span class="badge">${order.status}</span>` }
+```
+
+The [Styling](/argus-table/features/styling/) page shows tokens, parts and slotted content at work in all four flavours; [Tailwind](/argus-table/guides/tailwind/) shows the same with utility classes.

@@ -54,21 +54,29 @@
 // rendered.test.ts
 test('markdown from outside the site that is no page fails', () => {
   const { mdast } = renderedPlugins({ repoRoot: repo, base: '/argus-table', pages });
-  expect(() => mdast({ fileURL: pathToFileURL(join(repo, 'packages/table/README.md')) })).toThrow(/packages\/table\/README\.md/);
-  expect(mdast({ fileURL: pathToFileURL(join(repo, 'apps/docs/src/content/docs/index.mdx')) })).toBeUndefined();
+  expect(() => mdast({ fileURL: pathToFileURL(join(repo, 'packages/table/README.md')) })).toThrow(
+    /packages\/table\/README\.md/,
+  );
+  expect(
+    mdast({ fileURL: pathToFileURL(join(repo, 'apps/docs/src/content/docs/index.mdx')) }),
+  ).toBeUndefined();
 });
 test('a link between rendered pages of different kinds resolves', () => {
   // from a migration guide to an add-on README: ../../../../packages/export/README.md → /argus-table/guides/export/
 });
 // packages.test.ts
-test('lists the seven package guides with their README', /* ids in PACKAGE_GUIDES order; export → { title: 'Export add-on', file: 'packages/export/README.md', path: 'guides/export/', group: 'Add-ons' } */);
-test('a README without a "# " first line fails, naming it', /* fixture root with packages/export/README.md 'No title' → throws /packages\/export\/README\.md/ */);
-test('a missing README fails, naming it', /* fixture root without packages/vue/README.md */);
+test(
+  'lists the seven package guides with their README' /* ids in PACKAGE_GUIDES order; export → { title: 'Export add-on', file: 'packages/export/README.md', path: 'guides/export/', group: 'Add-ons' } */,
+);
+test(
+  'a README without a "# " first line fails, naming it' /* fixture root with packages/export/README.md 'No title' → throws /packages\/export\/README\.md/ */,
+);
+test('a missing README fails, naming it' /* fixture root without packages/vue/README.md */);
 ```
 
 - [ ] **Step 2: Run them to see them fail**: `pnpm --filter @argus-table/docs exec vitest run src/lib` → FAIL (`rendered.ts`, `packages.ts` missing).
 
-- [ ] **Step 3: Implement** `rendered.ts` and `packages.ts`, slim `migration.ts`, the `packages` collection (`glob` loader, base `../../packages`, pattern `PACKAGE_GUIDES.map((p) => \`${p.id}/README.md\`)`, `generateId` the folder name), `[pkg].astro` (like `migration/[guide].astro`), and in `astro.config.mjs` one `renderedMarkdownIntegration({ repoRoot, base, pages: [...migrationGuides(repoRoot), ...packageGuides(repoRoot)] })` replacing the migration one. Delete `node_modules/.astro` before building (Astro caches rendered Markdown by file).
+- [ ] **Step 3: Implement** `rendered.ts` and `packages.ts`, slim `migration.ts`, the `packages` collection (`glob` loader, base `../../packages`, pattern `PACKAGE_GUIDES.map((p) => \`${p.id}/README.md\`)`, `generateId`the folder name),`[pkg].astro`(like`migration/[guide].astro`), and in `astro.config.mjs`one`renderedMarkdownIntegration({ repoRoot, base, pages: [...migrationGuides(repoRoot), ...packageGuides(repoRoot)] })`replacing the migration one. Delete`node_modules/.astro` before building (Astro caches rendered Markdown by file).
 
 - [ ] **Step 4: The spec** `e2e/packages.spec.ts`: for each of the seven, `guides/<id>/` has the title as its only `h1`, the README note with the npm link, a code block from the README's Install section (`npm i @argus-table/<id>` text in an `.expressive-code`), and passes axe; the README's own `# @argus-table/<id>` heading isn't on the page.
 
@@ -113,11 +121,21 @@ test('a missing README fails, naming it', /* fixture root without packages/vue/R
 - [ ] **Step 1: The spec** `guides.spec.ts`:
 
 ```ts
-const GUIDES = { state: 'Controlled and uncontrolled state', 'server-data': 'Server data', styling: 'Styling and themes',
-  tailwind: 'Tailwind', plugins: 'Plugins', accessibility: 'Accessibility' };
-test('<id>: renders with its title', /* h1, axe */);
-test('every site link on the guide pages lands', /* collect .sl-markdown-content a[href^="/argus-table/"] on every /guides/ page (written and package ones); group by path; each path loads (status < 400) and each #hash is an element id there (the migration spec's pattern) */);
-test('the sidebar lists every guide', /* nav[aria-label="Main"] details "Guides": 7 written links + 7 package links */);
+const GUIDES = {
+  state: 'Controlled and uncontrolled state',
+  'server-data': 'Server data',
+  styling: 'Styling and themes',
+  tailwind: 'Tailwind',
+  plugins: 'Plugins',
+  accessibility: 'Accessibility',
+};
+test('<id>: renders with its title' /* h1, axe */);
+test(
+  'every site link on the guide pages lands' /* collect .sl-markdown-content a[href^="/argus-table/"] on every /guides/ page (written and package ones); group by path; each path loads (status < 400) and each #hash is an element id there (the migration spec's pattern) */,
+);
+test(
+  'the sidebar lists every guide' /* nav[aria-label="Main"] details "Guides": 7 written links + 7 package links */,
+);
 ```
 
 - [ ] **Step 2: Run it to see it fail** → 404s.

@@ -1,0 +1,70 @@
+---
+title: Controlled and uncontrolled state
+description: 'Let the table keep its own state, or own it in your app; the change events, two-way binding, and saving a layout.'
+---
+
+Seven properties hold state a user can change: `sorting`, `columnSizing`, `columnOrder`, `columnPinning`, `columnVisibility`, `columnFilters` and `selection`. Each works two ways.
+
+## Uncontrolled: the table keeps it
+
+Leave the property unset. A header click sorts, a drag resizes, and the table keeps the result itself. After the update that applied the change, it fires `argus-<property>-change` so you can follow along: save it, show it, send it to a server.
+
+```js
+table.addEventListener('argus-sorting-change', (event) => {
+  console.log(event.detail.sorting); // [{ id: 'total', desc: true }]
+});
+```
+
+## Controlled: your app owns it
+
+Set the property, and the table only proposes. A header click fires `argus-sorting-change` right away with the order it would apply, and the table waits for you to set `sorting`. Apply the proposal, change it, or refuse it:
+
+```js
+table.sorting = [{ id: 'total', desc: true }];
+table.addEventListener('argus-sorting-change', (event) => {
+  // Refuse to sort by customer, apply everything else.
+  if (event.detail.sorting[0]?.id !== 'customer') table.sorting = event.detail.sorting;
+});
+```
+
+Set the property back to `undefined` to hand it back to the table, which then keeps the current value as its own.
+
+## The change events
+
+Each event carries the new value under the property's name, then what caused it:
+
+| Event                            | `detail`                                    |
+| -------------------------------- | ------------------------------------------- |
+| `argus-sorting-change`           | `{ sorting }`                               |
+| `argus-column-sizing-change`     | `{ columnSizing, columnId, width }`         |
+| `argus-column-order-change`      | `{ columnOrder, columnId, groupId? }`       |
+| `argus-column-pinning-change`    | `{ columnPinning, columnId, pin }`          |
+| `argus-column-visibility-change` | `{ columnVisibility, columnId, visible }`   |
+| `argus-column-filters-change`    | `{ columnFilters, columnId, columnFilter }` |
+| `argus-selection-change`         | `{ selection }`                             |
+
+A resize fires `argus-column-sizing-change` for every frame of a drag, and `argus-column-resize-end` once when it ends: save widths on that one. Every event bubbles and crosses shadow roots (`composed`); the [API reference](/argus-table/api/argus-table/) lists them all.
+
+## In the wrappers
+
+The wrappers bind these both ways:
+
+- **React:** `sorting={sorting}` with `onSortingChange={(e) => setSorting(e.detail.sorting)}`.
+- **Vue:** `v-model:sorting="sorting"`; or `:sorting` with `@sorting-change` to decide yourself.
+- **Angular:** `[(sorting)]="sorting"` with a signal; the `(sortingChange)` output emits the new value. Or `[sorting]` with `(argus-sorting-change)` to decide yourself.
+
+A one-way binding with the event is what refusing takes: a two-way binding applies every proposal. The [Sorting](/argus-table/features/sorting/) page shows both, in all four flavours.
+
+## Saving a layout
+
+`getState()` returns all of this state, plus `quickFilter` and the scroll position, as one object of plain JSON. `setState(state)` restores it: it applies only the keys it's given, leaves the properties you control alone and fires no events.
+
+```js
+const KEY = 'orders-table';
+await table.setState(JSON.parse(localStorage.getItem(KEY) ?? '{}'));
+addEventListener('pagehide', () => {
+  localStorage.setItem(KEY, JSON.stringify(table.getState()));
+});
+```
+
+See [Saved state](/argus-table/features/saved-state/) for it running.

@@ -1,0 +1,62 @@
+---
+title: Tailwind
+description: "Tailwind's utilities in cells and headers, tokens from your Tailwind theme, and @apply in ::part()."
+---
+
+Cell and header content lives in the light DOM, so Tailwind's utility classes work in `cell` and `header` content as they do anywhere on your page. The table's own grid is in its shadow DOM, where utilities can't reach: style that with tokens, which can come from your Tailwind theme, and with `::part()`.
+
+## Utilities in cells
+
+```js
+import { html } from 'lit';
+
+table.columns = [
+  {
+    id: 'status',
+    header: 'Status',
+    cell: (order) =>
+      html`<span class="rounded-full bg-emerald-50 px-2 text-sm text-emerald-700"
+        >${order.status}</span
+      >`,
+  },
+];
+```
+
+The same goes for JSX in React, templates in Vue and Angular: the classes are on your elements. Tailwind scans your source files for class names, so classes written in column definitions are picked up like any others.
+
+## Tokens from the Tailwind theme
+
+```css
+@import 'tailwindcss';
+
+argus-table {
+  --argus-font: inherit;
+  --argus-bg: var(--color-white);
+  --argus-header-bg: var(--color-gray-50);
+  --argus-border-color: var(--color-gray-200);
+  --argus-row-hover-bg: var(--color-gray-50);
+  --argus-focus-ring: 2px solid var(--color-indigo-600);
+}
+
+@media (prefers-color-scheme: dark) {
+  argus-table {
+    --argus-bg: var(--color-gray-950);
+    --argus-header-bg: var(--color-gray-900);
+    --argus-border-color: var(--color-gray-800);
+  }
+}
+```
+
+Or start from one of the [themes](/argus-table/themes/) and override a few tokens with your Tailwind colours.
+
+## Parts
+
+`::part()` selectors work in plain CSS, and Tailwind's `@apply` works inside them:
+
+```css
+argus-table::part(header-cell) {
+  @apply text-xs tracking-wide text-gray-500 uppercase;
+}
+```
+
+See [Styling and themes](/argus-table/guides/styling/) for how tokens and parts fit together.

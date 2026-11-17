@@ -1,0 +1,54 @@
+---
+title: Server data
+description: 'Load rows page by page from a server with a dataSource, with sorting and filtering on the server.'
+---
+
+When the rows live on a server, and there are too many to load at once or the server sorts and filters, give the table a `dataSource` instead of `data`. It asks for the rows that scroll into view, a page at a time, and keeps them in a cache. Rows still loading show as skeletons.
+
+```ts
+import type { DataSource } from 'argus-table'; // or from your wrapper
+
+export const orders: DataSource<Order> = {
+  pageSize: 100,
+  async getRows({ start, end, sorting, filters, quickFilter, signal }) {
+    const params = new URLSearchParams({ offset: String(start), limit: String(end - start) });
+    const [sort] = sorting;
+    if (sort) params.set('sort', `${sort.id}:${sort.desc ? 'desc' : 'asc'}`);
+    if (quickFilter) params.set('q', quickFilter);
+    for (const [id, filter] of Object.entries(filters)) {
+      params.set(`filter.${id}`, JSON.stringify(filter));
+    }
+    const response = await fetch(`/api/orders?${params}`, { signal });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const body = await response.json();
+    return { rows: body.items, total: body.total };
+  },
+};
+```
+
+```js
+table.dataSource = orders;
+table.getRowId = (order) => order.id;
+```
+
+## What `getRows` gets
+
+- **`start` and `end`:** the rows to load, `end` exclusive, like `slice()`. Pages are aligned: `start` is a multiple of `pageSize` (100 by default), and `end - start` is `pageSize`, less for the last page. A page-based API gets `page = start / pageSize`.
+- **`sorting`:** the order, as `[{ id, desc }]`; `[]` when unsorted. The table doesn't sort these rows, the server does. Columns still need `sortable: true` for their headers to sort.
+- **`filters` and `quickFilter`:** the column filters and the search text, for the server to apply. Column ids are what the server gets; map them to your API's field names in `getRows` if they differ.
+- **`signal`:** aborted when the rows aren't needed anymore (scrolled far away, a new sort). Pass it to `fetch` to cancel the request. A client without one works too: the table drops answers it no longer wants.
+
+## What it returns
+
+`{ rows, total }`: the rows from `start`, at most `end - start` of them, and the total number of rows if the server knows it. Without a total, the table grows as pages arrive, and a page shorter than asked for ends the rows.
+
+## Errors and refreshing
+
+Throw or reject to fail a page: its rows show a Retry button, and `argus-load-error` fires with `{ error, start, end }`. A new sort, filter or search starts a fresh cache from the top. When the data changed on the server, `table.refresh()` reloads the pages in view.
+
+## Keep it stable
+
+- **The `dataSource` object:** a new object is a new source, so the table reloads from the top. Define it once (at module scope, in `useMemo`, as a class field), and make a new one on purpose when what it loads changes, such as a tenant or a date range.
+- **`getRowId`:** use the server's ids. Without it, ids are positions in the server's order, which change with every sort, and selection and saved state lose their rows.
+
+See [Infinite loading](/argus-table/features/infinite-loading/) for a `dataSource` running in all four flavours, including failed pages and a source without a total.
