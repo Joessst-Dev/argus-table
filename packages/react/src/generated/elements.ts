@@ -20,6 +20,7 @@ import type {
   LoadErrorDetail,
   RangeChangeDetail,
   RowClickDetail,
+  RowDetailContext,
   SelectionChangeDetail,
   SortingChangeDetail,
 } from 'argus-table';
@@ -55,7 +56,6 @@ export type ArgusTableElementProps<T = unknown> = Partial<
     | 'selectionMode'
     | 'selectionCheckboxes'
     | 'selection'
-    | 'rowDetail'
     | 'rowExpandable'
     | 'expanded'
     | 'plugins'
@@ -64,6 +64,7 @@ export type ArgusTableElementProps<T = unknown> = Partial<
 > & {
   columns?: readonly ReactColumnDef<T>[] | null;
   columnGroups?: readonly ReactColumnGroup[] | null;
+  rowDetail?: (context: RowDetailContext<T>) => ReactCellContent;
 };
 
 /** The event props of `<ArgusTable>`: each gets the element's `CustomEvent`. */

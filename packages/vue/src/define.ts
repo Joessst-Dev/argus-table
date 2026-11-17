@@ -12,7 +12,7 @@ import {
   watchEffect,
   type PropType,
 } from 'vue';
-import { slotKey, slotPlugin, vueRenderer } from './content.js';
+import { detailFromSlot, slotKey, slotPlugin, vueRenderer } from './content.js';
 
 export interface WrapperEvent {
   /** The DOM event, e.g. `argus-sorting-change`. */
@@ -82,6 +82,8 @@ export function defineWrapper(spec: WrapperSpec) {
       let host: PluginHost | undefined;
       const slotsPlugin = instance ? slotPlugin(slots, (next) => (host = next)) : undefined;
       let slotNames = instance ? slotKey(slots) : '';
+      // `#detail` renders the panels unless `rowDetail` is bound.
+      let detailSlot = instance ? detailFromSlot(slots) : undefined;
       const pluginsOf = (value: unknown): readonly ArgusPlugin[] => [
         ...(slotsPlugin ? [slotsPlugin] : []),
         ...((value as readonly ArgusPlugin[] | null | undefined) ?? []),
@@ -103,10 +105,11 @@ export function defineWrapper(spec: WrapperSpec) {
               applied.set(name, value);
               continue;
             }
-            const changed = applied.has(name) ? applied.get(name) !== value : value !== undefined;
+            const own = name === 'rowDetail' && value === undefined ? detailSlot : value;
+            const changed = applied.has(name) ? applied.get(name) !== own : own !== undefined;
             if (!changed) continue;
-            el[name] = value;
-            applied.set(name, value);
+            el[name] = own;
+            applied.set(name, own);
           }
         },
         { flush: 'post' },
@@ -141,6 +144,12 @@ export function defineWrapper(spec: WrapperSpec) {
           const names = slotKey(slots);
           if (names !== slotNames) {
             slotNames = names;
+            const el = element.value;
+            detailSlot = detailFromSlot(slots);
+            if (el && values.rowDetail === undefined && applied.get('rowDetail') !== detailSlot) {
+              el.rowDetail = detailSlot;
+              applied.set('rowDetail', detailSlot);
+            }
             host?.invalidateColumns();
           } else {
             host?.requestUpdate();

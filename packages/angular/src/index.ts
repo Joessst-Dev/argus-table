@@ -3,11 +3,17 @@ import {
   ArgusColumnGroupComponent,
   ArgusTableComponent,
 } from './generated/elements.js';
-import { ArgusCellDirective, ArgusGroupHeaderDirective, ArgusHeaderDirective } from './content.js';
+import {
+  ArgusCellDirective,
+  ArgusDetailDirective,
+  ArgusGroupHeaderDirective,
+  ArgusHeaderDirective,
+} from './content.js';
 
 export { ArgusColumnComponent, ArgusColumnGroupComponent, ArgusTableComponent };
 export {
   ArgusCellDirective,
+  ArgusDetailDirective,
   ArgusGroupHeaderDirective,
   ArgusHeaderDirective,
   ArgusTableBase,
@@ -16,6 +22,7 @@ export {
   type AngularColumnDef,
   type AngularColumnGroup,
   type ArgusCellContext,
+  type ArgusDetailContext,
   type ArgusGroupHeaderContext,
   type ArgusHeaderContext,
   type ArgusTemplate,
@@ -25,7 +32,7 @@ export {
 export type { CellEditDetail } from './cell-edit-events.js';
 export type { FormulaColumnChangeDetail, FormulaColumnDetail } from './formula-events.js';
 
-/** The table, its columns and column groups, and the cell, header and group header template directives, for a standalone component's `imports`. */
+/** The table, its columns and column groups, and the cell, header, group header and detail template directives, for a standalone component's `imports`. */
 export const ARGUS_TABLE = [
   ArgusTableComponent,
   ArgusColumnComponent,
@@ -33,6 +40,7 @@ export const ARGUS_TABLE = [
   ArgusCellDirective,
   ArgusHeaderDirective,
   ArgusGroupHeaderDirective,
+  ArgusDetailDirective,
 ] as const;
 
 // The element classes, for typing `component.element`.

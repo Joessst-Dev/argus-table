@@ -17,6 +17,7 @@ import type {
   LoadErrorDetail,
   RangeChangeDetail,
   RowClickDetail,
+  RowDetailContext,
   SelectionChangeDetail,
   SortingChangeDetail,
 } from 'argus-table';
@@ -53,7 +54,6 @@ export type ArgusTableElementProps<T = unknown> = Partial<
     | 'selectionMode'
     | 'selectionCheckboxes'
     | 'selection'
-    | 'rowDetail'
     | 'rowExpandable'
     | 'expanded'
     | 'plugins'
@@ -62,6 +62,7 @@ export type ArgusTableElementProps<T = unknown> = Partial<
 > & {
   columns?: readonly VueColumnDef<T>[] | null;
   columnGroups?: readonly VueColumnGroup[] | null;
+  rowDetail?: (context: RowDetailContext<T>) => VueCellContent;
 };
 
 /** The event props of `<ArgusTable>`, which `@event` and `v-model` bind. */
@@ -174,6 +175,8 @@ export interface ArgusTableSlots<T = unknown> {
   [slot: `header-${string}`]: ((props: HeaderSlotProps) => VNodeChild) | undefined;
   /** `#group-<group id>`: a column group's header. */
   [slot: `group-${string}`]: ((props: GroupSlotProps) => VNodeChild) | undefined;
+  /** `#detail`: a row's detail panel (`rowDetail`). Gets the row and its context. */
+  detail?(props: RowDetailContext<T>): VNodeChild;
 }
 
 interface ArgusTableContext<T = unknown> {

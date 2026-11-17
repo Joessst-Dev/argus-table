@@ -7,6 +7,7 @@ import {
   type ArgusTableElement,
   type VueColumnDef,
 } from './index.js';
+import Detail from './test/Detail.vue';
 import Groups from './test/Groups.vue';
 import Slots from './test/Slots.vue';
 import { counts } from './test/counts.js';
@@ -285,5 +286,41 @@ describe('Vue content in pinned rows and custom editors', () => {
     await settle(el);
     expect(edited).toEqual([3]);
     expect(el.querySelector('button.three')).toBeNull();
+  });
+});
+
+describe('Vue content in detail panels', () => {
+  async function scrollBody(el: ArgusTableElement, top: number) {
+    const scroller = el.shadowRoot?.querySelector<HTMLElement>('[part~="table"]');
+    if (!scroller) throw new Error('no scroller');
+    const scrolled = new Promise((resolve) => {
+      scroller.addEventListener('scroll', resolve, { once: true });
+    });
+    scroller.scrollTop = top;
+    await scrolled;
+    await settle(el);
+  }
+
+  test('renders the #detail slot and keeps its state across scrolling', async () => {
+    const el = await mount(() => createApp(Detail, { rows: orders(300), open: ['o2'] }));
+    expect(el.querySelector('p.detail')?.textContent).toBe('Customer 2');
+    const counter = () => el.querySelector<HTMLButtonElement>('button.counter');
+    counter()?.click();
+    counter()?.click();
+    await settle(el);
+    expect(counter()?.textContent).toBe('2');
+    await scrollBody(el, 4000);
+    await scrollBody(el, 0);
+    expect(counter()?.textContent).toBe('2');
+  });
+
+  test('binds expanded two-way', async () => {
+    const el = await mount(() => createApp(Detail, { rows: orders(20), open: [] }));
+    expect(el.querySelector('p.detail')).toBeNull();
+    el.shadowRoot?.querySelector<HTMLButtonElement>('[part~="expand-toggle"]')?.click();
+    await settle(el);
+    expect(container?.querySelector('output.expanded')?.textContent).toBe('o0');
+    expect(el.expanded).toEqual(['o0']);
+    expect(el.querySelector('p.detail')?.textContent).toBe('Customer 0');
   });
 });

@@ -26,6 +26,7 @@ import type {
   LoadErrorDetail,
   RangeChangeDetail,
   RowClickDetail,
+  RowDetailContext,
   SelectionChangeDetail,
   SortingChangeDetail,
 } from 'argus-table';
@@ -175,7 +176,9 @@ export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
   }
 
   /** A detail panel for body rows, under the row: a function that gets `{ row, rowId, index }` and returns its content, like a column's `cell` (a Lit template, a DOM node, text; React, Vue or Angular content through the wrappers). Setting it adds a column of chevrons that open and close the panels (`expanded`). A panel spans the visible width, is as tall as its content up to `--argus-detail-max-height` (past that it scrolls), and works with the keyboard: Down arrow onto it, Enter or F2 into its content, Escape back out. It runs on every update of a panel in view, so return a template or framework content rather than a new DOM node each time. Property only. Panels aren't available on `pinnedRows`. */
-  @Input() set rowDetail(value: ArgusTableElement<T>['rowDetail'] | null | undefined) {
+  @Input() set rowDetail(
+    value: ((context: RowDetailContext<T>) => AngularCellContent) | null | undefined,
+  ) {
     setProperty(this.element, 'rowDetail', undefined, value);
   }
 

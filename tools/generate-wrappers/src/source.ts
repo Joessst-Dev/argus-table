@@ -58,6 +58,10 @@ export function argusTypes(elements: readonly ElementInfo[], withContent: boolea
     }
   }
   if (withContent) types.add('CellContext');
+  // A detail panel's content gets the row's context.
+  if (withContent && elements.some((el) => el.properties.some((p) => p.name === 'rowDetail'))) {
+    types.add('RowDetailContext');
+  }
   return [...types].sort();
 }
 

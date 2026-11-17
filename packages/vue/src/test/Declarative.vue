@@ -71,6 +71,10 @@ defineExpose({ sorting, clicked, table, refresh });
     <!-- @vue-expect-error a proposal has no `rows` -->
     <ArgusTable :data="orders" @formula-column-add="(e) => e.detail.rows" />
     <ArgusTable :data="orders" @update:sorting="(s) => s.map((i) => i.id)" />
+    <ArgusTable :data="orders" @update:expanded="(ids) => ids.join()" />
+    <ArgusTable :data="orders" :row-detail="({ row }) => row.total.toFixed()" />
+    <!-- @vue-expect-error the row is an Order, which has no `name` -->
+    <ArgusTable :data="orders" :row-detail="({ row }) => row.name" />
     <ArgusTable @update:column-sizing="(s) => s['total']" @update:column-order="(o) => o.join()" />
     <ArgusTable selection-mode="multi" selection-checkboxes @update:selection="(s) => s.join()" />
     <ArgusTable

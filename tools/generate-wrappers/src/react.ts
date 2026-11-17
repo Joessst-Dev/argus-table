@@ -24,6 +24,7 @@ const CONTENT_PROPS: ContentTypes = {
   header: "ReactColumnDef<T>['header']",
   'ArgusColumnGroup.header': "ReactColumnGroup['header']",
   cell: '(row: T, context: CellContext<T>) => ReactCellContent',
+  rowDetail: '(context: RowDetailContext<T>) => ReactCellContent',
   contentRenderer: null,
 };
 

@@ -31,6 +31,7 @@ const CONTENT_PROPS: ContentTypes = {
   header: "VueColumnDef<T>['header']",
   'ArgusColumnGroup.header': "VueColumnGroup['header']",
   cell: '(row: T, context: CellContext<T>) => VueCellContent',
+  rowDetail: '(context: RowDetailContext<T>) => VueCellContent',
   contentRenderer: null,
 };
 
@@ -56,7 +57,13 @@ function component(el: ElementInfo): string {
   /** \`#header-<column id>\`: a column's header. */
   [slot: \`header-\${string}\`]: ((props: HeaderSlotProps) => VNodeChild) | undefined;
   /** \`#group-<group id>\`: a column group's header. */
-  [slot: \`group-\${string}\`]: ((props: GroupSlotProps) => VNodeChild) | undefined;`
+  [slot: \`group-\${string}\`]: ((props: GroupSlotProps) => VNodeChild) | undefined;${
+    el.properties.some((p) => p.name === 'rowDetail')
+      ? `
+  /** \`#detail\`: a row's detail panel (\`rowDetail\`). Gets the row and its context. */
+  detail?(props: RowDetailContext<${el.generic ? 'T' : 'unknown'}>): VNodeChild;`
+      : ''
+  }`
     : '';
   const modelOf = (event: string) => el.models.find((m) => m.event === event);
 
