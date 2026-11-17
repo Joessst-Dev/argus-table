@@ -129,9 +129,10 @@ jobs:
 
   docs-e2e:
     # The docs site's suite (every example in four flavours, with axe) took about
-    # 19 minutes in WebKit in one job, so it runs in three shards per engine
-    # (E2E_SHARD, read by apps/docs/e2e/playwright.config.ts). Each shard builds
-    # the site itself: there's no shared Nx cache.
+    # 19 minutes in WebKit in one job, so it runs in shards (E2E_SHARD, read by
+    # apps/docs/e2e/playwright.config.ts): four in Firefox and WebKit, three in
+    # Chromium, which is faster (about 6–7 minutes each). Each shard builds the site
+    # itself: there's no shared Nx cache.
     needs: setup
     runs-on: ubuntu-24.04
     container:
@@ -141,8 +142,19 @@ jobs:
       fail-fast: false
       matrix:
         browser: [chromium, firefox, webkit]
-        shard: [1, 2, 3]
-    name: docs e2e (${{ matrix.browser }}, ${{ matrix.shard }}/3)
+        shard: [1, 2, 3, 4]
+        exclude:
+          - browser: chromium
+            shard: 4
+        # Adds `shards` (the total) to every combination of the engine.
+        include:
+          - browser: chromium
+            shards: 3
+          - browser: firefox
+            shards: 4
+          - browser: webkit
+            shards: 4
+    name: docs e2e (${{ matrix.browser }}, ${{ matrix.shard }}/${{ matrix.shards }})
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -153,7 +165,7 @@ jobs:
       - name: Playwright e2e against the docs site
         env:
           BROWSERS: ${{ matrix.browser }}
-          E2E_SHARD: ${{ matrix.shard }}/3
+          E2E_SHARD: ${{ matrix.shard }}/${{ matrix.shards }}
         run: pnpm nx affected -t e2e --exclude=e2e --base=${{ needs.setup.outputs.base }} --head=${{ needs.setup.outputs.head }}
 
       - name: Upload the report
