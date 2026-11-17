@@ -13,7 +13,10 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  build:
+  # Storybook is no longer published: its stories run as tests in CI, and pull
+  # requests get the static build as an artifact to look at.
+  storybook:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -22,26 +25,15 @@ jobs:
       - name: Build Storybook
         run: pnpm nx run storybook:build
 
-      # Pull requests: keep the static build as a downloadable artifact.
-      # (GitHub Pages has no per-PR previews; a preview host comes later.)
       - name: Upload Storybook artifact
-        if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: storybook
           path: apps/storybook/dist
           retention-days: 7
 
-      - name: Upload Pages artifact
-        if: github.event_name == 'push'
-        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
-        with:
-          path: apps/storybook/dist
-
-  # The new docs site (apps/docs): built and kept as an artifact on every event
-  # until it replaces Storybook on Pages (docs/superpowers/specs/
-  # 2026-11-16-docs-site-design.md, "Rollout"). Its own job, so a failing
-  # site never holds back Storybook's deploy.
+  # The docs site (apps/docs): published to GitHub Pages from main; pull
+  # requests get the build as an artifact (Pages has no per-PR previews).
   site:
     runs-on: ubuntu-latest
     steps:
@@ -52,15 +44,22 @@ jobs:
         run: pnpm nx run docs:build
 
       - name: Upload docs site artifact
+        if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: docs-site
           path: apps/docs/dist
           retention-days: 7
 
+      - name: Upload Pages artifact
+        if: github.event_name == 'push'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: apps/docs/dist
+
   deploy:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: build
+    needs: site
     runs-on: ubuntu-latest
     permissions:
       pages: write
