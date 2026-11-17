@@ -3,7 +3,7 @@
 import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
 import RefTable from '../../components/api/RefTable.astro';
 import { ELEMENT_TAGS } from '../../lib/api/elements';
-import { code, docHtml, elementOf, rowId, typeHtml } from '../../lib/api/site';
+import { addonReadme, code, docHtml, elementOf, rowId, typeHtml } from '../../lib/api/site';
 
 export function getStaticPaths() {
   return ELEMENT_TAGS.map((tag) => ({ params: { tag } }));
@@ -12,8 +12,18 @@ export function getStaticPaths() {
 const tag = Astro.params.tag as (typeof ELEMENT_TAGS)[number];
 const el = elementOf(tag);
 
-const bindings = (b: { react: string; vue: string; angular: string }) =>
-  `React ${code(b.react)}<br />Vue ${code(b.vue)}<br />Angular ${code(b.angular)}`;
+const bindings = (b: { react: string; vue: string; angular: string } | undefined) =>
+  b
+    ? `React ${code(b.react)}<br />Vue ${code(b.vue)}<br />Angular ${code(b.angular)}`
+    : 'Set by the wrappers';
+
+/** Angular's output for a state change emits the new value; the event itself is `(argus-…)`. */
+const eventBindings = (e: (typeof el.events)[number]) =>
+  e.angularEmits === undefined
+    ? bindings(e.bindings)
+    : `React ${code(e.bindings.react)}<br />Vue ${code(e.bindings.vue)}<br />Angular ${code(
+        e.bindings.angular,
+      )} emits the new ${code(e.angularEmits)}; ${code(`(${e.name})`)} gets the event`;
 
 const sections = [
   {
@@ -23,8 +33,10 @@ const sections = [
     rows: el.properties.map((p) => ({
       id: rowId('property', p.name),
       cells: [
-        code(p.name) + (p.attribute ? `<br />attribute ${code(p.attribute)}` : ''),
-        bindings(p),
+        code(p.name) +
+          (p.attribute ? `<br />attribute ${code(p.attribute)}` : '') +
+          (p.default ? `<br />default ${code(p.default)}` : ''),
+        bindings(p.bindings),
         typeHtml(p.type),
         docHtml(p.description),
       ],
@@ -37,8 +49,11 @@ const sections = [
     rows: el.events.map((e) => ({
       id: rowId('event', e.name),
       cells: [
-        code(e.name) + (e.from ? `<br />from ${code(e.from)}` : ''),
-        bindings(e),
+        code(e.name) +
+          (e.from
+            ? `<br />from <a href="${addonReadme(e.from)}">${code(e.from)}</a> (detail types in its README)`
+            : ''),
+        eventBindings(e),
         typeHtml(e.type),
         docHtml(e.description),
       ],
@@ -90,7 +105,8 @@ const sections = [
   <Fragment set:html={docHtml(el.description)} />
   <p>
     The class is <code>{el.className}</code>, exported by <code>argus-table</code>. Bindings are how
-    the React, Vue and Angular wrappers name each property and event.
+    the React, Vue and Angular wrappers name each property and event; for a state change, Angular's
+    output emits the new value rather than the event.
   </p>
   {
     sections.map((s) => (

@@ -25,6 +25,15 @@ export interface CoreDef<TData, C = unknown> {
   /** Reads the value. */
   read?: (row: TData) => unknown;
 }
+/** Free-form data. */
+export interface Meta {
+  /** Anything. */
+  [key: string]: unknown;
+  readonly kind: string;
+}
+interface Base<TRow> { row: TRow }
+/** Extends another. */
+export interface Child extends Base<number> { extra: boolean }
 /** A sort direction. */
 export type Sort = 'asc' | 'desc';
 `,
@@ -35,7 +44,7 @@ write(
 export type Def<T = unknown, C = string> = CoreDef<T, C>;
 /** Its own words. */
 export type Named<T = unknown> = CoreDef<T, number>;
-export type { Sort } from './core.js';
+export type { Sort, Meta, Child } from './core.js';
 export const notAType = 1;
 interface Private { x: number }
 export type { Private as Hidden };
@@ -60,11 +69,18 @@ describe('readTypes', () => {
       description: "A row's column.",
     });
     expect(type('Def')?.members).toEqual([
-      { name: 'id', optional: false, type: 'string', description: 'Stable key.' },
-      { name: 'header', optional: true, type: 'C | ((t: boolean) => C)', description: '' },
+      { name: 'id', optional: false, readonly: false, type: 'string', description: 'Stable key.' },
+      {
+        name: 'header',
+        optional: true,
+        readonly: false,
+        type: 'C | ((t: boolean) => C)',
+        description: '',
+      },
       {
         name: 'read',
         optional: true,
+        readonly: false,
         type: '(row: T) => unknown',
         description: 'Reads the value.',
       },
@@ -85,7 +101,27 @@ describe('readTypes', () => {
   });
 
   test('lists only exported types, sorted by name', () => {
-    expect(types.map((t) => t.name)).toEqual(['Def', 'Hidden', 'Named', 'Sort']);
+    expect(types.map((t) => t.name)).toEqual(['Child', 'Def', 'Hidden', 'Meta', 'Named', 'Sort']);
+  });
+
+  test('shows index signatures and readonly members', () => {
+    expect(type('Meta')?.members).toEqual([
+      {
+        name: '[key: string]',
+        optional: false,
+        readonly: false,
+        type: 'unknown',
+        description: 'Anything.',
+      },
+      { name: 'kind', optional: false, readonly: true, type: 'string', description: '' },
+    ]);
+  });
+
+  test('inherited members read with the type arguments the interface passes', () => {
+    expect(type('Child')?.members.map((m) => [m.name, m.type])).toEqual([
+      ['extra', 'boolean'],
+      ['row', 'number'],
+    ]);
   });
 
   test('the real argus-table types are all there', () => {
@@ -100,7 +136,14 @@ describe('readTypes', () => {
       /export type \{([^}]*)\}/
         .exec(dts)?.[1]
         ?.split(',')
-        .map((n) => n.trim()) ?? [];
+        // `X$1 as X` exports X.
+        .map(
+          (n) =>
+            n
+              .trim()
+              .split(/\s+as\s+/)
+              .pop() ?? '',
+        ) ?? [];
     expect(exported.length).toBeGreaterThan(40);
     expect(exported.filter((n) => n && !names.has(n))).toEqual([]);
     expect(real.find((t) => t.name === 'ColumnDef')?.members.map((m) => m.name)).toContain(

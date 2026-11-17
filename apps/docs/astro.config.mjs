@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import react from '@astrojs/react';
@@ -9,6 +10,10 @@ import angular from '@analogjs/astro-angular';
 export default defineConfig({
   site: 'https://joessst-dev.github.io',
   base: '/argus-table',
+  vite: {
+    // The API reference reads the packages' sources from here, wherever the build runs.
+    define: { __REPO_ROOT__: JSON.stringify(fileURLToPath(new URL('../..', import.meta.url))) },
+  },
   integrations: [
     starlight({
       title: 'argus-table',

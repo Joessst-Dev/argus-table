@@ -5,8 +5,10 @@ import { dirname } from 'node:path';
 import ts from 'typescript';
 
 export interface TypeMember {
+  /** The member's name, or an index signature's key: `[key: string]`. */
   name: string;
   optional: boolean;
+  readonly: boolean;
   /** As written in the source, with the alias's type parameter names. */
   type: string;
   description: string;
@@ -48,7 +50,19 @@ function memberText(member: ts.Declaration): string | undefined {
   return undefined;
 }
 
-/** The interface's members, own and inherited, in declaration order. */
+const isReadonly = (member: ts.Declaration) =>
+  ts.canHaveModifiers(member) &&
+  (ts.getModifiers(member) ?? []).some((m) => m.kind === ts.SyntaxKind.ReadonlyKeyword);
+
+/** A JSDoc comment's text, for nodes without a symbol (index signatures). */
+const nodeDoc = (node: ts.Node) =>
+  ts
+    .getJSDocCommentsAndTags(node)
+    .map((d) => (ts.isJSDoc(d) ? (ts.getTextOfJSDocComment(d.comment) ?? '') : ''))
+    .join('')
+    .trim();
+
+/** The interface's members, own and inherited, index signatures first. */
 function membersOf(
   decl: ts.InterfaceDeclaration,
   checker: ts.TypeChecker,
@@ -56,21 +70,37 @@ function membersOf(
 ): TypeMember[] {
   const symbol = checker.getSymbolAtLocation(decl.name);
   if (!symbol) return [];
-  return checker
+  // Index signatures (`[key: string]: unknown`) aren't properties.
+  const indexes = decl.members.filter(ts.isIndexSignatureDeclaration).map((index): TypeMember => ({
+    name: `[${index.parameters.map((p) => p.getText()).join(', ')}]`,
+    optional: false,
+    readonly: isReadonly(index),
+    type: rename(index.type.getText(), names),
+    description: nodeDoc(index),
+  }));
+  const properties = checker
     .getPropertiesOfType(checker.getDeclaredTypeOfSymbol(symbol))
-    .flatMap((property) => {
+    .flatMap((property): TypeMember[] => {
       const member = property.declarations?.[0];
-      const text = member && memberText(member);
-      if (text === undefined) return [];
+      if (!member) return [];
+      // An inherited member's text names the base's type parameters: let the
+      // checker print it as this interface sees it.
+      const own = member.parent === decl ? memberText(member) : undefined;
+      const type =
+        own === undefined
+          ? checker.typeToString(checker.getTypeOfSymbolAtLocation(property, decl))
+          : rename(own, names);
       return [
         {
           name: property.getName(),
           optional: (property.flags & ts.SymbolFlags.Optional) !== 0,
-          type: rename(text, names),
+          readonly: isReadonly(member),
+          type,
           description: docOf(property, checker),
         },
       ];
     });
+  return [...indexes, ...properties];
 }
 
 /** The interface an alias names directly (`CoreColumnDef<T, TContent>`), if it does. */
@@ -102,10 +132,16 @@ export function readTypes(entry: string, tsconfig: string): TypeRef[] {
   for (const exported of checker.getExportsOfModule(module)) {
     const symbol =
       exported.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(exported) : exported;
+    if (symbol.declarations?.some(ts.isEnumDeclaration)) {
+      throw new Error(
+        `readTypes: ${exported.getName()} is an enum, which the reference can't show.`,
+      );
+    }
     const decl = symbol.declarations?.find(
       (d): d is ts.InterfaceDeclaration | ts.TypeAliasDeclaration =>
         ts.isInterfaceDeclaration(d) || ts.isTypeAliasDeclaration(d),
     );
+    // Value exports (the element classes, functions, constants) aren't types.
     if (!decl) continue;
     const name = exported.getName();
     const description = docOf(symbol, checker);

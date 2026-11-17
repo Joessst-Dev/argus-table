@@ -1,43 +1,57 @@
 // The API reference of an element, from argus-table's Custom Elements Manifest.
 // Properties, events and two-way bindings come through the wrapper generator's
 // reader, so the binding names shown are the ones the wrappers have; the rest
-// (descriptions, method signatures, slots, parts, tokens) from the manifest itself.
-import { readElement, type Manifest, type Tag } from '@argus-table/generate-wrappers/manifest';
+// (descriptions, defaults, method signatures, slots, parts, tokens) from the
+// manifest itself.
+import {
+  readElement,
+  WRAPPER_PROPERTIES,
+  type Manifest,
+  type Tag,
+} from '@argus-table/generate-wrappers/manifest';
 
 /** The elements the reference documents, in the order the sidebar lists them. */
 export const ELEMENT_TAGS: readonly Tag[] = ['argus-table', 'argus-column', 'argus-column-group'];
+
+/** How a wrapper binds a property or listens to an event. */
+export interface Bindings {
+  /** The React prop: `columnSizing`, `onSortingChange`. */
+  react: string;
+  /** The Vue binding: `:column-sizing`, `v-model:column-sizing`, `@sorting-change`. */
+  vue: string;
+  /** The Angular binding: `[columnSizing]`, `[(columnSizing)]`, `(sortingChange)`. */
+  angular: string;
+}
 
 export interface PropertyRef {
   name: string;
   /** The attribute the property reads, if any. */
   attribute?: string;
   type: string;
+  /** The default, as the source writes it: `'comfortable'`. */
+  default?: string;
   description: string;
-  /** The React prop. */
-  react: string;
-  /** The Vue binding: `:column-sizing`, or `v-model:column-sizing` for two-way state. */
-  vue: string;
-  /** The Angular binding: `[columnSizing]`, or `[(columnSizing)]` for two-way state. */
-  angular: string;
+  /** How the wrappers bind it; none for a property the wrappers set themselves. */
+  bindings?: Bindings;
 }
 
 export interface EventRef {
   name: string;
   type: string;
   description: string;
-  /** The React prop: `onSortingChange`. */
-  react: string;
-  /** The Vue listener: `@sorting-change`. */
-  vue: string;
-  /** The Angular output: `(sortingChange)`. */
-  angular: string;
+  bindings: Bindings;
+  /**
+   * For a state change (`argus-sorting-change`): the property whose new value
+   * Angular's output emits, instead of the event.
+   */
+  angularEmits?: string;
   /** The add-on that fires it, for add-on events: `@argus-table/formulas`. */
   from?: string;
 }
 
 export interface MethodRef {
   name: string;
-  /** `scrollToRow(target: RowTarget, options = {}: ScrollToRowOptions): Promise<boolean>`. */
+  /** `scrollToRow(target: RowTarget, options?: ScrollToRowOptions): Promise<boolean>`. */
   signature: string;
   description: string;
 }
@@ -68,10 +82,17 @@ interface Declaration {
   members?: readonly {
     kind: string;
     name: string;
-    parameters?: readonly { name: string; default?: string; type?: { text: string } }[];
+    default?: string;
+    parameters?: readonly {
+      name: string;
+      optional?: boolean;
+      default?: string;
+      type?: { text: string };
+    }[];
     return?: { type?: { text: string } };
     description?: string;
   }[];
+  events?: readonly { name: string }[];
   slots?: readonly RawDoc[];
   cssParts?: readonly RawDoc[];
   cssProperties?: readonly RawDoc[];
@@ -102,7 +123,10 @@ const docs = (list: readonly RawDoc[] | undefined): NamedDoc[] =>
     ...(d.default !== undefined && { default: d.default }),
   }));
 
-/** The add-on an add-on event comes from, as its description names it. */
+/**
+ * The add-on an add-on event comes from, as its description names it (the
+ * descriptions in the generator's `ADDON_EVENTS` start "From `x()` (`@argus-table/…`)").
+ */
 function addonOf(description: string, event: string): string {
   const match = /`(@argus-table\/[a-z-]+)`/.exec(description);
   if (!match?.[1]) throw new Error(`Add-on event "${event}" doesn't name its package.`);
@@ -113,52 +137,56 @@ function addonOf(description: string, event: string): string {
 export function elementReference(manifest: unknown, tag: Tag): ElementRef {
   const info = readElement(manifest as Manifest, tag);
   const decl = declarationOf(manifest as Manifest, tag);
+  const models = new Map(info.models.map((m) => [m.event, m.property]));
   const twoWay = new Set(info.models.map((m) => m.property));
-  const own = new Set((decl.members ?? []).map((m) => m.name));
-  const rawEvents = new Set(
-    ((decl as { events?: readonly { name: string }[] }).events ?? []).map((e) => e.name),
-  );
+  const member = (name: string) => decl.members?.find((m) => m.name === name);
+  const ownEvents = new Set((decl.events ?? []).map((e) => e.name));
 
   const properties = info.properties.map((p): PropertyRef => {
     const model = twoWay.has(p.name);
+    const fallback = member(p.name)?.default;
     return {
       name: p.name,
       ...(p.attribute !== undefined && { attribute: p.attribute }),
       type: p.type,
+      ...(fallback !== undefined && { default: fallback }),
       description: p.description,
-      react: p.name,
-      vue: model ? `v-model:${kebab(p.name)}` : `:${kebab(p.name)}`,
-      angular: model ? `[(${p.name})]` : `[${p.name}]`,
+      ...(!WRAPPER_PROPERTIES.includes(p.name) && {
+        bindings: {
+          react: p.name,
+          vue: model ? `v-model:${kebab(p.name)}` : `:${kebab(p.name)}`,
+          angular: model ? `[(${p.name})]` : `[${p.name}]`,
+        },
+      }),
     };
   });
 
-  const events = info.events.map((e): EventRef => ({
-    name: e.name,
-    type: e.type,
-    description: e.description,
-    react: e.react,
-    vue: `@${e.vue}`,
-    angular: `(${e.angular})`,
-    ...(!rawEvents.has(e.name) && { from: addonOf(e.description, e.name) }),
-  }));
+  const events = info.events.map((e): EventRef => {
+    const property = models.get(e.name);
+    return {
+      name: e.name,
+      type: e.type,
+      description: e.description,
+      bindings: { react: e.react, vue: `@${e.vue}`, angular: `(${e.angular})` },
+      ...(property !== undefined && { angularEmits: property }),
+      ...(!ownEvents.has(e.name) && { from: addonOf(e.description, e.name) }),
+    };
+  });
 
-  const methods = info.methods
-    .filter((name) => own.has(name))
-    .map((name): MethodRef => {
-      const member = decl.members?.find((m) => m.kind === 'method' && m.name === name);
-      const params = (member?.parameters ?? [])
-        .map((p) => {
-          const type = p.type ? `: ${p.type.text}` : '';
-          return p.default !== undefined ? `${p.name} = ${p.default}${type}` : `${p.name}${type}`;
-        })
-        .join(', ');
-      const returns = member?.return?.type ? `: ${member.return.type.text}` : '';
-      return {
-        name,
-        signature: `${name}(${params})${returns}`,
-        description: member?.description ?? '',
-      };
-    });
+  const methods = info.methods.flatMap((name): MethodRef[] => {
+    const method = member(name);
+    if (method?.kind !== 'method') return [];
+    const params = (method.parameters ?? [])
+      .map((p) => {
+        const optional = p.optional === true || p.default !== undefined ? '?' : '';
+        return `${p.name}${optional}${p.type ? `: ${p.type.text}` : ''}`;
+      })
+      .join(', ');
+    const returns = method.return?.type ? `: ${method.return.type.text}` : '';
+    return [
+      { name, signature: `${name}(${params})${returns}`, description: method.description ?? '' },
+    ];
+  });
 
   return {
     tag,

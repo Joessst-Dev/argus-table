@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
 import manifest from 'argus-table/custom-elements.json';
 import { ELEMENT_TAGS, elementReference } from './elements';
@@ -20,7 +21,18 @@ const fixture = {
               type: { text: 'ColumnSizingState | undefined' },
               description: 'Column widths by id.',
             },
-            { kind: 'field', name: 'density', type: { text: 'Density' }, attribute: 'density' },
+            {
+              kind: 'field',
+              name: 'density',
+              type: { text: 'Density' },
+              attribute: 'density',
+              default: "'comfortable'",
+            },
+            {
+              kind: 'field',
+              name: 'contentRenderer',
+              type: { text: 'ContentRenderer | undefined' },
+            },
             {
               kind: 'method',
               name: 'scrollToRow',
@@ -30,6 +42,13 @@ const fixture = {
                 { name: 'options', default: '{}', type: { text: 'ScrollToRowOptions' } },
               ],
               description: 'Scrolls to a row.',
+            },
+            {
+              kind: 'method',
+              name: 'autosizeColumns',
+              return: { type: { text: 'Promise<void>' } },
+              parameters: [{ name: 'ids', optional: true, type: { text: 'readonly string[]' } }],
+              description: 'Fits columns.',
             },
             { kind: 'field', name: 'secret', privacy: 'private', type: { text: 'string' } },
           ],
@@ -62,40 +81,41 @@ describe('elementReference', () => {
   const event = (name: string) => table.events.find((e) => e.name === name);
 
   test('properties carry their bindings in each wrapper', () => {
-    expect(property('columnSizing')).toMatchObject({
+    expect(property('columnSizing')?.bindings).toEqual({
       react: 'columnSizing',
       vue: 'v-model:column-sizing',
       angular: '[(columnSizing)]',
     });
     expect(property('density')).toMatchObject({
       attribute: 'density',
-      react: 'density',
-      vue: ':density',
-      angular: '[density]',
+      default: "'comfortable'",
+      bindings: { react: 'density', vue: ':density', angular: '[density]' },
     });
     expect(property('secret')).toBeUndefined();
+  });
+
+  test('a property the wrappers set themselves has no bindings', () => {
+    expect(property('contentRenderer')).toBeDefined();
+    expect(property('contentRenderer')?.bindings).toBeUndefined();
   });
 
   test('events carry their names in each wrapper', () => {
     expect(event('argus-row-click')).toMatchObject({
       type: 'CustomEvent<RowClickDetail<T>>',
-      react: 'onRowClick',
-      vue: '@row-click',
-      angular: '(rowClick)',
+      bindings: { react: 'onRowClick', vue: '@row-click', angular: '(rowClick)' },
     });
+    expect(event('argus-row-click')?.angularEmits).toBeUndefined();
+    // Angular's output for a state change emits the new value, not the event.
+    expect(event('argus-column-sizing-change')?.angularEmits).toBe('columnSizing');
     expect(event('argus-row-click')?.from).toBeUndefined();
     expect(event('argus-formula-column-add')?.from).toBe('@argus-table/formulas');
     expect(event('argus-cell-edit')?.from).toBe('@argus-table/editing');
   });
 
-  test('methods get a signature', () => {
-    expect(table.methods).toEqual([
-      {
-        name: 'scrollToRow',
-        signature:
-          'scrollToRow(target: RowTarget, options = {}: ScrollToRowOptions): Promise<boolean>',
-        description: 'Scrolls to a row.',
-      },
+  test('methods get a TypeScript signature, optional parameters marked', () => {
+    expect(table.methods.map((m) => m.signature)).toEqual([
+      'scrollToRow(target: RowTarget, options?: ScrollToRowOptions): Promise<boolean>',
+      'autosizeColumns(ids?: readonly string[]): Promise<void>',
     ]);
   });
 
@@ -110,6 +130,27 @@ describe('elementReference', () => {
 
   test('a member without a description has an empty one', () => {
     expect(property('density')?.description).toBe('');
+  });
+
+  test("bindings are the generated wrappers' own", () => {
+    const generated = (framework: string) =>
+      readFileSync(
+        new URL(`../../../../../packages/${framework}/src/generated/elements.ts`, import.meta.url),
+        'utf8',
+      );
+    const [react, vue, angular] = ['react', 'vue', 'angular'].map(generated);
+    for (const tag of ELEMENT_TAGS) {
+      for (const p of elementReference(manifest, tag).properties) {
+        // Picked by name (React, Vue), declared as a prop (content props), or an Angular setter.
+        const listed = (text = '') =>
+          text.includes(`'${p.name}'`) ||
+          new RegExp(`\\b${p.name}\\?:`).test(text) ||
+          text.includes(`set ${p.name}(`);
+        expect([listed(react), listed(vue), listed(angular)], `${tag}.${p.name}`).toEqual(
+          p.bindings ? [true, true, true] : [false, false, false],
+        );
+      }
+    }
   });
 
   test('the real manifest reads for every element', () => {

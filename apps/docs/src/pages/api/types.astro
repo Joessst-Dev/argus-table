@@ -15,7 +15,8 @@ const types = publicTypes();
   <p>
     Every type <code>argus-table</code> exports. The wrappers re-export them, and widen the content
     types for their own content: <code>ReactColumnDef</code>, <code>VueColumnDef</code> and
-    <code>AngularColumnDef</code> take JSX, VNodes and templates where these take
+    <code>AngularColumnDef</code> (and <code>ReactColumnGroup</code>, <code>VueColumnGroup</code>,
+    <code>AngularColumnGroup</code>) take JSX, VNodes and templates where these take
     <code>CellContent</code>.
   </p>
   {
@@ -35,7 +36,11 @@ const types = publicTypes();
             columns={['Member', 'Type', 'Description']}
             rows={t.members.map((m) => ({
               id: `${anchorOf(t.name)}-${m.name.toLowerCase()}`,
-              cells: [code(m.name + (m.optional ? '?' : '')), typeHtml(m.type), docHtml(m.description)],
+              cells: [
+                code((m.readonly ? 'readonly ' : '') + m.name + (m.optional ? '?' : '')),
+                typeHtml(m.type),
+                docHtml(m.description),
+              ],
             }))}
           />
         )}

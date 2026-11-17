@@ -20,7 +20,10 @@ test('the element page lists bindings in every wrapper', async ({ page }) => {
   const sorting = page.locator('#event-argus-sorting-change');
   await expect(sorting).toContainText('onSortingChange');
   await expect(sorting).toContainText('@sorting-change');
-  await expect(sorting).toContainText('(sortingChange)');
+  await expect(sorting).toContainText('(sortingChange) emits the new sorting');
+  await expect(page.locator('#property-contentrenderer')).toContainText('Set by the wrappers');
+  await expect(page.locator('#property-density')).toContainText("default 'comfortable'");
+  await expect(page.locator('#method-autosizecolumns')).toContainText('ids?:');
   await expect(page.locator('#event-argus-cell-edit')).toContainText('@argus-table/editing');
   await expect(page.locator('#method-scrolltorow')).toContainText('Promise<boolean>');
   await expect(page.locator('#token---argus-fg')).toContainText('CanvasText');
@@ -46,12 +49,19 @@ test('the types page documents ColumnDef', async ({ page }) => {
 
 test('the overview says it documents main and links the changelogs', async ({ page }) => {
   await page.goto('api/');
-  await expect(page.locator('main')).toContainText('main');
+  await expect(page.locator('main')).toContainText(
+    'It documents main, which can be ahead of the latest release',
+  );
   await expect(page.locator('main a[href$="CHANGELOG.md"]')).toHaveCount(9);
   await expectAccessible(page);
 });
 
-test('long types wrap on a narrow screen', async ({ page }) => {
+test('long types wrap between words', async ({ page }) => {
+  await page.goto('api/types/');
+  // The accessor's type is long: it takes several lines in its cell, broken at spaces.
+  const type = page.locator('#columndef-accessor td:nth-child(2) code');
+  const lines = await type.evaluate((el) => el.getClientRects().length);
+  expect(lines).toBeGreaterThan(1);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('api/argus-table/');
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
