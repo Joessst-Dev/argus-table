@@ -3,7 +3,8 @@
 // the guides.
 import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
 import SkillNote from '../../components/migration/SkillNote.astro';
-import { guidePath, migrationGuides } from '../../lib/migration';
+import { migrationGuides } from '../../lib/migration';
+import { pagePath } from '../../lib/rendered';
 
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 const guides = migrationGuides(__REPO_ROOT__);
@@ -27,7 +28,7 @@ if (!gaps) throw new Error('No gaps page.');
     <dt><strong>builtin</strong></dt>
     <dd>argus-table does it already; delete that code.</dd>
     <dt><strong>gap</strong></dt>
-    <dd>No equivalent; <a href={guidePath(gaps, base)}>Gaps</a> says what to do instead.</dd>
+    <dd>No equivalent; <a href={pagePath(gaps, base)}>Gaps</a> says what to do instead.</dd>
   </dl>
   <h2 id="guides">Guides</h2>
   <ul>
@@ -36,7 +37,7 @@ if (!gaps) throw new Error('No gaps page.');
         .filter((g) => g.id !== 'gaps')
         .map((g) => (
           <li>
-            <a href={guidePath(g, base)}>{g.title}</a>
+            <a href={pagePath(g, base)}>{g.title}</a>
           </li>
         ))
     }

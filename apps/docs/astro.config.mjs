@@ -4,7 +4,9 @@ import starlight from '@astrojs/starlight';
 import react from '@astrojs/react';
 import vue from '@astrojs/vue';
 import angular from '@analogjs/astro-angular';
-import { migrationGuides, migrationGuidesIntegration } from './src/lib/migration.ts';
+import { migrationGuides } from './src/lib/migration.ts';
+import { packageGuides } from './src/lib/packages.ts';
+import { renderedMarkdownIntegration } from './src/lib/rendered.ts';
 
 // The docs site (docs/superpowers/specs/2026-11-16-docs-site-design.md). Each
 // framework's integration sees only its own example files.
@@ -68,8 +70,13 @@ export default defineConfig({
         },
       ],
     }),
-    // The migration guides' Markdown: drops their title, rewrites their links.
-    migrationGuidesIntegration({ repoRoot, base }),
+    // Repo Markdown shown as pages (the migration guides, the packages'
+    // READMEs): drops their title, rewrites their links.
+    renderedMarkdownIntegration({
+      repoRoot,
+      base,
+      pages: [...migrationGuides(repoRoot), ...packageGuides(repoRoot)],
+    }),
     react({ include: ['**/examples/**/react/**'] }),
     vue(),
     angular({ vite: { tsconfig: './tsconfig.angular.json' } }),

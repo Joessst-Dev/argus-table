@@ -1,0 +1,32 @@
+---
+// An add-on or framework guide: the package's README, rendered as it is (the
+// `packages` collection; `renderedPlugins` drop its title and rewrite its
+// links), so it stays the same as on npm.
+import { getCollection, render } from 'astro:content';
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import { Aside } from '@astrojs/starlight/components';
+import { packageGuides } from '../../lib/packages';
+
+export async function getStaticPaths() {
+  const entries = await getCollection('packages');
+  return entries.map((entry) => ({ params: { pkg: entry.id }, props: { entry } }));
+}
+
+const { entry } = Astro.props;
+const guide = packageGuides(__REPO_ROOT__).find((g) => g.id === entry.id);
+if (!guide) throw new Error(`No package guide "${entry.id}".`);
+const pkg = `@argus-table/${guide.id}`;
+const description =
+  guide.group === 'Add-ons'
+    ? `The ${guide.label.toLowerCase()} add-on, ${pkg}: install, use and options.`
+    : `${pkg}: argus-table in ${guide.label}.`;
+const { Content, headings } = await render(entry);
+---
+
+<StarlightPage frontmatter={{ title: guide.title, description }} headings={headings}>
+  <Aside type="note">
+    This page is the README of <code>{pkg}</code>, the same as
+    <a href={`https://www.npmjs.com/package/${pkg}`}>on npm</a>.
+  </Aside>
+  <Content />
+</StarlightPage>

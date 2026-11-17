@@ -33,7 +33,8 @@
           {
             "env": "BROWSERS"
           },
-          "{workspaceRoot}/skills/argus-table-integrate/references/**/*.md"
+          "{workspaceRoot}/skills/argus-table-integrate/references/**/*.md",
+          "{workspaceRoot}/packages/*/README.md"
         ]
       },
       "build": {
@@ -42,7 +43,8 @@
           "^production",
           "{workspaceRoot}/brand/**/*",
           "{workspaceRoot}/packages/table/package.json",
-          "{workspaceRoot}/skills/argus-table-integrate/references/**/*.md"
+          "{workspaceRoot}/skills/argus-table-integrate/references/**/*.md",
+          "{workspaceRoot}/packages/*/README.md"
         ],
         "dependsOn": [
           "^build",
@@ -56,7 +58,8 @@
           {
             "env": "BROWSERS"
           },
-          "{workspaceRoot}/skills/argus-table-integrate/references/**/*.md"
+          "{workspaceRoot}/skills/argus-table-integrate/references/**/*.md",
+          "{workspaceRoot}/packages/*/README.md"
         ]
       }
     }
