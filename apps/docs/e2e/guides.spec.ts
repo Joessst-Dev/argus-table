@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import { expectPageAccessible } from './pages';
 
@@ -70,4 +71,41 @@ test('a table wider than a phone gets a tab stop', async ({ page }) => {
   // Wide again: it fits, and leaves the tab order.
   await page.setViewportSize({ width: 1440, height: 900 });
   await expect(table).not.toHaveAttribute('tabindex');
+});
+
+const benchmarks = JSON.parse(
+  readFileSync(new URL('../../../benchmarks/published/latest.json', import.meta.url), 'utf8'),
+) as { meta: { version: string; rows: number[] } };
+const sizeLabel = (rows: number) =>
+  rows >= 1e6 && rows % 1e6 === 0
+    ? `${String(rows / 1e6)}M`
+    : rows >= 1e3 && rows % 1e3 === 0
+      ? `${String(rows / 1e3)}k`
+      : String(rows);
+
+test('performance shows the published benchmarks', async ({ page }) => {
+  await page.goto('guides/performance/');
+  await expect(page.locator('h1')).toHaveText('Performance');
+  await expect(page.locator('main')).toContainText(`argus-table ${benchmarks.meta.version}`);
+  const tables = page.locator('table.benchmarks');
+  await expect(tables).toHaveCount(benchmarks.meta.rows.length);
+  for (const [i, rows] of benchmarks.meta.rows.entries()) {
+    await expect(tables.nth(i).locator('caption')).toContainText(`${sizeLabel(rows)} rows`);
+    await expect(tables.nth(i).locator('tbody tr')).not.toHaveCount(0);
+  }
+  await expectPageAccessible(page);
+});
+
+test('the benchmark tables scroll inside themselves on a phone', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('guides/performance/');
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - window.innerWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(0);
+  await expect(page.getByRole('region', { name: /^Benchmarks, / }).first()).toHaveAttribute(
+    'tabindex',
+    '0',
+  );
+  await expectPageAccessible(page);
 });

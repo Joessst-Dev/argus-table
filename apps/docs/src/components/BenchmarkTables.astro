@@ -1,0 +1,96 @@
+---
+// The published benchmarks (benchmarks/published/latest.json), read at build
+// time: the machine they come from, then a table per size. Each table scrolls
+// inside a labelled, focusable region on narrow screens.
+import results from '../../../../benchmarks/published/latest.json';
+import type { Results } from '../../../../benchmarks/types.ts';
+import { benchmarkRows, sizeLabel } from '../lib/benchmarks';
+
+const data = results as Results;
+const { meta } = data;
+const columns = [
+  ['browser', 'Browser'],
+  ['steady', 'steady p95'],
+  ['fast', 'fast p95'],
+  ['jumps', 'jumps p95'],
+  ['longTasks', 'long tasks'],
+  ['blankWrong', 'blank / wrong'],
+  ['load', 'load'],
+  ['sort', 'sort'],
+  ['heap', 'table heap'],
+  ['growth', 'heap growth'],
+  ['lastRow', 'last row'],
+  ['gate', 'gate'],
+] as const;
+const browsers = Object.entries(meta.versions)
+  .map(([browser, version]) => `${browser} ${version}`)
+  .join(', ');
+---
+
+<p>
+  Measured for <strong>argus-table {meta.version}</strong> on {meta.date.slice(0, 10)}, median of {
+    meta.runs
+  } runs, with {meta.columns} columns.
+</p>
+<p><small>{meta.runner} · {meta.os} · {meta.cpu} · {browsers}</small></p>
+{
+  meta.rows.map((rows) => (
+    <>
+      <h3 id={`benchmarks-${sizeLabel(rows)}`}>{sizeLabel(rows)} rows</h3>
+      <div
+        class="table-scroll not-content"
+        role="region"
+        tabindex="0"
+        aria-label={`Benchmarks, ${sizeLabel(rows)} rows`}
+      >
+        <table class="benchmarks">
+          <caption>
+            {sizeLabel(rows)} rows of {meta.columns} columns, argus-table {meta.version}
+          </caption>
+          <thead>
+            <tr>
+              {columns.map(([, label]) => (
+                <th scope="col">{label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {benchmarkRows(data, rows).map((row) => (
+              <tr>
+                {columns.map(([key]) =>
+                  key === 'browser' ? <th scope="row">{row[key]}</th> : <td>{row[key]}</td>,
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  ))
+}
+
+<style>
+  .table-scroll {
+    overflow-x: auto;
+    margin-block: 1rem;
+  }
+  .benchmarks {
+    border-collapse: collapse;
+    font-size: var(--sl-text-sm);
+    white-space: nowrap;
+  }
+  .benchmarks caption {
+    text-align: start;
+    padding-block-end: 0.5rem;
+  }
+  .benchmarks th,
+  .benchmarks td {
+    padding: 0.25rem 0.75rem;
+    border-block-end: 1px solid var(--sl-color-hairline);
+    text-align: end;
+  }
+  .benchmarks th[scope='col']:first-child,
+  .benchmarks th[scope='row'] {
+    text-align: start;
+  }
+</style>
