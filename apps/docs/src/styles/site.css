@@ -61,3 +61,9 @@ code a,
 a code {
   color: var(--sl-color-accent-high);
 }
+
+/* The theme creator page: the creator takes the whole content pane (its own
+   columns need the room); the sidebar stays, for navigation. */
+.sl-container:has(argus-theme-creator) {
+  max-width: none;
+}

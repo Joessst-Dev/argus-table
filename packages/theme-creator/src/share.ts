@@ -176,12 +176,20 @@ export function hashDraft(url: string): string | undefined {
 }
 
 /**
+ * Where Storybook's creator story lives, from Storybook's root: the page its
+ * share links open, and the theme skill's links too (until the docs site
+ * replaces Storybook).
+ */
+export const STORYBOOK_SHARE_PATH = 'iframe.html?id=themes-theme-creator--creator&viewMode=story';
+
+/**
  * The page a share link opens: `shareUrl` if the embedder set one (Storybook:
  * the story's own iframe, since the manager's URL doesn't carry a hash
  * reliably), else the current page without its hash.
  */
 export function shareBase(shareUrl: string | undefined, href: string): string {
-  if (shareUrl !== undefined) return shareUrl;
+  // Relative to the page, like a link's href.
+  if (shareUrl !== undefined) return new URL(shareUrl, href).href;
   const url = new URL(href);
   url.hash = '';
   return url.href;

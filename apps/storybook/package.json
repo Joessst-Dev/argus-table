@@ -12,7 +12,6 @@
         "inputs": [
           "default",
           "^production",
-          "{workspaceRoot}/skills/argus-table-theme/references/*.md",
           {
             "env": "BROWSERS"
           }

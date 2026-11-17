@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { html } from 'lit';
 import { expect, userEvent, waitFor } from 'storybook/test';
 import {
+  STORYBOOK_SHARE_PATH,
   clearDraft,
   encodeDraft,
   newDraft,
@@ -14,13 +15,9 @@ const meta = {
   globals: { theme: 'none' },
   tags: ['!autodocs'],
   parameters: { layout: 'fullscreen' },
-  // Links open the story's own iframe: the manager's URL doesn't carry a hash reliably.
-  render: () =>
-    html`<argus-theme-creator
-      .shareUrl=${
-        new URL('iframe.html?id=themes-theme-creator--creator&viewMode=story', location.href).href
-      }
-    ></argus-theme-creator>`,
+  // Links open the story's own iframe (relative to it): the manager's URL
+  // doesn't carry a hash reliably.
+  render: () => html`<argus-theme-creator .shareUrl=${STORYBOOK_SHARE_PATH}></argus-theme-creator>`,
 } satisfies Meta;
 
 export default meta;

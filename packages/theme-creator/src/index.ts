@@ -3,4 +3,4 @@
 // `@argus-table/theme-creator/orders`.
 export { ArgusThemeCreator } from './theme-creator.js';
 export { newDraft } from './presets.js';
-export { clearDraft, encodeDraft, shareBase, shareLink } from './share.js';
+export { STORYBOOK_SHARE_PATH, clearDraft, encodeDraft, shareBase, shareLink } from './share.js';

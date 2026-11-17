@@ -91,16 +91,18 @@ test('copy a link points at this page', async ({ page, context, browserName }) =
   );
 });
 
-test('fits a phone and fills a desktop', async ({ page }) => {
+test('fits a phone, and fills the content pane on a desktop', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await open(page);
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
   ).toBeLessThanOrEqual(0);
   await page.setViewportSize({ width: 1440, height: 900 });
+  // Wider than Starlight's content column (45rem), beside the sidebar.
+  await expect(page.locator('#starlight__sidebar')).toBeVisible();
   await expect
     .poll(() => creator(page).evaluate((el) => el.getBoundingClientRect().width))
-    .toBeGreaterThan(1000);
+    .toBeGreaterThan(900);
   const results = await new AxeBuilder({ page })
     .include('main')
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'])

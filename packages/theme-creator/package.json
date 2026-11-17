@@ -9,7 +9,8 @@
     "name": "theme-creator",
     "implicitDependencies": [
       "skills",
-      "themes"
+      "themes",
+      "editing"
     ],
     "targets": {
       "test": {

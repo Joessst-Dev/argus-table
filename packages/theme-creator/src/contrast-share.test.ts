@@ -160,6 +160,10 @@ describe('share', () => {
     );
     const story = 'https://sb.dev/iframe.html?id=themes-theme-creator--creator&viewMode=story';
     expect(shareBase(story, 'https://sb.dev/iframe.html?id=x&args=y')).toBe(story);
+    // Relative to the page, like a link.
+    expect(shareBase('/argus-table/themes/creator/', 'https://x.dev/argus-table/api/#a')).toBe(
+      'https://x.dev/argus-table/themes/creator/',
+    );
   });
 
   it('saves and loads a draft', () => {
