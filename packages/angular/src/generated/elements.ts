@@ -22,6 +22,7 @@ import type {
   ColumnResizeEndDetail,
   ColumnSizingChangeDetail,
   ColumnVisibilityChangeDetail,
+  ExpandedChangeDetail,
   LoadErrorDetail,
   RangeChangeDetail,
   RowClickDetail,
@@ -53,6 +54,7 @@ import { setProperty } from '../set-property.js';
     '(argus-column-visibility-change)': 'handleColumnVisibilityChange($event)',
     '(argus-column-filters-change)': 'handleColumnFiltersChange($event)',
     '(argus-selection-change)': 'handleSelectionChange($event)',
+    '(argus-expanded-change)': 'handleExpandedChange($event)',
     '(argus-cell-click)': 'handleCellClick($event)',
     '(argus-row-click)': 'handleRowClick($event)',
     '(argus-range-change)': 'handleRangeChange($event)',
@@ -172,6 +174,21 @@ export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
     setProperty(this.element, 'selection', undefined, value);
   }
 
+  /** A detail panel for body rows, under the row: a function that gets `{ row, rowId, index }` and returns its content, like a column's `cell` (a Lit template, a DOM node, text; React, Vue or Angular content through the wrappers). Setting it adds a column of chevrons that open and close the panels (`expanded`). A panel spans the visible width, is as tall as its content up to `--argus-detail-max-height` (past that it scrolls), and works with the keyboard: Down arrow onto it, Enter or F2 into its content, Escape back out. It runs on every update of a panel in view, so return a template or framework content rather than a new DOM node each time. Property only. Panels aren't available on `pinnedRows`. */
+  @Input() set rowDetail(value: ArgusTableElement<T>['rowDetail'] | null | undefined) {
+    setProperty(this.element, 'rowDetail', undefined, value);
+  }
+
+  /** Which rows can open a detail panel (`rowDetail`): those it returns `true` for. Others get no chevron. Default: every row. Property only. */
+  @Input() set rowExpandable(value: ArgusTableElement<T>['rowExpandable'] | null | undefined) {
+    setProperty(this.element, 'rowExpandable', undefined, value);
+  }
+
+  /** The rows whose detail panel is open, as row ids (`getRowId`'s, or the row's index as a string), e.g. `['o1041']`. Several can be open. Uncontrolled until set, like `sorting`: once set, a chevron only fires `argus-expanded-change` with the proposed ids. `undefined` hands it back. Ids stay through sorting, filtering and a new `data`; a row that's filtered out, not loaded yet or not expandable shows no panel until it can. */
+  @Input() set expanded(value: ArgusTableElement<T>['expanded'] | null | undefined) {
+    setProperty(this.element, 'expanded', undefined, value);
+  }
+
   /** Add-ons, such as `headerMenu()` from `@argus-table/header-menu`. Each one can change the column definitions, handle keys on a focused header or cell, and use the table through a small API. They run in array order. Replace the array to change them; an array with the same plugins in the same order changes nothing. `null` or `undefined` means `[]`. */
   @Input() set plugins(value: ArgusTableElement<T>['plugins'] | null | undefined) {
     this.setPlugins(value);
@@ -211,6 +228,9 @@ export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
 
   /** `argus-selection-change`, for `[(selection)]`: the new `selection`. Bind `(argus-selection-change)` for the whole event. `selection` changed: by a click on a row (Ctrl/Cmd toggles, Shift selects a range), with Space, Shift+Arrow or Shift+PageUp/PageDown on a body cell, or with Ctrl/Cmd+A. Only with a `selectionMode`. `detail: { selection }`. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
   @Output() readonly selectionChange = new EventEmitter<ArgusTableElement<T>['selection']>();
+
+  /** `argus-expanded-change`, for `[(expanded)]`: the new `expanded`. Bind `(argus-expanded-change)` for the whole event. `expanded` changed: a row's detail panel was opened or closed with its chevron (a click, or Enter or Space on the chevron cell). Only with `rowDetail`. `detail: { expanded, rowId, open }`: `open` is `true` when it was opened. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
+  @Output() readonly expandedChange = new EventEmitter<ArgusTableElement<T>['expanded']>();
 
   /** `argus-cell-click`: A body or pinned-row cell was clicked, or Enter was pressed on it. `detail: { row, rowId, index, columnId, value, pinned? }`; `pinned` is `'top'` or `'bottom'` for a pinned row, and `index` is then its index in its list. Fires before `argus-row-click`. */
   @Output() readonly cellClick = new EventEmitter<CustomEvent<CellClickDetail<T>>>();
@@ -334,6 +354,12 @@ export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
     // Events bubble: skip those of a table nested in a cell.
     if (event.target !== this.element) return;
     this.selectionChange.emit((event as CustomEvent<SelectionChangeDetail>).detail.selection);
+  }
+
+  protected handleExpandedChange(event: Event): void {
+    // Events bubble: skip those of a table nested in a cell.
+    if (event.target !== this.element) return;
+    this.expandedChange.emit((event as CustomEvent<ExpandedChangeDetail>).detail.expanded);
   }
 
   protected handleCellClick(event: Event): void {

@@ -28,6 +28,9 @@ The public API of `argus-table` 1.2 and its wrappers, for writing code. Types co
 | `selectionMode`       | `selection-mode`       | `'none' \| 'single' \| 'multi'`            | `'none'`        | Click selects; Ctrl/Cmd+click toggles; Shift+click selects a range; Space and Ctrl/Cmd+A                        |
 | `selectionCheckboxes` | `selection-checkboxes` | `boolean`                                  | `false`         | A checkbox column (and select-all in `multi`)                                                                   |
 | `selection`           |                        | `string[]` (row ids)                       | uncontrolled    | Two-way. Ids are never dropped by the table                                                                     |
+| `rowDetail`           |                        | `({ row, rowId, index }) => content`       | none            | A detail panel under a row, opened by a chevron column. Interactive content works                               |
+| `rowExpandable`       |                        | `(row: T) => boolean`                      | every row       | Which rows get a chevron (`rowDetail`)                                                                          |
+| `expanded`            |                        | `string[]` (row ids)                       | uncontrolled    | Two-way: the rows whose panel is open. Several at once                                                          |
 | `plugins`             |                        | `ArgusPlugin<T>[]`                         | `[]`            | Add-ons: `[formulas(), headerMenu(), tableExport()]`, `formulas()` before `headerMenu()`. Keep the array stable |
 | `labels`              |                        | `Partial<TableLabels>`                     | English         | Built-in text (Retry, Select row, announcements). Since 1.1                                                     |
 
@@ -45,6 +48,7 @@ All bubble and are composed `CustomEvent`s. The wrappers' names: React `on<Name>
 | `argus-column-visibility-change` | `onColumnVisibilityChange` | `column-visibility-change` | `columnVisibilityChange` | `{ columnVisibility, columnId, visible }`                              |
 | `argus-column-filters-change`    | `onColumnFiltersChange`    | `column-filters-change`    | `columnFiltersChange`    | `{ columnFilters, columnId, columnFilter }`                            |
 | `argus-selection-change`         | `onSelectionChange`        | `selection-change`         | `selectionChange`        | `{ selection }`                                                        |
+| `argus-expanded-change`          | `onExpandedChange`         | `expanded-change`          | `expandedChange`         | `{ expanded, rowId, open }`                                            |
 | `argus-cell-click`               | `onCellClick`              | `cell-click`               | `cellClick`              | `{ row, rowId, index, columnId, value, pinned? }`; also Enter          |
 | `argus-row-click`                | `onRowClick`               | `row-click`                | `rowClick`               | `{ row, rowId, index, pinned? }`; also Enter                           |
 | `argus-range-change`             | `onRangeChange`            | `range-change`             | `rangeChange`            | `{ first, last }`: the rows in view, inclusive                         |

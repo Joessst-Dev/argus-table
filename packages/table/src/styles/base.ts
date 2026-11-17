@@ -165,6 +165,38 @@ export const baseStyles = css`
       margin: 0;
       cursor: pointer;
     }
+    /* The toggle column of detail panels: a chevron, centred. */
+    [part~='cell-expand'],
+    [part~='header-cell-expand'] {
+      justify-content: center;
+      padding-inline: 0;
+    }
+    [part~='expand-toggle'] {
+      display: grid;
+      place-items: center;
+      inline-size: 1.75em;
+      block-size: 1.75em;
+      margin: 0;
+      padding: 0;
+      border: none;
+      border-radius: 4px;
+      background: none;
+      color: inherit;
+      font: inherit;
+      cursor: pointer;
+    }
+    /* Pointing toward the inline end while closed (mirrored in RTL), down while open. */
+    [part~='expand-toggle']::before {
+      content: '';
+      inline-size: 0.4em;
+      block-size: 0.4em;
+      border-right: 0.12em solid currentColor;
+      border-bottom: 0.12em solid currentColor;
+      transform: translateX(calc(-0.1em * var(--_dir, 1))) rotate(calc(-45deg * var(--_dir, 1)));
+    }
+    [part~='expand-toggle'][aria-expanded='true']::before {
+      transform: translateY(-0.1em) rotate(45deg);
+    }
     [part~='header-cell'] {
       background: var(--argus-header-bg, light-dark(#f9fafb, #111827));
       color: var(--argus-header-fg, inherit);

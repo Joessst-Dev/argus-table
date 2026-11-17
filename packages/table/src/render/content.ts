@@ -38,11 +38,12 @@ interface Pinnable {
  * can't take attribute selectors).
  */
 export function cellParts(
-  column: Pinnable & { sorted: 'asc' | 'desc' | false; kind: 'data' | 'selection' },
+  column: Pinnable & { sorted: 'asc' | 'desc' | false; kind: 'data' | 'selection' | 'expand' },
   pinnedRow = false,
 ): string {
   let parts = pinnedRow ? 'cell cell-in-pinned-row' : 'cell';
   if (column.kind === 'selection') parts += ' cell-selection';
+  else if (column.kind === 'expand') parts += ' cell-expand';
   if (column.pin) parts += column.pinEdge ? ' cell-pinned cell-pinned-edge' : ' cell-pinned';
   if (column.sorted) parts += ' cell-sorted';
   return parts;

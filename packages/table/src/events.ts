@@ -6,6 +6,7 @@ import type {
   ColumnResizeEndDetail,
   ColumnSizingChangeDetail,
   ColumnVisibilityChangeDetail,
+  ExpandedChangeDetail,
   LoadErrorDetail,
   RangeChangeDetail,
   RowClickDetail,
@@ -45,6 +46,9 @@ export const COLUMN_FILTERS_CHANGE = 'argus-column-filters-change';
 /** `selection` changed (uncontrolled), or the proposed ids (controlled). */
 export const SELECTION_CHANGE = 'argus-selection-change';
 
+/** `expanded` changed (uncontrolled), or the proposed ids (controlled). */
+export const EXPANDED_CHANGE = 'argus-expanded-change';
+
 /** Fired when a body row was clicked, after `argus-cell-click`. */
 export const ROW_CLICK = 'argus-row-click';
 
@@ -65,6 +69,7 @@ declare global {
     'argus-column-visibility-change': CustomEvent<ColumnVisibilityChangeDetail>;
     'argus-column-filters-change': CustomEvent<ColumnFiltersChangeDetail>;
     'argus-selection-change': CustomEvent<SelectionChangeDetail>;
+    'argus-expanded-change': CustomEvent<ExpandedChangeDetail>;
     'argus-row-click': CustomEvent<RowClickDetail<unknown>>;
     'argus-cell-click': CustomEvent<CellClickDetail<unknown>>;
     'argus-load-error': CustomEvent<LoadErrorDetail>;

@@ -11,6 +11,7 @@ import { styleMap } from 'lit/directives/style-map.js';
 import {
   alignOffset,
   controllable,
+  EXPAND_COLUMN_ID,
   RowLayout,
   SELECTION_COLUMN_ID,
   type ColumnView,
@@ -42,6 +43,7 @@ import {
   COLUMN_RESIZE_END,
   COLUMN_SIZING_CHANGE,
   COLUMN_VISIBILITY_CHANGE,
+  EXPANDED_CHANGE,
   fire,
   LOAD_ERROR,
   RANGE_CHANGE,
@@ -51,7 +53,7 @@ import {
 } from './events.js';
 import { resolveLabels, type TableLabels } from './labels.js';
 import { bodyCap, watchMaxElementHeight } from './max-height.js';
-import { renderBody, type ActiveCell, type Loading } from './render/body.js';
+import { renderBody, type ActiveCell, type Loading, type RowToggles } from './render/body.js';
 import { renderLightDom } from './render/cells.js';
 import { content, flushContent, type ContentRenderer } from './render/content-directive.js';
 import { renderHeader } from './render/header.js';
@@ -86,7 +88,9 @@ import type {
   ColumnVisibilityState,
   DataSource,
   Density,
+  ExpandedState,
   PinnedRows,
+  RowDetailContext,
   RowTarget,
   ScrollAlign,
   ScrollToColumnOptions,
@@ -137,6 +141,7 @@ function attachGridInternals(host: HTMLElement): ElementInternals {
  * @fires {CustomEvent<ColumnVisibilityChangeDetail>} argus-column-visibility-change - `columnVisibility` changed: a column was hidden or shown, through a plugin such as the column menu. `detail: { columnVisibility, columnId, visible }`: `visible` is `false` when it was hidden. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it.
  * @fires {CustomEvent<ColumnFiltersChangeDetail>} argus-column-filters-change - `columnFilters` changed: a column's filter was set, changed or cleared, through a plugin such as the column menu. `detail: { columnFilters, columnId, columnFilter }`: `columnFilter` is the column's new filter, or `undefined` when it was cleared. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it.
  * @fires {CustomEvent<SelectionChangeDetail>} argus-selection-change - `selection` changed: by a click on a row (Ctrl/Cmd toggles, Shift selects a range), with Space, Shift+Arrow or Shift+PageUp/PageDown on a body cell, or with Ctrl/Cmd+A. Only with a `selectionMode`. `detail: { selection }`. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it.
+ * @fires {CustomEvent<ExpandedChangeDetail>} argus-expanded-change - `expanded` changed: a row's detail panel was opened or closed with its chevron (a click, or Enter or Space on the chevron cell). Only with `rowDetail`. `detail: { expanded, rowId, open }`: `open` is `true` when it was opened. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it.
  * @fires {CustomEvent<CellClickDetail<T>>} argus-cell-click - A body or pinned-row cell was clicked, or Enter was pressed on it. `detail: { row, rowId, index, columnId, value, pinned? }`; `pinned` is `'top'` or `'bottom'` for a pinned row, and `index` is then its index in its list. Fires before `argus-row-click`.
  * @fires {CustomEvent<RowClickDetail<T>>} argus-row-click - A body or pinned row was clicked, or Enter was pressed on one of its cells. `detail: { row, rowId, index, pinned? }`; for a pinned row, `index` is its index in its list.
  * @fires {CustomEvent<RangeChangeDetail>} argus-range-change - The rows in view changed (rows rendered ahead of the scroll position not counted). `detail: { first, last }` (row indices in the current order, both inclusive).
@@ -173,6 +178,10 @@ function attachGridInternals(host: HTMLElement): ElementInternals {
  * @csspart cell-selection - Added to `cell` in the checkbox column (`selectionCheckboxes`), pinned rows included.
  * @csspart header-cell-selection - Added to `header-cell` on the checkbox column's header.
  * @csspart selection-checkbox - The checkboxes of the checkbox column: one per selectable row, and the select-all one in the header (`multi` mode).
+ * @csspart row-expanded - Added to `row` on a body row whose detail panel is open (`rowDetail`).
+ * @csspart cell-expand - Added to `cell` in the toggle column of detail panels (`rowDetail`), pinned rows included.
+ * @csspart header-cell-expand - Added to `header-cell` on the toggle column's (empty) header.
+ * @csspart expand-toggle - The chevron button that opens and closes a row's detail panel. It is drawn with borders in `currentColor` (`::before`) and has `aria-expanded`.
  * @csspart row-pinned - Every row from `pinnedRows`, on either side. Also has `row`, but no `row-even`/`row-odd`.
  * @csspart row-pinned-top - The rows pinned below the header.
  * @csspart row-pinned-bottom - The rows pinned to the bottom.
@@ -470,6 +479,44 @@ export class ArgusTable<T = unknown> extends LitElement {
   }
 
   /**
+   * A detail panel for body rows, under the row: a function that gets
+   * `{ row, rowId, index }` and returns its content, like a column's `cell`
+   * (a Lit template, a DOM node, text; React, Vue or Angular content through
+   * the wrappers). Setting it adds a column of chevrons that open and close the
+   * panels (`expanded`). A panel spans the visible width, is as tall as its
+   * content up to `--argus-detail-max-height` (past that it scrolls), and works
+   * with the keyboard: Down arrow onto it, Enter or F2 into its content, Escape
+   * back out. It runs on every update of a panel in view, so return a template
+   * or framework content rather than a new DOM node each time. Property only.
+   * Panels aren't available on `pinnedRows`.
+   */
+  @property({ attribute: false })
+  rowDetail?: (context: RowDetailContext<T>) => CellContent;
+
+  /**
+   * Which rows can open a detail panel (`rowDetail`): those it returns `true`
+   * for. Others get no chevron. Default: every row. Property only.
+   */
+  @property({ attribute: false })
+  rowExpandable?: (row: T) => boolean;
+
+  /**
+   * The rows whose detail panel is open, as row ids (`getRowId`'s, or the row's
+   * index as a string), e.g. `['o1041']`. Several can be open. Uncontrolled
+   * until set, like `sorting`: once set, a chevron only fires
+   * `argus-expanded-change` with the proposed ids. `undefined` hands it back.
+   * Ids stay through sorting, filtering and a new `data`; a row that's filtered
+   * out, not loaded yet or not expandable shows no panel until it can.
+   */
+  @property({ attribute: false })
+  get expanded(): ExpandedState {
+    return this.#expanded.value;
+  }
+  set expanded(value: ExpandedState | undefined) {
+    this.#expanded.set(value);
+  }
+
+  /**
    * Renders header and cell content the table can't render itself, such as React
    * elements, Vue VNodes or Angular templates: `{ render(target, content),
    * release(target), flush?() }`. A `header` or `cell` that returns anything other
@@ -536,6 +583,7 @@ export class ArgusTable<T = unknown> extends LitElement {
   readonly #pinning = controllable<ColumnPinningState>({});
   readonly #visibility = controllable<ColumnVisibilityState>({});
   readonly #filters = controllable<ColumnFilterState>({});
+  readonly #expanded = controllable<ExpandedState>([]);
   #quickFilter = '';
   /** Announce the row count after the update: the filters changed. */
   #announceRows = false;
@@ -563,6 +611,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     COLUMN_FILTERS_CHANGE,
     SORTING_CHANGE,
     SELECTION_CHANGE,
+    EXPANDED_CHANGE,
   ]);
   readonly #select = new SelectionController<T>(
     this,
@@ -974,7 +1023,7 @@ export class ArgusTable<T = unknown> extends LitElement {
   /**
    * The state users change, as one object of plain JSON for saving a user's
    * layout: `sorting`, `columnSizing`, `columnOrder`, `columnPinning`,
-   * `columnVisibility`, `columnFilters`, `selection`, `quickFilter`, and `scroll`
+   * `columnVisibility`, `columnFilters`, `selection`, `expanded`, `quickFilter`, and `scroll`
    * (the row at the top and the inline offset), with `version: 1`. Controlled properties are
    * included with the values you set. The object is a copy: changing it changes
    * nothing in the table.
@@ -990,6 +1039,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       columnVisibility: this.#visibility.value,
       columnFilters: this.#filters.value,
       selection: this.#select.state.value,
+      expanded: this.#expanded.value,
       quickFilter: this.#quickFilter,
       // Negative in RTL.
       scroll: { row: this.#virtual.topRow, inline: Math.abs(scroller?.scrollLeft ?? 0) },
@@ -1017,6 +1067,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     this.#restore('columnFilters', this.#filters, state.columnFilters);
     // A Shift range starts over from the restored selection.
     if (this.#restore('selection', this.#select.state, state.selection)) this.#select.restored();
+    this.#restore('expanded', this.#expanded, state.expanded);
     if (state.quickFilter !== undefined) this.quickFilter = state.quickFilter;
     this.#scrollTarget = undefined;
     await this.updateComplete;
@@ -1108,7 +1159,10 @@ export class ArgusTable<T = unknown> extends LitElement {
       changed.has('columnVisibility') ||
       changed.has('columnFilters') ||
       changed.has('quickFilter') ||
-      changed.has('pinnedRows')
+      changed.has('pinnedRows') ||
+      changed.has('rowDetail') ||
+      changed.has('rowExpandable') ||
+      changed.has('expanded')
     ) {
       if (this.#columnsChanged) {
         this.#autoWidths.sync(columns.filter((c) => c.width === 'auto').map((c) => c.id));
@@ -1126,6 +1180,9 @@ export class ArgusTable<T = unknown> extends LitElement {
         columnFilters: this.#filters.value,
         quickFilter: this.#quickFilter,
         pinnedRows: this.pinnedRows,
+        detail: this.rowDetail !== undefined,
+        expanded: this.#expanded.value,
+        rowExpandable: this.rowExpandable,
       });
     }
     // A new page cache (new source, sort order or refresh) or none, new measured
@@ -1257,6 +1314,7 @@ export class ArgusTable<T = unknown> extends LitElement {
                   ? { ...this.#select.handlers, label: labels.selectRow }
                   : undefined,
                 auto,
+                this.rowDetail ? this.#toggles(model) : undefined,
               )
         }
         ${renderPinnedRows('bottom', layout.bottom, rendered, firstIndex('bottom'), activeIn('bottom'))}
@@ -1449,7 +1507,16 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.#groupKey(event, cell, scroller);
       return;
     }
-    const pluginTarget = id === SELECTION_COLUMN_ID ? undefined : this.#cellTarget(event);
+    if (id === EXPAND_COLUMN_ID && (event.key === 'Enter' || event.key === ' ')) {
+      // Enter or Space on a chevron cell opens or closes its row's panel.
+      const at = gridRowOfCell(cell, layoutOf(this.#table.model));
+      if (at?.section !== 'body') return;
+      event.preventDefault();
+      this.#toggle(at.index);
+      return;
+    }
+    const pluginTarget =
+      id === SELECTION_COLUMN_ID || id === EXPAND_COLUMN_ID ? undefined : this.#cellTarget(event);
     if (pluginTarget && this.#plugins.keydown(event, pluginTarget)) return;
     const inHeader = cell.getAttribute('role') === 'columnheader';
     const { key } = event;
@@ -1536,7 +1603,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       if (!(target instanceof HTMLElement)) continue;
       const role = target.getAttribute('role');
       if (role === 'gridcell') columnId = target.dataset.col;
-      if (columnId === SELECTION_COLUMN_ID) return;
+      if (columnId === SELECTION_COLUMN_ID || columnId === EXPAND_COLUMN_ID) return;
       if (role !== 'row') continue;
       const model = this.#table.model;
       const at = gridRowOf(target, layoutOf(model));
@@ -1574,6 +1641,39 @@ export class ArgusTable<T = unknown> extends LitElement {
       return;
     }
   }
+
+  /** Opens or closes a body row's panel (a data index), through the controlled/uncontrolled rules. */
+  #toggle(index: number): void {
+    const id = this.#table.model.rowAt(index)?.id;
+    if (id === undefined) return;
+    const open = !this.#expanded.value.includes(id);
+    const next = this.#table.model.nextExpanded(id, open, this.#expanded.value);
+    if (!next) return;
+    this.#events.change('expanded', this.#expanded, next, EXPANDED_CHANGE, [
+      [id, { rowId: id, open }],
+    ]);
+  }
+
+  /** The toggle column's chevrons, for the body. */
+  #toggles(model: TableModel<T, CellContent>): RowToggles {
+    const labels = this.#labels;
+    const open = new Set(this.#expanded.value);
+    return {
+      expandable: (index) => model.expandable(index),
+      open: (index) => {
+        const id = model.rowAt(index)?.id;
+        return id !== undefined && open.has(id) && model.expandable(index);
+      },
+      expandLabel: labels.expandRow,
+      collapseLabel: labels.collapseRow,
+      onClick: this.#onToggle,
+    };
+  }
+
+  /** A chevron's click: its row is in `data-row`. */
+  readonly #onToggle = (event: Event) => {
+    this.#toggle(Number((event.currentTarget as HTMLElement).dataset.row));
+  };
 
   /**
    * Pins or unpins a column through the controlled/uncontrolled rules. Starts

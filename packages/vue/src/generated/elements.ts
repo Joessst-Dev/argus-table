@@ -13,6 +13,7 @@ import type {
   ColumnResizeEndDetail,
   ColumnSizingChangeDetail,
   ColumnVisibilityChangeDetail,
+  ExpandedChangeDetail,
   LoadErrorDetail,
   RangeChangeDetail,
   RowClickDetail,
@@ -52,6 +53,9 @@ export type ArgusTableElementProps<T = unknown> = Partial<
     | 'selectionMode'
     | 'selectionCheckboxes'
     | 'selection'
+    | 'rowDetail'
+    | 'rowExpandable'
+    | 'expanded'
     | 'plugins'
     | 'labels'
   >
@@ -92,6 +96,10 @@ export interface ArgusTableEventProps<T = unknown> {
   'onSelection-change'?: (event: CustomEvent<SelectionChangeDetail>) => void;
   /** `v-model:selection`: the new `selection` from `argus-selection-change`. */
   'onUpdate:selection'?: (value: ArgusTableElement<T>['selection']) => void;
+  /** `argus-expanded-change`: `expanded` changed: a row's detail panel was opened or closed with its chevron (a click, or Enter or Space on the chevron cell). Only with `rowDetail`. `detail: { expanded, rowId, open }`: `open` is `true` when it was opened. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
+  'onExpanded-change'?: (event: CustomEvent<ExpandedChangeDetail>) => void;
+  /** `v-model:expanded`: the new `expanded` from `argus-expanded-change`. */
+  'onUpdate:expanded'?: (value: ArgusTableElement<T>['expanded']) => void;
   /** `argus-cell-click`: A body or pinned-row cell was clicked, or Enter was pressed on it. `detail: { row, rowId, index, columnId, value, pinned? }`; `pinned` is `'top'` or `'bottom'` for a pinned row, and `index` is then its index in its list. Fires before `argus-row-click`. */
   'onCell-click'?: (event: CustomEvent<CellClickDetail<T>>) => void;
   /** `argus-row-click`: A body or pinned row was clicked, or Enter was pressed on one of its cells. `detail: { row, rowId, index, pinned? }`; for a pinned row, `index` is its index in its list. */
@@ -130,6 +138,8 @@ export interface ArgusTableEmit<T = unknown> {
   (event: 'update:columnFilters', value: ArgusTableElement<T>['columnFilters']): void;
   (event: 'selection-change', payload: CustomEvent<SelectionChangeDetail>): void;
   (event: 'update:selection', value: ArgusTableElement<T>['selection']): void;
+  (event: 'expanded-change', payload: CustomEvent<ExpandedChangeDetail>): void;
+  (event: 'update:expanded', value: ArgusTableElement<T>['expanded']): void;
   (event: 'cell-click', payload: CustomEvent<CellClickDetail<T>>): void;
   (event: 'row-click', payload: CustomEvent<RowClickDetail<T>>): void;
   (event: 'range-change', payload: CustomEvent<RangeChangeDetail>): void;
@@ -199,6 +209,9 @@ export const ArgusTable = defineWrapper({
     'selectionMode',
     'selectionCheckboxes',
     'selection',
+    'rowDetail',
+    'rowExpandable',
+    'expanded',
     'plugins',
     'labels',
   ],
@@ -239,6 +252,11 @@ export const ArgusTable = defineWrapper({
       name: 'argus-selection-change',
       emit: 'selection-change',
       model: { property: 'selection', detailKey: 'selection' },
+    },
+    {
+      name: 'argus-expanded-change',
+      emit: 'expanded-change',
+      model: { property: 'expanded', detailKey: 'expanded' },
     },
     { name: 'argus-cell-click', emit: 'cell-click' },
     { name: 'argus-row-click', emit: 'row-click' },

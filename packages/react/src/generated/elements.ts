@@ -16,6 +16,7 @@ import type {
   ColumnResizeEndDetail,
   ColumnSizingChangeDetail,
   ColumnVisibilityChangeDetail,
+  ExpandedChangeDetail,
   LoadErrorDetail,
   RangeChangeDetail,
   RowClickDetail,
@@ -54,6 +55,9 @@ export type ArgusTableElementProps<T = unknown> = Partial<
     | 'selectionMode'
     | 'selectionCheckboxes'
     | 'selection'
+    | 'rowDetail'
+    | 'rowExpandable'
+    | 'expanded'
     | 'plugins'
     | 'labels'
   >
@@ -80,6 +84,8 @@ export interface ArgusTableEventProps<T = unknown> {
   onColumnFiltersChange?: (event: CustomEvent<ColumnFiltersChangeDetail>) => void;
   /** `argus-selection-change`: `selection` changed: by a click on a row (Ctrl/Cmd toggles, Shift selects a range), with Space, Shift+Arrow or Shift+PageUp/PageDown on a body cell, or with Ctrl/Cmd+A. Only with a `selectionMode`. `detail: { selection }`. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
   onSelectionChange?: (event: CustomEvent<SelectionChangeDetail>) => void;
+  /** `argus-expanded-change`: `expanded` changed: a row's detail panel was opened or closed with its chevron (a click, or Enter or Space on the chevron cell). Only with `rowDetail`. `detail: { expanded, rowId, open }`: `open` is `true` when it was opened. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
+  onExpandedChange?: (event: CustomEvent<ExpandedChangeDetail>) => void;
   /** `argus-cell-click`: A body or pinned-row cell was clicked, or Enter was pressed on it. `detail: { row, rowId, index, columnId, value, pinned? }`; `pinned` is `'top'` or `'bottom'` for a pinned row, and `index` is then its index in its list. Fires before `argus-row-click`. */
   onCellClick?: (event: CustomEvent<CellClickDetail<T>>) => void;
   /** `argus-row-click`: A body or pinned row was clicked, or Enter was pressed on one of its cells. `detail: { row, rowId, index, pinned? }`; for a pinned row, `index` is its index in its list. */
@@ -125,6 +131,7 @@ export const ArgusTable = withContent(
         onColumnVisibilityChange: 'argus-column-visibility-change',
         onColumnFiltersChange: 'argus-column-filters-change',
         onSelectionChange: 'argus-selection-change',
+        onExpandedChange: 'argus-expanded-change',
         onCellClick: 'argus-cell-click',
         onRowClick: 'argus-row-click',
         onRangeChange: 'argus-range-change',
@@ -145,6 +152,7 @@ export const ArgusTable = withContent(
       'onColumnVisibilityChange',
       'onColumnFiltersChange',
       'onSelectionChange',
+      'onExpandedChange',
       'onCellClick',
       'onRowClick',
       'onRangeChange',

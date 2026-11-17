@@ -12,6 +12,10 @@ export interface TableLabels {
   selectRow: string;
   /** Accessible name of the select-all checkbox (`selectionCheckboxes`). Default: `Select all rows`. */
   selectAllRows: string;
+  /** Accessible name of a row's chevron while its detail panel is closed (`rowDetail`). Default: `Show details`. */
+  expandRow: string;
+  /** Accessible name of a row's chevron while its detail panel is open (`rowDetail`). Default: `Hide details`. */
+  collapseRow: string;
   /** Accessible name of a column's resize handle. Default: `Resize column`. */
   resizeColumn: string;
   /** Accessible name of a column group's resize handle. Default: `Resize group`. */
@@ -45,6 +49,8 @@ const DEFAULT_LABELS: TableLabels = {
   noRows: 'No rows',
   selectRow: 'Select row',
   selectAllRows: 'Select all rows',
+  expandRow: 'Show details',
+  collapseRow: 'Hide details',
   resizeColumn: 'Resize column',
   resizeGroup: 'Resize group',
   filtered: 'Filtered',

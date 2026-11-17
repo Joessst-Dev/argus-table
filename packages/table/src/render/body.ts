@@ -12,6 +12,18 @@ type Columns<T> = readonly RenderedColumn<T>[];
 /** The rows' checkboxes in the selection column: their handlers and accessible name. */
 export type RowCheckboxes = CheckboxHandlers & { label: string };
 
+/** The chevrons of the toggle column (`rowDetail`): which rows have one, which are open, and their names. */
+export interface RowToggles {
+  /** Whether the row at an index can open a panel (loaded, allowed by `rowExpandable`). */
+  expandable: (index: number) => boolean;
+  /** Whether the row at an index has its panel open. */
+  open: (index: number) => boolean;
+  expandLabel: string;
+  collapseLabel: string;
+  /** Click handler of the chevrons; the button carries the row index in `data-row`. */
+  onClick: (event: Event) => void;
+}
+
 /** The cell holding the grid's tab stop: a row index and a column id. */
 export interface ActiveCell {
   index: number;
@@ -55,6 +67,7 @@ export function renderBody<T>(
   selectedAt?: SelectedAt,
   checkboxes?: RowCheckboxes,
   inset = false,
+  toggles?: RowToggles,
 ) {
   return html`<div
     part="body"
@@ -74,6 +87,7 @@ export function renderBody<T>(
           selectedAt?.(r.index),
           checkboxes,
           inset,
+          toggles,
         ),
     )}
   </div>`;
@@ -95,11 +109,14 @@ function renderRow<T>(
   selected: boolean | undefined,
   checkboxes: RowCheckboxes | undefined,
   inset: boolean,
+  toggles: RowToggles | undefined,
 ) {
   const state = loading?.stateAt(row.index) ?? 'loaded';
+  const open = toggles?.open(row.index) ?? false;
   let parts = row.index % 2 === 0 ? 'row row-even' : 'row row-odd';
   if (state !== 'loaded') parts += state === 'error' ? ' row-loading row-error' : ' row-loading';
   if (selected) parts += ' row-selected';
+  if (open) parts += ' row-expanded';
   const retry = state === 'error' ? loading?.retry.get(row.index) : undefined;
   // The Retry button goes in the first data column, after a selection column.
   const retryCol = retry === undefined ? undefined : firstDataColumn(columns);
@@ -130,7 +147,9 @@ function renderRow<T>(
           false,
           c.kind === 'selection'
             ? rowCheckbox(row.index, selected, checkboxes)
-            : placeholder(state, c.id === retryCol ? retry : undefined, row.index, loading),
+            : c.kind === 'expand'
+              ? rowToggle(row.index, open, state === 'loaded' ? toggles : undefined)
+              : placeholder(state, c.id === retryCol ? retry : undefined, row.index, loading),
         ),
     )}
   </div>`;
@@ -197,6 +216,23 @@ function rowCheckbox(
     @click=${checkboxes.row}
     @mousedown=${checkboxes.press}
   />`;
+}
+
+/**
+ * A row's chevron in the toggle column, for a row that can open a panel. It
+ * isn't focusable: the cell holds focus, and Enter or Space there toggles it.
+ */
+function rowToggle(index: number, open: boolean, toggles: RowToggles | undefined) {
+  if (!toggles?.expandable(index)) return nothing;
+  return html`<button
+    type="button"
+    part="expand-toggle"
+    tabindex="-1"
+    aria-expanded=${String(open)}
+    aria-label=${open ? toggles.collapseLabel : toggles.expandLabel}
+    data-row=${index}
+    @click=${toggles.onClick}
+  ></button>`;
 }
 
 /** What an unloaded cell shows: a skeleton bar, or the Retry button in a failed page's first cell. */
