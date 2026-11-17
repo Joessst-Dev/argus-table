@@ -9,7 +9,7 @@ customElements.define('state-events-host', Host);
 let host: Host;
 
 function setup(): { events: StateEvents; fired: [string, unknown][] } {
-  host = document.createElement('state-events-host') as Host;
+  host = new Host();
   document.body.append(host);
   const events = new StateEvents(host, ['a-change', 'b-change']);
   const fired: [string, unknown][] = [];
