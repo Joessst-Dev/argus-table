@@ -319,13 +319,9 @@ export const LIBRARIES = [
         { gap: 'row-grouping' },
       ),
       f('tree-data', /\btreeData\b|\bgetDataPath\b/, 'gap', {}, { gap: 'tree-data' }),
-      f(
-        'master-detail',
-        /\bmasterDetail\b|\bdetailCellRenderer\b/,
-        'gap',
-        {},
-        { gap: 'master-detail' },
-      ),
+      f('master-detail', /\bmasterDetail\b|\bdetailCellRenderer\b/, 'partial', {
+        props: ['rowDetail', 'expanded'],
+      }),
       f(
         'range-selection',
         /\benableRangeSelection\b|\bcellSelection\s*:|\benableFillHandle\b|\bcopyToClipboard\b/,
@@ -518,7 +514,9 @@ export const LIBRARIES = [
         {},
         { gap: 'row-grouping' },
       ),
-      f('detail-panel', /\bgetDetailPanelContent\b/, 'gap', {}, { gap: 'master-detail' }),
+      f('detail-panel', /\bgetDetailPanelContent\b/, 'partial', {
+        props: ['rowDetail', 'expanded'],
+      }),
       f(
         'cell-selection',
         /\bcellSelection\b|\bclipboardCopyCellDelimiter\b/,
@@ -572,13 +570,9 @@ export const LIBRARIES = [
         column: ['cell', 'header'],
       }),
       f('footer', /\bmatFooterCellDef\b|\bmatFooterRowDef\b/, 'partial', { props: ['pinnedRows'] }),
-      f(
-        'expandable',
-        /\bmultiTemplateDataRows\b|\bexpandedElement\b/,
-        'gap',
-        {},
-        { gap: 'master-detail' },
-      ),
+      f('expandable', /\bmultiTemplateDataRows\b|\bexpandedElement\b/, 'partial', {
+        props: ['rowDetail', 'expanded'],
+      }),
       f('cdk-virtual', /<cdk-virtual-scroll-viewport\b|\bTableVirtualScroll\b/, 'builtin'),
       f('drag', /\bcdkDropList\b|\bcdkDrag\b/, 'partial', { props: ['columnOrder'] }),
       f('row-click', /<(?:tr|mat-row)\b[^>]*\(click\)/, 'maps', { events: ['argus-row-click'] }),
@@ -635,13 +629,9 @@ export const LIBRARIES = [
         events: ['argus-cell-edit'],
       }),
       f('row-group', /\browGroupMode\b|\bgroupRowsBy\b/, 'gap', {}, { gap: 'row-grouping' }),
-      f(
-        'expansion',
-        /\bexpandedRow\b|\bpRowToggler\b|\bexpandedRowKeys\b/,
-        'gap',
-        {},
-        { gap: 'master-detail' },
-      ),
+      f('expansion', /\bexpandedRow\b|\bpRowToggler\b|\bexpandedRowKeys\b/, 'partial', {
+        props: ['rowDetail', 'expanded'],
+      }),
       f('col-group', /<ColumnGroup\b|<p-columnGroup\b/, 'maps', { props: ['columnGroups'] }),
       f('export', /\bexportCSV\b/, 'maps', { addons: ['@argus-table/export'] }),
       f('state', /\bstateStorage\b|\bstateKey\b/, 'maps', { methods: ['getState', 'setState'] }),
@@ -681,7 +671,9 @@ export const LIBRARIES = [
       f('search', /:search\b/, 'maps', { props: ['quickFilter'] }),
       f('fixed', /\bfixed\s*:\s*true\b|\bfixed-header\b/, 'maps', { column: ['pin'] }),
       f('slots', /#item\.[\w-]+|v-slot:item\.[\w-]+/, 'maps', { column: ['cell'] }),
-      f('expand', /\bshow-expand\b|#expanded-row\b/, 'gap', {}, { gap: 'master-detail' }),
+      f('expand', /\bshow-expand\b|#expanded-row\b/, 'partial', {
+        props: ['rowDetail', 'expanded'],
+      }),
       f('group', /\bgroup-by\b/, 'gap', {}, { gap: 'row-grouping' }),
       f('density', /\bdensity\s*=/, 'maps', { props: ['density'] }),
       f('virtual', /<v-data-table-virtual\b|<VDataTableVirtual\b/, 'builtin'),
@@ -725,13 +717,9 @@ export const LIBRARIES = [
       }),
       f('scroll-y', /\bscroll\s*=\s*\{\{[^}]*\by\s*:/, 'maps'),
       f('virtual', /<Table\b[^>]*\bvirtual\b/, 'builtin'),
-      f(
-        'expandable',
-        /\bexpandable\s*=|\bexpandedRowRender\b/,
-        'gap',
-        {},
-        { gap: 'master-detail' },
-      ),
+      f('expandable', /\bexpandable\s*=|\bexpandedRowRender\b/, 'partial', {
+        props: ['rowDetail', 'expanded'],
+      }),
       f('summary', /\bsummary\s*=/, 'partial', { props: ['pinnedRows'] }),
       f('children', /\bchildren\s*:\s*\[\s*\{[^}]*\bdataIndex\b/, 'maps', {
         props: ['columnGroups'],
@@ -771,7 +759,7 @@ export const LIBRARIES = [
       f('row-key', /\brow-key\s*=/, 'maps', { props: ['getRowId'] }),
       f('current-row', /\bhighlight-current-row\b/, 'maps', { props: ['selectionMode'] }),
       f('index', /\btype\s*=\s*['"]index['"]/, 'partial', { column: ['cell'] }),
-      f('expand', /\btype\s*=\s*['"]expand['"]/, 'gap', {}, { gap: 'master-detail' }),
+      f('expand', /\btype\s*=\s*['"]expand['"]/, 'partial', { props: ['rowDetail', 'expanded'] }),
       f('filters', /:filters\b|:filter-method\b/, 'maps', {
         column: ['filter', 'filterOptions', 'filterFn'],
       }),
@@ -834,7 +822,6 @@ export const GAPS = [
   'pagination',
   'row-grouping',
   'tree-data',
-  'master-detail',
   'range-selection',
   'row-drag',
   'context-menu',
@@ -845,7 +832,7 @@ export const GAPS = [
 ];
 
 /** Gaps that usually decide whether a screen can move (shown first, and make the effort `high`). */
-export const HARD_GAPS = ['row-grouping', 'tree-data', 'master-detail', 'range-selection'];
+export const HARD_GAPS = ['row-grouping', 'tree-data', 'range-selection'];
 
 /** A feature's argus-table equivalent as one line, for the scan's output. */
 export function describeArgus(argus) {

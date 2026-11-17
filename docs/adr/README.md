@@ -14,3 +14,4 @@ Decisions contributors will ask about, with the evidence behind them. One file p
 | [0008](0008-own-row-virtualization.md)      | Own row virtualization, without TanStack Virtual                  | Accepted |
 | [0009](0009-cell-editing.md)                | Cell editing as an add-on, applied by the app                     | Accepted |
 | [0010](0010-own-row-model.md)               | Own row model, without TanStack Table                             | Accepted |
+| [0011](0011-displayed-rows.md)              | Displayed rows: positions inside, data indexes outside            | Accepted |

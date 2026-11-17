@@ -1,6 +1,6 @@
 # Gaps
 
-Features of other tables that argus-table doesn't have. For each: what to tell the user, and what you can offer. Name them before any edit (workflow B2). If a screen depends on one of the hard gaps (row grouping, tree data, master/detail, range selection), recommend keeping the old table on that screen and migrating the others.
+Features of other tables that argus-table doesn't have. For each: what to tell the user, and what you can offer. Name them before any edit (workflow B2). If a screen depends on one of the hard gaps (row grouping, tree data, range selection), recommend keeping the old table on that screen and migrating the others.
 
 ## pagination
 
@@ -22,12 +22,6 @@ No grouping by column values, no group rows, no aggregation, no pivot.
 No hierarchical rows (sub-rows, `getSubRows`, `treeData`, expand/collapse).
 
 - **Workaround:** flatten the tree with a depth per row, indent the first column's `cell` by depth, and show or hide children by filtering `data` when a toggle button in the cell is clicked (keep the expanded ids in state). Works for small trees; sorting then sorts across levels unless you sort within parents yourself.
-
-## master-detail
-
-No expandable detail rows (detail panels, `expandedRowRender`, `show-expand`).
-
-- **Workarounds:** show the detail in a side panel or a dialog on `row-click` (often better for keyboard users); or a `cell` that opens a popover. Rows have one height per row (`rowHeight: 'auto'` grows them to their content), but a full-width detail row inside the grid isn't possible.
 
 ## range-selection
 

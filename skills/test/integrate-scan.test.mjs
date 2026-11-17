@@ -88,7 +88,7 @@ describe('scan.mjs', () => {
     const [u] = report.usages;
     assert.equal(u.file, 'src/Users.tsx');
     assert.equal(feature(u, 'server-mode').fit, 'maps');
-    assert.equal(feature(u, 'detail-panel').gap, 'master-detail');
+    assert.equal(feature(u, 'detail-panel').fit, 'partial');
     assert.equal(feature(u, 'density').fit, 'maps');
     assert.equal(feature(u, 'column-types').fit, 'maps');
   });
@@ -139,7 +139,7 @@ describe('scan.mjs', () => {
     );
     const [u] = report.usages;
     assert.equal(feature(u, 'row-key').fit, 'maps');
-    assert.equal(feature(u, 'expandable').gap, 'master-detail');
+    assert.equal(feature(u, 'expandable').fit, 'partial');
   });
 
   it('finds plain tables filled by a script, and static ones on request', async () => {
