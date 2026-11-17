@@ -1,0 +1,36 @@
+---
+title: Bootstrap-inspired theme
+description: 'Looks like a Bootstrap 5 striped, hoverable table, without loading Bootstrap.'
+since: '0.3'
+---
+
+import ThemePreview from '../../../components/themes/ThemePreview.astro';
+
+```js
+import '@argus-table/themes/bootstrap.css';
+```
+
+It looks like a Bootstrap 5 `.table.table-striped.table-hover`, without loading Bootstrap: its colours in light and dark, the system font stack, 0.5rem cell padding, striped rows, a hover colour and the 2px divider under the header. Selected rows use the `.table-primary` colour, which stands out from the stripes better than `.table-active`.
+
+- **Fonts:** Bootstrap's system font stack; nothing to load.
+- **Rows:** the table's own heights, which match Bootstrap's: 40px at `comfortable` (the default) and 32px at `compact`, like `.table-sm`.
+- **No stripes:** `argus-table { --argus-row-odd-bg: var(--argus-bg); }` after the theme.
+- **Light and dark:** `data-argus-theme="dark"` or `"light"` on the table or an ancestor forces a scheme; any token can be set after the theme. See [Themes](/argus-table/themes/).
+
+The preview follows this site's light and dark switch. The status chips are the page's own CSS: cell content is light DOM.
+
+<ThemePreview theme="bootstrap" label="Bootstrap-inspired theme" />
+
+## Variants
+
+Dark, whatever the site's mode (`data-argus-theme="dark"` on an ancestor):
+
+<ThemePreview theme="bootstrap" scheme="dark" label="Bootstrap-inspired theme, dark" />
+
+Compact (`density="compact"`):
+
+<ThemePreview theme="bootstrap" density="compact" label="Bootstrap-inspired theme, compact" />
+
+With row selection (`selection-mode="multi"` and `selection-checkboxes`):
+
+<ThemePreview theme="bootstrap" selection label="Bootstrap-inspired theme, with selection" />

@@ -1,0 +1,51 @@
+---
+title: Themes
+description: 'The five shipped themes, how to load one, and how to make your own.'
+since: '0.1'
+---
+
+`@argus-table/themes` holds five themes. Each is one CSS file that sets the table's `--argus-*` tokens and `::part()` rules, and nothing else, so any token can still be changed after it. Each also styles the add-ons: the column menu and the formula editor take on the theme.
+
+```bash
+npm i argus-table @argus-table/themes
+```
+
+```js
+import 'argus-table';
+import '@argus-table/themes/default.css';
+```
+
+Or with a `<link>`: `<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@argus-table/themes/dist/default.css">`. Load one theme per page.
+
+| Theme                                                | File            | Feel                                                     | Fonts to load   |
+| ---------------------------------------------------- | --------------- | -------------------------------------------------------- | --------------- |
+| [Default](/argus-table/themes/default/)              | `default.css`   | Neutral, the page's font, one accent colour              | none            |
+| [Material-inspired](/argus-table/themes/material/)   | `material.css`  | Material 3's palette, rounded and outlined, taller rows  | Roboto          |
+| [Fluent-inspired](/argus-table/themes/fluent/)       | `fluent.css`    | Fluent 2's neutral greys and brand blue, Segoe UI        | none (Segoe UI) |
+| [Bootstrap-inspired](/argus-table/themes/bootstrap/) | `bootstrap.css` | A Bootstrap 5 striped, hoverable table                   | none            |
+| [Minimal](/argus-table/themes/minimal/)              | `minimal.css`   | Quiet and airy, hairlines between rows, one amber accent | Instrument Sans |
+
+## Light and dark
+
+Every theme follows the system's light or dark setting. To force one, put `data-argus-theme="dark"` or `data-argus-theme="light"` on the table or on any ancestor, such as `<html>`; the attribute on the table wins over one on an ancestor. The previews on these pages follow this site's light and dark switch the same way.
+
+## Density
+
+Each theme sets row heights and padding for the table's three densities, `compact`, `comfortable` (the default) and `spacious`. A `row-height` set on the table still wins.
+
+## Changing a value
+
+Set the token after the theme:
+
+```css
+argus-table {
+  --argus-border-radius: 0;
+  --argus-focus-ring: 2px solid teal;
+}
+```
+
+If your override uses `light-dark()`, declare `color-scheme: light dark` on `argus-table` in the same stylesheet: build tools that polyfill `light-dark()` only switch colours where the stylesheet sets `color-scheme`. Every token and part is listed in the [API reference](/argus-table/api/argus-table/#tokens), and the [Styling](/argus-table/features/styling/) page shows them at work.
+
+## Make your own
+
+The [theme creator](/argus-table/themes/creator/) starts from any of these themes. Change a few seeds or any token, check contrast in light and dark, then copy or download the CSS, or share a link to your theme.
