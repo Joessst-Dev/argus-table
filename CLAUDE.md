@@ -37,7 +37,7 @@ pnpm nx run storybook:test-storybook                        # every story as a t
 BROWSERS=chromium pnpm --filter @argus-table/e2e exec playwright test specs/sort.spec.ts
 ```
 
-- `BROWSERS` env selects engines: `chromium,firefox,webkit` or `all`. Vitest (unit and storybook) defaults to Chromium; **e2e defaults to all three**.
+- `BROWSERS` env selects engines: `chromium,firefox,webkit` or `all`. Vitest (unit and storybook) defaults to Chromium; **e2e defaults to all three**. The docs site's e2e takes `E2E_SHARD=<current>/<total>` (CI's `docs-e2e` job runs four shards in Firefox and WebKit, three in Chromium; the same value reproduces a shard locally).
 - First run needs browsers: `pnpm --filter argus-table exec playwright install chromium` (Playwright is pinned to 1.63.0 everywhere).
 - Nx targets depend on `^build`, so running through `nx` builds dependencies first. Storybook, the playground and e2e consume `argus-table` through its `dist/` exports; running their tools directly without Nx needs `pnpm nx build argus-table` first. `packages/table`'s own unit tests and typecheck read `@argus-table/core` from source and need no build.
 - Don't update visual snapshots locally (fonts differ outside the CI image). CI regenerates them when a PR gets the `update-snapshots` label; `pnpm test:visual --update-snapshots` runs in Docker if needed.

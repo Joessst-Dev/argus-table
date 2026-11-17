@@ -111,12 +111,11 @@ jobs:
           fetch-depth: 0
       - uses: ./.github/actions/setup
 
-      # The playground's suite and the docs site's, one after the other: run together
-      # they compete for the runner's cores, and the docs' axe checks time out.
-      - name: Playwright e2e against the playground and the docs site
+      # The playground's suite; the docs site's runs in docs-e2e.
+      - name: Playwright e2e against the playground
         env:
           BROWSERS: ${{ matrix.browser }}
-        run: pnpm nx affected -t e2e --parallel=1 --base=${{ needs.setup.outputs.base }} --head=${{ needs.setup.outputs.head }}
+        run: pnpm nx affected -t e2e --exclude=docs --base=${{ needs.setup.outputs.base }} --head=${{ needs.setup.outputs.head }}
 
       - name: Upload the report
         if: failure()
@@ -126,6 +125,55 @@ jobs:
           path: |
             tests/e2e/test-results
             tests/e2e/playwright-report
+          retention-days: 14
+
+  docs-e2e:
+    # The docs site's suite (every example in four flavours, with axe) took about
+    # 19 minutes in WebKit in one job, so it runs in shards (E2E_SHARD, read by
+    # apps/docs/e2e/playwright.config.ts): four in Firefox and WebKit, three in
+    # Chromium, which is faster (about 6–7 minutes each). Each shard builds the site
+    # itself: there's no shared Nx cache.
+    needs: setup
+    runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      options: --user 1001 --ipc=host
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+        shard: [1, 2, 3, 4]
+        exclude:
+          - browser: chromium
+            shard: 4
+        # Adds `shards` (the total) to every combination of the engine.
+        include:
+          - browser: chromium
+            shards: 3
+          - browser: firefox
+            shards: 4
+          - browser: webkit
+            shards: 4
+    name: docs e2e (${{ matrix.browser }}, ${{ matrix.shard }}/${{ matrix.shards }})
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+
+      # `e2e` is tests/e2e's project, run by the e2e job.
+      - name: Playwright e2e against the docs site
+        env:
+          BROWSERS: ${{ matrix.browser }}
+          E2E_SHARD: ${{ matrix.shard }}/${{ matrix.shards }}
+        run: pnpm nx affected -t e2e --exclude=e2e --base=${{ needs.setup.outputs.base }} --head=${{ needs.setup.outputs.head }}
+
+      - name: Upload the report
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: docs-e2e-${{ matrix.browser }}-${{ matrix.shard }}
+          path: |
             apps/docs/test-results
             apps/docs/playwright-report
           retention-days: 14
