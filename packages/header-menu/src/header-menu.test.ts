@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
-import { userEvent } from 'vitest/browser';
+import { page, userEvent } from 'vitest/browser';
 import { html } from 'lit';
 import 'argus-table';
 import type { ArgusPlugin, ArgusTable, ColumnDef } from 'argus-table';
@@ -317,6 +317,123 @@ describe('header menu placement', () => {
     buttonOf(el, 'age')?.click();
     menu = await opened(el);
     expect(Math.round(menu.getBoundingClientRect().left)).toBe(Math.round(button().left));
+  });
+
+  describe('in a short viewport', () => {
+    const viewport = { width: window.innerWidth, height: window.innerHeight };
+    afterEach(async () => {
+      await page.viewport(viewport.width, viewport.height);
+    });
+
+    /** A table whose header's top edge is `top` px down a viewport `height` px tall. */
+    async function placed(top: number, height: number, props: Partial<ArgusTable<Row>> = {}) {
+      await page.viewport(800, height);
+      const el = await fixture(props, { width: 400, height: 120 });
+      Object.assign(el.style, { position: 'fixed', top: `${String(top)}px`, left: '0' });
+      await settle(el);
+      return el;
+    }
+    // Twenty more items: taller than either side of the button.
+    const many: ArgusPlugin<Row> & HeaderMenuContributor<Row> = {
+      name: 'many',
+      headerMenuItems: () => [
+        {
+          items: Array.from({ length: 20 }, (_, i) => ({
+            label: `Item ${String(i)}`,
+            run: () => undefined,
+          })),
+        },
+      ],
+    };
+    /** In the viewport, scrolling only up and down. */
+    const inView = (popover: HTMLElement) => {
+      const rect = popover.getBoundingClientRect();
+      expect(rect.top).toBeGreaterThanOrEqual(0);
+      expect(rect.bottom).toBeLessThanOrEqual(window.innerHeight);
+      expect(popover.scrollWidth).toBeLessThanOrEqual(popover.clientWidth);
+    };
+    /** Whether an element is inside the popover's scrolled area. */
+    const visibleIn = (popover: HTMLElement, element: Element) => {
+      const top = popover.getBoundingClientRect().top + popover.clientTop;
+      const rect = element.getBoundingClientRect();
+      return rect.top >= top - 1 && rect.bottom <= top + popover.clientHeight + 1;
+    };
+    const shown = (popover: HTMLElement) => {
+      expect(visibleIn(popover, focused())).toBe(true);
+    };
+
+    test('a menu that fits on neither side takes the larger one, below, and scrolls', async () => {
+      const el = await placed(80, 260, { plugins: [basic(), many] });
+      buttonOf(el, 'age')?.click();
+      const menu = await opened(el);
+      inView(menu);
+      expect(menu.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+        buttonOf(el, 'age')?.getBoundingClientRect().bottom ?? 0,
+      );
+      expect(menu.scrollHeight).toBeGreaterThan(menu.clientHeight);
+      // Keys bring the focused item into view.
+      key(focused(), 'End');
+      expect(focused()).toBe(items(menu).at(-1));
+      shown(menu);
+      key(focused(), 'Home');
+      expect(focused()).toBe(items(menu)[0]);
+      shown(menu);
+      // With its button scrolled out of view, it still fits the viewport.
+      el.style.top = '300px';
+      await settle(el);
+      inView(menu);
+    });
+
+    test('a menu that fits on neither side takes the larger one, above, and scrolls', async () => {
+      const el = await placed(170, 260, { plugins: [basic(), many] });
+      buttonOf(el, 'age')?.click();
+      const menu = await opened(el);
+      inView(menu);
+      expect(menu.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+        buttonOf(el, 'age')?.getBoundingClientRect().top ?? 0,
+      );
+      expect(menu.scrollHeight).toBeGreaterThan(menu.clientHeight);
+      key(focused(), 'Home');
+      key(focused(), 'ArrowUp');
+      expect(focused()).toBe(items(menu).at(-1));
+      shown(menu);
+    });
+
+    test('a menu with room on one side is not capped', async () => {
+      const el = await placed(170, 260);
+      buttonOf(el, 'age')?.click();
+      const menu = await opened(el);
+      expect(menu.style.maxHeight).toBe('');
+      expect(menu.scrollHeight).toBe(menu.clientHeight);
+      expect(menu.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+        buttonOf(el, 'age')?.getBoundingClientRect().top ?? 0,
+      );
+    });
+
+    test('a filter form that fits on neither side scrolls too', async () => {
+      const el = await placed(60, 150, {
+        columns: [{ id: 'age', header: 'Age', accessor: 'age', width: 120, filter: 'set' }],
+      });
+      buttonOf(el, 'age')?.click();
+      const filter = items(await opened(el)).find((i) => i.textContent.trim() === 'Filter…');
+      filter?.click();
+      await settle(el);
+      const form = el.querySelector<HTMLElement>('.argus-header-filter:popover-open');
+      if (!form) throw new Error('form not open');
+      inView(form);
+      expect(form.scrollHeight).toBeGreaterThan(form.clientHeight);
+      // One scroller: the list of values doesn't scroll on its own.
+      const values = form.querySelector('.argus-header-filter-values');
+      expect(values && getComputedStyle(values).overflowY).toBe('visible');
+      // A control that takes focus scrolls into view.
+      const last = [...form.querySelectorAll('button')].at(-1);
+      if (!last) throw new Error('no button');
+      expect(visibleIn(form, last)).toBe(false);
+      last.focus();
+      expect(focused()).toBe(last);
+      shown(form);
+      expect(form.scrollTop).toBeGreaterThan(0);
+    });
   });
 
   test('takes theme tokens set on the table', async () => {

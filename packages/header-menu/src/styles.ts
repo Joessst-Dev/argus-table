@@ -69,6 +69,13 @@ const CSS = `
     font-weight: normal;
     text-align: start;
     white-space: nowrap;
+    /* Scrolls when it's capped to the room beside its button. */
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  /* Room for a scrollbar, so it doesn't narrow the items. */
+  :is(.argus-header-menu, .argus-header-filter)[data-capped] {
+    scrollbar-gutter: stable;
   }
   .argus-header-filter {
     display: grid;
@@ -102,6 +109,11 @@ const CSS = `
     display: grid;
     max-block-size: 14em;
     overflow: auto;
+  }
+  /* One scroller: the capped form's. */
+  .argus-header-filter[data-capped] .argus-header-filter-values {
+    max-block-size: none;
+    overflow: visible;
   }
   .argus-header-filter-check {
     display: flex;

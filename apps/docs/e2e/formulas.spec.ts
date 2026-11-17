@@ -9,10 +9,6 @@ const at = (table: Locator, row: number, id: string) => cellText(table, row + 2,
 
 /** Opens a column's menu and clicks the item whose text starts with `label`. */
 async function menuItem(table: Locator, id: string, label: string) {
-  // Room below the header: a menu that fits neither below nor above it overflows the page.
-  await table.evaluate((el) => {
-    el.scrollIntoView({ block: 'start' });
-  });
   const button = await header(table, id).evaluateHandle((cell) =>
     cell
       .querySelector('slot')
