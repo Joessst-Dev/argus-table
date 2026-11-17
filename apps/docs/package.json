@@ -26,6 +26,14 @@
       "e2e": {
         "dependsOn": [
           "build"
+        ],
+        "inputs": [
+          "default",
+          "^production",
+          {
+            "env": "BROWSERS"
+          },
+          "{workspaceRoot}/skills/argus-table-integrate/references/**/*.md"
         ]
       },
       "build": {
@@ -39,6 +47,16 @@
         "dependsOn": [
           "^build",
           "sync"
+        ]
+      },
+      "test": {
+        "inputs": [
+          "default",
+          "^production",
+          {
+            "env": "BROWSERS"
+          },
+          "{workspaceRoot}/skills/argus-table-integrate/references/**/*.md"
         ]
       }
     }

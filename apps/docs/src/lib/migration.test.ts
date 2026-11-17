@@ -133,19 +133,19 @@ describe('migrationPlugins', () => {
   /** A visitor context that records what the plugin does. */
   function context() {
     const removed: MdNode[] = [];
-    // Every field set: URLs, and code blocks' meta.
-    const urls: string[] = [];
+    // Every field set, as [node type, field, value].
+    const fields: string[][] = [];
     const ctx: MdContext = {
       removeNode: (node) => removed.push(node),
-      setField: (_node, _key, value) => urls.push(value),
+      setField: (node, key, value) => fields.push([node.type, key, value]),
     };
-    return { ctx, removed, urls };
+    return { ctx, removed, fields };
   }
 
   test('drops the title and rewrites links in a guide', () => {
     const plugin = factory({ fileURL: guide });
     if (!plugin) throw new Error('no plugin for a guide');
-    const { ctx, removed, urls } = context();
+    const { ctx, removed, fields } = context();
     const title = { type: 'heading', depth: 1 };
     plugin.heading(title, ctx);
     plugin.heading({ type: 'heading', depth: 2 }, ctx);
@@ -156,19 +156,22 @@ describe('migrationPlugins', () => {
     plugin.link({ type: 'link', url: '#concepts' }, ctx);
     plugin.definition({ type: 'definition', url: '../testing.md' }, ctx);
     const blob = 'https://github.com/Joessst-Dev/argus-table/blob/main/';
-    expect(urls).toEqual([
-      '/argus-table/migration/gaps/#pagination',
-      '#concepts',
-      `${blob}skills/argus-table-integrate/references/testing.md`,
+    expect(fields).toEqual([
+      ['link', 'url', '/argus-table/migration/gaps/#pagination'],
+      ['link', 'url', '#concepts'],
+      ['definition', 'url', `${blob}skills/argus-table-integrate/references/testing.md`],
     ]);
   });
 
   test("wraps code blocks' long lines", () => {
     const plugin = factory({ fileURL: guide });
-    const { ctx, urls } = context();
+    const { ctx, fields } = context();
     plugin?.code({ type: 'code', meta: null }, ctx);
     plugin?.code({ type: 'code', meta: 'title="a.ts"' }, ctx);
-    expect(urls).toEqual(['wrap', 'title="a.ts" wrap']);
+    expect(fields).toEqual([
+      ['code', 'meta', 'wrap'],
+      ['code', 'meta', 'title="a.ts" wrap'],
+    ]);
   });
 
   test('makes tables focusable: they scroll sideways', () => {
@@ -191,6 +194,11 @@ describe('migrationPlugins', () => {
     ).toBeUndefined();
     expect(factory({ fileURL: undefined })).toBeUndefined();
     expect(hast({ fileURL: undefined })).toBeUndefined();
+  });
+
+  test('a reference file that is no guide fails, rather than passing through', () => {
+    const other = pathToFileURL(join(repo, 'skills/argus-table-integrate/references/api.md'));
+    expect(() => factory({ fileURL: other })).toThrow(/references\/api\.md/);
   });
 
   test('a link to a missing file fails, naming the guide', () => {

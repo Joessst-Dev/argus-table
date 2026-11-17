@@ -111,12 +111,25 @@ test('the overview explains fit and lists every guide', async ({ page }) => {
   await expectAccessible(page);
 });
 
-test('a guide fits a narrow viewport', async ({ page }) => {
+test('every guide fits a narrow viewport', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('migration/tanstack/');
-  const overflow = await page.evaluate(
-    () => document.documentElement.scrollWidth - window.innerWidth,
-  );
-  expect(overflow).toBeLessThanOrEqual(0);
-  await expectAccessible(page);
+  for (const id of Object.keys(GUIDES)) {
+    await page.goto(`migration/${id}/`);
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - window.innerWidth,
+    );
+    expect(overflow, id).toBeLessThanOrEqual(0);
+    // A code block that still scrolls (deep indents) gets a tabindex from
+    // Expressive Code's script, after a resize observer settles.
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          [...document.querySelectorAll('.expressive-code pre')].every(
+            (pre) => pre.scrollWidth <= pre.clientWidth || pre.getAttribute('tabindex') === '0',
+          ),
+        ),
+      )
+      .toBe(true);
+    await expectAccessible(page);
+  }
 });

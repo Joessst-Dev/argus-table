@@ -23,6 +23,6 @@ const { Content, headings } = await render(entry);
 ---
 
 <StarlightPage frontmatter={{ title: guide.title, description }} headings={headings}>
-  <SkillNote />
+  <SkillNote page={guide.id === 'gaps' ? 'gaps' : 'guide'} />
   <Content />
 </StarlightPage>

@@ -118,11 +118,22 @@ interface Options {
   base: string;
 }
 
-/** The guide `fileURL` is, as a repo path, if it is one. */
+/**
+ * The guide `fileURL` is, as a repo path, if it is one. A file in the
+ * references that is no guide throws: the plugins would otherwise pass it
+ * through untouched (a checkout path `repoRoot` doesn't match, say).
+ */
 function guideFile(repoRoot: string, guides: readonly Guide[], fileURL: URL | undefined) {
   if (!fileURL) return undefined;
+  const path = fileURLToPath(fileURL).split(sep).join('/');
   const from = relative(repoRoot, fileURLToPath(fileURL)).split(sep).join('/');
-  return guides.some((g) => g.file === from) ? from : undefined;
+  if (guides.some((g) => g.file === from)) return from;
+  if (path.includes(`/${REFERENCES}/`)) {
+    throw new Error(
+      `${path} is in the integrate skill's references but isn't a guide under ${repoRoot}.`,
+    );
+  }
+  return undefined;
 }
 
 /**
