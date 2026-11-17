@@ -22,3 +22,23 @@ export const months = Array.from({ length: 20 }, (_, i) => ({
 
 /** Where a scroll target lands. */
 export const aligns = ['start', 'center', 'end', 'nearest'] as const;
+
+/** Line items for the fit-to-content example: a table that grows with its rows. */
+export interface Item {
+  id: string;
+  product: string;
+  quantity: number;
+}
+
+export const itemColumns = [
+  { id: 'id', header: 'Line', accessor: 'id', width: 80 },
+  { id: 'product', header: 'Product', accessor: 'product', width: { flex: 1 } },
+  { id: 'quantity', header: 'Qty', accessor: 'quantity', width: 80, align: 'end' as const },
+];
+
+export const items = (count: number): Item[] =>
+  Array.from({ length: count }, (_, i) => ({
+    id: String(i + 1),
+    product: `Product ${String.fromCharCode(65 + (i % 26))}`,
+    quantity: (i % 5) + 1,
+  }));

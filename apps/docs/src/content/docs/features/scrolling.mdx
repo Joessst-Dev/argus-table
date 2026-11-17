@@ -1,6 +1,6 @@
 ---
 title: Scrolling
-description: Scroll to a row or a column from code.
+description: Scroll to a row or a column from code, and tables that fit their rows.
 since: '1.1'
 ---
 
@@ -8,6 +8,9 @@ import FlavourTabs from '../../../components/FlavourTabs.astro';
 import ReactScroll from '../../../examples/scrolling/scroll-to/react/ScrollTo.tsx';
 import VueScroll from '../../../examples/scrolling/scroll-to/vue/ScrollTo.vue';
 import { ScrollToComponent } from '../../../examples/scrolling/scroll-to/angular/scroll-to.component.ts';
+import ReactFit from '../../../examples/scrolling/fit-to-content/react/FitToContent.tsx';
+import VueFit from '../../../examples/scrolling/fit-to-content/vue/FitToContent.vue';
+import { FitToContentComponent } from '../../../examples/scrolling/fit-to-content/angular/fit-to-content.component.ts';
 
 `scrollToRow()` scrolls to a row by its index in the current order, or by `{ id }` with an id from `getRowId`. `scrollToColumn(id)` scrolls sideways to a column. `align` says where the target lands: `'start'`, `'center'`, `'end'`, or `'nearest'` (only as far as needed; the default for columns). The header, pinned rows and pinned columns are left out of the view, so the target never ends up behind them. Both resolve `true` once the target is in view, and `false` when there's nothing to scroll to.
 
@@ -18,3 +21,15 @@ import { ScrollToComponent } from '../../../examples/scrolling/scroll-to/angular
 </FlavourTabs>
 
 Call the methods on the element: through a `ref` in React, a template ref in Vue, or a view query in Angular. Any number of rows scrolls: past the height a browser allows an element, the table maps the scroll position onto the rows, so the 100,000 rows here and a million behave the same.
+
+## Fit to content
+
+The table virtualizes its rows, so by default it has a height of its own (400 px). A short table can fit its rows instead: give it `block-size: auto` and a `max-block-size`. It's as tall as its header and rows up to that height, and past it the table scrolls and virtualizes as usual.
+
+<FlavourTabs example="scrolling/fit-to-content">
+  <ReactFit slot="react" client:visible />
+  <VueFit slot="vue" client:visible />
+  <FitToContentComponent slot="angular" client:visible />
+</FlavourTabs>
+
+Give the maximum as a length (`320px`, `20rem`, `50vh`), not a percentage. A table with `block-size: auto` and no maximum stops at the window's height, and says so once in the console: without one it would render every row.
