@@ -9,7 +9,7 @@ Any number of changes in the same frame collapse into one Lit update; measuring 
 ```mermaid
 flowchart LR
     change["Input changes<br/>props, scroll, resize, new data"] --> request["requestUpdate()<br/>Lit batches changes into one update"]
-    request --> will["willUpdate()<br/>resolve columns, TanStack row model"]
+    request --> will["willUpdate()<br/>resolve columns, row model"]
     will --> virt["Virtualizer<br/>visible rows and columns + overscan"]
     virt --> render["render()<br/>pinned rows, window keyed by row-pool slot"]
     render --> measure["updated()<br/>measure heights, autosize widths"]

@@ -22,6 +22,6 @@
 - Issue forms: bug (requires a StackBlitz repro link + browser), feature request, and a `config.yml` that routes questions to GitHub Discussions.
 - Pull request template: what/why, screenshots for visual changes, "changeset added" checkbox.
 - Labels: `good first issue`, `help wanted`, `theme`, `a11y`, `perf`, `breaking`, `no-changeset`.
-- Renovate: weekly grouped updates (dev deps auto-merge when CI is green; Lit and TanStack get their own PRs).
+- Renovate: weekly grouped updates (dev deps auto-merge when CI is green; Lit gets its own PR).
 - SECURITY.md pointing to GitHub private vulnerability reporting.
 - ADRs in `docs/adr/` for decisions contributors will ask about (shadow vs. light DOM, TanStack wrapping, versioning).

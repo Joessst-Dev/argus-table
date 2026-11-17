@@ -1,11 +1,11 @@
 ---
 name: lit3
-description: How to write Lit 3 web components the way argus-table does. Covers LitElement and its update lifecycle, reactive properties and attributes, TypeScript decorators, templates and directives, shadow DOM styles with CSS tokens and ::part() names, slotted light-DOM content, reactive controllers (including those around TanStack Table and Virtual), typed composed CustomEvents, ARIA on custom elements, JSDoc for the Custom Elements Manifest, and testing with Vitest browser mode. Use it whenever you create, change, review or debug a custom element, a Lit template, a reactive controller or component styles in this repo (packages/table, argus-table.ts, argus-column.ts, controllers/, render/, styles/), even when the request doesn't say "Lit", for example "add a resize handle", "expose a part for pinned cells", "why does the header re-render on scroll" or "fire an event when sorting changes".
+description: How to write Lit 3 web components the way argus-table does. Covers LitElement and its update lifecycle, reactive properties and attributes, TypeScript decorators, templates and directives, shadow DOM styles with CSS tokens and ::part() names, slotted light-DOM content, reactive controllers (including the table model and the virtualizer), typed composed CustomEvents, ARIA on custom elements, JSDoc for the Custom Elements Manifest, and testing with Vitest browser mode. Use it whenever you create, change, review or debug a custom element, a Lit template, a reactive controller or component styles in this repo (packages/table, argus-table.ts, argus-column.ts, controllers/, render/, styles/), even when the request doesn't say "Lit", for example "add a resize handle", "expose a part for pinned cells", "why does the header re-render on scroll" or "fire an event when sorting changes".
 ---
 
 # Lit 3 components in argus-table
 
-argus-table is a framework-agnostic data table built as Lit 3 custom elements (`<argus-table>`, `<argus-column>`) around TanStack Table, with its own row virtualization. Its public API (properties, attributes, events, CSS tokens, part names, slots) is what users depend on, and part and token names freeze at 1.0. Treat every public name as a promise: pick it on purpose, document it, and don't rename it casually.
+argus-table is a framework-agnostic data table built as Lit 3 custom elements (`<argus-table>`, `<argus-column>`) with its own row model and row virtualization; `lit` is its only runtime dependency. Its public API (properties, attributes, events, CSS tokens, part names, slots) is what users depend on, and part and token names freeze at 1.0. Treat every public name as a promise: pick it on purpose, document it, and don't rename it casually.
 
 The plan in `docs/plan/` is the source of truth for names and behaviour. Before adding public surface, check `docs/plan/plan/07-public-api.md` (properties, events, parts, tokens), `06-styling-and-theming.md`, `08-accessibility.md` and `docs/plan/code-architecture/`. When this skill and the plan disagree, follow the plan and mention the conflict.
 
@@ -28,14 +28,14 @@ The element is thin. Work lives in **reactive controllers**, and logic with no D
 
 | Where | What goes there | Tested with |
 |---|---|---|
-| `packages/core/src/` | Column resolution, paging, row cache, controlled/uncontrolled state, the TanStack adapter. No Lit, no DOM | plain Vitest |
+| `packages/core/src/` | Column resolution, paging, row cache, controlled/uncontrolled state, the table model. No Lit, no DOM | plain Vitest |
 | `packages/table/src/controllers/` | `ColumnController`, `DataController`, `TableController`, `VirtualController`, `InteractionController` | Vitest browser mode |
 | `packages/table/src/render/` | Template functions: `header.ts`, `body.ts`, `pinned-rows.ts`, `skeleton.ts` | through the element |
 | `packages/table/src/argus-table.ts` | Creates controllers, declares public properties, calls render functions | Vitest browser mode |
 | `packages/table/src/events.ts` | Event names and typed `detail` objects | — |
 | `packages/table/src/styles/` | `base.ts`: `@layer argus-base`, default token values | visual tests |
 
-When new behaviour doesn't fit an existing controller, ask whether it is a new concern (a new controller) or pure logic (core). Avoid growing `argus-table.ts`. TanStack types never appear in the public API; they stay behind core's adapter (`core/table/create-table.ts`), because TanStack v9 may still change.
+When new behaviour doesn't fit an existing controller, ask whether it is a new concern (a new controller) or pure logic (core). Avoid growing `argus-table.ts`. Core's internal types (`TableModel`, `ColumnView`, `RowView`) never appear in the public API; public types live in `core/src/types.ts`.
 
 ## TypeScript and decorators
 
@@ -241,7 +241,7 @@ export class DataController<T> implements ReactiveController {
 - A controller fires its own `argus-*` events through the host (`this.host.dispatchEvent(…)`), which keeps the element class small.
 - `hostDisconnected` must undo everything `hostConnected` did. Elements get moved in the DOM (disconnect, then reconnect), so `hostConnected` must work again afterwards.
 
-The table model (core's adapter over `@tanstack/table-core`, wrapped by `TableController`), the virtualizer (`VirtualController`: core's `RowSizes` and `ScrollScale` with the row pool), memoisation and the one-extra-pass guard: `references/controllers.md`.
+The table model (core's own, wrapped by `TableController`), the virtualizer (`VirtualController`: core's `RowSizes` and `ScrollScale` with the row pool), memoisation and the one-extra-pass guard: `references/controllers.md`.
 
 ## Events
 
@@ -263,7 +263,7 @@ export const fire = <D>(el: HTMLElement, name: string, detail: D) =>
 
 - **Controlled versus uncontrolled** (see `code-architecture/04-state-and-events.md`). If the host never set the state property, the table updates its own state and then fires. If the host set it, the table fires the event with the proposed state and changes nothing until the host sets the property again. Use the shared helper in `core/state/controllable.ts`; don't reimplement it per feature.
 - Fire after the update (`updated()`, or from a handler after state is applied), never during `render()`.
-- `detail` holds plain data (ids, state objects), not TanStack objects or DOM nodes.
+- `detail` holds plain data (ids, state objects), not internal model objects or DOM nodes.
 - Add `@fires` JSDoc for every event, because Storybook and the React, Vue and Angular wrappers are generated from the manifest.
 
 ## Accessibility
@@ -339,5 +339,5 @@ More patterns (scroll, virtualization, focus, fake data sources, Storybook stori
 - A new public property, event, part or token missing from JSDoc, or not listed as a proposal.
 - A planned token whose meaning changed (for example `--argus-pinned-shadow` no longer taking a box-shadow).
 - `accessor` decorators mixed with experimental ones.
-- TanStack types in a public signature or event `detail`.
+- Core's internal types (`TableModel`, `ColumnView`, `RowView`) in a public signature or event `detail`.
 - Unbounded measure-then-render loops in `updated()`.

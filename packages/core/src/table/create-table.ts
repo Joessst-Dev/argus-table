@@ -1,19 +1,4 @@
 import {
-  columnSizingFeature,
-  constructTable,
-  rowSortingFeature,
-  sortFn_alphanumeric,
-  sortFn_basic,
-  sortFn_datetime,
-  sortFn_text,
-  tableFeatures,
-  type ColumnDef as TanStackColumnDef,
-  type Row,
-  type Table,
-  type TableOptions,
-} from '@tanstack/table-core';
-import { storeReactivityBindings } from '@tanstack/table-core/store-reactivity-bindings';
-import {
   cellOver,
   headerGroupRows,
   resolveColumnGroups,
@@ -29,8 +14,7 @@ import {
 } from '../columns/column-order.js';
 import { resolveColumns, type ResolvedColumn } from '../columns/resolve-columns.js';
 import { distinctValues, rowPredicate } from '../filters/filter.js';
-import { filteredRowModel, setRowPredicate } from './filtered-row-model.js';
-import { sortedRowModel, valuesChanged } from './sorted-row-model.js';
+import { sortRows } from './sorted-row-model.js';
 import type {
   CellContext,
   ColumnAlign,
@@ -47,36 +31,8 @@ import type {
   FilterValue,
   PinnedRows,
   RowPin,
-  SortItem,
   SortState,
 } from '../types.js';
-
-// The TanStack adapter. Everything TanStack stays in this module: callers only see
-// the view types below, so TanStack can be upgraded or replaced without touching
-// `argus-table`'s public API.
-
-const features = tableFeatures({
-  // Vanilla (framework-free) reactivity; required by `constructTable`.
-  coreReactivityFeature: storeReactivityBindings(),
-  // No pinning, ordering or visibility feature: the model groups, orders and hides
-  // columns itself (see `buildViews`), so they cost no bundle size.
-  columnSizingFeature,
-  rowSortingFeature,
-  // Our own filtering, without TanStack's filtering feature (see filtered-row-model.ts).
-  // TanStack's types tie this slot to that feature; at runtime the core row models read it.
-  ...({ filteredRowModel: filteredRowModel() } as object),
-  // Our own: TanStack's is very slow in Firefox at scale (see sorted-row-model.ts).
-  sortedRowModel: sortedRowModel(),
-  // Registered by name so `sortFn: 'auto'` can pick one by value type.
-  sortFns: {
-    alphanumeric: sortFn_alphanumeric,
-    basic: sortFn_basic,
-    datetime: sortFn_datetime,
-    text: sortFn_text,
-  },
-});
-type Features = typeof features;
-type AnyRow = Record<string, unknown>;
 
 /** Sort direction of a column, or `false` when it isn't sorted. */
 export type SortDirection = 'asc' | 'desc' | false;
@@ -350,8 +306,6 @@ export interface TableModel<TData, TContent> {
   pinnedCellContext(side: RowPin, index: number, columnId: string): CellContext<TData> | undefined;
 }
 
-const defaultRowId = (_row: unknown, index: number) => String(index);
-
 /**
  * Ids of the columns kept from `before` whose accessor changed: a new function,
  * or a different path. A new column has nothing cached and isn't listed.
@@ -396,27 +350,13 @@ function selectionView<TData, TContent>(pinEdge: boolean): ColumnView<TData, TCo
   };
 }
 
-function toTanStack<TData, TContent>(
-  column: ResolvedColumn<TData, TContent>,
-): TanStackColumnDef<Features, AnyRow> {
-  return {
-    id: column.id,
-    accessorFn: column.getValue as (row: AnyRow, index: number) => unknown,
-    size: column.width,
-    minSize: column.minWidth,
-    maxSize: column.maxWidth,
-    enableSorting: column.sortable,
-    sortUndefined: 'last',
-  };
-}
-
 /**
- * Creates the table model over TanStack Table. It owns no state: sorting, sizing, order,
- * pinning and visibility come in through `update()`, and the `next*()` methods only propose
+ * Creates the table model. It owns no state: sorting, sizing, order, pinning and
+ * visibility come in through `update()`, and the `next*()` methods only propose
  * changes, so the caller decides (controlled or uncontrolled) whether to apply them.
  *
- * Hidden columns stay in TanStack, so their values still sort and read; only the
- * views leave them out. Pin groups, sticky offsets and the order are the model's own.
+ * Hidden columns stay in the model, so their values still sort and read; only the
+ * views leave them out.
  */
 export function createTableModel<TData, TContent>(
   initial: TableModelOptions<TData, TContent>,
@@ -424,8 +364,6 @@ export function createTableModel<TData, TContent>(
   let options = initial;
   let resolved = resolveColumns(options.columns);
   let byId = new Map(resolved.map((c) => [c.id, c]));
-  // TanStack column defs by id, kept between updates that don't change `columns`.
-  let tanStackById = new Map(resolved.map((c) => [c.id, toTanStack(c)]));
   let views: ColumnView<TData, TContent>[] | undefined;
   const treeOf = () =>
     resolveColumnGroups(options.columnGroups, new Set(resolved.map((c) => c.id)));
@@ -459,7 +397,7 @@ export function createTableModel<TData, TContent>(
     const column = byId.get(id);
     return column !== undefined && !hiddenOf(column);
   };
-  // TanStack's sizing state: measured auto widths and the widths of pinned flex columns
+  // The sizing state in effect: measured auto widths and the widths of pinned flex columns
   // under the resized ones. Kept stable between updates that don't touch them.
   let sizing: ColumnSizingState | undefined;
   const sizingState = (): ColumnSizingState => {
@@ -488,40 +426,8 @@ export function createTableModel<TData, TContent>(
   let order: ColumnOrderState | undefined;
   const orderState = (): ColumnOrderState =>
     (order ??= normalizeOrder(options.columnOrder ?? [], orderable(), tree));
-  const rowViews = new WeakMap<Row<Features, AnyRow>, RowView<TData>>();
-  // Built lazily per row model (sorting or new data gives a new array).
-  let indexById: { rows: readonly Row<Features, AnyRow>[]; map: Map<string, number> } | undefined;
-
-  // TanStack gets its column defs in the order, hidden ones included. Rebuilt only when
-  // the order changes: a new columns array makes TanStack rebuild its columns, though
-  // not its row models, which depend on data and sorting alone.
-  let ordered:
-    { order: ColumnOrderState; columns: TanStackColumnDef<Features, AnyRow>[] } | undefined;
-  const orderedColumns = () => {
-    const current = orderState();
-    if (ordered?.order !== current) {
-      ordered = { order: current, columns: current.flatMap((id) => tanStackById.get(id) ?? []) };
-    }
-    return ordered;
-  };
-
-  const tableOptions = (): TableOptions<Features, AnyRow> => ({
-    features,
-    columns: orderedColumns().columns,
-    // Remote rows bypass TanStack's row models; it still handles columns and state.
-    data: (options.remote ? [] : options.data) as AnyRow[],
-    getRowId: (options.getRowId ?? defaultRowId) as (row: AnyRow, index: number) => string,
-    state: {
-      // TanStack's type is mutable; it never changes the array.
-      sorting: options.sorting as SortItem[],
-      columnSizing: sizingState(),
-    },
-    // State is owned by the caller; TanStack's own setters must not change it.
-    onSortingChange: () => undefined,
-    onColumnSizingChange: () => undefined,
-  });
-
-  const table: Table<Features, AnyRow> = constructTable(tableOptions());
+  // Built lazily per row order (a sort, a filter or new data gives a new array).
+  let indexById: { rows: readonly number[]; map: Map<string, number> } | undefined;
 
   // The row test of the filters, the quick filter and the shown columns (which the quick
   // filter reads). Remote rows are filtered by their source.
@@ -537,12 +443,73 @@ export function createTableModel<TData, TContent>(
           resolved.filter((c) => c.hasAccessor && !hiddenOf(c) && !(quick && except?.has(c.id))),
           except,
         );
-  setRowPredicate(table, predicateFor());
+  let predicate = predicateFor();
+  // Bumped when a column keeps its id but reads its values differently (a new
+  // accessor): the rows, filters and sorting are the same, but which rows pass and
+  // their order may not be.
+  let valueVersion = 0;
 
-  const rows = () => table.getRowModel().rows;
+  // The rows are indexes into `data`: no object per row (ADR 0010). Each step keeps
+  // its array while what it reads is the same, so `rowOrder` keeps its identity.
+  // A new `getRowId` gives a new array too: the ids at each index changed.
+  let all: { data: readonly TData[]; getRowId: unknown; rows: number[] } | undefined;
+  const allRows = (): readonly number[] => {
+    const { data, getRowId } = options;
+    if (all?.data !== data || all.getRowId !== getRowId) {
+      const rows = new Array<number>(data.length);
+      for (let i = 0; i < rows.length; i++) rows[i] = i;
+      all = { data, getRowId, rows };
+    }
+    return all.rows;
+  };
+  let filtered:
+    | { source: readonly number[]; test: unknown; version: number; rows: readonly number[] }
+    | undefined;
+  const filteredRows = (): readonly number[] => {
+    const source = allRows();
+    const test = predicate;
+    if (!test) return source;
+    const prev = filtered;
+    if (prev?.source === source && prev.test === test && prev.version === valueVersion) {
+      return prev.rows;
+    }
+    const { data } = options;
+    const rows = source.filter((i) => test(data[i] as TData, i));
+    filtered = { source, test, version: valueVersion, rows };
+    return rows;
+  };
+  let sorted:
+    | { source: readonly number[]; sorting: SortState; version: number; rows: readonly number[] }
+    | undefined;
+  // The body rows in the current order. Remote rows aren't here: the model reads them
+  // from `options.remote`.
+  const rows = (): readonly number[] => {
+    if (options.remote) return [];
+    const source = filteredRows();
+    const { sorting } = options;
+    const prev = sorted;
+    if (prev?.source === source && prev.sorting === sorting && prev.version === valueVersion) {
+      return prev.rows;
+    }
+    const result = sortRows(options.data, source, sorting, (id) => byId.get(id));
+    sorted = { source, sorting, version: valueVersion, rows: result };
+    return result;
+  };
+  const rowIdOf = (dataIndex: number): string =>
+    options.getRowId
+      ? options.getRowId(options.data[dataIndex] as TData, dataIndex)
+      : String(dataIndex);
   const pinned = (side: RowPin): readonly TData[] => options.pinnedRows?.[side] ?? [];
 
-  const widthOf = (id: string) => table.getColumn(id)?.getSize() ?? 0;
+  // The width in effect: the sizing state's (resized, measured, pinned flex), else
+  // the column's own, within its bounds.
+  const widthOf = (id: string) => {
+    const column = byId.get(id);
+    if (!column) return 0;
+    const state = sizingState();
+    const px = Object.hasOwn(state, id) ? state[id] : undefined;
+    return Math.min(Math.max(column.minWidth, px ?? column.width), column.maxWidth);
+  };
   const view = (
     def: ResolvedColumn<TData, TContent>,
     colIndex: number,
@@ -648,7 +615,6 @@ export function createTableModel<TData, TContent>(
         reread = changedAccessors(options.columns, next.columns);
         resolved = resolveColumns(next.columns);
         byId = new Map(resolved.map((c) => [c.id, c]));
-        tanStackById = new Map(resolved.map((c) => [c.id, toTanStack(c)]));
       }
       const columnsChanged = merged.columns !== options.columns;
       const pinningChanged = merged.columnPinning !== options.columnPinning;
@@ -679,17 +645,9 @@ export function createTableModel<TData, TContent>(
       if (columnsChanged || groupsChanged) tree = treeOf();
       views = undefined;
       allViews = undefined;
-      if (refilter) setRowPredicate(table, predicateFor());
-      table.setOptions((prev) => ({ ...prev, ...tableOptions() }));
-      if (reread.length && !options.remote) {
-        // TanStack caches each value on its row by column id, and keeps rows
-        // while the data is the same: drop the values of the columns that now
-        // read differently, and sort again.
-        for (const row of table.getCoreRowModel().rows) {
-          for (const id of reread) Reflect.deleteProperty(row._valuesCache, id);
-        }
-        valuesChanged(table);
-      }
+      if (refilter) predicate = predicateFor();
+      // Columns that now read differently: filter and sort again.
+      if (reread.length && !options.remote) valueVersion++;
     },
 
     get columns() {
@@ -745,27 +703,22 @@ export function createTableModel<TData, TContent>(
         return entry && { id: entry.id, index, original: entry.row };
       }
       const row = rows()[index];
-      if (!row) return undefined;
-      let view = rowViews.get(row);
-      if (view?.index !== index) {
-        view = { id: row.id, index, original: row.original as TData };
-        rowViews.set(row, view);
-      }
-      return view;
+      if (row === undefined) return undefined;
+      return { id: rowIdOf(row), index, original: options.data[row] as TData };
     },
 
     indexOf(rowId) {
       if (options.remote) return options.remote.indexOf(rowId);
       const current = rows();
       if (indexById?.rows !== current) {
-        indexById = { rows: current, map: new Map(current.map((r, i) => [r.id, i])) };
+        indexById = { rows: current, map: new Map(current.map((r, i) => [rowIdOf(r), i])) };
       }
       return indexById.map.get(rowId);
     },
 
     selectableIds() {
       if (options.remote) return options.remote.loadedIds();
-      return rows().map((r) => r.id);
+      return rows().map(rowIdOf);
     },
 
     valueAt(index, columnId) {
@@ -773,7 +726,10 @@ export function createTableModel<TData, TContent>(
         const entry = options.remote.entryAt(index);
         return entry && byId.get(columnId)?.getValue(entry.row, index);
       }
-      return rows()[index]?.getValue(columnId);
+      const row = rows()[index];
+      return row === undefined
+        ? undefined
+        : byId.get(columnId)?.getValue(options.data[row] as TData, row);
     },
 
     readValue(row, columnId, index) {
@@ -794,13 +750,15 @@ export function createTableModel<TData, TContent>(
         };
       }
       const row = rows()[index];
-      if (!row || !byId.has(columnId)) return undefined;
+      const column = byId.get(columnId);
+      if (row === undefined || !column) return undefined;
+      const original = options.data[row] as TData;
       return {
-        row: row.original as TData,
-        rowId: row.id,
+        row: original,
+        rowId: rowIdOf(row),
         index,
         columnId,
-        value: row.getValue(columnId),
+        value: column.getValue(original, row),
       };
     },
 
@@ -864,19 +822,16 @@ export function createTableModel<TData, TContent>(
       if (!column) return undefined;
       if (column.filterOptions) return { values: [...column.filterOptions], truncated: false };
       if (options.remote) return undefined;
-      const rows = table.getCoreRowModel().rows as unknown as Iterable<{
-        original: TData;
-        index: number;
-      }>;
-      return distinctValues(rows, column, predicateFor(new Set([columnId])), limit);
+      return distinctValues(options.data, column, predicateFor(new Set([columnId])), limit);
     },
 
     indexesPassing(except) {
       if (options.remote) return undefined;
       const keep = predicateFor(new Set(except), true);
       const kept: number[] = [];
-      for (const row of table.getCoreRowModel().rows) {
-        if (!keep || keep(row.original as TData, row.index)) kept.push(row.index);
+      const { data } = options;
+      for (let i = 0; i < data.length; i++) {
+        if (!keep || keep(data[i] as TData, i)) kept.push(i);
       }
       return kept;
     },

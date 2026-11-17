@@ -17,9 +17,6 @@
     "lint": "eslint .",
     "test": "vitest run"
   },
-  "dependencies": {
-    "@tanstack/table-core": "9.3.1"
-  },
   "devDependencies": {
     "vitest": "^5.1.0"
   }

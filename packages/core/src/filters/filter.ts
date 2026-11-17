@@ -215,14 +215,15 @@ export function compareSetValues(a: FilterValue, b: FilterValue): number {
  * lists them (see `setValueOf`), sorted. Stops after `limit` values (`truncated`).
  */
 export function distinctValues<TData>(
-  rows: Iterable<{ original: TData; index: number }>,
+  data: readonly TData[],
   column: FilterColumn<TData>,
   keep: RowPredicate<TData> | undefined,
   limit: number,
 ): { values: FilterValue[]; truncated: boolean } {
   const seen = new Set<FilterValue>();
   let truncated = false;
-  for (const { original, index } of rows) {
+  for (let index = 0; index < data.length; index++) {
+    const original = data[index] as TData;
     if (keep && !keep(original, index)) continue;
     const value = setValueOf(column.getValue(original, index));
     if (seen.has(value)) continue;

@@ -61,12 +61,6 @@
       "automerge": false
     },
     {
-      "description": "TanStack gets its own PR and a human review",
-      "matchPackageNames": ["@tanstack/**"],
-      "groupName": "TanStack",
-      "automerge": false
-    },
-    {
       "description": "Storybook packages move together",
       "matchPackageNames": ["storybook", "@storybook/**"],
       "groupName": "Storybook"

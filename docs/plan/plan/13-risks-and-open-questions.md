@@ -8,7 +8,7 @@ The biggest risk is the rendering combo (virtualization + sticky + slotted conte
 | --- | --- | --- |
 | Slotted light-DOM cells are slow at 100k rows | High → Low | Measured in the Phase 0 spike: as fast as shadow-only cells when row DOM is pooled; row-id keying is 2–17× slower and ruled out. See [ADR 0001](../../adr/0001-shadow-vs-light-dom.md). Real-Safari absolute check still due before v0.1 |
 | `auto` width wrong for unloaded rows | Medium | Sample-based measuring, explicit `min`/`max`, document the limit |
-| TanStack v9 API changes before stable | Medium | Wrap TanStack behind an internal adapter; never expose its types directly |
+| TanStack v9 API changes before stable | Resolved | Wrapped behind an internal adapter from the start, then replaced by core's own row model ([ADR 0010](../../adr/0010-own-row-model.md)) |
 | Scope creep (editing, grouping requests) | Medium | Public roadmap and non-goals; plugin hooks instead of core features |
 | Maintainer burnout as a solo project | High | Small core, wrappers generated from the manifest, good contributor docs, "good first issue" labels |
 | Safari sticky/transform quirks | Low–Medium | WebKit in the CI matrix from day one |
@@ -23,6 +23,6 @@ The biggest risk is the rendering combo (virtualization + sticky + slotted conte
 - [x] Shadow DOM + slotted cells vs. full light DOM inside `@layer`: decided, shadow DOM with slotted light-DOM cells on pooled row DOM ([ADR 0001](../../adr/0001-shadow-vs-light-dom.md))
 - [x] Framework wrappers at launch: decided, React, Vue and Angular wrappers all ship with v0.2
 - [x] Row selection in v1 or v2? v1: `selectionMode` and `selection` (row ids), with the event `argus-selection-change`. `selection-checkboxes` adds a checkbox column with a select-all header.
-- [ ] Expose TanStack's table instance as an escape hatch, or keep it private?
+- [x] Expose TanStack's table instance as an escape hatch, or keep it private? Kept private, and then gone: core has its own row model ([ADR 0010](../../adr/0010-own-row-model.md))
 - [x] Formula columns with server-side data: disable sorting/filtering, or pass the syntax tree to `getRows`? Decided for now: disabled (no sorting, no filter kind) with a `dataSource`; passing the syntax tree stays open (see [Formula columns](09-formula-columns.md))
 - [x] Filtering in v1? Yes: `columnFilters` (text, number, date and set filters, a per-column `filterFn`) and `quickFilter`, with the filter form in the column menu. The table filters with its own row model rather than TanStack's filtering feature (bundle size, Firefox speed), which raised the CDN budget from 50 to 51 kB.

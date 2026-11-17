@@ -91,7 +91,6 @@ describe('createTableModel: rows and values', () => {
   it('returns the original row and a cell context', () => {
     const m = model({ getRowId: (p) => p.id });
     expect(m.rowAt(2)).toEqual({ id: 'p3', index: 2, original: people[2] });
-    expect(m.rowAt(2)).toBe(m.rowAt(2));
     expect(m.cellContext(0, 'city')).toEqual({
       row: people[0],
       rowId: 'p1',
@@ -100,6 +99,16 @@ describe('createTableModel: rows and values', () => {
       value: 'Bonn',
     });
     expect(m.cellContext(0, 'missing')).toBeUndefined();
+  });
+
+  it('follows a new getRowId', () => {
+    const m = model();
+    const order = m.rowOrder;
+    expect(m.indexOf('p3')).toBeUndefined();
+    m.update({ getRowId: (p) => p.id });
+    expect(m.rowOrder).not.toBe(order);
+    expect(m.rowAt(2)?.id).toBe('p3');
+    expect(m.indexOf('p3')).toBe(2);
   });
 
   it('follows new data', () => {
@@ -390,8 +399,9 @@ describe('createTableModel: sorting', () => {
     const sorting = [{ id: 'age', desc: false }];
     m.update({ sorting });
     expect(m.valueAt(0, 'age')).toBe(0);
-    // One read per row, plus the few rows TanStack samples to pick a sort function.
-    expect(reads).toBeLessThanOrEqual(1000 + 10 + 1);
+    // One read per row to sort (the sort function is picked from those values),
+    // and one for `valueAt`.
+    expect(reads).toBe(1000 + 1);
     reads = 0;
     m.update({ sorting });
     m.rowAt(500);
@@ -542,9 +552,9 @@ describe('createTableModel: column order', () => {
 
   it('keeps the row model when only the order changes', () => {
     const m = model({ sorting: [{ id: 'name', desc: false }] });
-    const before = m.rowAt(0);
+    const before = m.rowOrder;
     m.update({ columnOrder: ['city'] });
-    expect(m.rowAt(0)).toBe(before);
+    expect(m.rowOrder).toBe(before);
   });
 
   it('follows a new columnOrder', () => {
@@ -617,9 +627,9 @@ describe('createTableModel: column pinning', () => {
 
   it('keeps the row model when only the pinning changes', () => {
     const m = model({ sorting: [{ id: 'name', desc: false }] });
-    const before = m.rowAt(0);
+    const before = m.rowOrder;
     m.update({ columnPinning: { age: 'start' } });
-    expect(m.rowAt(0)).toBe(before);
+    expect(m.rowOrder).toBe(before);
   });
 });
 
@@ -788,9 +798,9 @@ describe('createTableModel: filtering', () => {
     });
     expect(m.rowCount).toBe(3);
     const after = calls;
-    const first = m.rowAt(0);
+    const first = m.rowOrder;
     m.update({ columnSizing: { age: 99 } });
-    expect(m.rowAt(0)).toBe(first);
+    expect(m.rowOrder).toBe(first);
     expect(calls).toBe(after);
   });
 
@@ -885,9 +895,9 @@ describe('createTableModel: filtering', () => {
 describe('createTableModel: caching', () => {
   it('keeps the row model when only unrelated options change', () => {
     const m = model();
-    const before = m.rowAt(0);
+    const before = m.rowOrder;
     m.update({ columnSizing: { age: 99 } });
-    expect(m.rowAt(0)).toBe(before);
+    expect(m.rowOrder).toBe(before);
   });
 
   it('ignores updates that pass the same references', () => {
@@ -900,8 +910,8 @@ describe('createTableModel: caching', () => {
 });
 
 describe('createTableModel: a changed accessor', () => {
-  // Same id, new accessor: the values TanStack caches per row and the sorted
-  // order must follow, without new data.
+  // Same id, new accessor: the values and the sorted order must follow, without
+  // new data.
   const withAge = (accessor: ColumnDef<Person, string>['accessor']) =>
     columns.map((c) => (c.id === 'age' ? { ...c, accessor } : c));
   const ages = (m: ReturnType<typeof model>) =>
@@ -932,15 +942,17 @@ describe('createTableModel: a changed accessor', () => {
     expect(ages(m)).toEqual(['n3', 'n5', 'n20', 'n100']);
   });
 
-  it('reads nothing again when the accessor is the same', () => {
+  it('sorts nothing again when the accessor is the same', () => {
     let calls = 0;
     const read = (p: Person) => (calls++, p.age);
     const m = model({ columns: withAge(read), sorting: [{ id: 'age', desc: false }] });
     expect(ages(m)).toEqual([9, 30, 41, undefined]);
+    const order = m.rowOrder;
     const after = calls;
     m.update({ columns: withAge(read) });
-    expect(ages(m)).toEqual([9, 30, 41, undefined]);
+    expect(m.rowOrder).toBe(order);
     expect(calls).toBe(after);
+    expect(ages(m)).toEqual([9, 30, 41, undefined]);
   });
 });
 
@@ -983,7 +995,7 @@ describe('createTableModel: remote rows', () => {
       value: 'Bea',
     });
     expect(m.cellContext(1, 'name')).toBeUndefined();
-    // Columns still come from TanStack, with the sort state on them.
+    // Columns still carry the sort state.
     expect(m.columns.find((c) => c.id === 'name')?.sorted).toBe('asc');
   });
 
