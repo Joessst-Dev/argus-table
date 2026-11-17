@@ -134,6 +134,11 @@ export interface RemoteRows<TData> {
   indexOf(rowId: string): number | undefined;
   /** The ids of every loaded row, in row order. */
   loadedIds(): string[];
+  /**
+   * Changes whenever the loaded rows or the row count change, so what the model
+   * builds from them can be kept until then. Without it, it's built on each read.
+   */
+  readonly version?: number;
 }
 
 export interface TableModelOptions<TData, TContent> {
@@ -570,14 +575,17 @@ export function createTableModel<TData, TContent>(
     }
     return indexById.map.get(rowId);
   };
-  // The displayed rows. With data, kept while what they read is the same. Remote
-  // rows load without a new order, so those are built again on each read and the
-  // previous object is kept when nothing differs.
+  // The displayed rows, kept while what they read is the same: with remote rows,
+  // their `version` (rows load without a new order). A remote without one is built
+  // again on each read, keeping the previous object when nothing differs.
   let display: { key: readonly unknown[] | undefined; rows: DisplayRows } | undefined;
   const displayRows = (): DisplayRows => {
     const count = options.remote?.rowCount ?? rows().length;
-    const key = options.remote
-      ? undefined
+    const { remote } = options;
+    const key = remote
+      ? remote.version === undefined
+        ? undefined
+        : [remote, remote.version, options.expanded, options.rowExpandable, options.detail]
       : [rows(), options.expanded, options.rowExpandable, options.detail];
     const prev = display;
     if (key && prev?.key?.every((part, i) => part === key[i])) return prev.rows;

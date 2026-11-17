@@ -123,6 +123,23 @@ describe('PageCache: rows and ids', () => {
   });
 });
 
+describe('PageCache: version', () => {
+  it('changes when pages load or are dropped, and not otherwise', () => {
+    const cache = new PageCache<Row>({ pageSize: 10 });
+    const start = cache.version;
+    cache.begin(0);
+    expect(cache.version).toBe(start);
+    cache.resolve(0, rows(0, 10));
+    const loaded = cache.version;
+    expect(loaded).not.toBe(start);
+    cache.entryAt(3);
+    expect(cache.version).toBe(loaded);
+    load(cache, 20, 10);
+    cache.evictOutside(200, 210);
+    expect(cache.version).not.toBe(loaded);
+  });
+});
+
 describe('PageCache: requests', () => {
   it('lists pages in a range that are not loaded, in flight or failed', () => {
     const cache = new PageCache<Row>({ pageSize: 10, rowCount: 100 });

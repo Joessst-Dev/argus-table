@@ -296,11 +296,26 @@ describe('detail rows: panel rows', () => {
         }
       }
     });
+    // The shadow side too: a <slot> element removed unassigns what was slotted in it.
+    const slots = new MutationObserver((records) => {
+      for (const record of records) {
+        for (const node of record.removedNodes) {
+          if (
+            node instanceof Element &&
+            (node.localName === 'slot' || node.querySelector('slot'))
+          ) {
+            changes.push(`removed a slot element in ${node.localName}`);
+          }
+        }
+      }
+    });
     // Scroll once first, so both pools have every slot they need.
     await scrollTo(el, 2000);
     observer.observe(el, { childList: true, attributes: true, attributeFilter: ['slot'] });
+    slots.observe(shadow(el), { childList: true, subtree: true });
     for (let top = 2040; top < 10_000; top += 40) await scrollTo(el, top);
     observer.disconnect();
+    slots.disconnect();
     expect(changes).toEqual([]);
   });
 
@@ -313,8 +328,12 @@ describe('detail rows: panel rows', () => {
     });
     await expect(el.scrollToRow(999_999)).resolves.toBe(true);
     await settle(el);
-    // 1,000 panels above it.
-    expect(rowAtPosition(el, 999_999 + 1000).textContent).toBeDefined();
+    // 1,000 panels above it; the row is rendered (rowAtPosition throws otherwise) and in view.
+    const row = rowAtPosition(el, 999_999 + 1000);
+    const scroller = shadow(el).querySelector('[part~="table"]');
+    expect(row.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+      (scroller?.getBoundingClientRect().bottom ?? 0) + 1,
+    );
   });
 });
 
@@ -716,5 +735,117 @@ describe('detail rows: panel content', () => {
     await settle(el);
     await settle(el);
     expect(cell()?.getBoundingClientRect().height).toBeCloseTo(200, 0);
+  });
+});
+
+describe('detail rows: review fixes', () => {
+  afterEach(() => {
+    document.body.replaceChildren();
+  });
+
+  const press = (target: Element, key: string, init: KeyboardEventInit = {}) => {
+    const event = new KeyboardEvent('keydown', {
+      key,
+      bubbles: true,
+      composed: true,
+      cancelable: true,
+      ...init,
+    });
+    target.dispatchEvent(event);
+    return event;
+  };
+
+  it('leaves Escape to a dialog in a panel', async () => {
+    const el = await detailTable({
+      expanded: ['p2'],
+      rowDetail: () => html`<dialog open class="ask"><input class="answer" /></dialog>`,
+    });
+    const input = panelSlot(el, rowAt(el, 5)).querySelector<HTMLInputElement>('input.answer');
+    if (!input) throw new Error('no input');
+    input.focus();
+    const event = press(input, 'Escape');
+    await settle(el);
+    expect(event.defaultPrevented).toBe(false);
+    expect(document.activeElement).toBe(input);
+  });
+
+  it('gives plugins no target for a panel', async () => {
+    const seen: unknown[] = [];
+    const el = await detailTable({
+      expanded: ['p2'],
+      rowDetail: () => html`<button class="inside">Go</button>`,
+      plugins: [
+        {
+          name: 'targets',
+          connect: (host) => {
+            const record = (event: Event) => {
+              seen.push(host.cellOf(event));
+            };
+            host.element.addEventListener('dblclick', record);
+            return () => {
+              host.element.removeEventListener('dblclick', record);
+            };
+          },
+        },
+      ],
+    });
+    panelSlot(el, rowAt(el, 5))
+      .querySelector('button.inside')
+      ?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, composed: true }));
+    rowAt(el, 6)
+      .querySelector('[data-col="name"]')
+      ?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, composed: true }));
+    expect(seen).toEqual([
+      undefined,
+      { section: 'body', columnId: 'name', rowIndex: 3, rowId: 'p3' },
+    ]);
+  });
+
+  it('keeps the active cell on a row still loading when a panel opens above it', async () => {
+    const all = people(200);
+    const el = await detailTable({
+      data: [],
+      dataSource: {
+        pageSize: 20,
+        // Only the first page ever answers: the rest stay loading.
+        getRows: ({ start, end }) =>
+          start === 0
+            ? Promise.resolve({ rows: all.slice(start, end), total: all.length })
+            : new Promise(() => undefined),
+      },
+    });
+    await settle(el);
+    await el.scrollToRow(60);
+    await settle(el);
+    rowAt(el, 62).querySelector<HTMLElement>('[data-col="name"]')?.focus();
+    await settle(el);
+    el.expanded = ['p5'];
+    await settle(el);
+    await settle(el);
+    // Row 60 is at position 61 now: p5's panel is above it.
+    const stop = shadow(el).querySelector('[part~="body"] [tabindex="0"]');
+    expect(stop?.parentElement?.getAttribute('aria-rowindex')).toBe('63');
+  });
+
+  it('keeps typed input when the panel leaves the page and comes back', async () => {
+    const data = people(300);
+    const el = await detailTable(
+      {
+        data,
+        expanded: data.map((p) => p.id),
+        rowDetail: () => html`<input class="note" />`,
+      },
+      300,
+    );
+    const input = panelSlot(el, rowAt(el, 5)).querySelector<HTMLInputElement>('input.note');
+    if (!input) throw new Error('no input');
+    input.value = 'kept';
+    // Far away, the panel's slot elements show other panels: its content is detached.
+    await scrollTo(el, 4000);
+    expect(input.isConnected).toBe(false);
+    for (const top of [2400, 1200, 0]) await scrollTo(el, top);
+    const back = panelSlot(el, rowAt(el, 5)).querySelector<HTMLInputElement>('input.note');
+    expect(back).toBe(input);
+    expect(back?.value).toBe('kept');
   });
 });

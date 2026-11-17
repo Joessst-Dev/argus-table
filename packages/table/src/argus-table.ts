@@ -1433,7 +1433,9 @@ export class ArgusTable<T = unknown> extends LitElement {
       changed.has('columnPinning') ||
       changed.has('columnVisibility') ||
       this.#autoWidthsChanged ||
-      this.#selectionColumnChanged
+      this.#selectionColumnChanged ||
+      // The toggle column comes or goes with it.
+      changed.has('rowDetail')
     ) {
       this.#pinScroll.measure();
     }
@@ -1688,18 +1690,19 @@ export class ArgusTable<T = unknown> extends LitElement {
 
   /**
    * Escape inside a detail panel's content (not on its cell): focus goes back to
-   * the panel's cell. Returns whether it did.
+   * the panel's cell. Not from a dialog or popover in the panel: Escape closes
+   * those. Returns whether it moved focus.
    */
   #panelBack(path: readonly EventTarget[], origin: EventTarget): boolean {
-    const panel = path.find(
-      (t): t is HTMLElement =>
-        t instanceof HTMLElement &&
-        t.dataset.col === PANEL_COLUMN &&
-        t.getRootNode() === this.renderRoot,
-    );
-    if (!panel || panel === origin) return false;
-    panel.focus({ preventScroll: true });
-    return true;
+    for (const target of path) {
+      if (!(target instanceof HTMLElement)) continue;
+      if (target.matches('dialog, [popover]')) return false;
+      if (target.dataset.col !== PANEL_COLUMN || target.getRootNode() !== this.renderRoot) continue;
+      if (target === origin) return false;
+      target.focus({ preventScroll: true });
+      return true;
+    }
+    return false;
   }
 
   /**
@@ -1931,6 +1934,8 @@ export class ArgusTable<T = unknown> extends LitElement {
       const cell = gridCell(target, this.renderRoot);
       const columnId = cell?.dataset.col;
       if (!cell || columnId === undefined) continue;
+      // A detail panel is no column's cell: plugins get nothing there.
+      if (columnId === PANEL_COLUMN) return undefined;
       const model = this.#table.model;
       const row = gridRowOfCell(cell, layoutOf(model));
       if (!row) return undefined;
@@ -1942,7 +1947,7 @@ export class ArgusTable<T = unknown> extends LitElement {
           row.section === 'header'
             ? 0
             : row.section === 'body'
-              ? (dataIndexOf(model, row.index) ?? row.index)
+              ? (dataIndexOf(model, row.index) ?? -1)
               : row.index,
         rowId: this.#nav.gridRowId(model, row),
       };

@@ -94,43 +94,33 @@ export function renderBody<T>(
       rows,
       (r) => r.slot,
       (r) =>
-        r.idle
-          ? idleRow(r, columns)
-          : renderRow(
-              r,
-              columns,
-              r.index === active?.index ? active.col : undefined,
-              firstRowIndex,
-              loading,
-              selectedAt?.(r.row),
-              checkboxes,
-              inset,
-              toggles,
-            ),
+        renderRow(
+          r,
+          columns,
+          !r.idle && r.index === active?.index ? active.col : undefined,
+          firstRowIndex,
+          loading,
+          r.idle ? undefined : selectedAt?.(r.row),
+          checkboxes,
+          inset,
+          toggles,
+        ),
     )}${
       details
         ? repeat(
             details.rows,
             (r) => r.slot,
             (r) =>
-              renderDetailRow(r, details.colspan, r.index === active?.index, firstRowIndex, inset),
+              renderDetailRow(
+                r,
+                details.colspan,
+                !r.idle && r.index === active?.index,
+                firstRowIndex,
+                inset,
+              ),
           )
         : nothing
     }
-  </div>`;
-}
-
-/**
- * A pool slot no row uses now: hidden, with its cells' slots kept, so no
- * light-DOM content is unassigned while scrolling.
- */
-function idleRow<T>(row: WindowRow, columns: Columns<T>) {
-  return html`<div class="row" hidden>
-    ${repeat(
-      columns,
-      (c) => c.key,
-      (c) => html`<div><slot name=${cellSlot(row.slot, c.slot)}></slot></div>`,
-    )}
   </div>`;
 }
 
@@ -146,16 +136,16 @@ function renderDetailRow(
   firstRowIndex: number,
   inset: boolean,
 ) {
-  const slot = html`<slot name=${detailSlot(row.slot)}></slot>`;
-  if (row.idle) {
-    return html`<div class="row detail-row" hidden><div>${slot}</div></div>`;
-  }
+  // One template whether the slot is in use or idle: Lit keeps the DOM, so the
+  // slot element (and what is assigned to it) stays while scrolling.
+  const idle = row.idle === true;
   return html`<div
-    part="row-detail"
+    part=${idle ? nothing : 'row-detail'}
     class="row detail-row"
     role="row"
-    id=${detailRowId(row.slot)}
-    aria-rowindex=${row.index + firstRowIndex}
+    ?hidden=${idle}
+    id=${idle ? nothing : detailRowId(row.slot)}
+    aria-rowindex=${idle ? nothing : row.index + firstRowIndex}
     style=${styleMap({
       ...(inset
         ? { insetBlockStart: `${String(row.start)}px` }
@@ -164,13 +154,13 @@ function renderDetailRow(
     })}
   >
     <div
-      part="detail"
+      part=${idle ? nothing : 'detail'}
       role="gridcell"
       aria-colspan=${colspan}
       tabindex=${tabStop ? 0 : -1}
       data-col=${PANEL_COLUMN}
     >
-      ${slot}
+      <slot name=${detailSlot(row.slot)}></slot>
     </div>
   </div>`;
 }
@@ -193,10 +183,13 @@ function renderRow<T>(
   inset: boolean,
   toggles: RowToggles | undefined,
 ) {
-  // Positions place the row in the grid; its data index reads its state.
+  // Positions place the row in the grid; its data index reads its state. An idle
+  // pool slot renders the same template, hidden: Lit keeps its DOM, so its cells'
+  // slots (and what is assigned to them) stay while scrolling.
+  const idle = row.idle === true;
   const index = row.row;
-  const state = loading?.stateAt(index) ?? 'loaded';
-  const open = toggles?.open(index) ?? false;
+  const state = idle ? 'loaded' : (loading?.stateAt(index) ?? 'loaded');
+  const open = !idle && (toggles?.open(index) ?? false);
   let parts = index % 2 === 0 ? 'row row-even' : 'row row-odd';
   if (state !== 'loaded') parts += state === 'error' ? ' row-loading row-error' : ' row-loading';
   if (selected) parts += ' row-selected';
@@ -205,10 +198,11 @@ function renderRow<T>(
   // The Retry button goes in the first data column, after a selection column.
   const retryCol = retry === undefined ? undefined : firstDataColumn(columns);
   return html`<div
-    part=${parts}
+    part=${idle ? nothing : parts}
     class="row"
     role="row"
-    aria-rowindex=${row.index + firstRowIndex}
+    ?hidden=${idle}
+    aria-rowindex=${idle ? nothing : row.index + firstRowIndex}
     aria-busy=${state === 'loading' ? 'true' : nothing}
     aria-selected=${selected === undefined ? nothing : String(selected)}
     style=${styleMap(

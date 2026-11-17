@@ -494,6 +494,12 @@ export class NavigationController<T> {
     return this.#host.getRowId ? `\u0000${String(index)}` : String(index);
   }
 
+  /** The data index a stand-in id from `#placeholderId` holds, or `undefined` for another id. */
+  #placeholderIndex(id: string): number | undefined {
+    const digits = this.#host.getRowId ? (id.startsWith('\u0000') ? id.slice(1) : '') : id;
+    return /^\d+$/.test(digits) ? Number(digits) : undefined;
+  }
+
   /** The id of a grid row: a body or pinned row's id; none for the header. */
   gridRowId(model: TableModel<T, CellContent>, row: GridRow): string | undefined {
     switch (row.section) {
@@ -610,7 +616,12 @@ export class NavigationController<T> {
       const found = model.indexOf(owner ?? rowId);
       const data = dataIndexOf(model, index);
       const unloaded = data !== undefined && model.rowAt(data) === undefined;
-      if (found !== undefined) {
+      // A row not loaded yet keeps its stand-in id, which holds its data index:
+      // its position follows panels that appear above it.
+      const held = found === undefined ? this.#placeholderIndex(rowId) : undefined;
+      if (held !== undefined && held < model.rowCount && model.rowAt(held) === undefined) {
+        index = display.positionOf(held);
+      } else if (found !== undefined) {
         const panel = owner === undefined ? undefined : display.detailPositionOf(found);
         index = panel ?? display.positionOf(found);
         if (owner !== undefined && panel === undefined) {

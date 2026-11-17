@@ -39,7 +39,7 @@ Panels hold content people work in. From the keyboard, Down arrow goes from a ro
 
 ## A nested table
 
-A panel can hold another table: here, the order's lines. Give it `block-size: auto` and a `max-block-size`: it's as tall as its rows, and past that it scrolls inside the panel. Its sorting, keys and clicks are its own.
+A panel can hold another table: here, the order's lines. Give it `block-size: auto` and a `max-block-size`: it's as tall as its rows, and past that it scrolls inside the panel. Its sorting, keys and clicks are its own. When its panel scrolls out of view and back, the nested table keeps its sorting and data but starts at its top again, as an element taken out of the page does.
 
 <FlavourTabs example="detail-rows/nested-table">
   <ReactNested slot="react" client:visible />

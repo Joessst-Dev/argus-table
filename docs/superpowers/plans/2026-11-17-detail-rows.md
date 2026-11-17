@@ -16,7 +16,7 @@
 
 ## Global Constraints
 
-- Public names, exactly: properties `rowDetail`, `rowExpandable`, `expanded`; event `argus-expanded-change` with `detail: { expanded, rowId, open }`; `TableState.expanded`; tokens `--argus-detail-max-height` (default `400px`), `--argus-detail-bg` (default `var(--argus-bg)`), `--argus-detail-padding` (default the cell padding); parts `row-detail`, `detail`, `row-expanded`, `cell-expand`, `header-cell-expand`, `expand-toggle`; labels `expandRow` = `'Show details'`, `collapseRow` = `'Hide details'` (German: `'Details anzeigen'`, `'Details ausblenden'`).
+- Public names, exactly: properties `rowDetail`, `rowExpandable`, `expanded`; event `argus-expanded-change` with `detail: { expanded, rowId, open }`; `TableState.expanded`; tokens `--argus-detail-max-height` (default `400px`; `--argus-detail-bg` and `--argus-detail-padding` were dropped while building, see the design); parts `row-detail`, `detail`, `row-expanded`, `cell-expand`, `header-cell-expand`, `expand-toggle`; labels `expandRow` = `'Show details'`, `collapseRow` = `'Hide details'` (German: `'Details anzeigen'`, `'Details ausblenden'`).
 - Every public index is a data index in the current order: `scrollToRow(index)`, `argus-cell-click` / `argus-row-click` `index`, `argus-range-change` `first`/`last`, range selection, `RowDetailContext.index`, and every `PluginHost` member. Panels never shift them.
 - No public type mentions core internals (`DisplayRows`, `ColumnView`, `TableModel`).
 - No slot assignment changes while scrolling: pooled rows never switch between data row and panel row, and slot elements created for a pool slot stay rendered.

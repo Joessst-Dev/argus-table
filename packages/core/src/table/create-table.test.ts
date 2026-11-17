@@ -1256,6 +1256,36 @@ describe('createTableModel: expanded rows', () => {
     expect(m.expandable(40)).toBe(false);
   });
 
+  it("keeps a remote source's display until its version changes", () => {
+    const [first] = people as [Person];
+    let version = 1;
+    let loaded = 10;
+    let reads = 0;
+    const remote = {
+      rowCount: 50,
+      get version() {
+        return version;
+      },
+      entryAt: (index: number) =>
+        index < loaded ? { id: `r${String(index)}`, row: first } : undefined,
+      indexOf: (id: string) => {
+        reads++;
+        const index = Number(id.slice(1));
+        return index < loaded ? index : undefined;
+      },
+      loadedIds: () => Array.from({ length: loaded }, (_, i) => `r${String(i)}`),
+    };
+    const m = model({ detail: true, remote, expanded: ['r3', 'r40'] });
+    const display = m.display;
+    const before = reads;
+    expect(m.display).toBe(display);
+    expect(reads).toBe(before);
+    // Row 40's page loads.
+    loaded = 50;
+    version++;
+    expect(m.display.open).toEqual([3, 40]);
+  });
+
   it('keeps display while nothing it reads changes', () => {
     const m = model({ detail: true, getRowId: byId, expanded: ['p1'] });
     const display = m.display;
