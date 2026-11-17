@@ -16,3 +16,32 @@ import Default from '@astrojs/starlight/components/Head.astro';
     new MutationObserver(sync).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
   })();
 </script>
+<script>
+  // Markdown tables scroll sideways when they're wider than the page (Starlight
+  // makes them blocks with overflow): one that does gets a tab stop, so keyboard
+  // users can scroll it too, as Expressive Code does for code blocks. Tables
+  // that fit stay out of the tab order.
+  const MARK = 'data-argus-scroll';
+  const update = (table: HTMLTableElement) => {
+    const scrolls = table.scrollWidth > table.clientWidth;
+    if (scrolls && !table.hasAttribute('tabindex')) {
+      table.setAttribute('tabindex', '0');
+      table.setAttribute(MARK, '');
+    } else if (!scrolls && table.hasAttribute(MARK)) {
+      table.removeAttribute('tabindex');
+      table.removeAttribute(MARK);
+    }
+  };
+  const observer = new ResizeObserver((entries) => {
+    for (const entry of entries) update(entry.target as HTMLTableElement);
+  });
+  const watch = () => {
+    for (const table of document.querySelectorAll<HTMLTableElement>(
+      '.sl-markdown-content table:not(.not-content *)',
+    )) {
+      observer.observe(table);
+    }
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watch);
+  else watch();
+</script>

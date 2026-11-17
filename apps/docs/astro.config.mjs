@@ -4,7 +4,9 @@ import starlight from '@astrojs/starlight';
 import react from '@astrojs/react';
 import vue from '@astrojs/vue';
 import angular from '@analogjs/astro-angular';
-import { migrationGuides, migrationGuidesIntegration } from './src/lib/migration.ts';
+import { migrationGuides } from './src/lib/migration.ts';
+import { packageGuides } from './src/lib/packages.ts';
+import { renderedMarkdownIntegration } from './src/lib/rendered.ts';
 
 // The docs site (docs/superpowers/specs/2026-11-16-docs-site-design.md). Each
 // framework's integration sees only its own example files.
@@ -27,13 +29,40 @@ export default defineConfig({
         PageTitle: './src/components/PageTitle.astro',
       },
       customCss: ['@argus-table/themes/default.css', './src/styles/site.css'],
+      // Long lines wrap: a code block that scrolled sideways would need a tab
+      // stop, and Expressive Code's unnamed regions repeat on a page.
+      expressiveCode: { defaultProps: { wrap: true } },
       logo: { src: '../../brand/argus-table-logo.svg', replacesTitle: true },
       social: [
         { icon: 'github', label: 'GitHub', href: 'https://github.com/Joessst-Dev/argus-table' },
       ],
       sidebar: [
-        { label: 'Start here', items: [{ label: 'Introduction', link: '/' }] },
+        {
+          label: 'Start here',
+          items: [
+            { label: 'Introduction', link: '/' },
+            { label: 'Getting started', link: '/getting-started/' },
+          ],
+        },
         { label: 'Features', items: [{ autogenerate: { directory: 'features' } }] },
+        {
+          label: 'Guides',
+          items: [
+            { label: 'Controlled and uncontrolled state', link: '/guides/state/' },
+            { label: 'Server data', link: '/guides/server-data/' },
+            { label: 'Styling and themes', link: '/guides/styling/' },
+            { label: 'Tailwind', link: '/guides/tailwind/' },
+            { label: 'Plugins', link: '/guides/plugins/' },
+            { label: 'Accessibility', link: '/guides/accessibility/' },
+            { label: 'Performance', link: '/guides/performance/' },
+            ...['Add-ons', 'Frameworks'].map((group) => ({
+              label: group,
+              items: packageGuides(repoRoot)
+                .filter((g) => g.group === group)
+                .map((g) => ({ label: g.label, link: `/${g.path}` })),
+            })),
+          ],
+        },
         {
           label: 'Themes',
           items: [
@@ -68,8 +97,13 @@ export default defineConfig({
         },
       ],
     }),
-    // The migration guides' Markdown: drops their title, rewrites their links.
-    migrationGuidesIntegration({ repoRoot, base }),
+    // Repo Markdown shown as pages (the migration guides, the packages'
+    // READMEs): drops their title, rewrites their links.
+    renderedMarkdownIntegration({
+      repoRoot,
+      base,
+      pages: [...migrationGuides(repoRoot), ...packageGuides(repoRoot)],
+    }),
     react({ include: ['**/examples/**/react/**'] }),
     vue(),
     angular({ vite: { tsconfig: './tsconfig.angular.json' } }),

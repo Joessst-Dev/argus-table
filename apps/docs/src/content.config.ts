@@ -1,6 +1,7 @@
 import { basename } from 'node:path';
 import { defineCollection } from 'astro:content';
 import { glob } from 'astro/loaders';
+import { PACKAGE_GUIDES } from './lib/packages';
 import { z } from 'astro/zod';
 import { docsLoader } from '@astrojs/starlight/loaders';
 import { docsSchema } from '@astrojs/starlight/schema';
@@ -25,6 +26,14 @@ export const collections = {
       base: '../../skills/argus-table-integrate/references',
       pattern: ['migrate/*.md', 'gaps.md'],
       generateId: ({ entry }) => basename(entry, '.md'),
+    }),
+  }),
+  // The add-on and framework READMEs, read where they are: `export`, `react`, …
+  packages: defineCollection({
+    loader: glob({
+      base: '../../packages',
+      pattern: PACKAGE_GUIDES.map((p) => `${p.id}/README.md`),
+      generateId: ({ entry }) => entry.split('/')[0] ?? entry,
     }),
   }),
 };

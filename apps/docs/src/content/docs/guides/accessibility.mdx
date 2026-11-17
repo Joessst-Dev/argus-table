@@ -1,0 +1,28 @@
+---
+title: Accessibility
+description: 'The grid pattern, keyboard use, names and announcements, and how argus-table is tested for accessibility.'
+---
+
+argus-table follows the WAI-ARIA grid pattern, so screen readers and keyboard users get a grid they already know how to use.
+
+## The grid
+
+- The element has `role="grid"`, its rows `row`, its headers `columnheader` with `aria-sort` when sorted, its cells `gridcell`. Rows carry `aria-rowindex` and cells `aria-colindex`, so a screen reader reads the right position even though only the rows in view are in the DOM.
+- **Name every table** with `aria-label` or `aria-labelledby`: "Orders", "Invoices due". The table can't name itself.
+- Column groups are headers spanning their columns (`aria-colspan`); selection checkboxes have their own labels; a table without editing is `aria-readonly`, and with [editing](/argus-table/features/editing/), the columns that can't be edited are.
+
+## The keyboard
+
+The grid is one tab stop. Inside, the arrow keys move between cells, Home and End to the ends of a row, PageUp and PageDown by a page, Ctrl+Home and Ctrl+End to the first header and the last cell. Enter or Space sorts a sortable header, Enter on a cell acts as a click, Alt+Arrow resizes a column and Alt+Shift+Arrow moves it. Directions follow the writing direction. Focus survives scrolling: scroll away and press an arrow key, and focus comes back. [Keyboard](/argus-table/features/keyboard/) has the full map, running.
+
+## Announcements
+
+What changes without moving focus is announced through a polite live region: the row count after a filter changes (for `data`; a `dataSource` filters on the server), and where a column moved to with the keyboard. A sort is read from the header's `aria-sort`. The text comes from `labels`, so it can be translated with the rest (see [Labels](/argus-table/features/labels/)); add-ons announce through the table too.
+
+## Content in cells
+
+Your content is real DOM in the cells, so it's read as written: give buttons and links names, and use real `<button>` and `<a>` elements. Presses on interactive content in a cell don't select the row or start a drag. Colour isn't the only signal the themes use: sort direction is an icon and `aria-sort`, selection a checkbox and `aria-selected`.
+
+## Tested
+
+Every change is checked with axe (WCAG 2.2 AA and best practices): every story in the repository's Storybook in Chromium, and every page of this site, including each example in all four flavours, in Chromium, Firefox and WebKit. axe's contrast check runs on every theme, in light and dark, and the [theme creator](/argus-table/themes/creator/) checks the contrast of yours.

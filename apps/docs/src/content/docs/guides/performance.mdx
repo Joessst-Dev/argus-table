@@ -1,0 +1,43 @@
+---
+title: Performance
+description: 'How argus-table stays fast with large data, what to do in your app, and the benchmarks: 10k to 1M rows in Chromium, Firefox and WebKit.'
+---
+
+import BenchmarkTables from '../../../components/BenchmarkTables.astro';
+
+argus-table is built to scroll a million rows as smoothly as a hundred.
+
+## What the table does
+
+- **Row virtualization:** only the rows in view, plus a few on each side, are in the DOM. Rows are pooled: scrolling reuses the same row elements, so the number of DOM nodes stays the same at any size.
+- **Column virtualization:** with `virtualizeColumns`, only the columns in view render too, for tables with hundreds of columns. See [Column virtualization](/argus-table/features/column-virtualization/).
+- **Scroll scaling:** browsers limit how tall an element can be. Past that, the table maps the scroll position onto the rows, so the last of a million rows is still reachable.
+- **Measured row heights** (`rowHeight: 'auto'`) cost a measurement per row as it scrolls into view; fixed heights cost nothing. See [Row height](/argus-table/features/row-height/).
+- **Server data:** a `dataSource` loads only the pages in view and keeps a cache. See [Server data](/argus-table/guides/server-data/).
+
+## What to do in your app
+
+- **Keep `columns` and their functions stable.** A new `accessor` function makes the table read and sort that column again. Define columns once (at module scope, `useMemo`, a class field), or keep their functions stable when you build a new array.
+- **Give rows ids** with `getRowId`. Without it, a row's id is its index in `data`, which holds through sorting and filtering but not when you add, remove or reorder rows in a new `data`: then selection, focus and measured heights would follow the wrong rows.
+- **Keep cell content light.** Every row in view renders its cells: a heavy component in each cell multiplies.
+- **Turn on `virtualizeColumns`** when a table has many more columns than fit on screen.
+
+## Benchmarks
+
+How the table holds up, measured on every release in headless browsers on a shared GitHub Actions runner:
+
+<BenchmarkTables />
+
+## What is measured
+
+The page is the repository's [playground](https://github.com/Joessst-Dev/argus-table/tree/main/apps/playground): seeded fake people, 3 pinned columns, and a link, a badge and a button among the cells, rendered into the light DOM, with pooled rows.
+
+- **steady, fast, jumps, sideways p95:** the 95th-percentile frame time while scrolling 60 px and 240 px per frame for 10 s, over 20 random jumps, and scrolling 60 px per frame sideways across the columns for 5 s. 16.7 ms is a full 60 fps frame. "Didn’t scroll" means the body couldn’t scroll at all, which fails the gate.
+- **long tasks:** main-thread tasks over 50 ms while scrolling. Chromium reports them; elsewhere, frames over 50 ms stand in.
+- **blank / wrong:** frames where the rendered rows didn't cover the view, and rows that showed another row's content after a jump. Both should be 0.
+- **load:** from appending the table to the frame that paints its rows, with the data already in memory. **sort:** from setting `sorting` to the frame that paints the sorted rows.
+- **table heap, heap growth** (Chromium only, after a forced garbage collection): the memory the mounted table adds on top of the data, and how much that grows over all the scrolling. A leak would show here.
+- **last row:** whether scrolling to the bottom and `scrollToRow()` both reach the last row.
+- **gate:** in every scroll scenario a p95 within the budget and no long task over the limit (the numbers are above the tables), and the last row reached.
+
+The runner is a shared virtual machine, so treat these numbers as a lower bound: a real machine with a GPU does better. To measure on your own machine, run `pnpm bench` in a clone (see [benchmarks/README.md](https://github.com/Joessst-Dev/argus-table/blob/main/benchmarks/README.md)).

@@ -1,0 +1,80 @@
+---
+title: Plugins
+description: "Add-ons through plugins, and writing your own plugin with the table's hooks and host."
+---
+
+`plugins` takes add-ons: objects that change the columns, handle keys, or add to the table's headers. The packages' own add-ons are plugins:
+
+```js
+import { headerMenu } from '@argus-table/header-menu';
+import { formulas } from '@argus-table/formulas';
+import { tableExport } from '@argus-table/export';
+import { cellEditing } from '@argus-table/editing';
+
+table.plugins = [formulas(), headerMenu(), tableExport(), cellEditing()];
+```
+
+They run in array order. Each add-on has a guide: [Header menu](/argus-table/guides/header-menu/), [Formulas](/argus-table/guides/formulas/), [Export](/argus-table/guides/export/), [Editing](/argus-table/guides/editing/). Keep the array stable (at module scope, or memoized): a new array with the same plugins is fine, but a new plugin object reconnects.
+
+## Writing one
+
+A plugin is an object with a `name` and any of these hooks:
+
+```ts
+import type { ArgusPlugin } from 'argus-table';
+
+// Defined once: a new accessor function makes the table read and sort the column again.
+const grossOf = (order: Order) => order.total * 1.19;
+
+const gross: ArgusPlugin<Order> = {
+  name: 'gross',
+  // While the table is connected; return a cleanup.
+  connect(host) {
+    return () => {};
+  },
+  // Change the column definitions before the table reads them.
+  columns: (defs, host) => [
+    ...defs,
+    { id: 'gross', header: 'Gross', accessor: grossOf, align: 'end' },
+  ],
+  // A key on a focused header or cell, before the table: return true to claim it.
+  keydown: (event, target, host) => false,
+  // Whether this plugin makes a column's cells editable (the others get aria-readonly).
+  editable: (columnId, host) => false,
+};
+
+table.plugins = [gross];
+```
+
+There's also `willUpdate(changed, host)`, called first in each update with the names of the properties that changed, and `columnGroups(groups, host)`, like `columns` for column groups. A hook that throws is reported in the console and skipped; the table keeps working.
+
+## The host
+
+Every hook gets the `host`, the plugin's handle on the table:
+
+- **Read:** the resolved columns (`column(id)`, `columns()`), rows in the current order or a pinned side (`row(index)`, `rowCount()`, `rowId(index)`, `value(index, columnId)`), any row's value (`readValue(row, columnId, index)`), and the group header rows (`headerGroups()`).
+- **Act:** sort (`setSort(id, 'asc' | 'desc' | undefined)`), pin, hide and filter (`setPin`, `setHidden`, `setFilter`), focus a header or a cell (`focusHeader(id)`, `focusCell(index, columnId)`), tell screen readers (`announce(message)`), run the `columns` hooks again (`invalidateColumns()`) and re-render (`requestUpdate()`).
+- **Render:** find the header or cell of an event (`cellOf(event)`), wrap a column's own content in your template (`content(value)`, or `header(def)` for its header), and name a column as plain text (`headerText(def)`).
+- **The element:** `host.element`.
+
+The host's changes go through the same rules as a user's: a `setSort` on a controlled table only proposes. The [API reference](/argus-table/api/types/) has every member's type.
+
+## Header text and column meta
+
+A `header` function gets a context: `{ columnId, text }` for a column. The table renders it with `text: false`. With `text: true`, the table or a plugin asks for the name as plain text, for the column menu's "Hidden columns", an export's header row or an announcement. Return a string then, and keep rich content as the header:
+
+```ts
+{ id: 'total', header: ({ text }) => (text ? 'Total' : html`<b>Total</b> <small>EUR</small>`) }
+```
+
+A plugin that wraps headers in its own function forwards text mode: ``header: (context) => (context.text ? host.headerText(def) : html`…`)``.
+
+`meta` on a column holds fields for plugins and the app; the table never reads it, and plugins get it as `host.column(id).meta`. Type your plugin's field by augmenting `ColumnMeta` (with only a wrapper installed, augment the wrapper's module, such as `'@argus-table/react'`):
+
+```ts
+declare module 'argus-table' {
+  interface ColumnMeta<TData> {
+    total?: { label: string };
+  }
+}
+```
