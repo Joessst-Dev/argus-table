@@ -33,6 +33,9 @@
           {
             "env": "BROWSERS"
           },
+          {
+            "env": "E2E_SHARD"
+          },
           "{workspaceRoot}/skills/argus-table-integrate/references/**/*.md",
           "{workspaceRoot}/packages/*/README.md",
           "{workspaceRoot}/benchmarks/published/**/*",
