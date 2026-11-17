@@ -1,0 +1,28 @@
+---
+// One section of the API reference: a table whose cells are HTML the pages
+// build (rendered JSDoc, escaped and linked type texts). Each row has an id,
+// so it can be linked.
+interface Props {
+  columns: readonly string[];
+  rows: readonly { id: string; cells: readonly string[] }[];
+}
+
+const { columns, rows } = Astro.props;
+---
+
+<table class="api-table">
+  <thead>
+    <tr>{columns.map((column) => <th scope="col">{column}</th>)}</tr>
+  </thead>
+  <tbody>
+    {
+      rows.map((row) => (
+        <tr id={row.id}>
+          {row.cells.map((cell) => (
+            <td set:html={cell} />
+          ))}
+        </tr>
+      ))
+    }
+  </tbody>
+</table>

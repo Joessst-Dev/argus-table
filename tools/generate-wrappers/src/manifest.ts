@@ -80,6 +80,12 @@ export interface ElementInfo {
   models: readonly ElementModel[];
 }
 
+/**
+ * Properties every wrapper sets itself and leaves out of its bindings (each
+ * framework's `CONTENT_PROPS` marks them `null`).
+ */
+export const WRAPPER_PROPERTIES: readonly string[] = ['contentRenderer'];
+
 /** The elements every wrapper covers. */
 const TAGS = ['argus-table', 'argus-column', 'argus-column-group'] as const;
 export type Tag = (typeof TAGS)[number];

@@ -1,0 +1,50 @@
+---
+// The public types of argus-table, read from the TypeScript sources.
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import RefTable from '../../components/api/RefTable.astro';
+import { anchorOf } from '../../lib/api/render';
+import { code, docHtml, publicTypes, typeHtml } from '../../lib/api/site';
+
+const types = publicTypes();
+---
+
+<StarlightPage
+  frontmatter={{ title: 'Types', description: 'The public types of argus-table.' }}
+  headings={types.map((t) => ({ depth: 2, slug: anchorOf(t.name), text: t.name }))}
+>
+  <p>
+    Every type <code>argus-table</code> exports. The wrappers re-export them, and widen the content
+    types for their own content: <code>ReactColumnDef</code>, <code>VueColumnDef</code> and
+    <code>AngularColumnDef</code> (and <code>ReactColumnGroup</code>, <code>VueColumnGroup</code>,
+    <code>AngularColumnGroup</code>) take JSX, VNodes and templates where these take
+    <code>CellContent</code>.
+  </p>
+  {
+    types.map((t) => (
+      <>
+        <h2 id={anchorOf(t.name)}>{t.name}</h2>
+        <p>
+          <Fragment set:html={code(`${t.kind} ${t.name}${t.typeParameters}`)} />
+        </p>
+        <Fragment set:html={t.description ? docHtml(t.description) : ''} />
+        {t.definition !== undefined ? (
+          <p>
+            <Fragment set:html={typeHtml(t.definition)} />
+          </p>
+        ) : (
+          <RefTable
+            columns={['Member', 'Type', 'Description']}
+            rows={t.members.map((m) => ({
+              id: `${anchorOf(t.name)}-${m.name.toLowerCase()}`,
+              cells: [
+                code((m.readonly ? 'readonly ' : '') + m.name + (m.optional ? '?' : '')),
+                typeHtml(m.type),
+                docHtml(m.description),
+              ],
+            }))}
+          />
+        )}
+      </>
+    ))
+  }
+</StarlightPage>

@@ -38,3 +38,26 @@
   gap: 0.5rem 1rem;
   align-items: center;
 }
+
+/* The API reference's tables: type texts wrap between words (a word breaks only
+   when it can't fit), names stay on one line, and a table too wide for the screen
+   scrolls inside itself. */
+.api-table {
+  display: block;
+  overflow-x: auto;
+}
+.api-table code {
+  overflow-wrap: break-word;
+}
+.api-table td:first-child code {
+  white-space: nowrap;
+}
+.api-table td {
+  vertical-align: top;
+}
+/* Links in code, and code in links: the stronger accent, since the code
+   background leaves the regular one just short of 4.5:1 in the light theme. */
+code a,
+a code {
+  color: var(--sl-color-accent-high);
+}
