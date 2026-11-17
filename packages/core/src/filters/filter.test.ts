@@ -250,19 +250,17 @@ describe('rowPredicate', () => {
 });
 
 describe('distinctValues', () => {
-  const asRows = rows.map((original, index) => ({ original, index }));
-
   it('lists sorted distinct values of the rows kept', () => {
-    expect(distinctValues(asRows, get('city'), undefined, 10)).toEqual({
+    expect(distinctValues(rows, get('city'), undefined, 10)).toEqual({
       values: ['Berlin', 'Bonn', 'Celle'],
       truncated: false,
     });
     const older = rowPredicate(byId, { age: { kind: 'number', op: 'gt', value: 40 } }, '', all);
-    expect(distinctValues(asRows, get('city'), older, 10).values).toEqual(['Bonn', 'Celle']);
+    expect(distinctValues(rows, get('city'), older, 10).values).toEqual(['Bonn', 'Celle']);
   });
 
   it('stops at the limit', () => {
-    expect(distinctValues(asRows, get('name'), undefined, 2)).toEqual({
+    expect(distinctValues(rows, get('name'), undefined, 2)).toEqual({
       values: ['Ada', 'Ben'],
       truncated: true,
     });

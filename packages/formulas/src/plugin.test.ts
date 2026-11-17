@@ -454,7 +454,9 @@ describe('updates', () => {
     let reads = 0;
     const columns = [
       ...base,
-      { id: 'counted', accessor: (r: Row) => (reads++, r.qty) },
+      // Hidden: the table reads the cells it renders on every update; only the
+      // formula reads this column.
+      { id: 'counted', accessor: (r: Row) => (reads++, r.qty), hidden: true },
       { id: 'total', formula: '[counted] * 2', sortable: true },
     ];
     const el = await fixture({ columns, sorting: [{ id: 'total', desc: true }] });

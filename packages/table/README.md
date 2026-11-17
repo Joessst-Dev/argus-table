@@ -4,7 +4,7 @@
 
 # argus-table
 
-`<argus-table>` is a data table web component built with Lit and TanStack. It works in any framework, or none.
+`<argus-table>` is a data table web component built with Lit. It works in any framework, or none.
 
 - **Virtualized rows:** 100,000 rows scroll smoothly, and the DOM stays the same size.
 - **Pinned columns** at the start or end, which mirror in right-to-left layouts.

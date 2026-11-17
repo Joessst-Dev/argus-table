@@ -15,7 +15,7 @@ v1 is a fast, styleable read-only table; editing and spreadsheet features wait.
 - Two themes at launch (default + Material-inspired), more after
 - Works in plain HTML, React, Vue and Angular with typed usage
 - Keyboard and screen-reader support from the first release
-- Core bundle under 30 KB min+gzip (target). The first measured CDN build, with Lit and TanStack inlined, is 37 KB; see the size budget in `packages/table/.size-limit.json`
+- Core bundle under 30 KB min+gzip (target). The first measured CDN build, with Lit and TanStack inlined, was 37 KB; with Lit alone (ADR 0010) it is 41 KB with every feature since; see the size budget in `packages/table/.size-limit.json`
 
 ## Non-goals for v1
 

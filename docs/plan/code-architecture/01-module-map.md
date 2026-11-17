@@ -2,7 +2,7 @@
 
 [← Back to contents](../README.md)
 
-Everything inside `<argus-table>` is a set of Lit reactive controllers around TanStack; the element itself only wires them together and renders. Framework-free logic lives in `@argus-table/core` so it can be unit-tested without a browser.
+Everything inside `<argus-table>` is a set of Lit reactive controllers around core's table model; the element itself only wires them together and renders. Framework-free logic lives in `@argus-table/core` so it can be unit-tested without a browser.
 
 Five reactive controllers each own one concern; the renderer only reads from them.
 
@@ -18,7 +18,7 @@ flowchart TD
         col["ColumnController<br/>builds ColumnDef[]"]
         data["DataController<br/>array or pages, row cache"]
         inter["InteractionController<br/>focus, keys, sort, resize"]
-        table["TableController (TanStack Table)<br/>row models, sorting, pinning, sizing"]
+        table["TableController (core table model)<br/>row order, sorting, filtering, pinning, sizing"]
         virt["VirtualController<br/>RowSizes: ranges + row pool"]
         render["Renderer (Lit templates)<br/>header, pinned rows, visible window, footer, parts"]
     end

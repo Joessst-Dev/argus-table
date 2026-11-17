@@ -1,6 +1,6 @@
 # Argus Table: Project Plan
 
-An MIT-licensed, framework-agnostic data table web component built with Lit and TanStack, styleable with plain CSS, with optional themes and Storybook docs.
+An MIT-licensed, framework-agnostic data table web component built with Lit, styleable with plain CSS, with optional themes and Storybook docs.
 
 Named after Argus Panoptes, the hundred-eyed giant of Greek myth who never slept: a table that keeps watch over every row.
 

@@ -8,7 +8,7 @@
 packages/core/src/
 ├─ columns/      resolve-columns.ts (property or <argus-column> → ColumnDef[]) · auto-width.ts
 ├─ data/         page-cache.ts (dataSource pages: loaded, in flight, failed; row count; eviction)
-├─ table/        create-table.ts (TanStack adapter; its types stay private)
+├─ table/        create-table.ts (the table model: row order, columns, widths), sorted-row-model.ts, sort-fns.ts
 ├─ types.ts      public types (ColumnDef, SortState, event details), re-exported by argus-table
 ├─ state/        controllable.ts (controlled / uncontrolled helper)
 ├─ virtual/      row-pool.ts (pool slots for rendered rows, ADR 0001)

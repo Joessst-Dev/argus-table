@@ -27,11 +27,11 @@ render() reads: TableController (model) + VirtualController (window) + Interacti
 - Controllers never set the element's public properties. A state change that the host controls goes out as an event (controlled mode) instead.
 - Keep controllers independent: if one needs another's output, the element passes it in (`this.virtual.setCount(this.table.rowCount)`), so each can be tested alone with a stub host.
 
-## TanStack adapters
+## The table model
 
-The project pins **TanStack Table v9** (`@tanstack/table-core` 9.3). The element does **not** use `@tanstack/lit-table`: TanStack sits behind `@argus-table/core`'s adapter (`core/src/table/create-table.ts`), the only module that imports it, so TanStack types never reach the public API. The installed package ships its own guides in `node_modules/@tanstack/table-core/skills/`; read them before changing the adapter.
+The row model is `@argus-table/core`'s own (`core/src/table/create-table.ts`, ADR 0010; TanStack Table until 1.3). Body rows are indexes into `data`, with no object per row; filtering and sorting each keep their array while what they read is the same, and `rowOrder` is the current order (compare it by identity, never `RowView`s: `rowAt()` builds a new one per call).
 
-### Table (core's adapter, wrapped by `TableController`)
+### Table (core's model, wrapped by `TableController`)
 
 ```ts
 // packages/table/src/controllers/table-controller.ts
@@ -51,12 +51,12 @@ render() {
 ```
 
 - The model **owns no state.** Sorting and sizing come in through `update()`; `nextSorting(columnId)` and `nextSizing(columnId, px)` only *propose* the next state. The element runs the proposal through `controllable` (controlled or uncontrolled), applies it if allowed, and fires the event after the update.
-- Pass **stable references** (`columns`, `data`, callbacks). `update()` ignores unchanged references; new arrays make TanStack recompute row models.
-- **Pinning is logical:** `pin: 'start' | 'end'`, the same names as TanStack v9, so no left/right mapping.
+- Pass **stable references** (`columns`, `data`, callbacks). `update()` ignores unchanged references; new `data` rebuilds the row order, and a column with a new accessor filters and sorts again.
+- **Pinning is logical:** `pin: 'start' | 'end'`, so no left/right mapping.
   - `ColumnView` carries `colIndex` (1-based, for `aria-colindex`), `offset` (the sticky inset from the start or end edge) and `pinEdge` (the pinned column next to the scrolling ones).
   - Give that edge cell the `cell-pinned-edge` part, plus a private `data-pin="start|end"` so the component can mirror the shadow.
 - Read cells through the model: `valueAt(index, columnId)`, `cellContext(index, columnId)` for `cell` functions, `rowAt(index)` for `{ id, index, original }`.
-- Server-side sorting and filtering (Phase 2): the adapter gets `manualSorting` / `manualFiltering`, and the state goes to `dataSource.getRows`.
+- Server-side sorting and filtering: with a `dataSource` the model reads rows from `remote` (the `PageCache`) as they are, and the state goes to `dataSource.getRows`.
 
 ### Virtualizer (`VirtualController`: core's `RowSizes`, `ScrollScale` and the row pool)
 

@@ -17,7 +17,7 @@ export default defineConfig({
       formats: ['es'],
     },
     rollupOptions: {
-      external: [/^lit(\/.*)?$/, /^@lit\//, /^@tanstack\//],
+      external: [/^lit(\/.*)?$/, /^@lit\//],
       output: {
         preserveModules: true,
         preserveModulesRoot: 'src',
