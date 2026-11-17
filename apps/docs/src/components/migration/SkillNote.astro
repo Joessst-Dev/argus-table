@@ -1,0 +1,11 @@
+---
+// The note on every migration page: the guides serve the integrate skill too.
+import { Aside } from '@astrojs/starlight/components';
+import { GITHUB_BLOB } from '../../lib/migration';
+---
+
+<Aside type="tip" title="Also an agent skill">
+  This page is also a reference of the <code>argus-table-integrate</code> agent skill, which reads
+  it when it migrates an app to argus-table. It's written for both: a table per feature with how
+  well it fits, then the code. <a href={`${GITHUB_BLOB}skills/README.md`}>About the skills</a>
+</Aside>

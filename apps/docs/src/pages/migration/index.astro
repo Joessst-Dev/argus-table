@@ -1,0 +1,45 @@
+---
+// The migration section's overview: what the guides' "Fit" column means, and
+// the guides.
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import SkillNote from '../../components/migration/SkillNote.astro';
+import { guidePath, migrationGuides } from '../../lib/migration';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const guides = migrationGuides(__REPO_ROOT__);
+const gaps = guides.find((g) => g.id === 'gaps');
+if (!gaps) throw new Error('No gaps page.');
+---
+
+<StarlightPage
+  frontmatter={{ title: 'Migration', description: 'Moving to argus-table from another table.' }}
+>
+  <p>
+    Each guide maps another table's features to argus-table's, one row per feature, with how well
+    it fits, then shows the columns, state and events side by side, and the code before and after.
+  </p>
+  <h2 id="fit">Fit</h2>
+  <dl>
+    <dt><strong>maps</strong></dt>
+    <dd>argus-table has it.</dd>
+    <dt><strong>partial</strong></dt>
+    <dd>Close, with differences the guide names.</dd>
+    <dt><strong>builtin</strong></dt>
+    <dd>argus-table does it already; delete that code.</dd>
+    <dt><strong>gap</strong></dt>
+    <dd>No equivalent; <a href={guidePath(gaps, base)}>Gaps</a> says what to do instead.</dd>
+  </dl>
+  <h2 id="guides">Guides</h2>
+  <ul>
+    {
+      guides
+        .filter((g) => g.id !== 'gaps')
+        .map((g) => (
+          <li>
+            <a href={guidePath(g, base)}>{g.title}</a>
+          </li>
+        ))
+    }
+  </ul>
+  <SkillNote />
+</StarlightPage>

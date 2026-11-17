@@ -4,15 +4,20 @@ import starlight from '@astrojs/starlight';
 import react from '@astrojs/react';
 import vue from '@astrojs/vue';
 import angular from '@analogjs/astro-angular';
+import { migrationGuides, migrationGuidesIntegration } from './src/lib/migration.ts';
 
 // The docs site (docs/superpowers/specs/2026-11-16-docs-site-design.md). Each
 // framework's integration sees only its own example files.
+const base = '/argus-table';
+// The API reference and the migration guides read the repo's files from here,
+// wherever the build runs.
+const repoRoot = fileURLToPath(new URL('../..', import.meta.url));
+
 export default defineConfig({
   site: 'https://joessst-dev.github.io',
-  base: '/argus-table',
+  base,
   vite: {
-    // The API reference reads the packages' sources from here, wherever the build runs.
-    define: { __REPO_ROOT__: JSON.stringify(fileURLToPath(new URL('../..', import.meta.url))) },
+    define: { __REPO_ROOT__: JSON.stringify(repoRoot) },
   },
   integrations: [
     starlight({
@@ -39,8 +44,20 @@ export default defineConfig({
             { label: 'Types', link: '/api/types/' },
           ],
         },
+        {
+          label: 'Migration',
+          items: [
+            { label: 'Overview', link: '/migration/' },
+            ...migrationGuides(repoRoot).map((g) => ({
+              label: g.label,
+              link: `/migration/${g.id}/`,
+            })),
+          ],
+        },
       ],
     }),
+    // The migration guides' Markdown: drops their title, rewrites their links.
+    migrationGuidesIntegration({ repoRoot, base }),
     react({ include: ['**/examples/**/react/**'] }),
     vue(),
     angular({ vite: { tsconfig: './tsconfig.angular.json' } }),

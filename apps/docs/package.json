@@ -4,6 +4,9 @@
   "type": "module",
   "nx": {
     "name": "docs",
+    "implicitDependencies": [
+      "skills"
+    ],
     "targets": {
       "sync": {
         "cache": false
@@ -30,7 +33,8 @@
           "production",
           "^production",
           "{workspaceRoot}/brand/**/*",
-          "{workspaceRoot}/packages/table/package.json"
+          "{workspaceRoot}/packages/table/package.json",
+          "{workspaceRoot}/skills/argus-table-integrate/references/**/*.md"
         ],
         "dependsOn": [
           "^build",

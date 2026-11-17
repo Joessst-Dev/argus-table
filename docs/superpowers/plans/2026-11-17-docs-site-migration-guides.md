@@ -55,8 +55,16 @@ describe('migrationGuides', () => {
   test('lists the real guides by label, gaps last', () => {
     const guides = migrationGuides(repo);
     expect(guides.map((g) => g.id)).toEqual([
-      'html-table', 'ag-grid', 'angular-material', 'antd', 'element-plus',
-      'mui-x', 'primeng-primevue', 'tanstack', 'vuetify', 'gaps',
+      'html-table',
+      'ag-grid',
+      'angular-material',
+      'antd',
+      'element-plus',
+      'mui-x',
+      'primeng-primevue',
+      'tanstack',
+      'vuetify',
+      'gaps',
     ]);
     expect(guides.find((g) => g.id === 'tanstack')).toEqual({
       id: 'tanstack',
@@ -68,41 +76,56 @@ describe('migrationGuides', () => {
     expect(guides[0]?.label).toBe('A plain <table>');
     expect(guides.at(-1)).toMatchObject({ id: 'gaps', title: 'Gaps', label: 'Gaps' });
   });
-  test('a new file in migrate/ is a new guide', /* fixture with migrate/foo.md "# From Foo Grid" + gaps.md → ids ['foo', 'gaps'] */);
-  test('a guide without a "# " first line fails, naming it', /* throws /migrate\/bad\.md/ */);
-  test('a guide named index or gaps fails', /* migrate/index.md → throws /index\.md/ */);
+  test(
+    'a new file in migrate/ is a new guide' /* fixture with migrate/foo.md "# From Foo Grid" + gaps.md → ids ['foo', 'gaps'] */,
+  );
+  test('a guide without a "# " first line fails, naming it' /* throws /migrate\/bad\.md/ */);
+  test('a guide named index or gaps fails' /* migrate/index.md → throws /index\.md/ */);
 });
 
 describe('rewriteHref', () => {
   const from = 'skills/argus-table-integrate/references/migrate/tanstack.md';
   const context = { guides: migrationGuides(repo), base: '/argus-table', exists: () => true };
   test('a rendered file goes to its page, anchor kept', () => {
-    expect(rewriteHref('../gaps.md#pagination', from, context)).toBe('/argus-table/migration/gaps/#pagination');
+    expect(rewriteHref('../gaps.md#pagination', from, context)).toBe(
+      '/argus-table/migration/gaps/#pagination',
+    );
     expect(rewriteHref('../gaps.md', from, context)).toBe('/argus-table/migration/gaps/');
-    expect(rewriteHref('migrate/ag-grid.md', 'skills/argus-table-integrate/references/gaps.md', context))
-      .toBe('/argus-table/migration/ag-grid/');
+    expect(
+      rewriteHref('migrate/ag-grid.md', 'skills/argus-table-integrate/references/gaps.md', context),
+    ).toBe('/argus-table/migration/ag-grid/');
   });
   test('another file goes to GitHub, anchor kept', () => {
     expect(rewriteHref('../addons.md#cell-editing-argus-tableediting', from, context)).toBe(
-      'https://github.com/Joessst-Dev/argus-table/blob/main/skills/argus-table-integrate/references/addons.md#cell-editing-argus-tableediting');
+      'https://github.com/Joessst-Dev/argus-table/blob/main/skills/argus-table-integrate/references/addons.md#cell-editing-argus-tableediting',
+    );
   });
   test('a link written without ../ resolves from its own folder', () => {
-    expect(rewriteHref('server-data.md', 'skills/argus-table-integrate/references/gaps.md', context)).toBe(
-      'https://github.com/Joessst-Dev/argus-table/blob/main/skills/argus-table-integrate/references/server-data.md');
+    expect(
+      rewriteHref('server-data.md', 'skills/argus-table-integrate/references/gaps.md', context),
+    ).toBe(
+      'https://github.com/Joessst-Dev/argus-table/blob/main/skills/argus-table-integrate/references/server-data.md',
+    );
   });
   test('URLs, mailto and same-page anchors are left alone', () => {
-    for (const href of ['https://ag-grid.com/', 'mailto:a@b.c', '#concepts']) expect(rewriteHref(href, from, context)).toBe(href);
+    for (const href of ['https://ag-grid.com/', 'mailto:a@b.c', '#concepts'])
+      expect(rewriteHref(href, from, context)).toBe(href);
   });
   test('throws for a missing file', () => {
-    expect(() => rewriteHref('../nope.md#x', from, { ...context, exists: () => false }))
-      .toThrow('migrate/tanstack.md links to ../nope.md, which doesn\'t exist');
+    expect(() => rewriteHref('../nope.md#x', from, { ...context, exists: () => false })).toThrow(
+      "migrate/tanstack.md links to ../nope.md, which doesn't exist",
+    );
   });
 });
 
 describe('remarkMigration', () => {
   // A hand-built mdast tree: heading depth 1, a paragraph with a link, a definition.
-  test('drops the title and rewrites links in a guide', /* file.path = <repo>/…/migrate/tanstack.md; afterwards no depth-1 heading, link.url and definition.url rewritten */);
-  test('leaves other markdown alone', /* file.path = <repo>/apps/docs/src/content/docs/index.mdx: tree unchanged */);
+  test(
+    'drops the title and rewrites links in a guide' /* file.path = <repo>/…/migrate/tanstack.md; afterwards no depth-1 heading, link.url and definition.url rewritten */,
+  );
+  test(
+    'leaves other markdown alone' /* file.path = <repo>/apps/docs/src/content/docs/index.mdx: tree unchanged */,
+  );
 });
 ```
 
@@ -146,17 +169,37 @@ git commit -m "docs(site): read and link the migration guides"
 - [ ] **Step 1: Write the failing spec** (`e2e/migration.spec.ts`, axe as in `api.spec.ts`; ids and titles from Task 1's list):
 
 ```ts
-const GUIDES = { 'ag-grid': 'From AG Grid', 'angular-material': 'From Angular Material mat-table',
-  antd: 'From Ant Design Table', 'element-plus': 'From Element Plus el-table', 'html-table': 'From a plain <table>',
-  'mui-x': 'From MUI X Data Grid', 'primeng-primevue': 'From PrimeNG and PrimeVue DataTable',
-  tanstack: 'From TanStack Table', vuetify: 'From Vuetify v-data-table', gaps: 'Gaps' };
+const GUIDES = {
+  'ag-grid': 'From AG Grid',
+  'angular-material': 'From Angular Material mat-table',
+  antd: 'From Ant Design Table',
+  'element-plus': 'From Element Plus el-table',
+  'html-table': 'From a plain <table>',
+  'mui-x': 'From MUI X Data Grid',
+  'primeng-primevue': 'From PrimeNG and PrimeVue DataTable',
+  tanstack: 'From TanStack Table',
+  vuetify: 'From Vuetify v-data-table',
+  gaps: 'Gaps',
+};
 
-test('every guide has a page with its title and the skill note', /* for each: goto `migration/${id}/`; main h1 has the title; page has exactly one h1; `main` contains 'argus-table-integrate'; axe */);
-test('a guide keeps its tables and code', /* tanstack: a table whose header row contains 'Fit'; a code block rendered by Expressive Code ('.expressive-code') containing 'useReactTable' */);
-test('every link into the section lands on an element', /* for each page: collect hrefs of main a[href*="/migration/"]; for each, goto it and, if it has a #hash, expect(page.locator(`[id="${hash}"]`)).toHaveCount(1) */);
-test('links to other references go to GitHub', /* tanstack: a[href="https://github.com/Joessst-Dev/argus-table/blob/main/skills/argus-table-integrate/references/server-data.md"] count ≥ 1 and an addons.md#cell-editing-argus-tableediting link; gaps: the server-data.md link has that same href; no main a[href$=".md"] that is not on github.com */);
-test('the overview explains fit and lists every guide', /* goto 'migration/'; main contains 'maps', 'partial', 'builtin', 'gap' definitions; main has a link to each guide's page (10); the sidebar has a "Migration" group with the overview and 10 guides; axe */);
-test('a guide fits a narrow viewport', /* setViewportSize 390×844; goto tanstack; document.documentElement.scrollWidth <= innerWidth; axe */);
+test(
+  'every guide has a page with its title and the skill note' /* for each: goto `migration/${id}/`; main h1 has the title; page has exactly one h1; `main` contains 'argus-table-integrate'; axe */,
+);
+test(
+  'a guide keeps its tables and code' /* tanstack: a table whose header row contains 'Fit'; a code block rendered by Expressive Code ('.expressive-code') containing 'useReactTable' */,
+);
+test(
+  'every link into the section lands on an element' /* for each page: collect hrefs of main a[href*="/migration/"]; for each, goto it and, if it has a #hash, expect(page.locator(`[id="${hash}"]`)).toHaveCount(1) */,
+);
+test(
+  'links to other references go to GitHub' /* tanstack: a[href="https://github.com/Joessst-Dev/argus-table/blob/main/skills/argus-table-integrate/references/server-data.md"] count ≥ 1 and an addons.md#cell-editing-argus-tableediting link; gaps: the server-data.md link has that same href; no main a[href$=".md"] that is not on github.com */,
+);
+test(
+  'the overview explains fit and lists every guide' /* goto 'migration/'; main contains 'maps', 'partial', 'builtin', 'gap' definitions; main has a link to each guide's page (10); the sidebar has a "Migration" group with the overview and 10 guides; axe */,
+);
+test(
+  'a guide fits a narrow viewport' /* setViewportSize 390×844; goto tanstack; document.documentElement.scrollWidth <= innerWidth; axe */,
+);
 ```
 
 - [ ] **Step 2: Run it to see it fail**

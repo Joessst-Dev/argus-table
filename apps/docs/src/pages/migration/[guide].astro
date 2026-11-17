@@ -1,0 +1,28 @@
+---
+// One migration guide, rendered from the integrate skill's reference as it is
+// (the `migration` collection; `migrationPlugins` drop its title and rewrites
+// its links).
+import { getCollection, render } from 'astro:content';
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import SkillNote from '../../components/migration/SkillNote.astro';
+import { migrationGuides } from '../../lib/migration';
+
+export async function getStaticPaths() {
+  const entries = await getCollection('migration');
+  return entries.map((entry) => ({ params: { guide: entry.id }, props: { entry } }));
+}
+
+const { entry } = Astro.props;
+const guide = migrationGuides(__REPO_ROOT__).find((g) => g.id === entry.id);
+if (!guide) throw new Error(`No migration guide "${entry.id}".`);
+const description =
+  guide.id === 'gaps'
+    ? "Features argus-table doesn't have, and what to do instead."
+    : `Migrating to argus-table: ${guide.label}.`;
+const { Content, headings } = await render(entry);
+---
+
+<StarlightPage frontmatter={{ title: guide.title, description }} headings={headings}>
+  <SkillNote />
+  <Content />
+</StarlightPage>

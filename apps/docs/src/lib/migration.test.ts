@@ -1,9 +1,17 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterAll, describe, expect, test } from 'vitest';
-import { migrationGuides, remarkMigration, rewriteHref, type MdNode } from './migration';
+import {
+  migrationGuides,
+  migrationGuidesIntegration,
+  migrationPlugins,
+  rewriteHref,
+  type HastContext,
+  type MdContext,
+  type MdNode,
+} from './migration';
 
 const repo = fileURLToPath(new URL('../../../../', import.meta.url));
 
@@ -116,47 +124,102 @@ describe('rewriteHref', () => {
   });
 });
 
-describe('remarkMigration', () => {
-  const tree = (): MdNode => ({
-    type: 'root',
-    children: [
-      { type: 'heading', depth: 1, children: [{ type: 'text' }] },
-      {
-        type: 'paragraph',
-        children: [
-          { type: 'link', url: '../gaps.md#pagination', children: [{ type: 'text' }] },
-          { type: 'link', url: '../server-data.md', children: [{ type: 'text' }] },
-        ],
-      },
-      { type: 'heading', depth: 2, children: [{ type: 'text' }] },
-      { type: 'definition', url: '../testing.md' },
-    ],
-  });
-  const transform = remarkMigration({ repoRoot: repo, base: '/argus-table' });
+describe('migrationPlugins', () => {
+  const { mdast: factory, hast } = migrationPlugins({ repoRoot: repo, base: '/argus-table' });
+  const guide = pathToFileURL(
+    join(repo, 'skills/argus-table-integrate/references/migrate/tanstack.md'),
+  );
+
+  /** A visitor context that records what the plugin does. */
+  function context() {
+    const removed: MdNode[] = [];
+    // Every field set: URLs, and code blocks' meta.
+    const urls: string[] = [];
+    const ctx: MdContext = {
+      removeNode: (node) => removed.push(node),
+      setField: (_node, _key, value) => urls.push(value),
+    };
+    return { ctx, removed, urls };
+  }
 
   test('drops the title and rewrites links in a guide', () => {
-    const root = tree();
-    transform(root, {
-      path: join(repo, 'skills/argus-table-integrate/references/migrate/tanstack.md'),
-    });
-    expect(root.children?.map((n) => [n.type, n.depth])).toEqual([
-      ['paragraph', undefined],
-      ['heading', 2],
-      ['definition', undefined],
-    ]);
+    const plugin = factory({ fileURL: guide });
+    if (!plugin) throw new Error('no plugin for a guide');
+    const { ctx, removed, urls } = context();
+    const title = { type: 'heading', depth: 1 };
+    plugin.heading(title, ctx);
+    plugin.heading({ type: 'heading', depth: 2 }, ctx);
+    // Only the first: another depth-1 heading in the body stays.
+    plugin.heading({ type: 'heading', depth: 1 }, ctx);
+    expect(removed).toEqual([title]);
+    plugin.link({ type: 'link', url: '../gaps.md#pagination' }, ctx);
+    plugin.link({ type: 'link', url: '#concepts' }, ctx);
+    plugin.definition({ type: 'definition', url: '../testing.md' }, ctx);
     const blob = 'https://github.com/Joessst-Dev/argus-table/blob/main/';
-    expect(root.children?.[0]?.children?.map((n) => n.url)).toEqual([
+    expect(urls).toEqual([
       '/argus-table/migration/gaps/#pagination',
-      `${blob}skills/argus-table-integrate/references/server-data.md`,
+      '#concepts',
+      `${blob}skills/argus-table-integrate/references/testing.md`,
     ]);
-    expect(root.children?.[2]?.url).toBe(`${blob}skills/argus-table-integrate/references/testing.md`);
+  });
+
+  test("wraps code blocks' long lines", () => {
+    const plugin = factory({ fileURL: guide });
+    const { ctx, urls } = context();
+    plugin?.code({ type: 'code', meta: null }, ctx);
+    plugin?.code({ type: 'code', meta: 'title="a.ts"' }, ctx);
+    expect(urls).toEqual(['wrap', 'title="a.ts" wrap']);
+  });
+
+  test('makes tables focusable: they scroll sideways', () => {
+    const set: unknown[][] = [];
+    const ctx: HastContext = {
+      setProperty: (...args) => {
+        set.push(args);
+      },
+    };
+    const plugin = hast({ fileURL: guide });
+    expect(plugin?.element.filter).toEqual(['table']);
+    const table = { tagName: 'table' };
+    plugin?.element.visit(table, ctx);
+    expect(set).toEqual([[table, 'tabIndex', 0]]);
   });
 
   test('leaves other markdown alone', () => {
-    const root = tree();
-    transform(root, { path: join(repo, 'apps/docs/src/content/docs/index.mdx') });
-    expect(root).toEqual(tree());
-    transform(root, {});
-    expect(root).toEqual(tree());
+    expect(
+      factory({ fileURL: pathToFileURL(join(repo, 'apps/docs/src/content/docs/index.mdx')) }),
+    ).toBeUndefined();
+    expect(factory({ fileURL: undefined })).toBeUndefined();
+    expect(hast({ fileURL: undefined })).toBeUndefined();
+  });
+
+  test('a link to a missing file fails, naming the guide', () => {
+    const plugin = factory({ fileURL: guide });
+    expect(() => plugin?.link({ type: 'link', url: '../nope.md' }, context().ctx)).toThrow(
+      'migrate/tanstack.md links to ../nope.md',
+    );
+  });
+});
+
+describe('migrationGuidesIntegration', () => {
+  test("adds the plugins to the processor's", () => {
+    const mdastPlugins: unknown[] = ['starlight'];
+    const hastPlugins: unknown[] = [];
+    const config = { markdown: { processor: { options: { mdastPlugins, hastPlugins } } } };
+    migrationGuidesIntegration({ repoRoot: repo, base: '/argus-table' }).hooks[
+      'astro:config:setup'
+    ]({ config });
+    expect(mdastPlugins).toHaveLength(2);
+    expect(typeof mdastPlugins[1]).toBe('function');
+    expect(hastPlugins).toHaveLength(1);
+  });
+
+  test('fails without a Sätteri processor', () => {
+    const setup = migrationGuidesIntegration({ repoRoot: repo, base: '/argus-table' }).hooks[
+      'astro:config:setup'
+    ];
+    expect(() => {
+      setup({ config: { markdown: {} } });
+    }).toThrow('Sätteri');
   });
 });

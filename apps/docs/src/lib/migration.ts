@@ -1,9 +1,11 @@
 // The migration guides: the integrate skill's references/migrate/*.md and
 // gaps.md, rendered on the site from the files as they are. The skill reads
 // them too, so they stay agent-first; the site drops their `# ` title (the page
-// shows it) and rewrites their relative links. Runs at build time, in Node.
+// shows it) and rewrites their relative links, through a plugin for Astro 7's
+// Markdown processor (Sätteri). Runs at build time, in Node.
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, posix, relative, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 /** Where the references are, from the repo root. */
 export const REFERENCES = 'skills/argus-table-integrate/references';
@@ -77,32 +79,124 @@ export interface MdNode {
   type: string;
   depth?: number;
   url?: string;
-  children?: MdNode[];
+  meta?: string | null;
 }
 
-function visit(node: MdNode, fn: (node: MdNode) => void) {
-  fn(node);
-  for (const child of node.children ?? []) visit(child, fn);
+/** The parts of Sätteri's mdast visitor context the plugin uses. */
+export interface MdContext {
+  removeNode(node: MdNode): void;
+  setField(node: MdNode, key: 'url' | 'meta', value: string): void;
+}
+
+/** A Sätteri mdast plugin, as far as this one goes. */
+export interface MdPlugin {
+  name: string;
+  heading(node: MdNode, ctx: MdContext): void;
+  link(node: MdNode, ctx: MdContext): void;
+  definition(node: MdNode, ctx: MdContext): void;
+  code(node: MdNode, ctx: MdContext): void;
+}
+
+/** The parts of Sätteri's hast visitor context the plugin uses. */
+export interface HastContext {
+  setProperty(node: object, key: string, value: unknown): void;
+}
+
+/** A Sätteri hast plugin, as far as this one goes. */
+export interface HastPlugin {
+  name: string;
+  element: { filter: string[]; visit(node: object, ctx: HastContext): void };
+}
+
+/** What Sätteri tells a plugin factory about the document. */
+interface Document {
+  fileURL: URL | undefined;
+}
+
+interface Options {
+  repoRoot: string;
+  base: string;
+}
+
+/** The guide `fileURL` is, as a repo path, if it is one. */
+function guideFile(repoRoot: string, guides: readonly Guide[], fileURL: URL | undefined) {
+  if (!fileURL) return undefined;
+  const from = relative(repoRoot, fileURLToPath(fileURL)).split(sep).join('/');
+  return guides.some((g) => g.file === from) ? from : undefined;
 }
 
 /**
- * A remark plugin for the guides: drops each one's `# ` title and rewrites its
- * links (`rewriteHref`). Other markdown passes through.
+ * Sätteri plugin factories for the guides (Astro 7's Markdown processor calls
+ * them once per document). `mdast` drops a guide's `# ` title and rewrites its
+ * links (`rewriteHref`), and wraps its code blocks' long lines (Expressive
+ * Code's `wrap`, as the feature pages' code); `hast` makes its tables
+ * focusable: they scroll sideways, so keyboard users need to reach them. For other documents they
+ * return nothing, so those pass through.
  */
-export function remarkMigration(options: { repoRoot: string; base: string }) {
-  const { repoRoot, base } = options;
+export function migrationPlugins({ repoRoot, base }: Options) {
   const guides = migrationGuides(repoRoot);
   const exists = (path: string) => existsSync(join(repoRoot, path));
-  return (tree: MdNode, file: { path?: string }) => {
-    if (!file.path) return;
-    const from = relative(repoRoot, file.path).split(sep).join('/');
-    if (!guides.some((g) => g.file === from)) return;
-    const title = tree.children?.findIndex((n) => n.type === 'heading' && n.depth === 1) ?? -1;
-    if (title !== -1) tree.children?.splice(title, 1);
-    visit(tree, (node) => {
-      if ((node.type === 'link' || node.type === 'definition') && node.url !== undefined) {
-        node.url = rewriteHref(node.url, from, { guides, base, exists });
+  const mdast = ({ fileURL }: Document): MdPlugin | undefined => {
+    const from = guideFile(repoRoot, guides, fileURL);
+    if (!from) return undefined;
+    let titled = false;
+    const rewrite = (node: MdNode, ctx: MdContext) => {
+      if (node.url !== undefined) {
+        ctx.setField(node, 'url', rewriteHref(node.url, from, { guides, base, exists }));
       }
-    });
+    };
+    return {
+      name: 'argus-migration-guides',
+      heading(node, ctx) {
+        // The first line's title; the page shows it.
+        if (node.depth !== 1 || titled) return;
+        titled = true;
+        ctx.removeNode(node);
+      },
+      link: rewrite,
+      definition: rewrite,
+      code(node, ctx) {
+        ctx.setField(node, 'meta', node.meta ? `${node.meta} wrap` : 'wrap');
+      },
+    };
+  };
+  const hast = ({ fileURL }: Document): HastPlugin | undefined =>
+    guideFile(repoRoot, guides, fileURL)
+      ? {
+          name: 'argus-migration-tables',
+          element: {
+            filter: ['table'],
+            visit(node, ctx) {
+              ctx.setProperty(node, 'tabIndex', 0);
+            },
+          },
+        }
+      : undefined;
+  return { mdast, hast };
+}
+
+/**
+ * The Astro integration that adds `migrationPlugins` to the Markdown processor,
+ * as Starlight adds its own plugins.
+ */
+export function migrationGuidesIntegration(options: Options) {
+  return {
+    name: 'argus-migration-guides',
+    hooks: {
+      'astro:config:setup': ({ config }: { config: { markdown: { processor?: unknown } } }) => {
+        const processor = config.markdown.processor as
+          { options?: { mdastPlugins?: unknown[]; hastPlugins?: unknown[] } } | undefined;
+        const mdastPlugins = processor?.options?.mdastPlugins;
+        const hastPlugins = processor?.options?.hastPlugins;
+        if (!Array.isArray(mdastPlugins) || !Array.isArray(hastPlugins)) {
+          throw new Error(
+            'The migration guides need the Sätteri Markdown processor (mdastPlugins).',
+          );
+        }
+        const { mdast, hast } = migrationPlugins(options);
+        mdastPlugins.push(mdast);
+        hastPlugins.push(hast);
+      },
+    },
   };
 }
