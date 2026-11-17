@@ -15,6 +15,7 @@ import {
   type FilterForm,
 } from './filter-form.js';
 import { resolveLabels, type HeaderMenuLabels, type HeaderMenuLabelsInput } from './labels.js';
+import { revealFocused } from './reveal.js';
 import { adoptStyles } from './styles.js';
 
 /** Which column's menu is open in one table, and the table's API. */
@@ -475,6 +476,7 @@ function menu<T>(
     @keydown=${(event: KeyboardEvent) => {
       onMenuKey(state, id, event);
     }}
+    @focusin=${revealFocused}
     @toggle=${(event: Event) => {
       // Light dismiss: a press outside, or Escape handled by the browser.
       if ((event as ToggleEvent).newState === 'closed' && state.open === id)
@@ -686,22 +688,38 @@ function follow(isOpen: () => boolean, popover: HTMLElement): void {
 
 /**
  * Below the button, its inline-end edge on the button's (the left edge in RTL),
- * within the viewport; above the button when there is no room below.
+ * within the viewport; above the button when there is no room below. When it
+ * fits on neither side, it takes the side with more room and scrolls.
  */
 function place(popover: HTMLElement, button: HTMLElement): void {
   const gap = 2;
   const margin = 4;
   const anchor = button.getBoundingClientRect();
-  const { width, height } = popover.getBoundingClientRect();
+  const { width } = popover.getBoundingClientRect();
+  // Its full height, not the one an earlier cap left it.
+  const height = popover.scrollHeight + popover.offsetHeight - popover.clientHeight;
   const rtl = getComputedStyle(button).direction === 'rtl';
   const viewWidth = document.documentElement.clientWidth;
   const viewHeight = document.documentElement.clientHeight;
   let left = rtl ? anchor.left : anchor.right - width;
   left = Math.min(Math.max(left, margin), Math.max(margin, viewWidth - width - margin));
+  const below = viewHeight - margin - anchor.bottom - gap;
+  const above = anchor.top - gap - margin;
+  // A pixel of slack: the height is rounded, the room isn't.
+  const fits = (room: number) => height <= room + 1;
   let top = anchor.bottom + gap;
-  if (top + height > viewHeight - margin && anchor.top - gap - height >= margin) {
-    top = anchor.top - gap - height;
+  let cap: number | undefined;
+  if (!fits(below)) {
+    if (fits(above)) top = anchor.top - gap - height;
+    else if (above > below) {
+      cap = above;
+      top = margin;
+    } else cap = below;
   }
+  // No taller than the viewport, even with the button out of view.
+  if (cap !== undefined) cap = Math.max(0, Math.floor(Math.min(cap, viewHeight - 2 * margin)));
   popover.style.left = `${String(Math.round(left))}px`;
   popover.style.top = `${String(Math.round(top))}px`;
+  popover.style.maxHeight = cap === undefined ? '' : `${String(cap)}px`;
+  popover.toggleAttribute('data-capped', cap !== undefined);
 }

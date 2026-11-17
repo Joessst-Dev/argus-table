@@ -28,11 +28,7 @@ for (const flavour of FLAVOURS) {
     await page.keyboard.press('Enter');
     await expect.poll(() => cellText(table, 2, 'customer')).toBe('Ada Lovelace');
 
-    // The column menu, with the export and formula items. Room below the header first:
-    // the menu is long.
-    await table.evaluate((el) => {
-      el.scrollIntoView({ block: 'start' });
-    });
+    // The column menu, with the export and formula items.
     const button = await header('total').evaluateHandle((cell) =>
       cell
         .querySelector('slot')

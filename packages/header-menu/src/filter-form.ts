@@ -10,6 +10,7 @@ import type {
   TextFilterOp,
 } from 'argus-table';
 import type { HeaderMenuLabels } from './labels.js';
+import { revealFocused } from './reveal.js';
 
 /** Debounce for typed values: the table filters once typing pauses. */
 export const FILTER_DEBOUNCE_MS = 250;
@@ -171,6 +172,7 @@ export function renderForm(form: FilterForm, ctx: FormContext): TemplateResult {
     aria-label=${ctx.labels.filterDialog({ column: ctx.label })}
     data-column=${form.columnId}
     @keydown=${onKeydown}
+    @focusin=${revealFocused}
     @toggle=${(event: Event) => {
       // Light dismiss: a press outside the form.
       if ((event as ToggleEvent).newState === 'closed') ctx.close(false);
