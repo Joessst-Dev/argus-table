@@ -5,7 +5,7 @@ import { styleMap } from 'lit/directives/style-map.js';
 import type { RowState } from '@argus-table/core';
 import type { RenderedColumn } from '../controllers/column-window.js';
 import type { WindowRow } from '../controllers/virtual-controller.js';
-import { cellParts, cellSlot, cellStyle, type CheckboxHandlers } from './content.js';
+import { cellParts, cellSlot, cellStyle, detailSlot, type CheckboxHandlers } from './content.js';
 
 type Columns<T> = readonly RenderedColumn<T>[];
 
@@ -22,7 +22,22 @@ export interface RowToggles {
   collapseLabel: string;
   /** Click handler of the chevrons; the button carries the row index in `data-row`. */
   onClick: (event: Event) => void;
+  /** The id of the row's rendered panel row, for `aria-controls`; `undefined` while it isn't rendered. */
+  controls: (index: number) => string | undefined;
 }
+
+/** The detail panels' rows (`rowDetail`): from their own pool, each a cell spanning every column. */
+export interface DetailRows {
+  rows: readonly WindowRow[];
+  /** The number of shown columns, for `aria-colspan`. */
+  colspan: number;
+}
+
+/** The `id` of the panel row in a slot of the panel pool, unique in the shadow root. */
+export const detailRowId = (slot: number) => `argus-detail-${String(slot)}`;
+
+/** The `data-col` of a panel's cell: the active cell's column while it is on a panel. */
+export const PANEL_COLUMN = '--argus-detail';
 
 /** The cell holding the grid's tab stop: a row index and a column id. */
 export interface ActiveCell {
@@ -68,6 +83,7 @@ export function renderBody<T>(
   checkboxes?: RowCheckboxes,
   inset = false,
   toggles?: RowToggles,
+  details?: DetailRows,
 ) {
   return html`<div
     part="body"
@@ -78,18 +94,84 @@ export function renderBody<T>(
       rows,
       (r) => r.slot,
       (r) =>
-        renderRow(
-          r,
-          columns,
-          r.index === active?.index ? active.col : undefined,
-          firstRowIndex,
-          loading,
-          selectedAt?.(r.index),
-          checkboxes,
-          inset,
-          toggles,
-        ),
+        r.idle
+          ? idleRow(r, columns)
+          : renderRow(
+              r,
+              columns,
+              r.index === active?.index ? active.col : undefined,
+              firstRowIndex,
+              loading,
+              selectedAt?.(r.row),
+              checkboxes,
+              inset,
+              toggles,
+            ),
+    )}${
+      details
+        ? repeat(
+            details.rows,
+            (r) => r.slot,
+            (r) =>
+              renderDetailRow(r, details.colspan, r.index === active?.index, firstRowIndex, inset),
+          )
+        : nothing
+    }
+  </div>`;
+}
+
+/**
+ * A pool slot no row uses now: hidden, with its cells' slots kept, so no
+ * light-DOM content is unassigned while scrolling.
+ */
+function idleRow<T>(row: WindowRow, columns: Columns<T>) {
+  return html`<div class="row" hidden>
+    ${repeat(
+      columns,
+      (c) => c.key,
+      (c) => html`<div role="gridcell"><slot name=${cellSlot(row.slot, c.slot)}></slot></div>`,
     )}
+  </div>`;
+}
+
+/**
+ * A detail panel's row: one cell over every column, holding the panel's content
+ * (slotted by pool slot). It renders at least its measured height (`size`); its
+ * cell is focusable and holds the tab stop while the active cell is on it.
+ */
+function renderDetailRow(
+  row: WindowRow,
+  colspan: number,
+  tabStop: boolean,
+  firstRowIndex: number,
+  inset: boolean,
+) {
+  const slot = html`<slot name=${detailSlot(row.slot)}></slot>`;
+  if (row.idle) {
+    return html`<div class="row detail-row" hidden><div role="gridcell">${slot}</div></div>`;
+  }
+  return html`<div
+    part="row-detail"
+    class="row detail-row"
+    role="row"
+    id=${detailRowId(row.slot)}
+    aria-rowindex=${row.index + firstRowIndex}
+    style=${styleMap({
+      ...(inset
+        ? { insetBlockStart: `${String(row.start)}px` }
+        : { transform: `translateY(${String(row.start)}px)` }),
+      minBlockSize: row.size === undefined ? undefined : `${String(row.size)}px`,
+    })}
+  >
+    <div
+      part="detail"
+      role="gridcell"
+      aria-colspan=${colspan}
+      tabindex=${tabStop ? 0 : -1}
+      data-col=${PANEL_COLUMN}
+    >
+      ${slot}
+    </div>
   </div>`;
 }
 
@@ -111,13 +193,15 @@ function renderRow<T>(
   inset: boolean,
   toggles: RowToggles | undefined,
 ) {
-  const state = loading?.stateAt(row.index) ?? 'loaded';
-  const open = toggles?.open(row.index) ?? false;
-  let parts = row.index % 2 === 0 ? 'row row-even' : 'row row-odd';
+  // Positions place the row in the grid; its data index reads its state.
+  const index = row.row;
+  const state = loading?.stateAt(index) ?? 'loaded';
+  const open = toggles?.open(index) ?? false;
+  let parts = index % 2 === 0 ? 'row row-even' : 'row row-odd';
   if (state !== 'loaded') parts += state === 'error' ? ' row-loading row-error' : ' row-loading';
   if (selected) parts += ' row-selected';
   if (open) parts += ' row-expanded';
-  const retry = state === 'error' ? loading?.retry.get(row.index) : undefined;
+  const retry = state === 'error' ? loading?.retry.get(index) : undefined;
   // The Retry button goes in the first data column, after a selection column.
   const retryCol = retry === undefined ? undefined : firstDataColumn(columns);
   return html`<div
@@ -146,10 +230,10 @@ function renderRow<T>(
           cellSlot(row.slot, c.slot),
           false,
           c.kind === 'selection'
-            ? rowCheckbox(row.index, selected, checkboxes)
+            ? rowCheckbox(index, selected, checkboxes)
             : c.kind === 'expand'
-              ? rowToggle(row.index, open, state === 'loaded' ? toggles : undefined)
-              : placeholder(state, c.id === retryCol ? retry : undefined, row.index, loading),
+              ? rowToggle(index, open, state === 'loaded' ? toggles : undefined)
+              : placeholder(state, c.id === retryCol ? retry : undefined, index, loading),
         ),
     )}
   </div>`;
@@ -229,6 +313,7 @@ function rowToggle(index: number, open: boolean, toggles: RowToggles | undefined
     part="expand-toggle"
     tabindex="-1"
     aria-expanded=${String(open)}
+    aria-controls=${(open ? toggles.controls(index) : undefined) ?? nothing}
     aria-label=${open ? toggles.collapseLabel : toggles.expandLabel}
     data-row=${index}
     @click=${toggles.onClick}

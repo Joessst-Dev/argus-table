@@ -97,6 +97,27 @@ export const baseStyles = css`
       inset-block-start: 0;
       inset-inline-start: 0;
     }
+    /*
+     * A detail panel's row: one cell over the visible width, as tall as its content
+     * up to --argus-detail-max-height (then its content scrolls), and at least a row.
+     */
+    [part~='body'] > .detail-row {
+      display: block;
+      block-size: auto;
+      min-block-size: var(--_row-height);
+    }
+    [part~='detail'] {
+      position: sticky;
+      inset-inline-start: 0;
+      box-sizing: border-box;
+      inline-size: var(--_view-w, 100%);
+      min-block-size: var(--_row-height);
+      max-block-size: var(--argus-detail-max-height, 400px);
+      overflow: auto;
+      padding: var(--argus-detail-padding, var(--_pad));
+      background: var(--argus-detail-bg, var(--argus-bg, Canvas));
+      border-block-end: var(--_border);
+    }
     [part~='row'] {
       --_row-bg: var(--argus-bg, Canvas);
       --_row-surface: var(--_row-bg);

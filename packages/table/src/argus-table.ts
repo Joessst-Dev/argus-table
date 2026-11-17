@@ -53,7 +53,13 @@ import {
 } from './events.js';
 import { resolveLabels, type TableLabels } from './labels.js';
 import { bodyCap, watchMaxElementHeight } from './max-height.js';
-import { renderBody, type ActiveCell, type Loading, type RowToggles } from './render/body.js';
+import {
+  detailRowId,
+  renderBody,
+  type ActiveCell,
+  type Loading,
+  type RowToggles,
+} from './render/body.js';
 import { renderLightDom } from './render/cells.js';
 import { content, flushContent, type ContentRenderer } from './render/content-directive.js';
 import { renderHeader } from './render/header.js';
@@ -63,6 +69,7 @@ import type { ArgusPlugin, CellTarget, ColumnInfo, PluginHost, RowSection } from
 import { baseStyles } from './styles/base.js';
 import { rowHeightConverter, switchConverter } from './attributes.js';
 import {
+  dataIndexOf,
   directionOf,
   gridCell,
   groupCellOf,
@@ -70,8 +77,11 @@ import {
   gridRowOfCell,
   groupCell,
   layoutOf,
+  panelRowId,
   pinnedWidth,
   pinShadow,
+  positionOfIndex,
+  rowIdOfPanel,
   sortColumnOf,
   track,
 } from './grid.js';
@@ -651,7 +661,9 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.#nav.moveTo(layoutOf(model).leafHeader, columnId);
     },
     focusCell: (index, columnId, section = 'body') => {
-      this.#nav.moveTo({ section, index }, columnId);
+      const model = this.#table.model;
+      const at = section === 'body' ? positionOfIndex(model, index) : index;
+      this.#nav.moveTo({ section, index: at }, columnId);
     },
     announce: (message) => {
       announce(this.ownerDocument, message);
@@ -737,15 +749,24 @@ export class ArgusTable<T = unknown> extends LitElement {
   /** Rows of different heights: reads the rendered rows (`rowHeight: 'auto'` only). */
   readonly #rowMeasure = new RowMeasure(this, {
     bodyIndex: (row) => {
-      const at = gridRowOf(row, layoutOf(this.#table.model));
-      return at?.section === 'body' && this.#data.stateAt(at.index) === 'loaded'
+      const model = this.#table.model;
+      const at = gridRowOf(row, layoutOf(model));
+      if (at?.section !== 'body') return undefined;
+      const shown = model.display.at(at.index);
+      // Panels always; data rows only with `rowHeight: 'auto'`, once loaded.
+      if (shown?.kind === 'detail') return at.index;
+      return shown && this.rowHeight === 'auto' && this.#data.stateAt(shown.index) === 'loaded'
         ? at.index
         : undefined;
     },
     sizeOf: (index) => this.#virtual.sizeOf(index),
     minimum: () => this.#rowPx,
   });
-  #window: VirtualWindow = { rows: [], totalSize: 0, range: null };
+  #window: VirtualWindow = { rows: [], details: [], totalSize: 0, range: null };
+  /** Rows of different heights are measured: every row (`rowHeight: 'auto'`), or open panels. */
+  #measuring = false;
+  /** The row order and displayed rows last given to the virtualizer. */
+  #laidOut: { order: object; display: object; token: object } | undefined;
   /** The active cell, its focus and the keys that move it. */
   readonly #nav = new NavigationController<T>(
     this,
@@ -933,15 +954,16 @@ export class ArgusTable<T = unknown> extends LitElement {
     for (let i = 0; i < 5; i++) {
       await new Promise(requestAnimationFrame);
       await this.#settled();
-      if (align === 'start' || this.rowHeight !== 'auto' || !this.#scrollRowTo(index, align)) break;
+      if (align === 'start' || !this.#measuring || !this.#scrollRowTo(index, align)) break;
     }
     return index < this.#table.model.rowCount;
   }
 
   /** Scrolls row `index` to `align` in the body. Returns whether it moved. */
   #scrollRowTo(index: number, align: ScrollAlign): boolean {
-    const { before, after } = this.#bodyInsets(layoutOf(this.#table.model));
-    return this.#virtual.scrollToIndex(index, align, before, after);
+    const model = this.#table.model;
+    const { before, after } = this.#bodyInsets(layoutOf(model));
+    return this.#virtual.scrollToIndex(positionOfIndex(model, index), align, before, after);
   }
 
   /** The rows in the scroller above the body (header, top pinned rows) and below it, in px. */
@@ -1015,7 +1037,7 @@ export class ArgusTable<T = unknown> extends LitElement {
    */
   async #settled(): Promise<void> {
     let done = await this.updateComplete;
-    for (let i = 0; i < 8 && !done && this.rowHeight === 'auto'; i++) {
+    for (let i = 0; i < 8 && !done && this.#measuring; i++) {
       done = await this.updateComplete;
     }
   }
@@ -1042,7 +1064,11 @@ export class ArgusTable<T = unknown> extends LitElement {
       expanded: this.#expanded.value,
       quickFilter: this.#quickFilter,
       // Negative in RTL.
-      scroll: { row: this.#virtual.topRow, inline: Math.abs(scroller?.scrollLeft ?? 0) },
+      scroll: {
+        // The data row at the top (a panel there counts as its row).
+        row: this.#table.model.display.at(this.#virtual.topRow)?.index ?? 0,
+        inline: Math.abs(scroller?.scrollLeft ?? 0),
+      },
     });
   }
 
@@ -1073,7 +1099,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     await this.updateComplete;
     const { scroll } = state;
     if (!scroll) return;
-    this.#virtual.scrollToIndex(scroll.row);
+    this.#virtual.scrollToIndex(positionOfIndex(this.#table.model, scroll.row));
     // A data source counts one page past its loaded rows until it knows the
     // total: scroll on as the count grows.
     const count = this.#table.model.rowCount;
@@ -1209,16 +1235,46 @@ export class ArgusTable<T = unknown> extends LitElement {
     // The header and pinned rows scroll with the body.
     const extra = this.#headerAndPinnedPx(layout);
     const auto = this.rowHeight === 'auto';
-    if (!auto) this.#rowMeasure.stop();
+    // Body positions: data rows and open panels (`display`); public indexes are data indexes.
+    const display = model.display;
+    const measuring = auto || display.open.length > 0;
+    this.#measuring = measuring;
+    if (!measuring) this.#rowMeasure.stop();
     // Anything but a scroll may change what rows hold (data, columns, widths).
     else if (changed.size > 0 || this.#columnsChanged) this.#rowMeasure.invalidate();
+    const laidOut = this.#laidOut;
+    // Only panels opened or closed: the row at the top keeps its place.
+    const keepTop = laidOut?.order === model.rowOrder && laidOut.display !== display;
+    const token =
+      laidOut?.order === model.rowOrder && laidOut.display === display ? laidOut.token : {};
+    this.#laidOut = { order: model.rowOrder, display, token };
+    const rowIdAt = (index: number): string => {
+      const shown = display.at(index);
+      if (!shown) return String(index);
+      const id = this.#nav.rowId(model, shown.index);
+      return shown.kind === 'data' ? id : panelRowId(id);
+    };
+    const positionOf = (id: string): number | undefined => {
+      const owner = rowIdOfPanel(id);
+      const index = model.indexOf(owner ?? id);
+      if (index === undefined) return undefined;
+      return owner === undefined ? display.positionOf(index) : display.detailPositionOf(index);
+    };
     this.#virtual.configure({
-      count: model.rowCount,
+      count: display.count,
       rowHeight: this.#rowPx,
       cap: (logical) => bodyCap(logical, extra),
-      auto: auto ? { order: model.rowOrder, indexOf: (id) => model.indexOf(id) } : undefined,
+      measure: measuring ? { order: token, indexOf: positionOf, all: auto } : undefined,
+      details: this.rowDetail
+        ? {
+            isDetail: (index) => display.at(index)?.kind === 'detail',
+            dataIndexAt: (index) => display.at(index)?.index ?? -1,
+            positionOf,
+          }
+        : undefined,
+      keepTop,
       overscan: Math.max(0, this.overscan),
-      rowIdAt: (index) => this.#nav.rowId(model, index),
+      rowIdAt,
       // The active body row stays rendered, so the tab stop and focus survive scrolling.
       keep:
         active?.section !== 'body' || active.rowId === undefined
@@ -1315,6 +1371,9 @@ export class ArgusTable<T = unknown> extends LitElement {
                   : undefined,
                 auto,
                 this.rowDetail ? this.#toggles(model) : undefined,
+                this.rowDetail
+                  ? { rows: this.#window.details, colspan: columns.length }
+                  : undefined,
               )
         }
         ${renderPinnedRows('bottom', layout.bottom, rendered, firstIndex('bottom'), activeIn('bottom'))}
@@ -1337,6 +1396,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.#rendered,
       model.headerGroups,
       this.#lightDomEnd(),
+      this.#window.details,
     );
     // A new marker starts a new part (the old one was removed): its content is gone.
     if (this.#lightPart && this.#lightPart !== part) this.#lightPart.setConnected(false);
@@ -1345,7 +1405,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     flushContent(this);
     this.#measureAutoWidths(model);
     // Rows of different heights: placed by the update this requests.
-    const resized = this.rowHeight === 'auto' && this.#measureRows();
+    const resized = this.#measuring && this.#measureRows();
     if (this.#scrollToTop) {
       this.#scrollToTop = false;
       const scroller = this.#scroller();
@@ -1375,15 +1435,19 @@ export class ArgusTable<T = unknown> extends LitElement {
     }
     this.#events.flush();
     const { range } = this.#window;
-    const key = range ? `${String(range.start)}:${String(range.end)}` : '';
-    if (range && key !== this.#lastRange) {
+    const display = model.display;
+    // Positions to data rows: panels in view don't count.
+    const rows = range && display.dataRange(range.start, range.end);
+    const key = rows ? `${String(rows.first)}:${String(rows.last)}` : '';
+    if (rows && key !== this.#lastRange) {
       this.#lastRange = key;
-      fire(this, RANGE_CHANGE, { first: range.start, last: range.end });
+      fire(this, RANGE_CHANGE, rows);
     }
     if (range) {
-      // The rendered rows: visible plus overscan, end exclusive.
+      // The rendered rows: visible plus overscan.
       const over = Math.max(0, this.overscan);
-      this.#data.request(Math.max(0, range.start - over), range.end + 1 + over);
+      const load = display.dataRange(range.start - over, range.end + over);
+      if (load) this.#data.request(load.first, load.last + 1);
     }
     for (const detail of this.#data.takeErrors()) fire(this, LOAD_ERROR, detail);
   }
@@ -1415,7 +1479,7 @@ export class ArgusTable<T = unknown> extends LitElement {
    * renders once more.
    */
   #measureAutoWidths(model: TableModel<T, CellContent>): void {
-    const loaded = this.#window.rows.some((r) => model.rowAt(r.index) !== undefined);
+    const loaded = this.#window.rows.some((r) => !r.idle && model.rowAt(r.row) !== undefined);
     if (!loaded && model.rowCount > 0) return;
     if (this.#autoWidths.measure(this.renderRoot, model.columns, loaded)) this.requestUpdate();
   }
@@ -1428,9 +1492,11 @@ export class ArgusTable<T = unknown> extends LitElement {
     const cache = this.#data.rows;
     if (!cache) return undefined;
     const labels = this.#labels;
-    const top = this.#window.range?.start ?? 0;
+    const { range } = this.#window;
+    const top = (range && this.#table.model.display.dataRange(range.start, range.end)?.first) ?? 0;
     const firstByPage = new Map<number, number>();
-    for (const { index } of this.#window.rows) {
+    for (const { row: index, idle } of this.#window.rows) {
+      if (idle) continue;
       if (index < top || cache.stateAt(index) !== 'error') continue;
       const page = cache.pageOf(index);
       const first = firstByPage.get(page);
@@ -1509,10 +1575,12 @@ export class ArgusTable<T = unknown> extends LitElement {
     }
     if (id === EXPAND_COLUMN_ID && (event.key === 'Enter' || event.key === ' ')) {
       // Enter or Space on a chevron cell opens or closes its row's panel.
-      const at = gridRowOfCell(cell, layoutOf(this.#table.model));
-      if (at?.section !== 'body') return;
+      const model = this.#table.model;
+      const at = gridRowOfCell(cell, layoutOf(model));
+      const index = at?.section === 'body' ? dataIndexOf(model, at.index) : undefined;
+      if (index === undefined) return;
       event.preventDefault();
-      this.#toggle(at.index);
+      this.#toggle(index);
       return;
     }
     const pluginTarget =
@@ -1547,8 +1615,10 @@ export class ArgusTable<T = unknown> extends LitElement {
       const from = gridRowOfCell(cell, layoutOf(this.#table.model));
       if (!from) return;
       event.preventDefault();
-      if (from.section === 'body' && this.#data.stateAt(from.index) === 'error') {
-        this.#data.retry(from.index);
+      const failed =
+        from.section === 'body' ? dataIndexOf(this.#table.model, from.index) : undefined;
+      if (failed !== undefined && this.#data.stateAt(failed) === 'error') {
+        this.#data.retry(failed);
       } else {
         this.#activate(event.composedPath());
       }
@@ -1600,7 +1670,8 @@ export class ArgusTable<T = unknown> extends LitElement {
   #activate(path: EventTarget[]): void {
     let columnId: string | undefined;
     for (const target of path) {
-      if (!(target instanceof HTMLElement)) continue;
+      // A nested table's cells and rows (in a cell or a panel) aren't this table's: walk on out.
+      if (!(target instanceof HTMLElement) || target.getRootNode() !== this.renderRoot) continue;
       const role = target.getAttribute('role');
       if (role === 'gridcell') columnId = target.dataset.col;
       if (columnId === SELECTION_COLUMN_ID || columnId === EXPAND_COLUMN_ID) return;
@@ -1608,8 +1679,10 @@ export class ArgusTable<T = unknown> extends LitElement {
       const model = this.#table.model;
       const at = gridRowOf(target, layoutOf(model));
       if (!at || at.section === 'header') return;
-      const { index } = at;
       if (at.section === 'body') {
+        // A panel's row fires nothing; a data row's events carry its data index.
+        const index = dataIndexOf(model, at.index);
+        if (index === undefined) return;
         const row = model.rowAt(index);
         if (!row) return;
         if (columnId !== undefined) {
@@ -1625,6 +1698,7 @@ export class ArgusTable<T = unknown> extends LitElement {
         return;
       }
       const pinned = at.section;
+      const { index } = at;
       const row = model.pinnedRowAt(pinned, index);
       if (!row) return;
       if (columnId !== undefined) {
@@ -1658,7 +1732,11 @@ export class ArgusTable<T = unknown> extends LitElement {
   #toggles(model: TableModel<T, CellContent>): RowToggles {
     const labels = this.#labels;
     const open = new Set(this.#expanded.value);
+    const panels = new Map(
+      this.#window.details.filter((r) => !r.idle).map((r) => [r.row, detailRowId(r.slot)]),
+    );
     return {
+      controls: (index) => panels.get(index),
       expandable: (index) => model.expandable(index),
       open: (index) => {
         const id = model.rowAt(index)?.id;
@@ -1784,8 +1862,13 @@ export class ArgusTable<T = unknown> extends LitElement {
       return {
         section: row.section,
         columnId,
-        // `0` for the column headers, whatever group rows are above them.
-        rowIndex: row.section === 'header' ? 0 : row.index,
+        // `0` for the column headers, whatever group rows are above them; a data index in the body.
+        rowIndex:
+          row.section === 'header'
+            ? 0
+            : row.section === 'body'
+              ? (dataIndexOf(model, row.index) ?? row.index)
+              : row.index,
         rowId: this.#nav.gridRowId(model, row),
       };
     }

@@ -42,14 +42,40 @@ export interface Active extends GridRow {
   col: string;
 }
 
-/** Where the rows sit in the grid: header rows, pinned top, body, pinned bottom. */
+/**
+ * Where the rows sit in the grid: header rows, pinned top, body, pinned bottom.
+ * The body counts displayed positions: data rows and their detail panels
+ * (`model.display`); a body `GridRow`'s index is a position.
+ */
 export function layoutOf<T>(model: TableModel<T, CellContent>): RowLayout {
   return new RowLayout(
     model.pinnedCount('top'),
-    model.rowCount,
+    model.display.count,
     model.pinnedCount('bottom'),
     model.headerRows,
   );
+}
+
+/** The data index at a body position, or `undefined` for a detail panel or a position outside the body. */
+export function dataIndexOf<T>(
+  model: TableModel<T, CellContent>,
+  position: number,
+): number | undefined {
+  const shown = model.display.at(position);
+  return shown?.kind === 'data' ? shown.index : undefined;
+}
+
+/** The body position of a data index. */
+export function positionOfIndex<T>(model: TableModel<T, CellContent>, index: number): number {
+  return model.display.positionOf(index);
+}
+
+/** The id of a row's detail panel row, from the row's id: never a row id `getRowId` makes in practice. */
+export const panelRowId = (rowId: string) => `\u0001detail:${rowId}`;
+
+/** The row id of a detail panel row's id, or `undefined` for a data row's id. */
+export function rowIdOfPanel(id: string): string | undefined {
+  return id.startsWith('\u0001detail:') ? id.slice('\u0001detail:'.length) : undefined;
 }
 
 /** The drop slot and applied-move key of a column or group (`HeaderDrag.key`). */

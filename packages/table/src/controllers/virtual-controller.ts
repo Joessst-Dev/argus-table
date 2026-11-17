@@ -12,11 +12,20 @@ import {
 /** A rendered body row: its pool slot, its index in the row model and its offset. */
 export interface WindowRow {
   slot: number;
+  /** The row's displayed position: data rows and detail panels (`DisplayRows`). */
   index: number;
+  /** The data index: the row's own, or for a panel the row it belongs to. `-1` for an idle slot. */
+  row: number;
   /** Offset in the rendered body, in px (scaled bodies: relative to the scroll position). */
   start: number;
   /** Measured row heights (`auto`): the row's height, the least it renders at. */
   size?: number | undefined;
+  /**
+   * A pool slot no row uses now, rendered hidden rather than removed: with
+   * panels, the data and panel rows in the window vary as they scroll, and a
+   * removed slot would change slot assignment (WebKit cancels wheel scrolling).
+   */
+  idle?: boolean;
 }
 
 /**
@@ -30,29 +39,52 @@ const COARSE_BODY = 16_000_000;
 const HOLD_MS = 150;
 
 export interface VirtualWindow {
-  /** Rendered rows, in pool order (ADR 0001 addendum). */
+  /** Rendered data rows, in pool order (ADR 0001 addendum). */
   rows: WindowRow[];
+  /** Rendered detail panels, from a pool of their own, in pool order. */
+  details: WindowRow[];
   /** Rendered height of the body in px: all rows, or the cap. */
   totalSize: number;
-  /** Visible rows, without overscan; `null` before the first layout. */
+  /** Visible positions, without overscan; `null` before the first layout. */
   range: { start: number; end: number } | null;
 }
 
-/** Measured row heights (`rowHeight: 'auto'`). */
-export interface AutoRows {
-  /** Changes identity whenever the row at an index may have changed (the model's `rowOrder`). */
+/** Rows measured as they render: every row (`rowHeight: 'auto'`), or the detail panels only. */
+export interface MeasuredRows {
+  /** Changes identity whenever the row at a position may have changed. */
   order: object;
-  /** The index of a row id in the current order. */
+  /** The position of a row id (a data row's or a panel's) in the current order. */
   indexOf: (id: string) => number | undefined;
+  /** `true`: every row (`rowHeight: 'auto'`); `false`: detail panels only, data rows are the row height. */
+  all: boolean;
 }
 
 export interface VirtualConfig {
+  /** Displayed positions: data rows and detail panels. */
   count: number;
   /** The row height; with `auto`, the least a row is and what an unmeasured row counts as. */
   rowHeight: number;
   overscan: number;
-  /** Row id at an index of the row model; pool slots follow row ids. */
+  /** Row id at a position (a panel has an id of its own); pool slots follow row ids. */
   rowIdAt: (index: number) => string;
+  /**
+   * With detail panels: whether a position is a panel (it takes a slot of the
+   * panel pool), and the data index at a position. Without them every position
+   * is a data row.
+   */
+  details?:
+    | {
+        isDetail: (index: number) => boolean;
+        dataIndexAt: (index: number) => number;
+        /** The position of a row id, a data row's or a panel's. */
+        positionOf: (id: string) => number | undefined;
+      }
+    | undefined;
+  /**
+   * Only panels opened or closed since the last configure, the rows in the
+   * same order: the row at the top keeps its place on screen.
+   */
+  keepTop?: boolean;
   /**
    * The row to keep rendered outside the range (the one holding the grid's tab
    * stop), so its DOM and focus survive scrolling. `undefined`: none.
@@ -61,7 +93,7 @@ export interface VirtualConfig {
   /** The tallest the body may render when it is `logical` px tall (`bodyCap()`); a taller one scrolls scaled. */
   cap: (logical: number) => number;
   /** Rows of different heights, measured as they render (`measureRows`). */
-  auto?: AutoRows | undefined;
+  measure?: MeasuredRows | undefined;
 }
 
 /**
@@ -87,6 +119,8 @@ export interface VirtualConfig {
  */
 export class VirtualController implements ReactiveController {
   readonly #pool = new RowPool();
+  /** Detail panels' pool slots: a pooled row never switches between a data row and a panel. */
+  #detailPool = new RowPool();
   readonly #scale = new ScrollScale();
   readonly #host: ReactiveControllerHost;
   readonly #getScrollElement: () => HTMLElement | null;
@@ -165,10 +199,13 @@ export class VirtualController implements ReactiveController {
     const element = this.#element;
     // Read before the new mapping: a rescale keeps the logical offset.
     const top = element ? this.#top(element) : 0;
-    if (next.auto) {
-      this.#configureAuto(next.auto, prev);
+    const wasScaled = this.#scale.excess > 0;
+    // Only panels opened or closed: the row at the top, under the old layout.
+    const kept = next.keepTop && element ? this.#topRow(prev, top) : undefined;
+    if (next.measure) {
+      this.#configureMeasured(next.measure, prev);
     } else {
-      if (prev.auto) {
+      if (prev.measure) {
         // Back to fixed heights: measured heights no longer apply.
         this.#heights.clear();
         this.#order = undefined;
@@ -178,7 +215,45 @@ export class VirtualController implements ReactiveController {
       // Every row the row height: allocates nothing.
       this.#sizes.reset(next.count, next.rowHeight);
     }
+    if (!next.details) this.#detailPool = new RowPool();
+    const index = kept && next.details?.positionOf(kept.id);
+    if (kept && index !== undefined) {
+      const logical = this.#sizes.total;
+      this.#scale.configure(logical, next.cap(logical));
+      this.#keepAt(this.#sizes.startOf(index) + kept.within, top, wasScaled);
+      return;
+    }
     this.#rescale(this.#sizes.total, top);
+  }
+
+  /** The id of the row at logical offset `top` under `config`, and how far into it `top` is. */
+  #topRow(config: VirtualConfig, top: number): { id: string; within: number } | undefined {
+    const sizes = this.#sizes;
+    if (sizes.count === 0) return undefined;
+    const index = sizes.indexAt(top);
+    return { id: config.rowIdAt(index), within: top - sizes.startOf(index) };
+  }
+
+  /**
+   * Keeps what is at logical offset `top` on screen now that it is at `target`,
+   * without writing the scroll position while the user may be scrolling:
+   * unscaled, the rows render shifted until scrolling stops (`#hold`); scaled,
+   * the mapping pivots at the current offset.
+   */
+  #keepAt(target: number, top: number, wasScaled: boolean): void {
+    const element = this.#element;
+    const scale = this.#scale;
+    if (!element) return;
+    if (wasScaled && scale.scaled) {
+      scale.pivot(element.scrollTop, target, element.scrollHeight - element.clientHeight);
+    } else if (wasScaled !== scale.scaled) {
+      // Once the body has its new height (the write would clamp to the old one).
+      this.#anchor = target;
+    } else if (Math.abs(target - top) > 0.01) {
+      this.#hold += target - top;
+      clearTimeout(this.#holdTimer);
+      this.#holdTimer = setTimeout(this.#flushHold, HOLD_MS);
+    }
   }
 
   /**
@@ -193,19 +268,19 @@ export class VirtualController implements ReactiveController {
     if ((wasScaled || this.#scale.scaled) && offset > 0) this.#anchor = offset;
   }
 
-  #configureAuto(auto: AutoRows, prev: VirtualConfig): void {
+  #configureMeasured(measure: MeasuredRows, prev: VirtualConfig): void {
     const next = this.#config;
     const sizes = this.#sizes;
-    if (!prev.auto || next.rowHeight !== prev.rowHeight) {
+    if (prev.measure?.all !== measure.all || next.rowHeight !== prev.rowHeight) {
       // A new minimum height (density, a theme): every row measures again.
       this.#heights.clear();
       this.#order = undefined;
     }
     const reset = () => {
-      sizes.reset(next.count, this.#fit(0), this.#known(auto, next.count));
+      sizes.reset(next.count, this.#fit(0), this.#known(measure, next.count));
     };
-    if (auto.order !== this.#order) {
-      this.#order = auto.order;
+    if (measure.order !== this.#order) {
+      this.#order = measure.order;
       reset();
     } else if (next.count !== sizes.count) {
       // A data source counting more rows: they keep their indexes.
@@ -220,11 +295,11 @@ export class VirtualController implements ReactiveController {
   }
 
   /** The measured heights by index in the current order. Forgets rows long gone. */
-  *#known(auto: AutoRows, count: number): Generator<[number, number]> {
+  *#known(measure: MeasuredRows, count: number): Generator<[number, number]> {
     const heights = this.#heights;
     const prune = heights.size > 2 * count + 1000;
     for (const [id, px] of heights) {
-      const index = auto.indexOf(id);
+      const index = measure.indexOf(id);
       if (index !== undefined && index < count) yield [index, this.#fit(px)];
       else if (prune) heights.delete(id);
     }
@@ -232,6 +307,8 @@ export class VirtualController implements ReactiveController {
 
   /** The px grid rows are on for a body `logical` px tall (see `COARSE_BODY`). */
   #quantumFor(logical: number): number {
+    // Fixed-height data rows aren't on a measured grid: only panels are measured.
+    if (!this.#config.measure?.all) return 1;
     return Math.min(logical, this.#config.cap(logical)) > COARSE_BODY ? 2 : 1;
   }
 
@@ -336,19 +413,28 @@ export class VirtualController implements ReactiveController {
     return { start, end, top };
   }
 
-  /** The rows to render, in pool order: each holds its pool slot while in range. */
-  #pooled(byId: Map<string, Omit<WindowRow, 'slot'>>): WindowRow[] {
-    const rows: WindowRow[] = [];
-    for (const { id, slot } of this.#pool.update(byId.keys())) {
+  /**
+   * The rows to render from `pool`, in pool order: each holds its pool slot while
+   * in range. With `idle`, every slot the pool has made is returned, the unused
+   * ones as idle, so none is removed while scrolling.
+   */
+  #pooled(pool: RowPool, byId: Map<string, Omit<WindowRow, 'slot'>>, idle: boolean): WindowRow[] {
+    const bySlot = new Map<number, WindowRow>();
+    for (const { id, slot } of pool.update(byId.keys())) {
       const item = byId.get(id);
-      if (item) rows.push({ slot, ...item });
+      if (item) bySlot.set(slot, { slot, ...item });
     }
-    return rows;
+    if (!idle) return [...bySlot.values()];
+    // Every slot, in slot order: the unused ones idle.
+    return Array.from(
+      { length: pool.size },
+      (_, slot) => bySlot.get(slot) ?? { slot, index: -1, row: -1, start: 0, idle: true },
+    );
   }
 
-  /** Computes the rendered window and updates the pool. Call once per render. */
+  /** Computes the rendered window and updates the pools. Call once per render. */
   computeWindow(): VirtualWindow {
-    const { count, overscan, rowHeight, keep, rowIdAt } = this.#config;
+    const { count, overscan, rowHeight, keep, rowIdAt, details } = this.#config;
     const sizes = this.#sizes;
     const scale = this.#scale;
     const element = this.#element;
@@ -356,10 +442,11 @@ export class VirtualController implements ReactiveController {
     this.#rendered = visible;
     this.#follow = false;
     // Fixed heights: rows take theirs from CSS.
-    const measured = (size: number) => (this.#config.auto ? size : undefined);
+    const measured = (size: number) => (this.#config.measure ? size : undefined);
+    const rowOf = (index: number) => (details ? details.dataIndexAt(index) : index);
     // Scaled: rows render relative to the scroll position. Unscaled: shifted by the held correction.
     const shift = visible && element ? visible.top - element.scrollTop : 0;
-    const byId = new Map<string, { index: number; start: number; size?: number }>();
+    const byId = new Map<string, Omit<WindowRow, 'slot'>>();
     if (visible && element) {
       const indexes = steadyWindow(
         { startIndex: visible.start, endIndex: visible.end, overscan, count },
@@ -369,38 +456,57 @@ export class VirtualController implements ReactiveController {
       let start = first === undefined ? 0 : sizes.startOf(first);
       for (const index of indexes) {
         const size = sizes.sizeOf(index);
-        byId.set(rowIdAt(index), { index, start: start - shift, size: measured(size) });
+        byId.set(rowIdAt(index), {
+          index,
+          row: rowOf(index),
+          start: start - shift,
+          size: measured(size),
+        });
         start += size;
       }
     }
-    this.#pool.pin(keep?.id);
+    const keepDetail = keep !== undefined && details?.isDetail(keep.index) === true;
+    this.#pool.pin(keepDetail ? undefined : keep?.id);
+    this.#detailPool.pin(keepDetail ? keep.id : undefined);
     if (keep && !byId.has(keep.id) && keep.index < count) {
       // Scaled, it is out of view: keep it inside the body (or just above it).
       const size = sizes.sizeOf(keep.index);
       const start = sizes.startOf(keep.index) - shift;
       byId.set(keep.id, {
         index: keep.index,
+        row: rowOf(keep.index),
         start: scale.scaled ? Math.min(Math.max(start, -size), scale.size) : start,
         size: measured(size),
       });
     }
-    const rows = this.#pooled(byId);
+    let rows: WindowRow[];
+    let panels: WindowRow[] = [];
+    if (details) {
+      const data = new Map<string, Omit<WindowRow, 'slot'>>();
+      const detail = new Map<string, Omit<WindowRow, 'slot'>>();
+      for (const [id, item] of byId) (details.isDetail(item.index) ? detail : data).set(id, item);
+      rows = this.#pooled(this.#pool, data, true);
+      panels = this.#pooled(this.#detailPool, detail, true);
+    } else {
+      rows = this.#pooled(this.#pool, byId, false);
+    }
     return {
       rows,
+      details: panels,
       totalSize: scale.scaled ? scale.size : sizes.total,
       range: visible ? { start: visible.start, end: visible.end } : null,
     };
   }
 
   /**
-   * Auto mode: records the heights of rendered body rows (`[index, px]`), read
+   * Measured rows: records the heights of rendered body rows (`[position, px]`), read
    * once their content has rendered. Heights under the row height count as it.
    * Returns whether any changed; the controller then requests the update that
    * places the rows. Rows above the top row keep the rows in view in place.
    */
   measureRows(measured: Iterable<readonly [number, number]>): boolean {
-    const { auto, rowIdAt, cap } = this.#config;
-    if (!auto) return false;
+    const { measure, rowIdAt, cap } = this.#config;
+    if (!measure) return false;
     const sizes = this.#sizes;
     const element = this.#element;
     const top = element ? this.#top(element) : 0;
@@ -417,19 +523,8 @@ export class VirtualController implements ReactiveController {
     const scale = this.#scale;
     const wasScaled = scale.excess > 0;
     const logical = sizes.total;
-    if (scale.configure(logical, cap(logical)) && element) {
-      if (wasScaled && scale.scaled) {
-        // Keep the rows in view where they are without moving the scroller.
-        scale.pivot(element.scrollTop, target, element.scrollHeight - element.clientHeight);
-      } else if (wasScaled !== scale.scaled) {
-        // Once the body has its new height (the write would clamp to the old one).
-        this.#anchor = target;
-      } else if (Math.abs(target - top) > 0.01) {
-        this.#hold += target - top;
-        clearTimeout(this.#holdTimer);
-        this.#holdTimer = setTimeout(this.#flushHold, HOLD_MS);
-      }
-    }
+    // Keep the rows in view where they are without moving the scroller.
+    if (scale.configure(logical, cap(logical))) this.#keepAt(target, top, wasScaled);
     this.#host.requestUpdate();
     return true;
   }

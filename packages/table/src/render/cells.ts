@@ -4,7 +4,7 @@ import type { ColumnView, HeaderGroupCell, RowPin, TableModel } from '@argus-tab
 import type { RenderedColumn } from '../controllers/column-window.js';
 import type { WindowRow } from '../controllers/virtual-controller.js';
 import type { CellContent } from '../types.js';
-import { cellSlot, formatValue, groupSlot, headerSlot, pinnedSlot } from './content.js';
+import { cellSlot, detailSlot, formatValue, groupSlot, headerSlot, pinnedSlot } from './content.js';
 import { content } from './content-directive.js';
 
 type Column<T> = ColumnView<T, CellContent>;
@@ -18,7 +18,8 @@ type Column<T> = ColumnView<T, CellContent>;
  * root renders, with their slots and keys. What `header` and `cell` return goes
  * through `content()`, so foreign content reaches the table's `contentRenderer`.
  * Group headers come first, one per group and pin side (`groups`, the header's
- * group rows).
+ * group rows). `details` are the panel pool's slots: an empty element each, which
+ * the table fills with the panel shown there.
  * Returns the part, which the table disconnects when it is disconnected.
  */
 export function renderLightDom<T>(
@@ -28,6 +29,7 @@ export function renderLightDom<T>(
   rendered: readonly RenderedColumn<T>[],
   groups: readonly (readonly HeaderGroupCell<CellContent>[])[],
   renderBefore: ChildNode,
+  details: readonly WindowRow[] = [],
 ): RootPart {
   // The selection column renders its checkboxes in the shadow root: no content here.
   const columns = rendered.filter((c) => c.kind === 'data');
@@ -48,10 +50,14 @@ export function renderLightDom<T>(
         repeat(
           columns,
           (c) => c.key,
-          (c) =>
-            html`<div slot=${cellSlot(r.slot, c.slot)}>${cellContent(model, r.index, c)}</div>`,
+          (c) => html`<div slot=${cellSlot(r.slot, c.slot)}>${cellContent(model, r.row, c)}</div>`,
         ),
-    )}${pinnedContent(model, columns, 'bottom')}`,
+    )}${pinnedContent(model, columns, 'bottom')}${repeat(
+      details,
+      (r) => r.slot,
+      // The panel's content is put inside by the table (it is kept per row).
+      (r) => html`<div slot=${detailSlot(r.slot)} class="argus-detail-slot"></div>`,
+    )}`,
     host,
     { host, renderBefore },
   );

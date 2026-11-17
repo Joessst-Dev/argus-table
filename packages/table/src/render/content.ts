@@ -23,6 +23,8 @@ export function formatValue(value: unknown): string {
  */
 export const cellSlot = (slot: number, colSlot: number) => `c-${String(slot)}-${String(colSlot)}`;
 export const headerSlot = (colSlot: number) => `h-${String(colSlot)}`;
+/** The slot of a detail panel's content: one per pool slot of the panel pool. */
+export const detailSlot = (slot: number) => `d-${String(slot)}`;
 /** A column group's header, by the group's slot number (`HeaderGroupCell.slot`). */
 export const groupSlot = (slot: number) => `g-${String(slot)}`;
 export const pinnedSlot = (side: 'top' | 'bottom', index: number, colSlot: number) =>
