@@ -38,15 +38,16 @@ export class DetailContent<T> {
 
   /**
    * Renders the panels in `rendered` (every update: like a cell, `detail` runs for
-   * each panel in view) and releases the holders of rows not in `open`.
+   * each panel in view) and releases the holders of rows `isOpen` says no longer
+   * show a panel. Work in proportion to the panels kept, not to every open one.
    */
   sync(
     detail: ((context: RowDetailContext<T>) => CellContent) | undefined,
-    open: ReadonlySet<string>,
+    isOpen: (rowId: string) => boolean,
     rendered: readonly RenderedPanel<T>[],
   ): void {
     for (const [id, holder] of this.#holders) {
-      if (!detail || !open.has(id)) this.#release(id, holder);
+      if (!detail || !isOpen(id)) this.#release(id, holder);
     }
     if (!detail) return;
     for (const { rowId, slotElement, context } of rendered) {

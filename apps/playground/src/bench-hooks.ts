@@ -41,9 +41,35 @@ export interface ReachEndResult {
 /** Body rows only: pinned rows (`pinned=…`) also carry the `row` part. */
 const BODY_ROWS = '[part~="body"] > [part~="row"]';
 
-/** A body row's index: `aria-rowindex` after the header and the rows pinned to the top. */
-const bodyIndex = (table: ArgusTable<Person>, row: Element) =>
-  Number(row.getAttribute('aria-rowindex')) - 2 - (table.pinnedRows?.top?.length ?? 0);
+/**
+ * A body row's data index: its `aria-rowindex` after the header and the rows pinned
+ * to the top, less the detail panels above it (`detail=<n>`: every nth row open,
+ * ids `r<index>`).
+ */
+function bodyIndex(table: ArgusTable<Person>, row: Element): number {
+  const position =
+    Number(row.getAttribute('aria-rowindex')) - 2 - (table.pinnedRows?.top?.length ?? 0);
+  if (!table.rowDetail || table.expanded.length === 0) return position;
+  const open = openIndexes(table);
+  // The data index i with i + (open rows below i) === position.
+  let low = 0;
+  let high = open.length;
+  while (low < high) {
+    const mid = (low + high) >> 1;
+    if ((open[mid] ?? 0) + mid + 1 <= position) low = mid + 1;
+    else high = mid;
+  }
+  return position - low;
+}
+
+let openCache: { of: readonly string[]; indexes: number[] } | undefined;
+const openIndexes = (table: ArgusTable<Person>) => {
+  if (openCache?.of !== table.expanded) {
+    const indexes = table.expanded.map((id) => Number(id.slice(1))).sort((a, b) => a - b);
+    openCache = { of: table.expanded, indexes };
+  }
+  return openCache.indexes;
+};
 
 const nextFrame = () => new Promise<number>((resolve) => requestAnimationFrame(resolve));
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));

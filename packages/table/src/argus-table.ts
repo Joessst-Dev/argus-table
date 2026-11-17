@@ -1471,11 +1471,12 @@ export class ArgusTable<T = unknown> extends LitElement {
    * the content of panels that closed or whose row can't show one any more.
    */
   #syncDetails(model: TableModel<T, CellContent>): void {
-    const open = new Set<string>();
-    for (const index of model.display.open) {
-      const id = model.rowAt(index)?.id;
-      if (id !== undefined) open.add(id);
-    }
+    const { display } = model;
+    // Asked per kept panel only: walking every open one each update costs at scale.
+    const isOpen = (id: string) => {
+      const index = model.indexOf(id);
+      return index !== undefined && display.hasDetail(index);
+    };
     const rendered: RenderedPanel<T>[] = [];
     for (const panel of this.#window.details) {
       const row = panel.idle ? undefined : model.rowAt(panel.row);
@@ -1489,7 +1490,7 @@ export class ArgusTable<T = unknown> extends LitElement {
         context: { row: row.original, rowId: row.id, index: panel.row },
       });
     }
-    this.#detail.sync(this.rowDetail, open, rendered);
+    this.#detail.sync(this.rowDetail, isOpen, rendered);
   }
 
   /**
@@ -1809,17 +1810,15 @@ export class ArgusTable<T = unknown> extends LitElement {
   /** The toggle column's chevrons, for the body. */
   #toggles(model: TableModel<T, CellContent>): RowToggles {
     const labels = this.#labels;
-    const open = new Set(this.#expanded.value);
+    const { display } = model;
     const panels = new Map(
       this.#window.details.filter((r) => !r.idle).map((r) => [r.row, detailRowId(r.slot)]),
     );
     return {
       controls: (index) => panels.get(index),
       expandable: (index) => model.expandable(index),
-      open: (index) => {
-        const id = model.rowAt(index)?.id;
-        return id !== undefined && open.has(id) && model.expandable(index);
-      },
+      // The model placed a panel after it: expanded, loaded and expandable.
+      open: (index) => display.hasDetail(index),
       expandLabel: labels.expandRow,
       collapseLabel: labels.collapseRow,
       onClick: this.#onToggle,
