@@ -8,8 +8,13 @@ import { LitElement, css, html, nothing, type PropertyValues, type TemplateResul
 import { customElement, state } from 'lit/decorators.js';
 import { live } from 'lit/directives/live.js';
 import { ref } from 'lit/directives/ref.js';
-import type { ArgusTable, ColumnDef, ColumnGroup, DataSource, PinnedRows } from 'argus-table';
-import 'argus-table';
+import {
+  ArgusTable,
+  type ColumnDef,
+  type ColumnGroup,
+  type DataSource,
+  type PinnedRows,
+} from 'argus-table';
 import { headerMenu } from '@argus-table/header-menu';
 import { formulas } from '@argus-table/formulas';
 import { orderColumns, orders, totals, getOrderId, type Order } from './orders.js';
@@ -104,9 +109,9 @@ const filters = { city: { kind: 'set' as const, values: ['Lisbon', 'Oslo', 'Quit
 const started = new WeakSet<Element>();
 /** A sort, a filter and a selection to start with, left to the user afterwards (uncontrolled). */
 const initialState = (element?: Element) => {
-  if (!element || started.has(element)) return;
+  if (!(element instanceof ArgusTable) || started.has(element)) return;
   started.add(element);
-  void (element as ArgusTable<Order>).setState({
+  void element.setState({
     sorting: [{ id: 'total', desc: true }],
     columnFilters: filters,
     selection: ['o2', 'o4'],
