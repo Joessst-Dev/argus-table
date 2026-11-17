@@ -129,7 +129,7 @@ function idleRow<T>(row: WindowRow, columns: Columns<T>) {
     ${repeat(
       columns,
       (c) => c.key,
-      (c) => html`<div role="gridcell"><slot name=${cellSlot(row.slot, c.slot)}></slot></div>`,
+      (c) => html`<div><slot name=${cellSlot(row.slot, c.slot)}></slot></div>`,
     )}
   </div>`;
 }
@@ -148,7 +148,7 @@ function renderDetailRow(
 ) {
   const slot = html`<slot name=${detailSlot(row.slot)}></slot>`;
   if (row.idle) {
-    return html`<div class="row detail-row" hidden><div role="gridcell">${slot}</div></div>`;
+    return html`<div class="row detail-row" hidden><div>${slot}</div></div>`;
   }
   return html`<div
     part="row-detail"

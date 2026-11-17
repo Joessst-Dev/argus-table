@@ -196,7 +196,7 @@ function attachGridInternals(host: HTMLElement): ElementInternals {
  * @csspart detail - A detail panel's one cell: it spans the visible width (it stays in place when the table scrolls sideways), is as tall as its content up to `--argus-detail-max-height`, and scrolls past that.
  * @csspart row-expanded - Added to `row` on a body row whose detail panel is open (`rowDetail`).
  * @csspart cell-expand - Added to `cell` in the toggle column of detail panels (`rowDetail`), pinned rows included.
- * @csspart header-cell-expand - Added to `header-cell` on the toggle column's (empty) header.
+ * @csspart header-cell-expand - Added to `header-cell` on the toggle column's header: an empty cell (`role="gridcell"`, as an empty column header has no name to read).
  * @csspart expand-toggle - The chevron button that opens and closes a row's detail panel. It is drawn with borders in `currentColor` (`::before`) and has `aria-expanded`.
  * @csspart row-pinned - Every row from `pinnedRows`, on either side. Also has `row`, but no `row-even`/`row-odd`.
  * @csspart row-pinned-top - The rows pinned below the header.

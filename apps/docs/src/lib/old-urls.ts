@@ -20,6 +20,7 @@ export const STORYBOOK_PAGES: Readonly<Record<string, string>> = {
   'features-column-virtualization': 'features/column-virtualization/',
   'features-declarative-columns': 'features/declarative-columns/',
   'features-density': 'features/density/',
+  'features-detail-rows': 'features/detail-rows/',
   'features-filtering': 'features/filtering/',
   'features-infinite-loading': 'features/infinite-loading/',
   'features-keyboard': 'features/keyboard/',

@@ -39,6 +39,8 @@ import { installBenchHooks } from './bench-hooks.js';
 // (source=remote) filters too.
 // groups adds column groups: Contact over Email and Location (City, Country), Order
 // over Status, Amount and Date, and Extra over the fN columns: three header rows.
+// detail=<n> adds detail panels (rowDetail: a small form and five rows of a nested
+// table) and opens every nth row's (expanded); detail alone, or detail=0, opens none.
 const params = new URLSearchParams(location.search);
 // A switch, not a lookup table: the query value never picks a function to call.
 switch (params.get('theme')) {
@@ -248,6 +250,32 @@ if (pinnedSides.size > 0) {
     bottom: pinnedSides.has('bottom') ? [summary('sum', 'Total', 1)] : undefined,
   };
 }
+if (params.has('detail')) {
+  const every = Number(params.get('detail'));
+  table.rowDetail = ({ row }) =>
+    html`<form
+        class="detail-form"
+        @submit=${(event: Event) => {
+          event.preventDefault();
+        }}
+      >
+        <label>Note for ${row.name} <input name="note" /></label>
+        <button type="submit">Save</button>
+      </form>
+      <argus-table
+        class="detail-lines"
+        style="block-size: auto; max-block-size: 220px"
+        aria-label=${`Lines of ${row.name}`}
+        .columns=${lineColumns}
+        .data=${linesOf(row)}
+      ></argus-table>`;
+  if (every > 0) {
+    table.expanded = people.filter((_, i) => i % every === 0).map((p) => p.id);
+    table.addEventListener('argus-expanded-change', (event) => {
+      table.expanded = event.detail.expanded;
+    });
+  }
+}
 if (params.has('bench')) installBenchHooks(table, { dataMs });
 else document.body.append(table);
 
@@ -255,6 +283,25 @@ declare global {
   interface Window {
     __argusRequests?: RowsRequest[];
   }
+}
+
+const lineColumns: ColumnDef<{ id: string; amount: number }>[] = [
+  { id: 'id', header: 'Line', accessor: 'id', width: 80 },
+  { id: 'amount', header: 'Amount', accessor: 'amount', width: 120, align: 'end', sortable: true },
+];
+const lines = new Map<string, { id: string; amount: number }[]>();
+
+/** Five lines per person, the same array each time (a panel renders again on updates). */
+function linesOf(person: Person) {
+  let list = lines.get(person.id);
+  if (!list) {
+    list = Array.from({ length: 5 }, (_, i) => ({
+      id: String(i + 1),
+      amount: Math.round(person.amount * (i + 1)) / 10,
+    }));
+    lines.set(person.id, list);
+  }
+  return list;
 }
 
 /** A summary row shaped like a person: the amounts added up, divided by `divisor`. */

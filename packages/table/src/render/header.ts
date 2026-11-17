@@ -99,7 +99,7 @@ export function renderHeader<T>({
         (c) =>
           html`<div
             part=${headerParts(c, drag)}
-            role="columnheader"
+            role=${c.kind === 'expand' ? 'gridcell' : 'columnheader'}
             aria-colindex=${c.colIndex}
             aria-sort=${ariaSort(c.sorted) ?? nothing}
             aria-description=${c.filtered ? labels.filtered : nothing}

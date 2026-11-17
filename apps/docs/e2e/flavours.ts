@@ -34,8 +34,9 @@ export async function openFlavour(page: Page, example: string, flavour: Flavour)
     el.scrollIntoView({ block: 'start' });
   });
   const table = container.locator('argus-table').first();
-  // Its first body row: a skeleton for a data source still loading.
-  await table.locator('[role="row"][aria-rowindex="2"]').waitFor();
+  // Its first body row: a skeleton for a data source still loading. The first match:
+  // a table nested in the example's cells or panels has rows of its own.
+  await table.locator('[role="row"][aria-rowindex="2"]').first().waitFor();
   return container;
 }
 

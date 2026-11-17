@@ -101,6 +101,10 @@ export const baseStyles = css`
      * A detail panel's row: one cell over the visible width, as tall as its content
      * up to --argus-detail-max-height (then its content scrolls), and at least a row.
      */
+    /* An idle pool slot: kept for its slots, but out of the way (its display would win over hidden's). */
+    [part~='body'] > .row[hidden] {
+      display: none;
+    }
     [part~='body'] > .detail-row {
       display: block;
       block-size: auto;

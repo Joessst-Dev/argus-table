@@ -271,6 +271,14 @@ describe('detail rows: panel rows', () => {
     expect(el.getState().scroll.row).toBe(35);
   });
 
+  it('takes idle pool slots out of the layout', async () => {
+    const el = await detailTable({ expanded: ['p1'] }, 300);
+    await scrollTo(el, 3000);
+    const idle = [...shadow(el).querySelectorAll<HTMLElement>('[part~="body"] > .row[hidden]')];
+    expect(idle.length).toBeGreaterThan(0);
+    for (const row of idle) expect(getComputedStyle(row).display).toBe('none');
+  });
+
   it('never removes a pooled slot while scrolling', async () => {
     const data = people(500);
     const el = await detailTable(
