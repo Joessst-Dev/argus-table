@@ -53,7 +53,7 @@ If your change intentionally alters how the table looks, the visual tests will f
 - **Styling stays in CSS.** No hard-coded colours in components; every value reads a token with a neutral fallback.
 - **Accessibility is not optional.** New interactive behaviour needs keyboard support and correct ARIA roles, following the WAI-ARIA grid pattern.
 - **Keep TanStack internal.** TanStack types must not leak into the public API; go through `@argus-table/core`.
-- **Each feature gets a Storybook story.** Stories double as documentation and tests.
+- **Each feature gets a docs page and a Storybook story.** The docs site (`apps/docs`) shows it in all four flavours (plain HTML, React, Vue, Angular), each with an e2e spec; the story is a test (play function and axe). `apps/docs/README.md` has the steps.
 
 ## Reviews and merging
 

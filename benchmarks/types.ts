@@ -1,5 +1,6 @@
 // The shape of a results file: written by run.ts, merged by merge.ts and read by
-// the Storybook "Benchmarks" page (apps/storybook/stories/benchmarks.mdx).
+// the docs site's Performance guide (apps/docs/src/lib/benchmarks.ts) and the
+// Storybook "Benchmarks" page (apps/storybook/stories/benchmarks.mdx).
 
 export type BrowserName = 'chromium' | 'firefox' | 'webkit';
 export type Scenario = 'steady' | 'fast' | 'jumps' | 'horizontal' | 'wheel';

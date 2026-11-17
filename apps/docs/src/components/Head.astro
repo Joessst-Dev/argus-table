@@ -3,9 +3,16 @@
 // @argus-table/themes follows `data-argus-theme` on an ancestor, so the
 // site's `data-theme` (light or dark) is mirrored onto it.
 import Default from '@astrojs/starlight/components/Head.astro';
+import { redirectScript } from '../lib/old-urls';
+
+// Storybook's manager URLs (`?path=/docs/…`, `?path=/story/…`) open the home
+// page: there, a script sends them on to their new pages (src/lib/old-urls.ts).
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const home = Astro.url.pathname.replace(/\/$/, '') === base;
 ---
 
 <Default />
+{home && <script is:inline set:html={redirectScript(base)} />}
 <script is:inline>
   (() => {
     const root = document.documentElement;

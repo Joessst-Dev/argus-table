@@ -18,7 +18,7 @@ The skill runs three small Node scripts (Node 18 or later, no dependencies). The
 
 ## `argus-table-theme`
 
-Makes an argus-table theme from what you give your agent: brand colours, a font, a feel ("flat and dense", "rounded and soft"), or the URL of your website. The agent reads your site's colours, fonts and corner radii, writes a theme draft and gives you a link to the [theme creator](https://joessst-dev.github.io/argus-table/?path=/story/themes-theme-creator--creator). The link opens with your theme on a live table in light and dark. There you check WCAG contrast, adjust anything and download the CSS.
+Makes an argus-table theme from what you give your agent: brand colours, a font, a feel ("flat and dense", "rounded and soft"), or the URL of your website. The agent reads your site's colours, fonts and corner radii, writes a theme draft and gives you a link to the [theme creator](https://joessst-dev.github.io/argus-table/themes/creator/). The link opens with your theme on a live table in light and dark. There you check WCAG contrast, adjust anything and download the CSS.
 
 Ask for example:
 

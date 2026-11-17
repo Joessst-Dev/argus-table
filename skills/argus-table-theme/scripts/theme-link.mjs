@@ -4,7 +4,7 @@
 //
 //   node theme-link.mjs draft.json            print the link
 //   node theme-link.mjs - < draft.json        read the draft from stdin
-//   node theme-link.mjs draft.json --base-url http://localhost:6006/
+//   node theme-link.mjs draft.json --base-url http://localhost:4321/argus-table/
 //   node theme-link.mjs --decode '<link>'     print the draft in a link
 //
 // Problems with the draft go to stderr and exit with 1; warnings go to
@@ -13,7 +13,7 @@ import { readFile } from 'node:fs/promises';
 import { decodeLink, themeLink, validateDraft } from './draft.mjs';
 
 const USAGE = `Usage:
-  node theme-link.mjs <draft.json | -> [--base-url <storybook url>]
+  node theme-link.mjs <draft.json | -> [--base-url <docs site url, e.g. http://localhost:4321/argus-table/>]
   node theme-link.mjs --decode <link>`;
 
 async function readStdin() {

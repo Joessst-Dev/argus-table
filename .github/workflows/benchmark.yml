@@ -7,7 +7,7 @@ name: Benchmark
 #
 # On an argus-table release (or a manual run with `publish`), a last job merges the
 # three engines' results into benchmarks/published/ and opens a pull request with
-# them; the Storybook "Benchmarks" page shows the merged file once it is merged.
+# them; the docs site's Performance guide shows the merged file once it is merged.
 on:
   schedule:
     - cron: '17 3 * * *'
@@ -136,4 +136,4 @@ jobs:
           git push origin "HEAD:$branch"
           gh pr create --base main --head "$branch" --label no-changeset \
             --title "docs(benchmarks): results for argus-table@${version}" \
-            --body "Benchmark results for argus-table@${version} from [run ${GITHUB_RUN_ID}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}), merged from the Chromium, Firefox and WebKit jobs. Merging updates the Storybook Benchmarks page."
+            --body "Benchmark results for argus-table@${version} from [run ${GITHUB_RUN_ID}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}), merged from the Chromium, Firefox and WebKit jobs. Merging updates the benchmark tables in the docs site's Performance guide."

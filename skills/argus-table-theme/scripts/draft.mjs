@@ -2,13 +2,14 @@
 // that opens the creator with a draft. No dependencies and no Node built-ins,
 // so it runs in Node 18+ and in browsers alike.
 //
-// The link format is the creator's own (packages/theme-creator/src/share.ts
-// in the argus-table repo): `#theme=` and the draft's JSON, deflated
-// (`deflate-raw`) and base64url-encoded. A test there checks this file
-// against the creator.
+// The link opens the theme creator page of the argus-table docs site; its
+// format is the creator's own (packages/theme-creator/src/share.ts in the
+// argus-table repo): `#theme=` and the draft's JSON, deflated (`deflate-raw`)
+// and base64url-encoded. A test there checks this file against the creator.
 
 export const DEFAULT_BASE_URL = 'https://joessst-dev.github.io/argus-table/';
-export const STORY_ID = 'themes-theme-creator--creator';
+/** The creator's page, from the docs site's base URL. */
+export const CREATOR_PATH = 'themes/creator/';
 export const HASH_KEY = 'theme';
 
 /** The shipped themes a draft can start from, and `blank` (seeds only). */
@@ -330,8 +331,7 @@ export async function decodeLink(link) {
 
 /** The link that opens the theme creator with a (valid) draft. */
 export async function themeLink(draft, baseUrl = DEFAULT_BASE_URL) {
-  const url = new URL('iframe.html', baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`);
-  url.search = new URLSearchParams({ id: STORY_ID, viewMode: 'story' }).toString();
+  const url = new URL(CREATOR_PATH, baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`);
   url.hash = `${HASH_KEY}=${await encodeDraft(draft)}`;
   return url.href;
 }

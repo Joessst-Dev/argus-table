@@ -115,13 +115,13 @@ node scripts/theme-link.mjs argus-theme.json
 
 It checks the draft and prints the link. If it lists problems (an unknown seed, a value out of range, a misspelled token), fix the draft and run it again. Warnings are fine.
 
-- `--base-url http://localhost:6006/` makes a link to a local Storybook of the argus-table repo instead of the public docs.
+- `--base-url http://localhost:4321/argus-table/` makes a link to a local docs site of the argus-table repo (`pnpm nx run docs:build`, then `pnpm nx run docs:preview`) instead of the public one.
 - `node scripts/theme-link.mjs --decode '<link>'` prints the draft in a creator link. Use it when the user sends a link back and asks for changes.
 
 Without Node, make the same link in Python: the JSON deflated raw and base64url-encoded, without padding.
 
 ```bash
-python3 -c "import sys,json,zlib,base64;d=json.dumps(json.load(open(sys.argv[1]))).encode();c=zlib.compressobj(9,zlib.DEFLATED,-15);print('https://joessst-dev.github.io/argus-table/iframe.html?id=themes-theme-creator--creator&viewMode=story#theme='+base64.urlsafe_b64encode(c.compress(d)+c.flush()).decode().rstrip('='))" argus-theme.json
+python3 -c "import sys,json,zlib,base64;d=json.dumps(json.load(open(sys.argv[1]))).encode();c=zlib.compressobj(9,zlib.DEFLATED,-15);print('https://joessst-dev.github.io/argus-table/themes/creator/#theme='+base64.urlsafe_b64encode(c.compress(d)+c.flush()).decode().rstrip('='))" argus-theme.json
 ```
 
 This skips the checks, so follow the draft format exactly.
