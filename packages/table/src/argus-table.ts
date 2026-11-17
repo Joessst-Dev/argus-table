@@ -20,6 +20,7 @@ import {
   type TableModel,
 } from '@argus-table/core';
 import { announce } from './announce.js';
+import { firstFocusable } from './focusable.js';
 import { AutoWidths, measureColumns } from './controllers/auto-width.js';
 import { ColumnChildrenController } from './controllers/column-children.js';
 import { ColumnWindowController, type RenderedColumn } from './controllers/column-window.js';
@@ -55,12 +56,15 @@ import { resolveLabels, type TableLabels } from './labels.js';
 import { bodyCap, watchMaxElementHeight } from './max-height.js';
 import {
   detailRowId,
+  PANEL_COLUMN,
   renderBody,
   type ActiveCell,
   type Loading,
   type RowToggles,
 } from './render/body.js';
 import { renderLightDom } from './render/cells.js';
+import { detailSlot } from './render/content.js';
+import { DetailContent, type RenderedPanel } from './render/detail-content.js';
 import { content, flushContent, type ContentRenderer } from './render/content-directive.js';
 import { renderHeader } from './render/header.js';
 import { headerText } from './render/header-text.js';
@@ -188,6 +192,8 @@ function attachGridInternals(host: HTMLElement): ElementInternals {
  * @csspart cell-selection - Added to `cell` in the checkbox column (`selectionCheckboxes`), pinned rows included.
  * @csspart header-cell-selection - Added to `header-cell` on the checkbox column's header.
  * @csspart selection-checkbox - The checkboxes of the checkbox column: one per selectable row, and the select-all one in the header (`multi` mode).
+ * @csspart row-detail - The row of a detail panel (`rowDetail`), under the row it belongs to. Also has no `row` part.
+ * @csspart detail - A detail panel's one cell: it spans the visible width (it stays in place when the table scrolls sideways), is as tall as its content up to `--argus-detail-max-height`, and scrolls past that.
  * @csspart row-expanded - Added to `row` on a body row whose detail panel is open (`rowDetail`).
  * @csspart cell-expand - Added to `cell` in the toggle column of detail panels (`rowDetail`), pinned rows included.
  * @csspart header-cell-expand - Added to `header-cell` on the toggle column's (empty) header.
@@ -226,6 +232,7 @@ function attachGridInternals(host: HTMLElement): ElementInternals {
  * @cssprop [--argus-row-hover-bg] - Background of the hovered row. Default: no change.
  * @cssprop [--argus-row-pinned-bg=var(--argus-bg)] - Background of the pinned rows, pinned columns included.
  * @cssprop [--argus-skeleton-bg] - Colour of the skeleton bars in rows still loading. Default: the text colour at low opacity.
+ * @cssprop [--argus-detail-max-height=400px] - The tallest a detail panel (`rowDetail`) is; its content scrolls past it. Style the panel itself (background, padding) through the `detail` part.
  * @cssprop [--argus-row-selected-bg] - Background of selected rows, pinned columns included. Default: the system highlight colour, mixed into `--argus-bg`. It wins over `--argus-row-hover-bg`.
  */
 @customElement('argus-table')
@@ -726,6 +733,8 @@ export class ArgusTable<T = unknown> extends LitElement {
   #contentEnd: Comment | undefined;
   /** The light-DOM part: disconnected with the table, so foreign content is released. */
   #lightPart: RootPart | undefined;
+  /** The detail panels' content, kept per row while open (`rowDetail`). */
+  readonly #detail = new DetailContent<T>(this);
   #lightConnected = true;
   readonly #data = new DataController<T>(this);
   /** Scroll back to the top after the update (a new sort order for a data source). */
@@ -777,6 +786,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       rowPx: () => this.#rowPx,
       aroundPx: (layout) => this.#headerAndPinnedPx(layout),
       insets: (layout) => this.#bodyInsets(layout),
+      measured: () => this.#measuring,
     },
   );
   /** Column widths: resize handles, Alt+Arrow and fits. */
@@ -833,6 +843,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     if (!this.#lightPart || this.#lightConnected === connected) return;
     this.#lightConnected = connected;
     this.#lightPart.setConnected(connected);
+    this.#detail.setConnected(connected);
     flushContent(this);
   }
 
@@ -1401,6 +1412,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     // A new marker starts a new part (the old one was removed): its content is gone.
     if (this.#lightPart && this.#lightPart !== part) this.#lightPart.setConnected(false);
     this.#lightPart = part;
+    this.#syncDetails(model);
     // Foreign content is committed before anything measures it.
     flushContent(this);
     this.#measureAutoWidths(model);
@@ -1450,6 +1462,32 @@ export class ArgusTable<T = unknown> extends LitElement {
       if (load) this.#data.request(load.first, load.last + 1);
     }
     for (const detail of this.#data.takeErrors()) fire(this, LOAD_ERROR, detail);
+  }
+
+  /**
+   * Renders the detail panels in the window into their slot elements, and releases
+   * the content of panels that closed or whose row can't show one any more.
+   */
+  #syncDetails(model: TableModel<T, CellContent>): void {
+    const open = new Set<string>();
+    for (const index of model.display.open) {
+      const id = model.rowAt(index)?.id;
+      if (id !== undefined) open.add(id);
+    }
+    const rendered: RenderedPanel<T>[] = [];
+    for (const panel of this.#window.details) {
+      const row = panel.idle ? undefined : model.rowAt(panel.row);
+      const slotElement = row
+        ? this.querySelector<HTMLElement>(`:scope > [slot="${detailSlot(panel.slot)}"]`)
+        : null;
+      if (!row || !slotElement) continue;
+      rendered.push({
+        rowId: row.id,
+        slotElement,
+        context: { row: row.original, rowId: row.id, index: panel.row },
+      });
+    }
+    this.#detail.sync(this.rowDetail, open, rendered);
   }
 
   /**
@@ -1547,9 +1585,16 @@ export class ArgusTable<T = unknown> extends LitElement {
    * Keys from content inside a cell (an input, a button) are left to that content.
    */
   readonly #onKeydown = (event: KeyboardEvent) => {
-    const origin = event.composedPath()[0] ?? event.target ?? this;
-    const group = groupCell(origin);
-    const cell = gridCell(origin) ?? group;
+    const path = event.composedPath();
+    const origin = path[0] ?? event.target ?? this;
+    const root = this.renderRoot;
+    if (event.key === 'Escape' && !event.defaultPrevented && this.#panelBack(path, origin)) {
+      event.preventDefault();
+      return;
+    }
+    // Only this table's cells: keys from content (a nested table's cells too) are the content's.
+    const group = groupCell(origin, root);
+    const cell = gridCell(origin, root) ?? group;
     const id = cell?.dataset.col;
     if (!cell || (id === undefined && !group)) return;
     const scroller = event.currentTarget as HTMLElement;
@@ -1571,6 +1616,20 @@ export class ArgusTable<T = unknown> extends LitElement {
     }
     if (group || id === undefined) {
       this.#groupKey(event, cell, scroller);
+      return;
+    }
+    if (id === PANEL_COLUMN) {
+      // A detail panel's cell: Enter or F2 goes into its content; arrows move between rows.
+      if (event.key === 'Enter' || event.key === 'F2') {
+        const content = cell.querySelector('slot')?.assignedElements() ?? [];
+        const target = firstFocusable(content);
+        if (target) {
+          event.preventDefault();
+          target.focus();
+        }
+        return;
+      }
+      this.#nav.key(event, cell, id, false, scroller);
       return;
     }
     if (id === EXPAND_COLUMN_ID && (event.key === 'Enter' || event.key === ' ')) {
@@ -1626,6 +1685,22 @@ export class ArgusTable<T = unknown> extends LitElement {
     }
     this.#nav.key(event, cell, id, inHeader, scroller);
   };
+
+  /**
+   * Escape inside a detail panel's content (not on its cell): focus goes back to
+   * the panel's cell. Returns whether it did.
+   */
+  #panelBack(path: readonly EventTarget[], origin: EventTarget): boolean {
+    const panel = path.find(
+      (t): t is HTMLElement =>
+        t instanceof HTMLElement &&
+        t.dataset.col === PANEL_COLUMN &&
+        t.getRootNode() === this.renderRoot,
+    );
+    if (!panel || panel === origin) return false;
+    panel.focus({ preventScroll: true });
+    return true;
+  }
 
   /**
    * Keys on a focused group header: Alt+Arrow resizes the group, or moves it
@@ -1853,7 +1928,7 @@ export class ArgusTable<T = unknown> extends LitElement {
   /** The header or cell an event happened in, for plugins. */
   #cellTarget(event: Event): CellTarget | undefined {
     for (const target of event.composedPath()) {
-      const cell = gridCell(target);
+      const cell = gridCell(target, this.renderRoot);
       const columnId = cell?.dataset.col;
       if (!cell || columnId === undefined) continue;
       const model = this.#table.model;

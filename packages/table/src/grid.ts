@@ -83,16 +83,22 @@ export function unitKey(unit: OrderUnit): string {
   return unit.kind === 'column' ? columnKey(unit.id) : groupKey(unit.id, unit.pin);
 }
 
-/** The grid cell or column header an element is, if any. */
-export function gridCell(target: EventTarget): HTMLElement | undefined {
+/**
+ * The grid cell or column header an element is, if any. With `root`, only one in
+ * that shadow root: a table nested in a cell or a panel has cells of its own.
+ */
+export function gridCell(target: EventTarget, root?: Node): HTMLElement | undefined {
   if (!(target instanceof HTMLElement) || target.dataset.col === undefined) return undefined;
+  if (root && target.getRootNode() !== root) return undefined;
   const role = target.getAttribute('role');
   return role === 'gridcell' || role === 'columnheader' ? target : undefined;
 }
 
-/** The column group header an element is, if any. */
-export function groupCell(target: EventTarget): HTMLElement | undefined {
-  return target instanceof HTMLElement && target.dataset.groupKey !== undefined
+/** The column group header an element is, if any (with `root`, only one in that shadow root). */
+export function groupCell(target: EventTarget, root?: Node): HTMLElement | undefined {
+  return target instanceof HTMLElement &&
+    target.dataset.groupKey !== undefined &&
+    (!root || target.getRootNode() === root)
     ? target
     : undefined;
 }

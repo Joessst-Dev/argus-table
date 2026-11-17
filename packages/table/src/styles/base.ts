@@ -114,8 +114,8 @@ export const baseStyles = css`
       min-block-size: var(--_row-height);
       max-block-size: var(--argus-detail-max-height, 400px);
       overflow: auto;
-      padding: var(--argus-detail-padding, var(--_pad));
-      background: var(--argus-detail-bg, var(--argus-bg, Canvas));
+      padding: var(--_pad);
+      background: var(--argus-bg, Canvas);
       border-block-end: var(--_border);
     }
     [part~='row'] {

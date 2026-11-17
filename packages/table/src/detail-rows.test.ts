@@ -37,10 +37,11 @@ const toggleOf = (row: Element) => {
   return button;
 };
 
+/** The details of `name` events `el` fires itself (not those bubbling out of a nested table). */
 function events<D>(el: HTMLElement, name: string): D[] {
   const seen: D[] = [];
   el.addEventListener(name, (event) => {
-    seen.push((event as CustomEvent<D>).detail);
+    if (event.target === el) seen.push((event as CustomEvent<D>).detail);
   });
   return seen;
 }
@@ -148,11 +149,11 @@ function panelSlot(el: ArgusTable<Person>, panelRow: Element): HTMLElement {
   return slot;
 }
 
-/** Content of a given height in a panel, put there by hand: the panel's own content comes later. */
+/** Gives the panel's content (`detailTable`'s paragraph) a height, as an image loading would. */
 function fill(el: ArgusTable<Person>, panelRow: Element, px: number): HTMLElement {
-  const block = document.createElement('div');
-  block.style.blockSize = `${String(px)}px`;
-  panelSlot(el, panelRow).replaceChildren(block);
+  const block = panelSlot(el, panelRow).querySelector<HTMLElement>('p');
+  if (!block) throw new Error('no panel content');
+  block.style.cssText = `block-size: ${String(px)}px; margin: 0`;
   return block;
 }
 
@@ -226,8 +227,7 @@ describe('detail rows: panel rows', () => {
     await el.scrollToRow(30);
     await settle(el);
     const before = rowAtPosition(el, 31).getBoundingClientRect().top;
-    const block = panelSlot(el, panel).firstElementChild as HTMLElement;
-    block.style.blockSize = '240px';
+    fill(el, panel, 240);
     await settle(el);
     await settle(el);
     expect(rowAtPosition(el, 31).getBoundingClientRect().top).toBeCloseTo(before, 0);
@@ -307,5 +307,406 @@ describe('detail rows: panel rows', () => {
     await settle(el);
     // 1,000 panels above it.
     expect(rowAtPosition(el, 999_999 + 1000).textContent).toBeDefined();
+  });
+});
+
+describe('detail rows: keyboard, focus, selection and events', () => {
+  afterEach(() => {
+    document.body.replaceChildren();
+  });
+
+  const press = (target: Element, key: string, init: KeyboardEventInit = {}) => {
+    const event = new KeyboardEvent('keydown', {
+      key,
+      bubbles: true,
+      composed: true,
+      cancelable: true,
+      ...init,
+    });
+    target.dispatchEvent(event);
+    return event;
+  };
+
+  /** The element holding focus inside the shadow root. */
+  const focused = (el: ArgusTable<Person>) => shadow(el).activeElement as HTMLElement | null;
+
+  /** `aria-rowindex` and column of the focused cell. */
+  const where = (el: ArgusTable<Person>) => {
+    const cell = focused(el);
+    return cell
+      ? [Number(cell.parentElement?.getAttribute('aria-rowindex')), cell.dataset.col]
+      : undefined;
+  };
+
+  async function key(el: ArgusTable<Person>, name: string, init?: KeyboardEventInit) {
+    const cell = focused(el);
+    if (!cell) throw new Error('nothing focused');
+    press(cell, name, init);
+    await settle(el);
+    await settle(el);
+  }
+
+  async function focusCell(el: ArgusTable<Person>, ariaRowIndex: number, col: string) {
+    rowAt(el, ariaRowIndex).querySelector<HTMLElement>(`[data-col="${col}"]`)?.focus();
+    await settle(el);
+  }
+
+  const formDetail: Partial<ArgusTable<Person>> = {
+    rowDetail: ({ row }) =>
+      html`<label>Note <input class="note" .value=${row.name} /></label
+        ><button type="button">Save</button>`,
+  };
+
+  /** Whether the panel at an `aria-rowindex` holds the grid's tab stop (the active cell). */
+  const panelIsActive = (el: ArgusTable<Person>, ariaRowIndex: number) =>
+    rowAt(el, ariaRowIndex).querySelector('[part~="detail"]')?.getAttribute('tabindex') === '0';
+
+  /** The light-DOM content of the panel under a row, by the panel's `aria-rowindex`. */
+  const panelContent = (el: ArgusTable<Person>, ariaRowIndex: number) =>
+    panelSlot(el, rowAt(el, ariaRowIndex));
+
+  it('arrows down onto an open panel and on to the next row', async () => {
+    const el = await detailTable({ expanded: ['p2'] });
+    // Row 2 at aria-rowindex 4, its panel at 5, row 3 at 6.
+    await focusCell(el, 4, 'name');
+    await key(el, 'ArrowDown');
+    expect(where(el)).toEqual([5, '--argus-detail']);
+    await key(el, 'ArrowDown');
+    expect(where(el)).toEqual([6, 'name']);
+    await key(el, 'ArrowUp');
+    await key(el, 'ArrowUp');
+    expect(where(el)).toEqual([4, 'name']);
+  });
+
+  it('enters the panel with Enter or F2 and leaves it with Escape', async () => {
+    const el = await detailTable({ ...formDetail, expanded: ['p2'] });
+    await focusCell(el, 4, 'name');
+    await key(el, 'ArrowDown');
+    await key(el, 'Enter');
+    const input = panelContent(el, 5).querySelector<HTMLInputElement>('input.note');
+    expect(document.activeElement).toBe(input);
+    if (!input) return;
+    input.value = 'abc';
+    press(input, 'Escape');
+    await settle(el);
+    expect(where(el)).toEqual([5, '--argus-detail']);
+    expect(document.activeElement).toBe(el);
+    await key(el, 'F2');
+    expect(document.activeElement).toBe(input);
+    expect(input.value).toBe('abc');
+  });
+
+  it('leaves keys inside a panel to its content', async () => {
+    const el = await detailTable({ ...formDetail, expanded: ['p2'], selectionMode: 'multi' });
+    const changes = events(el, 'argus-selection-change');
+    await focusCell(el, 4, 'name');
+    await key(el, 'ArrowDown');
+    await key(el, 'Enter');
+    const input = panelContent(el, 5).querySelector<HTMLInputElement>('input.note');
+    if (!input) throw new Error('no input');
+    for (const name of ['ArrowDown', 'Home', 'Enter', ' ']) {
+      const event = press(input, name);
+      await settle(el);
+      expect(event.defaultPrevented).toBe(false);
+    }
+    expect(document.activeElement).toBe(input);
+    expect(panelIsActive(el, 5)).toBe(true);
+    expect(changes).toEqual([]);
+  });
+
+  it('keeps a nested table to itself', async () => {
+    const inner = people(10);
+    const el = await detailTable({
+      expanded: ['p2'],
+      selectionMode: 'multi',
+      rowDetail: () =>
+        html`<argus-table
+          class="nested"
+          style="block-size: 200px; inline-size: 400px"
+          .columns=${columns}
+          .data=${inner}
+          .getRowId=${byId}
+          selection-mode="multi"
+        ></argus-table>`,
+    });
+    await settle(el);
+    const nested = panelContent(el, 5).querySelector<ArgusTable<Person>>('argus-table.nested');
+    if (!nested) throw new Error('no nested table');
+    await settle(nested);
+    const outerClicks = events<{ index: number }>(el, 'argus-row-click');
+    const innerClicks = events<{ index: number }>(nested, 'argus-row-click');
+    // Arrow keys in the nested table move its active cell, not the outer one.
+    await focusCell(el, 4, 'name');
+    const cell = shadow(nested).querySelector<HTMLElement>(
+      '[part~="body"] > [role="row"][aria-rowindex="2"] > [data-col="name"]',
+    );
+    if (!cell) throw new Error('no nested cell');
+    cell.focus();
+    await settle(nested);
+    press(cell, 'ArrowDown');
+    await settle(nested);
+    await settle(el);
+    expect(shadow(nested).activeElement?.parentElement?.getAttribute('aria-rowindex')).toBe('3');
+    expect(panelIsActive(el, 5)).toBe(true);
+    // A click on a nested row fires the nested table's event only.
+    const third = shadow(nested).querySelector<HTMLElement>(
+      '[part~="body"] > [role="row"][aria-rowindex="4"] > [data-col="name"]',
+    );
+    third?.click();
+    third?.dispatchEvent(
+      new MouseEvent('click', { bubbles: true, composed: true, shiftKey: true }),
+    );
+    await settle(el);
+    expect(innerClicks.map((d) => d.index)).toEqual([2, 2]);
+    expect(outerClicks).toEqual([]);
+    expect(el.selection).toEqual([]);
+    expect(nested.selection).toEqual(['p2']);
+  });
+
+  it('fires no events and selects nothing for clicks inside a panel', async () => {
+    const el = await detailTable({ ...formDetail, expanded: ['p2'], selectionMode: 'multi' });
+    const clicks = events(el, 'argus-cell-click');
+    const rows = events(el, 'argus-row-click');
+    rowAt(el, 5).querySelector<HTMLElement>('[part~="detail"]')?.click();
+    panelContent(el, 5).querySelector<HTMLInputElement>('input.note')?.click();
+    await settle(el);
+    expect(clicks).toEqual([]);
+    expect(rows).toEqual([]);
+    expect(el.selection).toEqual([]);
+  });
+
+  it('steps over panels in selection ranges', async () => {
+    const el = await detailTable({ expanded: ['p2'], selectionMode: 'multi' });
+    // Row 1 at aria 3; row 2 at 4 with its panel at 5; row 3 at 6.
+    await focusCell(el, 3, 'name');
+    await key(el, ' ');
+    await key(el, 'ArrowDown', { shiftKey: true });
+    await key(el, 'ArrowDown', { shiftKey: true });
+    expect(where(el)).toEqual([6, 'name']);
+    expect([...el.selection].sort()).toEqual(['p1', 'p2', 'p3']);
+    // Space on a panel selects nothing.
+    await focusCell(el, 4, 'name');
+    await key(el, 'ArrowDown');
+    await key(el, ' ');
+    expect([...el.selection].sort()).toEqual(['p1', 'p2', 'p3']);
+  });
+
+  it('counts panels as rows for PageDown and Ctrl+End', async () => {
+    const el = await detailTable({ expanded: ['p1', 'p3'] }, 50);
+    await focusCell(el, 2, 'name');
+    await key(el, 'PageDown');
+    const after = where(el);
+    expect(after?.[0]).toBeGreaterThan(2);
+    await key(el, 'End', { ctrlKey: true });
+    // 50 rows and 2 panels: the last row is at aria-rowindex 53.
+    expect(where(el)).toEqual([53, 'age']);
+  });
+
+  it('keeps a focused panel rendered while it scrolls away', async () => {
+    const el = await detailTable({ ...formDetail, expanded: ['p2'] }, 300);
+    await focusCell(el, 4, 'name');
+    await key(el, 'ArrowDown');
+    await key(el, 'Enter');
+    const input = panelContent(el, 5).querySelector<HTMLInputElement>('input.note');
+    if (!input) throw new Error('no input');
+    await scrollTo(el, 5000);
+    expect(rowAt(el, 5).isConnected).toBe(true);
+    expect(document.activeElement).toBe(input);
+    await scrollTo(el, 0);
+    expect(panelContent(el, 5).querySelector('input.note')).toBe(input);
+  });
+
+  it('focusCell takes a data index', async () => {
+    const el = await detailTable({
+      expanded: ['p2'],
+      plugins: [
+        {
+          name: 'focus',
+          connect: (host) => {
+            setTimeout(() => {
+              host.focusCell(4, 'name');
+            });
+            return undefined;
+          },
+        },
+      ],
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    await settle(el);
+    // Data row 4 is at aria-rowindex 7: row 2's panel is above it.
+    expect(where(el)).toEqual([7, 'name']);
+  });
+});
+
+describe('detail rows: panel content', () => {
+  afterEach(() => {
+    document.body.replaceChildren();
+  });
+
+  /** The visible panel rows' content, by `aria-rowindex`. */
+  const contentAt = (el: ArgusTable<Person>, ariaRowIndex: number) =>
+    panelSlot(el, rowAt(el, ariaRowIndex));
+
+  it('renders rowDetail into the panel', async () => {
+    const el = await detailTable({
+      expanded: ['p2'],
+      rowDetail: ({ row, index }) => html`<p>${row.name} at ${index}</p>`,
+    });
+    expect(contentAt(el, 5).textContent.trim()).toBe('Person 2 at 2');
+    el.sorting = [{ id: 'name', desc: true }];
+    el.columns = columns.map((c) => ({ ...c, sortable: true }));
+    await settle(el);
+    await settle(el);
+    // By name, descending and naturally: Person 19, 18, …, 10, 9, …, 3, 2.
+    const panel = panelRows(el)[0];
+    if (!panel) throw new Error('no panel');
+    expect(panelSlot(el, panel).textContent.trim()).toBe('Person 2 at 17');
+  });
+
+  it('keeps typed input while the panel scrolls away and back', async () => {
+    const el = await detailTable(
+      { expanded: ['p2'], rowDetail: () => html`<input class="note" />` },
+      300,
+    );
+    const input = contentAt(el, 5).querySelector<HTMLInputElement>('input.note');
+    if (!input) throw new Error('no input');
+    input.value = 'typed';
+    await scrollTo(el, 2000);
+    expect(panelRows(el)).toHaveLength(0);
+    await scrollTo(el, 0);
+    const back = contentAt(el, 5).querySelector<HTMLInputElement>('input.note');
+    expect(back).toBe(input);
+    expect(back?.value).toBe('typed');
+  });
+
+  it("keeps a nested table's sort across updates", async () => {
+    const lines = people(5);
+    const el = await detailTable({
+      expanded: ['p2'],
+      rowDetail: () =>
+        html`<argus-table
+          class="nested"
+          style="block-size: 200px; inline-size: 300px"
+          .columns=${columns.map((c) => ({ ...c, sortable: true }))}
+          .data=${lines}
+        ></argus-table>`,
+    });
+    const nested = contentAt(el, 5).querySelector<ArgusTable<Person>>('argus-table.nested');
+    if (!nested) throw new Error('no nested table');
+    nested.sorting = [{ id: 'age', desc: true }];
+    await settle(nested);
+    // New row objects with the same ids.
+    el.data = people(20).map((p) => ({ ...p }));
+    await settle(el);
+    await settle(el);
+    expect(contentAt(el, 5).querySelector('argus-table.nested')).toBe(nested);
+    expect(nested.sorting).toEqual([{ id: 'age', desc: true }]);
+  });
+
+  /** A content renderer that records what it rendered and released. */
+  function recorder() {
+    const rendered = new Set<HTMLElement>();
+    const released: HTMLElement[] = [];
+    return {
+      rendered,
+      released,
+      renderer: {
+        render: (target: HTMLElement) => {
+          rendered.add(target);
+          target.textContent = 'foreign';
+        },
+        release: (target: HTMLElement) => {
+          released.push(target);
+          target.textContent = '';
+        },
+      },
+    };
+  }
+
+  it('releases framework content when a panel closes', async () => {
+    const record = recorder();
+    const el = await detailTable({
+      expanded: ['p1', 'p3'],
+      contentRenderer: record.renderer,
+      // Not a string, node or template: it goes to the content renderer.
+      rowDetail: () => ({ foreign: true }) as unknown as string,
+    });
+    expect(record.rendered.size).toBe(2);
+    const [first] = record.rendered;
+    el.expanded = ['p3'];
+    await settle(el);
+    expect(record.released).toHaveLength(1);
+    expect(record.released[0]).toBe(first);
+  });
+
+  it('drops everything when rowDetail goes away', async () => {
+    const record = recorder();
+    const el = await detailTable({
+      expanded: ['p1', 'p3'],
+      contentRenderer: record.renderer,
+      rowDetail: () => ({ foreign: true }) as unknown as string,
+    });
+    el.rowDetail = undefined;
+    await settle(el);
+    expect(shadow(el).querySelector('[part~="cell-expand"]')).toBeNull();
+    expect(shadow(el).querySelector('[part~="row-detail"]')).toBeNull();
+    expect(record.released).toHaveLength(2);
+    expect(el.expanded).toEqual(['p1', 'p3']);
+  });
+
+  for (const dir of ['ltr', 'rtl'] as const) {
+    it(`stays in view when scrolled sideways (${dir})`, async () => {
+      const wide = Array.from({ length: 30 }, (_, i) => ({
+        id: `c${String(i)}`,
+        header: `C${String(i)}`,
+        accessor: 'name',
+        width: 120,
+        pin: i < 2 ? ('start' as const) : undefined,
+      }));
+      const el = await detailTable({ columns: wide, expanded: ['p2'] });
+      el.dir = dir;
+      await settle(el);
+      const scroller = shadow(el).querySelector<HTMLElement>('[part~="table"]');
+      if (!scroller) throw new Error('no scroller');
+      scroller.scrollLeft =
+        ((scroller.scrollWidth - scroller.clientWidth) / 2) * (dir === 'rtl' ? -1 : 1);
+      await settle(el);
+      await settle(el);
+      const rect = rowAt(el, 5).querySelector('[part~="detail"]')?.getBoundingClientRect();
+      // The scroller's inner area, past its border and a scrollbar on the left.
+      const inner = scroller.getBoundingClientRect().left + scroller.clientLeft;
+      expect(rect?.width).toBeCloseTo(scroller.clientWidth, 0);
+      expect(rect?.left).toBeCloseTo(inner, 0);
+    });
+  }
+
+  it('spans every column with virtualizeColumns', async () => {
+    const wide = Array.from({ length: 60 }, (_, i) => ({
+      id: `c${String(i)}`,
+      header: `C${String(i)}`,
+      accessor: 'name',
+      width: 100,
+    }));
+    const el = await detailTable({ columns: wide, virtualizeColumns: true, expanded: ['p2'] });
+    const cell = rowAt(el, 5).querySelector('[part~="detail"]');
+    // 60 columns and the toggle column.
+    expect(cell?.getAttribute('aria-colspan')).toBe('61');
+    const scroller = shadow(el).querySelector<HTMLElement>('[part~="table"]');
+    expect(cell?.getBoundingClientRect().width).toBeCloseTo(scroller?.clientWidth ?? 0, 0);
+  });
+
+  it('caps a panel at --argus-detail-max-height', async () => {
+    const el = await detailTable({
+      expanded: ['p2'],
+      rowDetail: () => html`<div style="block-size: 1000px"></div>`,
+    });
+    const cell = () => rowAt(el, 5).querySelector<HTMLElement>('[part~="detail"]');
+    await settle(el);
+    expect(cell()?.getBoundingClientRect().height).toBeCloseTo(400, 0);
+    expect((cell()?.scrollHeight ?? 0) > (cell()?.clientHeight ?? 0)).toBe(true);
+    el.style.setProperty('--argus-detail-max-height', '200px');
+    await settle(el);
+    await settle(el);
+    expect(cell()?.getBoundingClientRect().height).toBeCloseTo(200, 0);
   });
 });

@@ -27,6 +27,7 @@ Every `--argus-*` token a theme can set, for `overrides` in a draft. Most themes
 | `--argus-row-hover-bg`           |                       | Background of the hovered row. Default: no change.                                                                                                                               |
 | `--argus-row-pinned-bg`          | `var(--argus-bg)`     | Background of the pinned rows, pinned columns included.                                                                                                                          |
 | `--argus-skeleton-bg`            |                       | Colour of the skeleton bars in rows still loading. Default: the text colour at low opacity.                                                                                      |
+| `--argus-detail-max-height`      | `400px`               | The tallest a detail panel (`rowDetail`) is; its content scrolls past it. A size for the app, not a theme.                                                                       |
 | `--argus-row-selected-bg`        |                       | Background of selected rows, pinned columns included. Default: the system highlight colour, mixed into `--argus-bg`. It wins over `--argus-row-hover-bg`.                        |
 
 ## Column menu (`@argus-table/header-menu`)
