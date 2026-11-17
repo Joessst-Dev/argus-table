@@ -34,7 +34,13 @@ export default defineConfig({
         { icon: 'github', label: 'GitHub', href: 'https://github.com/Joessst-Dev/argus-table' },
       ],
       sidebar: [
-        { label: 'Start here', items: [{ label: 'Introduction', link: '/' }] },
+        {
+          label: 'Start here',
+          items: [
+            { label: 'Introduction', link: '/' },
+            { label: 'Getting started', link: '/getting-started/' },
+          ],
+        },
         { label: 'Features', items: [{ autogenerate: { directory: 'features' } }] },
         {
           label: 'Themes',

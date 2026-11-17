@@ -1,0 +1,63 @@
+---
+title: Getting started
+description: Install argus-table, put a first table on a page in plain HTML, React, Vue or Angular, and pick a theme.
+---
+
+import FlavourTabs from '../../components/FlavourTabs.astro';
+import ReactFirstTable from '../../examples/getting-started/first-table/react/FirstTable.tsx';
+import VueFirstTable from '../../examples/getting-started/first-table/vue/FirstTable.vue';
+import { FirstTableComponent } from '../../examples/getting-started/first-table/angular/first-table.component.ts';
+
+## Install
+
+```bash
+npm i argus-table @argus-table/themes
+```
+
+With a framework, install its wrapper too. It brings typed props and events, and renders your framework's components in cells:
+
+```bash
+npm i @argus-table/react   # or @argus-table/vue, @argus-table/angular
+```
+
+Or, without a build step, from a CDN, with every dependency bundled:
+
+```html
+<script
+  type="module"
+  src="https://cdn.jsdelivr.net/npm/argus-table/dist/cdn/argus-table.js"
+></script>
+```
+
+## A first table
+
+Three columns of orders: the order number pinned to the start, a sortable customer name read from a nested object (`customer.name`), and a sortable total. Click a header to sort, and a row to select it.
+
+<FlavourTabs example="getting-started/first-table">
+  <ReactFirstTable slot="react" client:visible />
+  <VueFirstTable slot="vue" client:visible />
+  <FirstTableComponent slot="angular" client:visible />
+</FlavourTabs>
+
+Three things every table needs:
+
+- **A bounded height.** The table virtualizes its rows, so it needs a height to fill: `block-size` (or `height`) on the element, or a parent that bounds it. Without one it's 400 px tall.
+- **An accessible name.** Give it `aria-label` or `aria-labelledby`. It has `role="grid"`, and screen readers announce the name.
+- **Columns and data as properties,** not attributes: they hold objects and functions. The wrappers set them for you. `getRowId` gives each row a stable id, which selection, saved state and a `dataSource` rely on.
+
+## Themes
+
+The examples on this site use the default theme. Load one theme on your page:
+
+```js
+import '@argus-table/themes/default.css';
+```
+
+There are five, each one CSS file: Default, Material-inspired, Fluent-inspired, Bootstrap-inspired and Minimal. See [Themes](/argus-table/themes/), or make your own in the [theme creator](/argus-table/themes/creator/).
+
+## Next
+
+- [Features](/argus-table/features/sorting/): one page per feature, each in all four flavours.
+- [Guides](/argus-table/guides/state/): state, server data, styling, plugins, accessibility, performance, and the add-ons and wrappers.
+- [API reference](/argus-table/api/): every property, event, method, part and token.
+- [Migration](/argus-table/migration/): moving from another table.
