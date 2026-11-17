@@ -50,20 +50,47 @@
 ```ts
 const base = '/argus-table';
 test('a theme-creator link keeps its hash', () => {
-  expect(oldUrlTarget('https://x.io/argus-table/iframe.html?id=themes-theme-creator--creator&viewMode=story#theme=abc', base, STORYBOOK_PAGES))
-    .toBe('/argus-table/themes/creator/#theme=abc');
+  expect(
+    oldUrlTarget(
+      'https://x.io/argus-table/iframe.html?id=themes-theme-creator--creator&viewMode=story#theme=abc',
+      base,
+      STORYBOOK_PAGES,
+    ),
+  ).toBe('/argus-table/themes/creator/#theme=abc');
 });
 test('manager URLs for docs and stories', () => {
-  expect(oldUrlTarget('https://x.io/argus-table/?path=/docs/features-sorting--docs', base, STORYBOOK_PAGES)).toBe('/argus-table/features/sorting/');
-  expect(oldUrlTarget('https://x.io/argus-table/?path=/story/themes-material-inspired--dark&globals=theme:material', base, STORYBOOK_PAGES)).toBe('/argus-table/themes/material/');
-  expect(oldUrlTarget('https://x.io/argus-table/?path=/docs/benchmarks--docs', base, STORYBOOK_PAGES)).toBe('/argus-table/guides/performance/');
+  expect(
+    oldUrlTarget(
+      'https://x.io/argus-table/?path=/docs/features-sorting--docs',
+      base,
+      STORYBOOK_PAGES,
+    ),
+  ).toBe('/argus-table/features/sorting/');
+  expect(
+    oldUrlTarget(
+      'https://x.io/argus-table/?path=/story/themes-material-inspired--dark&globals=theme:material',
+      base,
+      STORYBOOK_PAGES,
+    ),
+  ).toBe('/argus-table/themes/material/');
+  expect(
+    oldUrlTarget('https://x.io/argus-table/?path=/docs/benchmarks--docs', base, STORYBOOK_PAGES),
+  ).toBe('/argus-table/guides/performance/');
 });
 test('an unknown page falls back to the home page', () => {
-  expect(oldUrlTarget('https://x.io/argus-table/?path=/story/features-gone--x', base, STORYBOOK_PAGES)).toBe('/argus-table/');
-  expect(oldUrlTarget('https://x.io/argus-table/iframe.html?id=nope--x', base, STORYBOOK_PAGES)).toBe('/argus-table/');
+  expect(
+    oldUrlTarget('https://x.io/argus-table/?path=/story/features-gone--x', base, STORYBOOK_PAGES),
+  ).toBe('/argus-table/');
+  expect(
+    oldUrlTarget('https://x.io/argus-table/iframe.html?id=nope--x', base, STORYBOOK_PAGES),
+  ).toBe('/argus-table/');
 });
-test('other URLs don\'t redirect', () => {
-  for (const href of ['https://x.io/argus-table/', 'https://x.io/argus-table/?q=sorting', 'https://x.io/argus-table/features/sorting/'])
+test("other URLs don't redirect", () => {
+  for (const href of [
+    'https://x.io/argus-table/',
+    'https://x.io/argus-table/?q=sorting',
+    'https://x.io/argus-table/features/sorting/',
+  ])
     expect(oldUrlTarget(href, base, STORYBOOK_PAGES)).toBeUndefined();
 });
 test('every Storybook title maps to a page', () => {

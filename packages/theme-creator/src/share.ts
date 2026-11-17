@@ -177,8 +177,8 @@ export function hashDraft(url: string): string | undefined {
 
 /**
  * Where Storybook's creator story lives, from Storybook's root: the page its
- * share links open, and the theme skill's links too (until the docs site
- * replaces Storybook).
+ * share links open. (Published links, the theme skill's included, open the
+ * docs site's creator page, which leaves `shareUrl` unset.)
  */
 export const STORYBOOK_SHARE_PATH = 'iframe.html?id=themes-theme-creator--creator&viewMode=story';
 

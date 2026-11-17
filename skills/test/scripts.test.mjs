@@ -38,7 +38,7 @@ describe('theme-link.mjs', () => {
     const link = made.stdout.trim();
     assert.match(
       link,
-      /^https:\/\/joessst-dev\.github\.io\/argus-table\/iframe\.html\?id=themes-theme-creator--creator&viewMode=story#theme=[\w-]+$/,
+      /^https:\/\/joessst-dev\.github\.io\/argus-table\/themes\/creator\/#theme=[\w-]+$/,
     );
     assert.match(made.stderr, /seeds\.accent has no dark colour/);
 
@@ -52,13 +52,13 @@ describe('theme-link.mjs', () => {
     });
   });
 
-  it('links to another Storybook', async () => {
+  it('links to a local docs site, under its base path', async () => {
     const made = await node(
       'theme-link.mjs',
-      ['-', '--base-url', 'http://localhost:6006'],
+      ['-', '--base-url', 'http://localhost:4321/argus-table'],
       JSON.stringify(draft),
     );
-    assert.match(made.stdout, /^http:\/\/localhost:6006\/iframe\.html\?id=/);
+    assert.match(made.stdout, /^http:\/\/localhost:4321\/argus-table\/themes\/creator\/#theme=/);
   });
 
   it('lists the problems and makes no link', async () => {

@@ -72,7 +72,7 @@ await downloadTable(table, 'xlsx');
 Two [agent skills](skills/README.md) work in Claude Code, Codex, Cursor and other agents:
 
 - **`argus-table-integrate`** adds argus-table to your app, or migrates a table from TanStack Table, AG Grid, MUI X, Angular Material, PrimeNG/PrimeVue, Vuetify, Ant Design, Element Plus or plain HTML. It scans your project, names what has no equivalent before it edits anything, installs matching packages and checks the result.
-- **`argus-table-theme`** turns your brand colours, fonts or website into a theme, handed back as a link to the [theme creator](https://joessst-dev.github.io/argus-table/?path=/story/themes-theme-creator--creator), where you check contrast, adjust it and download the CSS.
+- **`argus-table-theme`** turns your brand colours, fonts or website into a theme, handed back as a link to the [theme creator](https://joessst-dev.github.io/argus-table/themes/creator/), where you check contrast, adjust it and download the CSS.
 
 In Claude Code:
 

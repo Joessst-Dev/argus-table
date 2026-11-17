@@ -22,7 +22,7 @@ export type FieldSpec =
   | { kind: 'density'; min: number; max: number };
 
 export declare const DEFAULT_BASE_URL: string;
-export declare const STORY_ID: string;
+export declare const CREATOR_PATH: string;
 export declare const HASH_KEY: string;
 export declare const PRESETS: string[];
 export declare const BASES: string[];

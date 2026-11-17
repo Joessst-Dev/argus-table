@@ -1,6 +1,6 @@
 # Benchmarks
 
-The benchmark behind the Storybook [Benchmarks](https://joessst-dev.github.io/argus-table/?path=/docs/benchmarks--docs) page. It started as the Phase 0 rendering spike's scroll test ([ADR 0001](../docs/adr/0001-shadow-vs-light-dom.md)) and is pointed at `apps/playground`: 10k / 100k / 1M rows × 20 columns.
+The benchmark behind the tables in the docs site's [Performance](https://joessst-dev.github.io/argus-table/guides/performance/) guide. It started as the Phase 0 rendering spike's scroll test ([ADR 0001](../docs/adr/0001-shadow-vs-light-dom.md)) and is pointed at `apps/playground`: 10k / 100k / 1M rows × 20 columns.
 
 ```sh
 pnpm bench                                         # Chromium, 5 runs, 10k / 100k / 1M rows

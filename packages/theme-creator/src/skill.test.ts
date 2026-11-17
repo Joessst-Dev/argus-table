@@ -19,7 +19,7 @@ import { DEFAULT_SEEDS, autoDarkAccent, autoText, readSeeds } from './derive.js'
 import { SEED_NAMES, type Seeds } from './model.js';
 import { PRESET_CSS, newDraft, presetTheme } from './presets.js';
 import { PART_OPTION_NAMES } from './resolve.js';
-import { STORYBOOK_SHARE_PATH, decodeDraft, fromStored, hashDraft, shareLink } from './share.js';
+import { decodeDraft, fromStored, hashDraft, shareLink } from './share.js';
 
 const valid = (input: unknown) => {
   const { draft, errors } = validateDraft(input);
@@ -52,16 +52,15 @@ describe('the skill’s draft script', () => {
 
   it('makes the link the creator makes', async () => {
     const draft = valid({ name: 'Acme', preset: 'fluent' });
-    // The published creator is Storybook's story, whose links open its iframe
-    // (theme-creator.stories.ts sets STORYBOOK_SHARE_PATH as its shareUrl).
-    const story = new URL(STORYBOOK_SHARE_PATH, 'https://joessst-dev.github.io/argus-table/').href;
-    const creator = await shareLink(newDraft('fluent', 'Acme'), story);
+    // The published creator is the docs site's page, whose links open the page
+    // itself (apps/docs leaves the creator's shareUrl unset).
+    const page = new URL('themes/creator/', 'https://joessst-dev.github.io/argus-table/').href;
+    const creator = await shareLink(newDraft('fluent', 'Acme'), page);
     const skill = await themeLink(draft);
     expect(skill.split('#')[0]).toBe(creator.split('#')[0]);
-    const local = await themeLink(draft, 'http://localhost:6006');
-    expect(local.split('#')[0]).toBe(
-      'http://localhost:6006/iframe.html?id=themes-theme-creator--creator&viewMode=story',
-    );
+    // A local docs site keeps its base path.
+    const local = await themeLink(draft, 'http://localhost:4321/argus-table');
+    expect(local).toMatch(/^http:\/\/localhost:4321\/argus-table\/themes\/creator\/#theme=[\w-]+$/);
   });
 
   it('writes drafts the creator reads, and reads the creator’s links', async () => {
