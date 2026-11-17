@@ -4,6 +4,9 @@
   "type": "module",
   "nx": {
     "name": "docs",
+    "implicitDependencies": [
+      "skills"
+    ],
     "targets": {
       "sync": {
         "cache": false
@@ -23,6 +26,14 @@
       "e2e": {
         "dependsOn": [
           "build"
+        ],
+        "inputs": [
+          "default",
+          "^production",
+          {
+            "env": "BROWSERS"
+          },
+          "{workspaceRoot}/skills/argus-table-integrate/references/**/*.md"
         ]
       },
       "build": {
@@ -30,11 +41,22 @@
           "production",
           "^production",
           "{workspaceRoot}/brand/**/*",
-          "{workspaceRoot}/packages/table/package.json"
+          "{workspaceRoot}/packages/table/package.json",
+          "{workspaceRoot}/skills/argus-table-integrate/references/**/*.md"
         ],
         "dependsOn": [
           "^build",
           "sync"
+        ]
+      },
+      "test": {
+        "inputs": [
+          "default",
+          "^production",
+          {
+            "env": "BROWSERS"
+          },
+          "{workspaceRoot}/skills/argus-table-integrate/references/**/*.md"
         ]
       }
     }
