@@ -11,6 +11,7 @@ interface Row {
   price: number;
   qty: number;
   info?: { unit: string };
+  children?: Row[];
 }
 
 const data: Row[] = [
@@ -427,6 +428,50 @@ describe('whole columns', () => {
     el.columnFilters = { ...el.columnFilters, share: { kind: 'number', op: 'ge', value: 0 } };
     await settle(el);
     expect(accessor('share')).toBe(after);
+  });
+
+  /** A parent with two children (quantities 2 and 3), and a leaf. */
+  const nested: Row[] = [
+    {
+      id: 'p',
+      name: 'Parent',
+      price: 1,
+      qty: 1,
+      children: [
+        { id: 'p0', name: 'Child 0', price: 1, qty: 2 },
+        { id: 'p1', name: 'Child 1', price: 1, qty: 3 },
+      ],
+    },
+    { id: 'q', name: 'Other', price: 1, qty: 4 },
+  ];
+  const total: ColumnDef<Row> = { id: 'total', header: 'Total', formula: 'SUM([[qty]])' };
+
+  test('include nested children', async () => {
+    const el = await fixture({
+      data: nested,
+      getSubRows: (r) => r.children,
+      treeExpanded: ['p'],
+      columns: withFormulas(total),
+    });
+    expect(texts(el, 'name')).toEqual(['Parent', 'Child 0', 'Child 1', 'Other']);
+    expect(texts(el, 'total')).toEqual(['10', '10', '10', '10']);
+    // Rows under a collapsed row are data too.
+    el.treeExpanded = [];
+    await settle(el);
+    expect(texts(el, 'total')).toEqual(['10', '10']);
+  });
+
+  test('a new getSubRows recomputes them', async () => {
+    const el = await fixture({
+      data: nested,
+      getSubRows: (r) => r.children,
+      treeExpanded: ['p'],
+      columns: withFormulas(total),
+    });
+    el.getSubRows = (r) => r.children?.slice(0, 1);
+    await settle(el);
+    expect(texts(el, 'name')).toEqual(['Parent', 'Child 0', 'Other']);
+    expect(texts(el, 'total')).toEqual(['7', '7', '7']);
   });
 
   test('are #N/A with a dataSource, whose rows aren’t all loaded', async () => {

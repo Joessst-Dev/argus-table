@@ -37,13 +37,14 @@ export interface Scope<T> {
  */
 export interface RowSource<T> {
   /**
-   * The indexes in `data` of the rows, leaving out the filters on the `except`
-   * columns (those that use whole columns), or `undefined` when they can't be known
-   * (a `dataSource`): whole columns are then `#N/A`. Asked on first use.
+   * The source indexes of the rows (`host.sourceRow()`: in `data`, then a tree's
+   * nested children), leaving out the filters on the `except` columns (those that
+   * use whole columns), or `undefined` when they can't be known (a `dataSource`):
+   * whole columns are then `#N/A`. Asked on first use.
    */
   indexes(except: readonly string[]): readonly number[] | undefined;
-  /** The table's `data`. */
-  data(): readonly T[];
+  /** The row object at a source index. */
+  row(index: number): T | undefined;
 }
 
 /**
@@ -52,7 +53,7 @@ export interface RowSource<T> {
  */
 export function rowSource<T>(host: PluginHost<T>): RowSource<T> {
   return {
-    data: () => host.element.data,
+    row: (index) => host.sourceRow(index),
     indexes: (except) =>
       host.element.dataSource === undefined ? host.filteredIndexes(except) : undefined,
   };
@@ -71,10 +72,11 @@ class Universe<T> {
   /** The column `key` reads with `read`, over the rows; the same object for the same key. */
   range(key: unknown, read: Evaluate<Scope<T>>): ColumnRange | FormulaError {
     if (this.#scopes === null) {
-      const data = this.source.data();
-      this.#scopes = this.source
-        .indexes(this.except)
-        ?.flatMap((index) => (index in data ? [{ row: data[index] as T, index }] : []));
+      const { source } = this;
+      this.#scopes = source.indexes(this.except)?.flatMap((index) => {
+        const row = source.row(index);
+        return row === undefined ? [] : [{ row, index }];
+      });
     }
     const scopes = this.#scopes;
     if (!scopes) return NO_RANGES;

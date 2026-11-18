@@ -56,6 +56,21 @@ type Start = { value: true } | { text: string };
 const FOCUSABLE =
   'input, select, textarea, button, [tabindex]:not([tabindex="-1"]), [contenteditable]';
 
+/**
+ * Content whose double-click is its own, not the cell's: a tree row's toggle
+ * (a button) and controls a column's `cell` renders.
+ */
+const INTERACTIVE = 'button,input,select,textarea,a[href],label,[contenteditable]';
+
+/** Whether an event's path reaches interactive content before the cell it is in. */
+function fromInteractive(event: Event): boolean {
+  for (const target of event.composedPath()) {
+    if (!(target instanceof Element) || target.getAttribute('role') === 'gridcell') return false;
+    if (target.matches(INTERACTIVE)) return true;
+  }
+  return false;
+}
+
 let tables = 0;
 
 /**
@@ -67,9 +82,10 @@ let tables = 0;
  * click, Enter, F2 or Space.
  *
  * A commit fires `argus-cell-edit` on the table with `detail: { row, rowId,
- * index, columnId, value, previous, pinned? }`. Neither the table nor the plugin
- * changes `data`: apply the edit yourself, e.g. with `applyEdit()`. An edit that
- * leaves the value as it was fires nothing. One plugin can serve several tables.
+ * index, columnId, value, previous, pinned?, depth? }`. Neither the table nor
+ * the plugin changes `data`: apply the edit yourself, e.g. with `applyEdit()`.
+ * An edit that leaves the value as it was fires nothing. One plugin can serve
+ * several tables.
  */
 export function cellEditing<T = unknown>(options: CellEditingOptions = {}): ArgusPlugin<T> {
   const states = new WeakMap<HTMLElement, TableState<T>>();
@@ -101,7 +117,7 @@ export function cellEditing<T = unknown>(options: CellEditingOptions = {}): Argu
       adoptStyles(host.element);
       const onDblclick = (event: MouseEvent) => {
         const target = host.cellOf(event);
-        if (!target || target.section === 'header') return;
+        if (!target || target.section === 'header' || fromInteractive(event)) return;
         const editing = state.editing;
         if (editing?.columnId === target.columnId && editing.rowId === target.rowId) return;
         const def = state.defs.get(target.columnId);
@@ -509,9 +525,12 @@ function fire<T>(
     previous: cell.previous,
     ...(cell.section === 'body' ? {} : { pinned: cell.section }),
   };
-  state.host.element.dispatchEvent(
-    new CustomEvent('argus-cell-edit', { detail, bubbles: true, composed: true }),
-  );
+  const el = state.host.element;
+  // A body row's level in a tree; no `depth` key without one, as the table's own events.
+  if (cell.section === 'body' && !el.dataSource && (el.getSubRows ?? el.getParentId)) {
+    detail.depth = state.host.rowDepth(cell.index);
+  }
+  el.dispatchEvent(new CustomEvent('argus-cell-edit', { detail, bubbles: true, composed: true }));
 }
 
 /** A checkbox column's toggle: validated, then fired; no editing mode. */

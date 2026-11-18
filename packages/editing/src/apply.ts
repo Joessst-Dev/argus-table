@@ -10,6 +10,13 @@ import type { CellEditDetail } from './types.js';
  * pinned row, or of a row not in `data`, returns `data` unchanged: pinned rows
  * are the app's own objects.
  *
+ * A tree's rows from `getParentId` are all in `data`. Nested children
+ * (`getSubRows`) aren't: pass `tree` with the table's `getSubRows` and a
+ * `setSubRows(row, children)` that returns a copy of `row` with those children.
+ * The row is then found by identity among the children too, and the rows on
+ * the path to it are copied; every other row stays the same object. Without
+ * `tree`, the edit of a nested child (`detail.depth` above `0`) throws.
+ *
  * ```ts
  * table.addEventListener('argus-cell-edit', (e) => {
  *   table.data = applyEdit(table.data, e.detail, table.columns);
@@ -20,27 +27,42 @@ export function applyEdit<T>(
   data: readonly T[],
   detail: CellEditDetail,
   columns: readonly ColumnDef<T, unknown>[],
+  tree?: {
+    getSubRows: (row: T) => readonly T[] | undefined;
+    setSubRows: (row: T, children: T[]) => T;
+  },
 ): T[] {
-  // The row is one of data's, found by identity; the detail of a plain element's
-  // event doesn't know its type.
-  const at = detail.pinned ? -1 : data.indexOf(detail.row as T);
-  if (at < 0) return [...data];
-  const column = columns.find((c) => c.id === detail.columnId);
-  const edit = column?.meta?.edit;
-  const set = typeof edit === 'object' ? edit.set : undefined;
-  let row: T;
-  if (set) {
-    row = set(detail.row as T, detail.value) as T;
-  } else if (typeof column?.accessor === 'string') {
-    row = setPath(detail.row as T, column.accessor.split('.'), detail.value);
-  } else {
+  // The row is one of data's (or, depth first, their children's), found by
+  // identity; the detail of a plain element's event doesn't know its type.
+  const target = detail.row as T;
+  /** A copy of `rows` with the target, or the row on the path to it, replaced by a copy. */
+  const replace = (rows: readonly T[]): T[] | undefined => {
+    for (const [i, own] of rows.entries()) {
+      const children = own === target ? undefined : tree && replace(tree.getSubRows(own) ?? []);
+      if (own === target || children) {
+        const next = [...rows];
+        next[i] = children && tree ? tree.setSubRows(own, children) : edited();
+        return next;
+      }
+    }
+    return undefined;
+  };
+  const edited = (): T => {
+    const column = columns.find((c) => c.id === detail.columnId);
+    const edit = column?.meta?.edit;
+    const set = typeof edit === 'object' ? edit.set : undefined;
+    if (set) return set(target, detail.value) as T;
+    if (typeof column?.accessor === 'string') {
+      return setPath(target, column.accessor.split('.'), detail.value);
+    }
     throw new Error(
       `applyEdit: column "${detail.columnId}" has no accessor path; give it meta.edit.set`,
     );
-  }
-  const next = [...data];
-  next[at] = row;
-  return next;
+  };
+  const next = detail.pinned ? undefined : replace(data);
+  if (next) return next;
+  if (!tree && detail.depth) throw new Error('applyEdit: nested rows need the fourth argument');
+  return [...data];
 }
 
 /** A copy of `target` with `value` at `path`, copying each object along it. */
