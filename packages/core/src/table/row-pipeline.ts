@@ -2,8 +2,25 @@ import type { ResolvedColumn } from '../columns/resolve-columns.js';
 import type { RowPredicate } from '../filters/filter.js';
 import { DisplayRows } from './display-rows.js';
 import type { TableModelOptions } from './model-types.js';
+import { buildRowTree, type RowTree } from './row-tree.js';
 import { sortRows } from './sorted-row-model.js';
-import type { SortState } from '../types.js';
+import {
+  keepWithAncestors,
+  layoutTree,
+  showOpen,
+  type KeptRows,
+  type TreeLayout,
+} from './tree-order.js';
+import type { SortState, TreeExpandedState } from '../types.js';
+
+/** A tree's layout with what its rows need from it. */
+export interface TreeSteps<TData> {
+  tree: RowTree<TData>;
+  layout: TreeLayout;
+  /** The kept top-level rows. */
+  roots: number;
+  holdsMatch: Uint8Array | undefined;
+}
 
 /**
  * The body's rows: indexes into `data`, no object per row (ADR 0010). All rows,
@@ -11,6 +28,12 @@ import type { SortState } from '../types.js';
  * (data rows and open detail panels). Each step keeps its array while what it
  * reads is the same, so `rows()` keeps its identity. Remote rows aren't here:
  * the model reads them from `options.remote`.
+ *
+ * When the rows form a tree (`getSubRows` or `getParentId`), the indexes are
+ * source indexes (`RowTree`) and three steps replace filtering and sorting: keep
+ * the rows the filters pass with their ancestors, sort them all at once and lay
+ * them out depth-first by parent, then drop the rows under collapsed ones. The
+ * last step alone runs when a row is expanded or collapsed.
  */
 export class RowPipeline<TData, TContent> {
   readonly #options: () => TableModelOptions<TData, TContent>;
@@ -32,6 +55,25 @@ export class RowPipeline<TData, TContent> {
   #indexById: { rows: readonly number[]; map: Map<string, number> } | undefined;
   #display: { key: readonly unknown[] | undefined; rows: DisplayRows } | undefined;
 
+  #tree:
+    | {
+        data: readonly TData[];
+        sub: unknown;
+        parent: unknown;
+        getRowId: unknown;
+        tree: RowTree<TData>;
+      }
+    | undefined;
+  #kept: { tree: RowTree<TData>; test: unknown; version: number; kept: KeptRows } | undefined;
+  #layout:
+    { kept: KeptRows; sorting: SortState; version: number; steps: TreeSteps<TData> } | undefined;
+  #expandedSet: { state: TreeExpandedState | undefined; set: ReadonlySet<string> } | undefined;
+  #shown:
+    { steps: TreeSteps<TData>; expanded: ReadonlySet<string>; rows: readonly number[] } | undefined;
+  // Each source row's index in the shown order (-1 when not shown), built lazily per order.
+  #position: { rows: readonly number[]; at: Int32Array } | undefined;
+  #warnedBoth = false;
+
   constructor(
     options: () => TableModelOptions<TData, TContent>,
     byId: () => ReadonlyMap<string, ResolvedColumn<TData, TContent>>,
@@ -42,6 +84,116 @@ export class RowPipeline<TData, TContent> {
     this.#byId = byId;
     this.#predicate = predicate;
     this.#version = version;
+  }
+
+  /**
+   * The rows' tree, built once per `data`, `getSubRows`, `getParentId` and
+   * `getRowId`; `undefined` (nothing allocated) when the rows don't form one.
+   */
+  tree(): RowTree<TData> | undefined {
+    const { data, getSubRows, getParentId, getRowId, remote } = this.#options();
+    if (remote || (!getSubRows && !getParentId)) return undefined;
+    const prev = this.#tree;
+    if (
+      prev?.data === data &&
+      prev.sub === getSubRows &&
+      prev.parent === getParentId &&
+      prev.getRowId === getRowId
+    ) {
+      return prev.tree;
+    }
+    if (getSubRows && getParentId && !this.#warnedBoth) {
+      this.#warnedBoth = true;
+      console.warn('argus-table: getSubRows and getParentId are both set; getSubRows is used.');
+    }
+    // Only one source, so the warning above is the only one about it.
+    const source = getSubRows ? { getSubRows } : { getParentId };
+    const tree = buildRowTree(data, source, getRowId);
+    this.#tree = { data, sub: getSubRows, parent: getParentId, getRowId, tree };
+    return tree;
+  }
+
+  /** The rows by source index: the tree's, else `data`. */
+  source(): readonly TData[] {
+    return this.tree()?.rows ?? this.#options().data;
+  }
+
+  #keptRows(tree: RowTree<TData>): KeptRows {
+    const test = this.#predicate();
+    // Without a test the version changes nothing.
+    const version = test ? this.#version() : 0;
+    const prev = this.#kept;
+    if (prev?.tree === tree && prev.test === test && prev.version === version) return prev.kept;
+    const kept = keepWithAncestors(tree, test);
+    this.#kept = { tree, test, version, kept };
+    return kept;
+  }
+
+  /** The tree's kept rows laid out in sort order; `undefined` without a tree. */
+  treeSteps(): TreeSteps<TData> | undefined {
+    const tree = this.tree();
+    if (!tree) return undefined;
+    const kept = this.#keptRows(tree);
+    const { sorting } = this.#options();
+    const version = this.#version();
+    const prev = this.#layout;
+    if (prev?.kept === kept && prev.sorting === sorting && prev.version === version) {
+      return prev.steps;
+    }
+    const byId = this.#byId();
+    // One sort over every kept row (ascending, so the radix sort applies), then
+    // bucketed by parent: each sibling group ends up in sort order.
+    const sorted = sortRows(tree.rows, kept.rows, sorting, (id) => byId.get(id));
+    const layout = layoutTree(tree, sorted);
+    const steps = {
+      tree,
+      layout,
+      roots: layout.children(-1).length,
+      holdsMatch: kept.holdsMatch,
+    };
+    this.#layout = { kept, sorting, version, steps };
+    return steps;
+  }
+
+  #expanded(): ReadonlySet<string> {
+    const { treeExpanded } = this.#options();
+    const prev = this.#expandedSet;
+    if (prev && prev.state === treeExpanded) return prev.set;
+    const set = new Set(treeExpanded);
+    this.#expandedSet = { state: treeExpanded, set };
+    return set;
+  }
+
+  /** Whether a row (a source index) with kept children is shown open. */
+  #isOpen(steps: TreeSteps<TData>, expanded: ReadonlySet<string>, row: number): boolean {
+    return expanded.has(steps.tree.ids[row] ?? '') || steps.holdsMatch?.[row] === 1;
+  }
+
+  /** Whether a row (a source index) shows its children: it has kept ones and is open. */
+  treeOpen(row: number): boolean {
+    const steps = this.treeSteps();
+    if (!steps || (steps.layout.keptChildren[row] ?? 0) === 0) return false;
+    return this.#isOpen(steps, this.#expanded(), row);
+  }
+
+  #shownRows(steps: TreeSteps<TData>): readonly number[] {
+    const expanded = this.#expanded();
+    const prev = this.#shown;
+    if (prev?.steps === steps && prev.expanded === expanded) return prev.rows;
+    const rows = showOpen(steps.tree, steps.layout, (row) => this.#isOpen(steps, expanded, row));
+    this.#shown = { steps, expanded, rows };
+    return rows;
+  }
+
+  /** The index in the current order of a row (a source index), or -1 when it isn't shown. */
+  positionOf(row: number): number {
+    const current = this.rows();
+    if (this.#position?.rows !== current) {
+      const at = new Int32Array(this.source().length).fill(-1);
+      for (let k = 0; k < current.length; k++) at[current[k] ?? 0] = k;
+      this.#position = { rows: current, at };
+    }
+    return this.#position.at[row] ?? -1;
   }
 
   #allRows(): readonly number[] {
@@ -75,6 +227,8 @@ export class RowPipeline<TData, TContent> {
   rows(): readonly number[] {
     const options = this.#options();
     if (options.remote) return [];
+    const steps = this.treeSteps();
+    if (steps) return this.#shownRows(steps);
     const source = this.#filteredRows();
     const { sorting } = options;
     const version = this.#version();
@@ -90,6 +244,8 @@ export class RowPipeline<TData, TContent> {
 
   /** The id of the row at a data index. */
   rowId(dataIndex: number): string {
+    const tree = this.tree();
+    if (tree) return tree.ids[dataIndex] ?? '';
     const options = this.#options();
     return options.getRowId
       ? options.getRowId(options.data[dataIndex] as TData, dataIndex)
@@ -101,13 +257,21 @@ export class RowPipeline<TData, TContent> {
     const options = this.#options();
     if (options.remote) return options.remote.entryAt(index)?.row;
     const row = this.rows()[index];
-    return row === undefined ? undefined : options.data[row];
+    return row === undefined ? undefined : this.source()[row];
   }
 
   /** The index in the current order of a row id. */
   indexOf(rowId: string): number | undefined {
     const { remote } = this.#options();
     if (remote) return remote.indexOf(rowId);
+    // A tree's ids are mapped once per tree, not once per shown order.
+    const tree = this.tree();
+    if (tree) {
+      const row = tree.indexOf(rowId);
+      if (row === undefined) return undefined;
+      const position = this.positionOf(row);
+      return position === -1 ? undefined : position;
+    }
     const current = this.rows();
     if (this.#indexById?.rows !== current) {
       this.#indexById = {

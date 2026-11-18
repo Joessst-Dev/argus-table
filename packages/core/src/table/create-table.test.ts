@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { ColumnDef } from '../types.js';
 import {
   createTableModel,
@@ -1429,5 +1429,302 @@ describe('stretched columns', () => {
   it('offsets follow rendered widths', () => {
     const m = at({ columns: three([100, 200, 300]), stretch: { width: 1200 } });
     expect(m.columns.map((c) => c.offset)).toEqual([0, 200, 600]);
+  });
+});
+
+describe('tree rows', () => {
+  interface Item {
+    id?: string;
+    parent?: string | null;
+    name: string;
+    n?: number;
+    kids?: Item[];
+  }
+  // Source indexes: A=0, B=1, A1=2, A2=3, B1=4.
+  const nested: Item[] = [
+    {
+      name: 'A',
+      kids: [
+        { name: 'A1', n: 2 },
+        { name: 'A2', n: 1 },
+      ],
+    },
+    { name: 'B', kids: [{ name: 'B1', n: 0 }] },
+  ];
+  const treeColumns: ColumnDef<Item, string>[] = [
+    { id: 'name', accessor: 'name', sortable: true, filter: 'text' },
+    { id: 'n', accessor: 'n', sortable: true },
+  ];
+  const tmodel = (overrides: Partial<TableModelOptions<Item, string>> = {}) =>
+    createTableModel<Item, string>({
+      columns: treeColumns,
+      data: nested,
+      getRowId: undefined,
+      sorting: [],
+      columnSizing: {},
+      getSubRows: (row) => row.kids,
+      ...overrides,
+    });
+  const tids = (m: ReturnType<typeof tmodel>) =>
+    Array.from({ length: m.rowCount }, (_, i) => m.rowAt(i)?.id);
+  const tnames = (m: ReturnType<typeof tmodel>) =>
+    Array.from({ length: m.rowCount }, (_, i) => m.valueAt(i, 'name'));
+  const matchB1 = { name: { kind: 'text' as const, op: 'equals' as const, value: 'B1' } };
+
+  it('shows top-level rows until rows are expanded', () => {
+    const m = tmodel();
+    expect(m.tree).toBe(true);
+    expect(m.rowCount).toBe(2);
+    expect(tids(m)).toEqual(['0', '1']);
+    m.update({ treeExpanded: ['0'] });
+    expect(tids(m)).toEqual(['0', '0.0', '0.1', '1']);
+  });
+
+  it('sorts siblings among themselves', () => {
+    const m = tmodel({ treeExpanded: ['0', '1'], sorting: [{ id: 'n', desc: false }] });
+    expect(tnames(m)).toEqual(['A', 'A2', 'A1', 'B', 'B1']);
+    m.update({ sorting: [{ id: 'name', desc: true }] });
+    expect(tnames(m)).toEqual(['B', 'B1', 'A', 'A2', 'A1']);
+  });
+
+  it('filtering keeps ancestors and shows them open', () => {
+    const treeExpanded: string[] = [];
+    const m = tmodel({ treeExpanded, columnFilters: matchB1 });
+    expect(tids(m)).toEqual(['1', '1.0']);
+    expect(m.treeRow(0)).toEqual({
+      depth: 0,
+      hasChildren: true,
+      open: true,
+      parent: undefined,
+      setSize: 1,
+      posInSet: 1,
+    });
+    expect(m.treeRow(1)).toEqual({
+      depth: 1,
+      hasChildren: false,
+      open: false,
+      parent: 0,
+      setSize: 1,
+      posInSet: 1,
+    });
+    expect(treeExpanded).toEqual([]);
+    m.update({ columnFilters: {} });
+    expect(tids(m)).toEqual(['0', '1']);
+    expect(m.treeRow(1)?.open).toBe(false);
+  });
+
+  it('treeRow describes depth, parent and siblings', () => {
+    const m = tmodel({ treeExpanded: ['0'] });
+    expect(m.treeRow(0)).toEqual({
+      depth: 0,
+      hasChildren: true,
+      open: true,
+      parent: undefined,
+      setSize: 2,
+      posInSet: 1,
+    });
+    expect(m.treeRow(2)).toEqual({
+      depth: 1,
+      hasChildren: false,
+      open: false,
+      parent: 0,
+      setSize: 2,
+      posInSet: 2,
+    });
+    expect(m.treeRow(3)).toEqual({
+      depth: 0,
+      hasChildren: true,
+      open: false,
+      parent: undefined,
+      setSize: 2,
+      posInSet: 2,
+    });
+    expect(m.treeRow(4)).toBeUndefined();
+  });
+
+  it('rowAt, cellContext and valueAt read child rows', () => {
+    const m = tmodel({ treeExpanded: ['0'] });
+    expect(m.rowAt(1)?.original.name).toBe('A1');
+    expect(m.valueAt(2, 'n')).toBe(1);
+    expect(m.cellContext(1, 'n')).toEqual({
+      row: nested[0]?.kids?.[0],
+      rowId: '0.0',
+      index: 1,
+      columnId: 'n',
+      value: 2,
+      depth: 1,
+    });
+    expect(m.cellContext(0, 'n')?.depth).toBe(0);
+    expect(model().cellContext(0, 'name')).not.toHaveProperty('depth');
+  });
+
+  it('nextTreeExpanded proposes ids', () => {
+    const m = tmodel();
+    expect(m.nextTreeExpanded('0', true)).toEqual(['0']);
+    expect(m.nextTreeExpanded('0', false)).toBeUndefined();
+    expect(m.nextTreeExpanded('0.0', true)).toBeUndefined();
+    expect(m.nextTreeExpanded('nope', true)).toBeUndefined();
+    m.update({ treeExpanded: ['0', '1'] });
+    expect(m.nextTreeExpanded('0', true)).toBeUndefined();
+    expect(m.nextTreeExpanded('0', false)).toEqual(['1']);
+    expect(m.nextTreeExpanded('1', true, [])).toEqual(['1']);
+    // Rows whose children are all filtered out still take an id: a controlled
+    // host's ids are never refused for a filter.
+    m.update({ treeExpanded: [], columnFilters: matchB1 });
+    expect(m.nextTreeExpanded('0', true)).toEqual(['0']);
+    expect(model().nextTreeExpanded('0', true)).toBeUndefined();
+  });
+
+  it('shownAncestor finds the nearest shown ancestor', () => {
+    const m = tmodel();
+    expect(m.shownAncestor('0.1')).toBe(0);
+    expect(m.shownAncestor('1.0')).toBe(1);
+    expect(m.shownAncestor('1')).toBe(1);
+    expect(m.shownAncestor('nope')).toBeUndefined();
+    m.update({ treeExpanded: ['0'] });
+    expect(m.shownAncestor('1.0')).toBe(3);
+    expect(model().shownAncestor('0')).toBeUndefined();
+  });
+
+  it('indexesPassing keeps ancestors of matches, as source indexes', () => {
+    const m = tmodel({ columnFilters: matchB1 });
+    expect(m.indexesPassing()).toEqual([1, 4]);
+    expect(m.indexesPassing(['name'])).toEqual([0, 1, 2, 3, 4]);
+  });
+
+  it('sourceRow reads rows by source index', () => {
+    const m = tmodel();
+    expect(m.sourceRow(1)?.name).toBe('B');
+    expect(m.sourceRow(3)?.name).toBe('A2');
+    expect(m.sourceRow(5)).toBeUndefined();
+    expect(model().sourceRow(2)).toBe(people[2]);
+  });
+
+  it('selectableIds lists shown rows, or every kept row with branches', () => {
+    const m = tmodel();
+    expect(m.selectableIds()).toEqual(['0', '1']);
+    expect(m.selectableIds(true)).toEqual(['0', '0.0', '0.1', '1', '1.0']);
+    m.update({ columnFilters: matchB1 });
+    expect(m.selectableIds(true)).toEqual(['1', '1.0']);
+    expect(model().selectableIds(true)).toEqual(['0', '1', '2', '3']);
+  });
+
+  it('offers child rows values in set filters', () => {
+    const m = tmodel();
+    expect(m.filterValues('name')?.values).toEqual(['A', 'A1', 'A2', 'B', 'B1']);
+  });
+
+  it('flat data with getParentId', () => {
+    const flat: Item[] = [
+      { id: 'A', parent: null, name: 'A' },
+      { id: 'B', name: 'B' },
+      { id: 'A1', parent: 'A', name: 'A1', n: 2 },
+      { id: 'A2', parent: 'A', name: 'A2', n: 1 },
+      { id: 'B1', parent: 'B', name: 'B1', n: 0 },
+    ];
+    const m = tmodel({
+      data: flat,
+      getSubRows: undefined,
+      getParentId: (row) => row.parent,
+      getRowId: (row) => row.id ?? '',
+    });
+    expect(tids(m)).toEqual(['A', 'B']);
+    m.update({ treeExpanded: ['A'] });
+    expect(tids(m)).toEqual(['A', 'A1', 'A2', 'B']);
+    m.update({ treeExpanded: ['A', 'B'], sorting: [{ id: 'n', desc: false }] });
+    expect(tids(m)).toEqual(['A', 'A2', 'A1', 'B', 'B1']);
+    m.update({ sorting: [], treeExpanded: [], columnFilters: matchB1 });
+    expect(tids(m)).toEqual(['B', 'B1']);
+    expect(m.indexesPassing()).toEqual([1, 4]);
+    expect(m.treeRow(1)?.parent).toBe(0);
+  });
+
+  it('a new data array with the same ids keeps rows expanded', () => {
+    const m = tmodel({ treeExpanded: ['0'] });
+    const edited: Item[] = [
+      { name: 'A', kids: [{ name: 'A1', n: 5 }, nested[0]?.kids?.[1] ?? { name: '' }] },
+      nested[1] ?? { name: '' },
+    ];
+    const before = m.rowOrder;
+    m.update({ data: edited });
+    expect(m.rowOrder).not.toBe(before);
+    expect(tids(m)).toEqual(['0', '0.0', '0.1', '1']);
+    expect(m.valueAt(1, 'n')).toBe(5);
+  });
+
+  it('without a tree nothing changes', () => {
+    const m = model();
+    expect(m.tree).toBe(false);
+    expect(m.treeRow(0)).toBeUndefined();
+    expect(m.nextTreeExpanded('0', true)).toBeUndefined();
+    const order = m.rowOrder;
+    m.update({ treeExpanded: ['0'] });
+    expect(m.rowOrder).toBe(order);
+    expect(ids(m)).toEqual(['0', '1', '2', '3']);
+  });
+
+  it('collapsing re-runs only the last step', () => {
+    let reads = 0;
+    const m = tmodel({
+      columns: [
+        { id: 'name', accessor: 'name' },
+        {
+          id: 'n',
+          accessor: (row) => {
+            reads++;
+            return row.n;
+          },
+          sortable: true,
+        },
+      ],
+      sorting: [{ id: 'n', desc: false }],
+    });
+    expect(m.rowCount).toBe(2);
+    expect(reads).toBe(5);
+    reads = 0;
+    m.update({ treeExpanded: ['0'] });
+    expect(m.rowCount).toBe(4);
+    m.update({ treeExpanded: [] });
+    expect(m.rowCount).toBe(2);
+    expect(reads).toBe(0);
+  });
+
+  it('keeps the row order while nothing it reads changes', () => {
+    const treeExpanded = ['0'];
+    const m = tmodel({ treeExpanded });
+    const order = m.rowOrder;
+    m.update({ treeExpanded });
+    m.update({ columnSizing: {} });
+    expect(m.rowOrder).toBe(order);
+    m.update({ treeExpanded: ['0'] });
+    expect(m.rowOrder).not.toBe(order);
+  });
+
+  it('builds no tree with remote rows, and warns once', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const remote = {
+      rowCount: 3,
+      entryAt: () => undefined,
+      indexOf: () => undefined,
+      loadedIds: () => [],
+    };
+    const m = tmodel({ remote });
+    expect(m.tree).toBe(false);
+    expect(m.treeRow(0)).toBeUndefined();
+    m.update({ treeExpanded: ['0'] });
+    m.update({ remote: { ...remote } });
+    expect(m.tree).toBe(false);
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
+
+  it('warns once when both getSubRows and getParentId are set', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const m = tmodel({ getParentId: (row) => row.parent });
+    expect(tids(m)).toEqual(['0', '1']);
+    m.update({ data: [...nested] });
+    expect(m.rowCount).toBe(2);
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
   });
 });

@@ -10,6 +10,7 @@ import { resolveColumns, type ResolvedColumn } from '../columns/resolve-columns.
 import { distinctValues, rowPredicate } from '../filters/filter.js';
 import { buildAllViews, buildViews, hiddenIn, pinIn, sizingOf } from './column-views.js';
 import { RowPipeline } from './row-pipeline.js';
+import { keepWithAncestors } from './tree-order.js';
 import type {
   ColumnDef,
   ColumnOrderState,
@@ -112,6 +113,17 @@ export function createTableModel<TData, TContent>(
     () => valueVersion,
   );
   const rows = () => pipeline.rows();
+  // Trees with a data source come later (children loaded per row): until then the
+  // tree functions are ignored with remote rows, with one warning per model.
+  let warnedRemoteTree = false;
+  const checkRemoteTree = () => {
+    if (warnedRemoteTree || !options.remote || !(options.getSubRows || options.getParentId)) return;
+    warnedRemoteTree = true;
+    console.warn(
+      'argus-table: getSubRows and getParentId are ignored with a dataSource; its rows are shown flat.',
+    );
+  };
+  checkRemoteTree();
   const pinned = (side: RowPin): readonly TData[] => options.pinnedRows?.[side] ?? [];
 
   let allViews: ColumnView<TData, TContent>[] | undefined;
@@ -161,6 +173,7 @@ export function createTableModel<TData, TContent>(
       if (refilter) predicate = predicateFor();
       // Columns that now read differently: filter and sort again.
       if (reread.length && !options.remote) valueVersion++;
+      checkRemoteTree();
     },
 
     get columns() {
@@ -217,7 +230,56 @@ export function createTableModel<TData, TContent>(
       }
       const row = rows()[index];
       if (row === undefined) return undefined;
-      return { id: pipeline.rowId(row), index, original: options.data[row] as TData };
+      return { id: pipeline.rowId(row), index, original: pipeline.source()[row] as TData };
+    },
+
+    get tree() {
+      return pipeline.tree() !== undefined;
+    },
+
+    treeRow(index) {
+      const steps = pipeline.treeSteps();
+      const row = steps && rows()[index];
+      if (!steps || row === undefined) return undefined;
+      const { tree, layout } = steps;
+      const up = tree.parent[row] ?? -1;
+      const hasChildren = (layout.keptChildren[row] ?? 0) > 0;
+      // A shown row's parent is shown too (kept and open).
+      const parent = up === -1 ? -1 : pipeline.positionOf(up);
+      return {
+        depth: tree.depth[row] ?? 0,
+        hasChildren,
+        open: hasChildren && pipeline.treeOpen(row),
+        parent: parent === -1 ? undefined : parent,
+        setSize: up === -1 ? steps.roots : (layout.keptChildren[up] ?? 0),
+        posInSet: layout.posInSet[row] ?? 0,
+      };
+    },
+
+    nextTreeExpanded(rowId, open, base = options.treeExpanded ?? []) {
+      const tree = pipeline.tree();
+      const row = tree?.indexOf(rowId);
+      // Filters aren't applied: a controlled host's ids are never refused for one.
+      if (!tree || row === undefined || (tree.childCount[row] ?? 0) === 0) return undefined;
+      const has = base.includes(rowId);
+      if (has === open) return undefined;
+      return open ? [...base, rowId] : base.filter((id) => id !== rowId);
+    },
+
+    shownAncestor(rowId) {
+      const tree = pipeline.tree();
+      let row = tree?.indexOf(rowId);
+      if (!tree || row === undefined) return undefined;
+      while (row !== -1) {
+        const position = pipeline.positionOf(row);
+        if (position !== -1) return position;
+        row = tree.parent[row] ?? -1;
+      }
+      return undefined;
+    },
+
+    sourceRow(index) {
+      return pipeline.source()[index];
     },
 
     indexOf(rowId) {
@@ -240,8 +302,16 @@ export function createTableModel<TData, TContent>(
       return open ? [...base, rowId] : base.filter((id) => id !== rowId);
     },
 
-    selectableIds() {
+    selectableIds(branches) {
       if (options.remote) return options.remote.loadedIds();
+      const steps = branches ? pipeline.treeSteps() : undefined;
+      if (steps) {
+        const { order } = steps.layout;
+        const { ids } = steps.tree;
+        const all = new Array<string>(order.length);
+        for (let k = 0; k < order.length; k++) all[k] = ids[order[k] ?? 0] ?? '';
+        return all;
+      }
       return rows().map((r) => pipeline.rowId(r));
     },
 
@@ -253,7 +323,7 @@ export function createTableModel<TData, TContent>(
       const row = rows()[index];
       return row === undefined
         ? undefined
-        : byId.get(columnId)?.getValue(options.data[row] as TData, row);
+        : byId.get(columnId)?.getValue(pipeline.source()[row] as TData, row);
     },
 
     readValue(row, columnId, index) {
@@ -276,14 +346,17 @@ export function createTableModel<TData, TContent>(
       const row = rows()[index];
       const column = byId.get(columnId);
       if (row === undefined || !column) return undefined;
-      const original = options.data[row] as TData;
-      return {
+      const tree = pipeline.tree();
+      const original = (tree ? tree.rows : options.data)[row] as TData;
+      const context = {
         row: original,
         rowId: pipeline.rowId(row),
         index,
         columnId,
         value: column.getValue(original, row),
       };
+      // No `depth` key without a tree: contexts stay as they were.
+      return tree ? { ...context, depth: tree.depth[row] ?? 0 } : context;
     },
 
     nextSorting(columnId) {
@@ -346,12 +419,15 @@ export function createTableModel<TData, TContent>(
       if (!column) return undefined;
       if (column.filterOptions) return { values: [...column.filterOptions], truncated: false };
       if (options.remote) return undefined;
-      return distinctValues(options.data, column, predicateFor(new Set([columnId])), limit);
+      // A tree's child rows offer their values too.
+      return distinctValues(pipeline.source(), column, predicateFor(new Set([columnId])), limit);
     },
 
     indexesPassing(except) {
       if (options.remote) return undefined;
       const keep = predicateFor(new Set(except), true);
+      const tree = pipeline.tree();
+      if (tree) return keepWithAncestors(tree, keep).rows;
       const kept: number[] = [];
       const { data } = options;
       for (let i = 0; i < data.length; i++) {

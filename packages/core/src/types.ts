@@ -48,6 +48,12 @@ export interface CellContext<TData> {
   value: unknown;
   /** Set for a row from `pinnedRows`: the side it is pinned to. */
   pinned?: RowPin;
+  /**
+   * The row's level in a tree of rows (`getSubRows` or `getParentId`): `0` for a
+   * top-level row, `1` for its children, and so on. Set for body rows only, and
+   * only when the rows form a tree.
+   */
+  depth?: number;
 }
 
 /**
@@ -345,7 +351,16 @@ export interface RowDetailContext<TData> {
   rowId: string;
   /** Index of the row in the current (filtered and sorted) row order. Panels don't count. */
   index: number;
+  /** The row's level in a tree of rows, `0` for a top-level row; set only when the rows form a tree. */
+  depth?: number;
 }
+
+/**
+ * The rows of a tree that are expanded (their children shown), as row ids (from
+ * `getRowId`, or the default ids: the index in `data` for a top-level row, the
+ * parent's id, a dot and the index among its siblings for a nested child).
+ */
+export type TreeExpandedState = readonly string[];
 
 /**
  * Where the body is scrolled: the row at the top, as an index in the current row
@@ -413,6 +428,16 @@ export interface ExpandedChangeDetail {
   /** The row whose panel was opened or closed. */
   rowId: string;
   /** `true` when it was opened. */
+  open: boolean;
+}
+
+/** `detail` of `argus-tree-expanded-change`. */
+export interface TreeExpandedChangeDetail {
+  /** The expanded rows: the new ones, or the proposed ones when `treeExpanded` is controlled. */
+  treeExpanded: TreeExpandedState;
+  /** The row that was expanded or collapsed. */
+  rowId: string;
+  /** `true` when it was expanded. */
   open: boolean;
 }
 
@@ -509,6 +534,8 @@ export interface CellClickDetail<TData> {
   value: unknown;
   /** Set when the row is from `pinnedRows`: the side it is pinned to. */
   pinned?: RowPin;
+  /** The row's level in a tree of rows, `0` for a top-level row; set for body rows when the rows form a tree. */
+  depth?: number;
 }
 
 /**
