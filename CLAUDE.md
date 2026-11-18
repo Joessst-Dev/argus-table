@@ -20,7 +20,7 @@ pnpm build               # every package
 pnpm test:e2e            # Playwright against the built playground (`vite preview` on :4173)
 pnpm test:visual         # screenshot tests inside the CI Playwright Docker image (needs Docker)
 pnpm nx run examples:smoke  # pack the packages, npm-install + build each starter, Playwright smoke test (Node ≥ 22.22.3 for the Angular CLI)
-pnpm size                # min+gzip budgets: argus-table's CDN bundle (packages/table/.size-limit.json, 47 kB), @argus-table/formulas (12.3 kB, the editor 8 kB) and @argus-table/export (3.0 kB, the XLSX writer 3.3 kB, the PDF writer 3.1 kB, collecting detail rows 0.6 kB) and @argus-table/editing (4.2 kB)
+pnpm size                # min+gzip budgets: argus-table's CDN bundle (packages/table/.size-limit.json, 47 kB), @argus-table/formulas (12.8 kB, the editor 8 kB) and @argus-table/export (3.0 kB, the XLSX writer 3.3 kB, the PDF writer 3.1 kB, collecting detail rows 0.6 kB) and @argus-table/editing (4.2 kB)
 pnpm nx run playground:record-demo  # re-record the README demo (brand/demo.gif) from the built playground; FRAMES=<dir> keeps the PNGs
 pnpm bench               # benchmarks/: ROWS=10000,100000,1000000 BROWSERS=… RUNS=… (see benchmarks/README.md)
 pnpm affected            # what CI runs for the branch (base: main)

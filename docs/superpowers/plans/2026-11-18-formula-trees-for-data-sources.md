@@ -14,7 +14,7 @@
 
 - No change to `packages/table` or `packages/core`.
 - With `server` off (the default), behaviour is exactly as today, except the fix in Task 2 (the hook re-runs when `dataSource` is set or removed).
-- Plugin budget: 12.3 kB min+gzip (`packages/formulas/.size-limit.js`). If it's over, stop and ask the maintainer; don't raise it.
+- Plugin budget: 12.8 kB min+gzip (`packages/formulas/.size-limit.js`), raised from 12.3 kB with the maintainer's approval (the feature costs 0.47 kB).
 - Public names, exact: option `server?: boolean`; `formulaTrees(table: HTMLElement): FormulaTrees`; types `FormulaTrees`, `FormulaTree`, `FormulaOperator`.
 - The tree format can only grow once released (ADR 0004). No `range` node.
 - `@argus-table/formulas` stays framework-agnostic, with `argus-table` and `lit` as peers.

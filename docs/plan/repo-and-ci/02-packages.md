@@ -13,7 +13,7 @@ Six packages are published to npm; `@argus-table/core` stays private and is bund
 | `@argus-table/vue` | Vite library mode, `.d.ts` via `tsc`; bindings generated from the manifest | Yes | `argus-table`; `vue` as peer |
 | `@argus-table/angular` | ng-packagr (Angular Package Format, partial compilation); bindings generated from the manifest | Yes | `argus-table`; `@angular/core` 20–22 as peer |
 | `@argus-table/header-menu` (Phase 3) | Vite library mode, `.d.ts` via `tsc` | Yes | `argus-table` and `lit` as peers (a plugin: it imports only types from `argus-table`) |
-| `@argus-table/formulas` (Phase 3) | Vite library mode, `.d.ts` via `tsc`; engine tests in Node, plugin tests in the browser | Yes | `argus-table` and `lit` as peers (a plugin, like the header menu); its own size budgets (12.3 kB for the plugin, 8 kB for the editor it loads on first use) |
+| `@argus-table/formulas` (Phase 3) | Vite library mode, `.d.ts` via `tsc`; engine tests in Node, plugin tests in the browser | Yes | `argus-table` and `lit` as peers (a plugin, like the header menu); its own size budgets (12.8 kB for the plugin, 8 kB for the editor it loads on first use) |
 | `@argus-table/export` (after 1.0) | Vite library mode, `.d.ts` via `tsc`; writer tests in Node, plugin tests in the browser | Yes | `argus-table` as peer (imports only its types; no runtime dependencies); size budgets for the plugin with CSV and for the XLSX and PDF writers it loads on first use |
 | `@argus-table/editing` (after 1.0) | Vite library mode, `.d.ts` via `tsc`; tests in the browser | Yes | `argus-table` and `lit` as peers; a size budget for the plugin |
 
