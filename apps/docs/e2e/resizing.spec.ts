@@ -40,3 +40,29 @@ for (const flavour of FLAVOURS) {
     await expectAccessible(page, example);
   });
 }
+
+for (const flavour of FLAVOURS) {
+  test(`${flavour}: stretched columns fill the table's width`, async ({ page }) => {
+    await page.goto('features/resizing/');
+    const example = await openFlavour(page, 'resizing/stretch', flavour);
+    const table = example.locator('argus-table');
+    const fill = () =>
+      table.evaluate((el) => {
+        const scroller = el.shadowRoot?.querySelector<HTMLElement>('[part~="table"]');
+        const cells = [
+          ...(el.shadowRoot?.querySelectorAll<HTMLElement>('[role="columnheader"][data-col]') ??
+            []),
+        ];
+        const total = cells.reduce((sum, cell) => sum + cell.getBoundingClientRect().width, 0);
+        return {
+          gap: Math.abs((scroller?.clientWidth ?? 0) - total),
+          scrolls: (scroller?.scrollWidth ?? 0) > (scroller?.clientWidth ?? 0),
+        };
+      });
+    await expect.poll(async () => (await fill()).gap).toBeLessThanOrEqual(2);
+    expect((await fill()).scrolls).toBe(false);
+    // # keeps its maxWidth.
+    await expect.poll(() => width(header(table, 'id'))).toBe(70);
+    await expectAccessible(page, example);
+  });
+}

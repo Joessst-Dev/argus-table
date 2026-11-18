@@ -46,6 +46,7 @@ export type ArgusTableElementProps<T = unknown> = Partial<
     | 'density'
     | 'overscan'
     | 'virtualizeColumns'
+    | 'stretchColumns'
     | 'sorting'
     | 'columnSizing'
     | 'columnOrder'
