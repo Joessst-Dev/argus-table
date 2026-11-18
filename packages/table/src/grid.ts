@@ -9,6 +9,7 @@ import {
   type OrderUnit,
   type TableModel,
 } from '@argus-table/core';
+import type { WindowRow } from './controllers/virtual-controller.js';
 import { INTERACTIVE } from './interactive.js';
 import { columnKey } from './render/header.js';
 import type { CellContent } from './types.js';
@@ -119,22 +120,94 @@ export function gridRowOfCell(cell: HTMLElement, layout: RowLayout): GridRow | u
  * per row: a shadow on every pinned cell repaints on every scroll frame. It
  * covers the pinned columns and casts `--argus-pinned-shadow` onto the rest;
  * PinScrollController sizes it to the visible area.
+ *
+ * `bands`: with detail panels, the body's part of the edge is drawn in the body
+ * (`edgeRuns`, so it stops at panels), and this one shows only over the header
+ * and top pinned rows (`top` px) and the bottom pinned rows (`bottom` px).
  */
 export function pinShadow(
   side: 'start' | 'end',
   width: number,
   contentPx: number,
+  bands?: { top: number; bottom: number },
 ): TemplateResult | typeof nothing {
   if (width === 0) return nothing;
   return html`<div
     class="pin-shadow"
     data-side=${side}
+    ?data-bands=${bands !== undefined}
     aria-hidden="true"
     style=${styleMap({
       inlineSize: `${String(width)}px`,
       '--_content-h': `${String(contentPx)}px`,
+      '--_band-top': bands ? `${String(bands.top)}px` : undefined,
+      '--_band-bottom': bands ? `${String(bands.bottom)}px` : undefined,
     })}
   ></div>`;
+}
+
+/** A run of body rows with no panel between them: its offset and height in the body, px. */
+export interface EdgeRun {
+  start: number;
+  size: number;
+}
+
+/**
+ * The runs of data rows between detail panels among the rendered rows, so the
+ * pinned edges' shadow can stop at each panel. `sizeOf` gives a row's height.
+ */
+export function edgeRuns(
+  rows: readonly WindowRow[],
+  sizeOf: (row: WindowRow) => number,
+): EdgeRun[] {
+  const sorted = rows.filter((r) => !r.idle).sort((a, b) => a.index - b.index);
+  const runs: EdgeRun[] = [];
+  let last: WindowRow | undefined;
+  for (const row of sorted) {
+    const run = runs.at(-1);
+    if (run && last?.index === row.index - 1) {
+      run.size = row.start + sizeOf(row) - run.start;
+    } else {
+      runs.push({ start: row.start, size: sizeOf(row) });
+    }
+    last = row;
+  }
+  return runs;
+}
+
+/**
+ * The pinned edges' shadow over the body's rows when detail panels can show: one
+ * strip per run of rows between panels, in the body so it moves with the rows,
+ * in a container that sticks to its side when the table scrolls sideways (one
+ * sticky element per side, not one per row).
+ */
+export function renderEdgeRuns(
+  pinStart: number,
+  pinEnd: number,
+  runs: readonly EdgeRun[],
+): TemplateResult | typeof nothing {
+  if (runs.length === 0) return nothing;
+  const side = (name: 'start' | 'end', width: number) =>
+    width === 0
+      ? nothing
+      : html`<div
+          class="edge-runs"
+          data-side=${name}
+          aria-hidden="true"
+          style=${styleMap({ inlineSize: `${String(width)}px` })}
+        >
+          ${runs.map(
+            (run) =>
+              html`<div
+                class="edge-run"
+                style=${styleMap({
+                  insetBlockStart: `${String(run.start)}px`,
+                  blockSize: `${String(run.size)}px`,
+                })}
+              ></div>`,
+          )}
+        </div>`;
+  return html`${side('start', pinStart)}${side('end', pinEnd)}`;
 }
 
 /** CSS grid track for a column: fixed px, or a flex share with the min width as floor. */

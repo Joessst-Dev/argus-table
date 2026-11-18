@@ -450,6 +450,60 @@ export const baseStyles = css`
     .pin-shadow[data-side='end']::after {
       transform: scaleX(calc(-1 * var(--_dir)));
     }
+    /*
+     * With detail panels the overlay shows only over the header and top pinned
+     * rows and over the bottom pinned rows; the body's part is .edge-runs, which
+     * stops at each panel. Wide enough sideways for the shadow it casts.
+     */
+    .pin-shadow[data-bands] {
+      clip-path: polygon(
+        evenodd,
+        -32px 0,
+        calc(100% + 32px) 0,
+        calc(100% + 32px) 100%,
+        -32px 100%,
+        -32px calc(100% - var(--_band-bottom)),
+        calc(100% + 32px) calc(100% - var(--_band-bottom)),
+        calc(100% + 32px) var(--_band-top),
+        -32px var(--_band-top)
+      );
+    }
+    /* The body as wide as the rows, so the edges' containers can stick to the end. */
+    [part~='body'][data-edges] {
+      inline-size: var(--_width);
+      min-inline-size: 100%;
+    }
+    .edge-runs {
+      position: sticky;
+      inset-inline-start: 0;
+      block-size: 0;
+      z-index: 2;
+      pointer-events: none;
+    }
+    .edge-runs[data-side='end'] {
+      inset-inline-start: auto;
+      inset-inline-end: 0;
+      margin-inline-start: auto;
+    }
+    /* A run of rows between panels: the shadow ends flush with them. */
+    .edge-run {
+      position: absolute;
+      inset-inline: 0;
+      clip-path: inset(0 -32px);
+    }
+    .edge-run::after {
+      content: '';
+      position: absolute;
+      inset: -16px 0;
+      box-shadow: var(
+        --argus-pinned-shadow,
+        4px 0 6px -4px light-dark(rgb(0 0 0 / 0.2), rgb(0 0 0 / 0.6))
+      );
+      transform: scaleX(var(--_dir));
+    }
+    .edge-runs[data-side='end'] .edge-run::after {
+      transform: scaleX(calc(-1 * var(--_dir)));
+    }
 
     [data-align='center'] {
       justify-content: center;
