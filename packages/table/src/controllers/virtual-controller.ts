@@ -1,5 +1,6 @@
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
 import {
+  MeasuredSizes,
   RowPool,
   RowSizes,
   ScrollScale,
@@ -27,13 +28,6 @@ export interface WindowRow {
    */
   idle?: boolean;
 }
-
-/**
- * Engines place elements in a body taller than this (2^24 px) only to 2 px:
- * positions are 32-bit floats. Measured rows are whole px below it and an even
- * number of px above it, so every row starts on the grid and they stay flush.
- */
-const COARSE_BODY = 16_000_000;
 
 /** How long scrolling has to be quiet before a held correction is written (see `#hold`). */
 const HOLD_MS = 150;
@@ -111,8 +105,9 @@ export interface VirtualConfig {
  * controller (`scrollBy`, `reveal`, `scrollToIndex`): physical px no longer
  * match rows once the body is scaled.
  *
- * Rows of different heights (`auto`): heights are measured as rows render and
- * follow row ids, so a sort or filter keeps them. A measured row above the top
+ * Rows of different heights (`auto`, and detail panels): heights are measured
+ * as rows render and follow row ids, so a sort or filter keeps them (core's
+ * `MeasuredSizes` lays them out in the `RowSizes`). A measured row above the top
  * row would move the rows in view: unscaled, the rows render shifted by the
  * difference until scrolling stops (`#hold`); scaled, the mapping pivots at the
  * current offset. Neither writes the scroll position while the user scrolls.
@@ -134,13 +129,10 @@ export class VirtualController implements ReactiveController {
   };
   /** A logical offset to restore after the update, once the body has its new height. */
   #anchor: number | undefined;
-  /** Row heights by index: all the row height, or measured (auto mode). */
+  /** Row heights by position: all the row height, or laid out by `#measured`. */
   readonly #sizes = new RowSizes();
-  // Auto mode only.
-  /** Measured heights by row id (as read), so they follow rows through a sort or filter. */
-  readonly #heights = new Map<string, number>();
-  /** Rows are whole multiples of this many px (see `COARSE_BODY`). */
-  #quantum = 1;
+  /** Measured heights by row id, with `measure` only. */
+  readonly #measured = new MeasuredSizes();
   /**
    * Unscaled: the logical offset less the scroller's. Rows measured above the
    * top row would move the rows in view; instead of writing the scroll position
@@ -150,8 +142,6 @@ export class VirtualController implements ReactiveController {
    */
   #hold = 0;
   #holdTimer: ReturnType<typeof setTimeout> | undefined;
-  /** The `order` the sizes are indexed for. */
-  #order: object | undefined;
   /** The visible rows last rendered, and the logical offset they were rendered for. */
   #rendered: { start: number; end: number; top: number } | undefined;
   /** `reveal()` scrolled: render at the new offset even if the visible rows are the same. */
@@ -203,13 +193,12 @@ export class VirtualController implements ReactiveController {
     // Only panels opened or closed: the row at the top, under the old layout.
     const kept = next.keepTop && element ? this.#topRow(prev, top) : undefined;
     if (next.measure) {
-      this.#configureMeasured(next.measure, prev);
+      const { count, rowHeight, cap } = next;
+      this.#measured.layout(this.#sizes, { ...next.measure, count, rowHeight, cap });
     } else {
       if (prev.measure) {
         // Back to fixed heights: measured heights no longer apply.
-        this.#heights.clear();
-        this.#order = undefined;
-        this.#quantum = 1;
+        this.#measured.clear();
         this.#dropHold();
       }
       // Every row the row height: allocates nothing.
@@ -266,57 +255,6 @@ export class VirtualController implements ReactiveController {
     const wasScaled = this.#scale.excess > 0;
     if (!this.#scale.configure(logical, this.#config.cap(logical))) return;
     if ((wasScaled || this.#scale.scaled) && offset > 0) this.#anchor = offset;
-  }
-
-  #configureMeasured(measure: MeasuredRows, prev: VirtualConfig): void {
-    const next = this.#config;
-    const sizes = this.#sizes;
-    if (prev.measure?.all !== measure.all || next.rowHeight !== prev.rowHeight) {
-      // A new minimum height (density, a theme): every row measures again.
-      this.#heights.clear();
-      this.#order = undefined;
-    }
-    const reset = () => {
-      sizes.reset(next.count, this.#fit(0), this.#known(measure, next.count));
-    };
-    if (measure.order !== this.#order) {
-      this.#order = measure.order;
-      reset();
-    } else if (next.count !== sizes.count) {
-      // A data source counting more rows: they keep their indexes.
-      sizes.resize(next.count);
-    }
-    // A body past 2^24 px needs even heights: fit the rows to the new grid.
-    const quantum = this.#quantumFor(sizes.total);
-    if (quantum !== this.#quantum) {
-      this.#quantum = quantum;
-      reset();
-    }
-  }
-
-  /** The measured heights by index in the current order. Forgets rows long gone. */
-  *#known(measure: MeasuredRows, count: number): Generator<[number, number]> {
-    const heights = this.#heights;
-    const prune = heights.size > 2 * count + 1000;
-    for (const [id, px] of heights) {
-      const index = measure.indexOf(id);
-      if (index !== undefined && index < count) yield [index, this.#fit(px)];
-      else if (prune) heights.delete(id);
-    }
-  }
-
-  /** The px grid rows are on for a body `logical` px tall (see `COARSE_BODY`). */
-  #quantumFor(logical: number): number {
-    // Fixed-height data rows aren't on a measured grid: only panels are measured.
-    if (!this.#config.measure?.all) return 1;
-    return Math.min(logical, this.#config.cap(logical)) > COARSE_BODY ? 2 : 1;
-  }
-
-  /** A measured height as a row renders it: on the grid, at least the row height. */
-  #fit(px: number): number {
-    const q = this.#quantum;
-    const up = (value: number) => Math.ceil(value / q - 0.01) * q;
-    return Math.max(up(px), up(this.#config.rowHeight));
   }
 
   hostUpdated(): void {
@@ -515,8 +453,7 @@ export class VirtualController implements ReactiveController {
     let changed = false;
     for (const [index, px] of measured) {
       if (index < 0 || index >= sizes.count || !(px > 0)) continue;
-      this.#heights.set(rowIdAt(index), px);
-      if (sizes.set(index, this.#fit(px)) !== 0) changed = true;
+      if (this.#measured.set(sizes, index, rowIdAt(index), px)) changed = true;
     }
     if (!changed) return false;
     const target = sizes.startOf(anchor) + within;
