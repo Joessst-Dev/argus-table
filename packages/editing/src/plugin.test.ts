@@ -273,6 +273,40 @@ describe('cellEditing', () => {
     expect(edits.at(-1)).toMatchObject({ rowId: 'c', value: 'Cy' });
   });
 
+  test("a double-click on a cell's button is the button's, even on its icon's shadow DOM", async () => {
+    if (!customElements.get('x-edit-icon')) {
+      customElements.define(
+        'x-edit-icon',
+        class extends HTMLElement {
+          constructor() {
+            super();
+            this.attachShadow({ mode: 'open' }).innerHTML =
+              '<span style="display:inline-block;inline-size:16px;block-size:16px"></span>';
+          }
+        },
+      );
+    }
+    const withButton = columns.map((c) =>
+      c.id === 'name'
+        ? {
+            ...c,
+            cell: (row: Row) =>
+              html`<button type="button"><x-edit-icon></x-edit-icon></button> ${row.name}`,
+          }
+        : c,
+    );
+    const { el } = await fixture({}, { columns: withButton });
+    const icon = el.querySelector('x-edit-icon');
+    if (!icon) throw new Error('no icon');
+    await userEvent.dblClick(icon);
+    await settle(el);
+    expect(editor(el)).toBeNull();
+    // The cell's own padding still edits.
+    await userEvent.dblClick(cellOf(el, 0, 'name'), { position: { x: 2, y: 2 } });
+    await settle(el);
+    expect(document.activeElement).toBe(editor(el));
+  });
+
   test("Enter on a column that isn't editable is still a click", async () => {
     const { el } = await fixture();
     const clicks = vi.fn();

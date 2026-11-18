@@ -12,6 +12,7 @@ interface Row {
   qty: number;
   info?: { unit: string };
   children?: Row[];
+  parent?: string;
 }
 
 const data: Row[] = [
@@ -472,6 +473,63 @@ describe('whole columns', () => {
     await settle(el);
     expect(texts(el, 'name')).toEqual(['Parent', 'Child 0', 'Other']);
     expect(texts(el, 'total')).toEqual(['7', '7', '7']);
+  });
+
+  test('cover the ancestors a filter keeps for a match', async () => {
+    const el = await fixture({
+      data: nested,
+      getSubRows: (r) => r.children,
+      columns: filterable(total),
+      columnFilters: { name: { kind: 'text', op: 'contains', value: 'Child 1' } },
+    });
+    expect(texts(el, 'name')).toEqual(['Parent', 'Child 1']);
+    // Parent 1 and Child 1 3.
+    expect(texts(el, 'total')).toEqual(['4', '4']);
+  });
+
+  test('keep their accessors when rows expand or collapse', async () => {
+    let seen: readonly ColumnDef<Row, unknown>[] = [];
+    const spy: ArgusPlugin<Row> = {
+      name: 'spy',
+      columns(defs) {
+        seen = defs;
+        return defs;
+      },
+    };
+    const el = await fixture({
+      data: nested,
+      getSubRows: (r) => r.children,
+      columns: withFormulas(total),
+      plugins: [formulas(), spy],
+    });
+    const before = seen.find((d) => d.id === 'total')?.accessor;
+    expect(before).toBeTypeOf('function');
+    el.treeExpanded = ['p'];
+    await settle(el);
+    expect(texts(el, 'name')).toEqual(['Parent', 'Child 0', 'Child 1', 'Other']);
+    expect(seen.find((d) => d.id === 'total')?.accessor).toBe(before);
+  });
+
+  test('a new getParentId recomputes them', async () => {
+    const flat: Row[] = [
+      { id: 'p', name: 'Parent', price: 1, qty: 1 },
+      { id: 'p0', name: 'Child 0', price: 1, qty: 2, parent: 'p' },
+      { id: 'p1', name: 'Child 1', price: 1, qty: 3, parent: 'p' },
+      { id: 'q', name: 'Other', price: 1, qty: 4 },
+    ];
+    const el = await fixture({
+      data: flat,
+      getParentId: (r) => r.parent,
+      columns: filterable(total),
+      columnFilters: { name: { kind: 'text', op: 'contains', value: 'Child' } },
+    });
+    // The parent is kept for its children's match.
+    expect(texts(el, 'name')).toEqual(['Parent', 'Child 0', 'Child 1']);
+    expect(texts(el, 'total')).toEqual(['6', '6', '6']);
+    el.getParentId = () => null;
+    await settle(el);
+    expect(texts(el, 'name')).toEqual(['Child 0', 'Child 1']);
+    expect(texts(el, 'total')).toEqual(['5', '5']);
   });
 
   test('are #N/A with a dataSource, whose rows aren’t all loaded', async () => {

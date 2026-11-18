@@ -33,11 +33,11 @@ table.addEventListener('argus-cell-edit', (e) => {
 
 `argus-cell-edit` fires when an edit is committed with a value that differs from the one before. `detail: { row, rowId, index, columnId, value, previous, pinned?, depth? }`; `pinned` is `'top'` or `'bottom'` for a row from `pinnedRows`, and `depth` is set in a tree (below). Until you apply it, the cell shows the old value. With a `dataSource`, save the edit and call `table.refresh()`.
 
-`applyEdit(data, detail, columns)` returns a new array with the edited row replaced by a copy holding the new value. A column whose `accessor` is a path (`'qty'`, `'address.city'`) needs nothing more; one with a function accessor needs `meta.edit.set`. Pinned rows are your own objects: `applyEdit` leaves `data` as it is for them.
+`applyEdit(data, detail, columns)` returns a new array with the edited row replaced by a copy holding the new value. A column whose `accessor` is a path (`'qty'`, `'address.city'`) needs nothing more; one with a function accessor needs `meta.edit.set`. Pinned rows are your own objects: for them, and for a row not in `data`, `applyEdit` returns a copy of `data` as it is.
 
 ### Tree rows
 
-In a tree, `detail.depth` is the edited row's level: `0` for a top-level row, `1` for its children, and so on. A tree from `getParentId` holds every row in `data`, so `applyEdit` works as above. Nested children (`getSubRows`) aren't in `data`: give `applyEdit` a fourth argument with the table's `getSubRows` and a `setSubRows(row, children)` that returns a copy of `row` with those children. It copies the rows on the path from the top-level row to the edited one, and every other row stays the same object:
+In a tree, `detail.depth` is the edited row's level: `0` for a top-level row, `1` for its children, and so on. A tree from `getParentId` holds every row in `data`, so `applyEdit` works as above. Nested children (`getSubRows`) aren't in `data`: give `applyEdit` a fourth argument with the table's `getSubRows` and a `setSubRows(row, children)` that returns a copy of `row` with those children. It copies the rows on the path from the top-level row to the edited one, and every other row stays the same object. The children mustn't form a cycle (a row among its own descendants):
 
 ```js
 table.getSubRows = (row) => row.children;
@@ -49,7 +49,7 @@ table.addEventListener('argus-cell-edit', (e) => {
 });
 ```
 
-Without it, the edit of a nested child throws. With the default row ids (`'3'`, `'3.0'`), expanded rows and the selection stay as they were, since the edited rows keep their places.
+Without it, the edit of a nested child throws an error. With the default row ids (`'3'`, `'3.0'`), expanded rows and the selection stay as they were, since the edited rows keep their places.
 
 ## Keys
 

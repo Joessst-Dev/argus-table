@@ -60,12 +60,14 @@ const FOCUSABLE =
  * Content whose double-click is its own, not the cell's: a tree row's toggle
  * (a button) and controls a column's `cell` renders.
  */
-const INTERACTIVE = 'button,input,select,textarea,a[href],label,[contenteditable]';
+const INTERACTIVE = `${FOCUSABLE}, a[href], label`;
 
 /** Whether an event's path reaches interactive content before the cell it is in. */
 function fromInteractive(event: Event): boolean {
   for (const target of event.composedPath()) {
-    if (!(target instanceof Element) || target.getAttribute('role') === 'gridcell') return false;
+    // Shadow roots on the way (an icon's inside a button) are no elements: walk on.
+    if (!(target instanceof Element)) continue;
+    if (target.getAttribute('role') === 'gridcell') return false;
     if (target.matches(INTERACTIVE)) return true;
   }
   return false;
