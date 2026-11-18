@@ -1,4 +1,5 @@
-import type { PluginHost, RowSection } from 'argus-table';
+import type { ColumnAlign, PluginHost, RowSection } from 'argus-table';
+import { collectDetails, type DetailItem } from './detail.js';
 import {
   toValue,
   type ExportColumn,
@@ -30,6 +31,40 @@ declare module 'argus-table' {
   }
 }
 
+/** A column of the detail rows (`ExportDetail`). */
+export interface ExportDetailColumn<D = unknown> {
+  id: string;
+  /** The header text. */
+  header: string;
+  /** What to write for a detail row. Default: its property named `id`. */
+  value?(item: D): unknown;
+  /** Default `'start'`. */
+  align?: ColumnAlign;
+  /** Width in px, for Excel and PDF. Default `120`. */
+  width?: number;
+}
+
+/**
+ * The rows behind each row's detail panel (an order's lines), which the export
+ * writes under their row: indented and grouped in Excel, indented in PDF, and in
+ * CSV one line per detail row with the row's values repeated. The table's panels
+ * aren't read: this is data the app supplies, with or without `rowDetail`.
+ */
+export interface ExportDetail<T = unknown, D = unknown> {
+  /** The detail rows' columns, in order. */
+  columns: readonly ExportDetailColumn<D>[];
+  /**
+   * A row's detail rows; may return a promise (to fetch them). Called once per
+   * exported body row, in order and at most 6 at a time; not for pinned rows, nor
+   * for rows the table's `rowExpandable` rejects. `rowId` is the id the export
+   * uses for the row (`getRowId`'s, else its index); `signal` is the export's.
+   */
+  rows(
+    row: T,
+    context: { rowId: string; signal: AbortSignal | undefined },
+  ): readonly D[] | Promise<readonly D[]>;
+}
+
 /** Which rows and columns an export holds. */
 export interface CollectOptions<T = unknown> {
   /**
@@ -56,6 +91,11 @@ export interface CollectOptions<T = unknown> {
   columns?: Record<string, ExportColumnOptions<T> | undefined>;
   /** Stops the export (and the `getRows` requests of `allRows`). */
   signal?: AbortSignal;
+  /**
+   * Each row's detail rows, written under it (see `ExportDetail`). `false` turns
+   * off a `detail` given to `tableExport()` for one export.
+   */
+  detail?: ExportDetail<T> | false;
 }
 
 /** The names of the columns and groups (their headers' text), by column id and group id. */
@@ -116,9 +156,12 @@ export async function collect<T>(
     return toValue(map ? map(raw, row() as T) : raw);
   };
   const rows: ExportValue[][] = [];
+  // The body row and its id behind each entry of `rows`, for its detail rows.
+  const items: (DetailItem<T> | undefined)[] = [];
   const pinned = (section: RowSection) => {
     if (!(options.pinnedRows ?? options.rows !== 'selected')) return;
     for (let i = 0, n = host.rowCount(section); i < n; i++) {
+      items.push(undefined);
       rows.push(
         columns.map((c) => valueOf(host.value(i, c.id, section), c.id, () => host.row(i, section))),
       );
@@ -144,8 +187,9 @@ export async function collect<T>(
       });
       page.forEach((row, k) => {
         const index = start + k;
-        if (selected && !selected.has(el.getRowId ? el.getRowId(row, index) : String(index)))
-          return;
+        const rowId = el.getRowId ? el.getRowId(row, index) : String(index);
+        if (selected && !selected.has(rowId)) return;
+        items.push({ row, rowId });
         rows.push(columns.map((c) => valueOf(host.readValue(row, c.id, index), c.id, () => row)));
       });
       if (page.length < size || (total !== undefined && start + size >= total)) break;
@@ -155,9 +199,26 @@ export async function collect<T>(
       const id = host.rowId(i);
       // A dataSource row that isn't loaded.
       if (id === undefined || (selected && !selected.has(id))) continue;
+      items.push({ row: host.row(i) as T, rowId: id });
       rows.push(columns.map((c) => valueOf(host.value(i, c.id), c.id, () => host.row(i))));
     }
   }
   pinned('bottom');
-  return { columns, groups, rows };
+  const detail = options.detail;
+  if (!detail) return { columns, groups, rows };
+  return {
+    columns,
+    groups,
+    rows,
+    detail: {
+      columns: detail.columns.map((c) => ({
+        id: c.id,
+        header: c.header,
+        align: c.align ?? 'start',
+        width: c.width ?? 120,
+        pin: undefined,
+      })),
+      rows: await collectDetails(items, detail, el.rowExpandable, options.signal),
+    },
+  };
 }
