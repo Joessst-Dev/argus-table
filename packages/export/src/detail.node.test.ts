@@ -101,6 +101,19 @@ describe('collectDetails', () => {
     expect(rows.mock.calls.length).toBeLessThanOrEqual(6);
   });
 
+  test('stops at an abort even when rows() never settles', async () => {
+    const controller = new AbortController();
+    const never: ExportDetail<Row, Line> = {
+      columns,
+      rows: () => new Promise<Line[]>(() => undefined),
+    };
+    const done = collectDetails(items(3), never, undefined, controller.signal);
+    setTimeout(() => {
+      controller.abort(new Error('stop'));
+    }, 10);
+    await expect(done).rejects.toThrow('stop');
+  });
+
   test('writes values through value() or the property named by id, made plain', async () => {
     const when = new Date(2026, 0, 2);
     const detail: ExportDetail<Row, { qty: number; when: Date; meta: object }> = {

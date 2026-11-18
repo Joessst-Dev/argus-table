@@ -30,6 +30,21 @@ export async function collectDetails<T>(
   // The first failure, kept until this loop gets to throw it (no unhandled rejections meanwhile).
   let failed: { error: unknown } | undefined;
   let started = 0;
+  // Waiting for rows() calls stops at an abort, even when they ignore the signal.
+  const aborted =
+    signal &&
+    new Promise<never>((_, reject) => {
+      signal.addEventListener(
+        'abort',
+        () => {
+          reject(signal.reason as Error);
+        },
+        { once: true },
+      );
+    });
+  aborted?.catch(() => undefined);
+  const wait = (promise: Promise<unknown>) =>
+    aborted ? Promise.race([promise, aborted]) : promise;
   for (let at = 0; at < items.length; at++) {
     const item = items[at];
     if (!item || (expandable && !expandable(item.row))) continue;
@@ -53,9 +68,9 @@ export async function collectDetails<T>(
         running.delete(call);
       });
     running.add(call);
-    if (running.size >= IN_FLIGHT) await Promise.race(running);
+    if (running.size >= IN_FLIGHT) await wait(Promise.race(running));
   }
-  await Promise.all(running);
+  await wait(Promise.all(running));
   if (failed) throw failed.error;
   signal?.throwIfAborted();
   return out;

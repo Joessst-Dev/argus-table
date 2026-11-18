@@ -230,7 +230,9 @@ export async function toPdf(
     const count = fits(pages.length ? top : firstTop);
     // A detail block that goes on from the last page starts with its header again.
     const page: Line[] = lines[at]?.kind === 'detail' ? [{ kind: 'detail-header' }] : [];
-    const take = Math.max(1, count - page.length);
+    let take = Math.max(1, count - page.length);
+    // A detail header goes with the rows under it, not alone at the bottom of a page.
+    while (take > 1 && lines[at + take - 1]?.kind === 'detail-header') take--;
     page.push(...lines.slice(at, at + take));
     pages.push(page);
     at += take;
@@ -265,6 +267,8 @@ export async function toPdf(
         });
       } else {
         line.values.forEach((value, i) => {
+          // Past the page's edge: nothing, not an ellipsis in the margin.
+          if (detailWidth(i) <= 2 * PAD) return;
           cellText(
             display(value, text.locale),
             detailStarts[i] ?? detailStart,

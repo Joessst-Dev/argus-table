@@ -174,4 +174,41 @@ describe('detail rows', () => {
     expect(contents).toHaveLength(2);
     expect(shown(contents[1] ?? '').slice(0, 4)).toEqual(['name', 'n', 'product', 'qty']);
   });
+
+  test('keeps a detail header with its rows across a page break', async () => {
+    // 47 lines fit on an A4 page: 45 orders without lines, then one with them,
+    // would leave its detail header alone at the bottom.
+    const many: ExportSheet = {
+      columns: [column('name'), column('n', 60, 'end')],
+      groups: [],
+      rows: Array.from({ length: 47 }, (_, i) => [`R${String(i)}`, i]),
+      detail: {
+        columns: [column('product'), column('qty', 60, 'end')],
+        rows: Array.from({ length: 47 }, (_, i) => (i === 45 ? [['P0', 0]] : undefined)),
+      },
+    };
+    const { contents } = await read(await toPdf(many, {}, { footer }));
+    const first = shown(contents[0] ?? '');
+    expect(first.at(-2)).not.toBe('qty');
+    expect(first.filter((t) => t === 'product')).toHaveLength(0);
+    expect(shown(contents[1] ?? '').slice(0, 5)).toEqual(['name', 'n', 'product', 'qty', 'P0']);
+  });
+
+  test('writes nothing for detail columns past the page edge', async () => {
+    const wide: ExportSheet = {
+      columns: [column('name', 100)],
+      groups: [],
+      rows: [['Ann']],
+      detail: {
+        // Short headers: one partly on the page fits; the ones past it get nothing.
+        columns: Array.from({ length: 20 }, (_, i) => ({
+          ...column(`d${String(i)}`, 50),
+          header: 'h',
+        })),
+        rows: [[Array.from({ length: 20 }, () => '')]],
+      },
+    };
+    const { contents } = await read(await toPdf(wide, { orientation: 'portrait' }, { footer }));
+    expect(shown(contents[0] ?? '')).not.toContain('\x85');
+  });
 });
