@@ -11,9 +11,7 @@ import { styleMap } from 'lit/directives/style-map.js';
 import {
   alignOffset,
   controllable,
-  EXPAND_COLUMN_ID,
   RowLayout,
-  SELECTION_COLUMN_ID,
   type ColumnView,
   type Controllable,
   type GridRow,
@@ -21,11 +19,11 @@ import {
 } from '@argus-table/core';
 import { announce } from './announce.js';
 import { activate, cellTargetOf } from './cell-events.js';
-import { firstFocusable } from './focusable.js';
 import { AutoWidths, measureColumns } from './controllers/auto-width.js';
 import { ColumnChildrenController } from './controllers/column-children.js';
 import { ColumnWindowController, type RenderedColumn } from './controllers/column-window.js';
 import { DataController } from './controllers/data-controller.js';
+import { KeyboardRouter } from './controllers/keyboard.js';
 import { FitHeight } from './controllers/fit-height.js';
 import { PinScrollController } from './controllers/pin-scroll-controller.js';
 import { PluginController, sameItems } from './controllers/plugins.js';
@@ -55,7 +53,6 @@ import { resolveLabels, type TableLabels } from './labels.js';
 import { bodyCap, watchMaxElementHeight } from './max-height.js';
 import {
   detailRowId,
-  PANEL_COLUMN,
   renderBody,
   type ActiveCell,
   type Loading,
@@ -72,13 +69,8 @@ import type { ArgusPlugin, ColumnInfo, PluginHost, RowSection } from './plugins.
 import { baseStyles } from './styles/base.js';
 import { rowHeightConverter, switchConverter } from './attributes.js';
 import {
-  dataIndexOf,
   directionOf,
-  gridCell,
-  groupCellOf,
   gridRowOf,
-  gridRowOfCell,
-  groupCell,
   layoutOf,
   panelRowId,
   pinnedWidth,
@@ -831,6 +823,22 @@ export class ArgusTable<T = unknown> extends LitElement {
     () => this.#labels,
     () => this.#scroller(),
   );
+  /** Keys on a focused cell or header: the table's own, then navigation. */
+  readonly #keys = new KeyboardRouter<T>(
+    this,
+    () => this.#table.model,
+    this.#nav,
+    this.#resize,
+    this.#reorder,
+    this.#plugins,
+    this.#data,
+    (index) => {
+      this.#toggle(index);
+    },
+    (columnId) => {
+      this.#requestSort(columnId);
+    },
+  );
   #lastRange = '';
   #unwatchMaxHeight: (() => void) | undefined;
 
@@ -1412,7 +1420,7 @@ export class ArgusTable<T = unknown> extends LitElement {
         style=${styleMap(style)}
         ?data-dragging=${this.#reorder.drag !== undefined}
         ?data-auto-rows=${auto}
-        @keydown=${this.#onKeydown}
+        @keydown=${this.#keys.onKeydown}
         @focusin=${this.#nav.onFocusin}
         @mousedown=${this.#select.onMousedown}
         @click=${this.#onClick}
@@ -1645,160 +1653,6 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.#resize.dblclick(event);
     },
   };
-
-  /**
-   * Keys on a focused cell or header. The table's own come first: Shift+Tab out
-   * of the grid, plugins' keys, Alt+Arrow on a header (resize; with Shift, move),
-   * Enter or Space on a sortable header, Enter on a body cell (a click, or Retry
-   * on a failed row). The rest move the active cell (`NavigationController`).
-   * Keys from content inside a cell (an input, a button) are left to that content.
-   */
-  readonly #onKeydown = (event: KeyboardEvent) => {
-    const path = event.composedPath();
-    const origin = path[0] ?? event.target ?? this;
-    const root = this.renderRoot;
-    if (event.key === 'Escape' && !event.defaultPrevented && this.#panelBack(path, origin)) {
-      event.preventDefault();
-      return;
-    }
-    // Only this table's cells: keys from content (a nested table's cells too) are the content's.
-    const group = groupCell(origin, root);
-    const cell = gridCell(origin, root) ?? group;
-    const id = cell?.dataset.col;
-    if (!cell || (id === undefined && !group)) return;
-    const scroller = event.currentTarget as HTMLElement;
-    if (event.key === 'Tab' && event.shiftKey) {
-      // Firefox makes the scroll container a tab stop, so Shift+Tab would stop
-      // on it before leaving the grid. Take it out of the tab order for this
-      // one move only: a tabindex there for good would expose it as a node of
-      // its own between the grid and its rows.
-      scroller.tabIndex = -1;
-      // Put it back once focus has actually moved (a timer can run first).
-      cell.addEventListener(
-        'focusout',
-        () => {
-          scroller.removeAttribute('tabindex');
-        },
-        { once: true },
-      );
-      return;
-    }
-    if (group || id === undefined) {
-      this.#groupKey(event, cell, scroller);
-      return;
-    }
-    if (id === PANEL_COLUMN) {
-      // A detail panel's cell: Enter or F2 goes into its content; arrows move between rows.
-      if (event.key === 'Enter' || event.key === 'F2') {
-        const content = cell.querySelector('slot')?.assignedElements() ?? [];
-        const target = firstFocusable(content);
-        if (target) {
-          event.preventDefault();
-          target.focus();
-        }
-        return;
-      }
-      this.#nav.key(event, cell, id, false, scroller);
-      return;
-    }
-    if (id === EXPAND_COLUMN_ID && (event.key === 'Enter' || event.key === ' ')) {
-      // Enter or Space on a chevron cell opens or closes its row's panel.
-      const model = this.#table.model;
-      const at = gridRowOfCell(cell, layoutOf(model));
-      const index = at?.section === 'body' ? dataIndexOf(model, at.index) : undefined;
-      if (index === undefined) return;
-      event.preventDefault();
-      this.#toggle(index);
-      return;
-    }
-    const pluginTarget =
-      id === SELECTION_COLUMN_ID || id === EXPAND_COLUMN_ID
-        ? undefined
-        : cellTargetOf(event, root, this.#table.model, this.#nav);
-    if (pluginTarget && this.#plugins.keydown(event, pluginTarget)) return;
-    const inHeader = cell.getAttribute('role') === 'columnheader';
-    const { key } = event;
-    const arrow = key === 'ArrowLeft' || key === 'ArrowRight';
-    if (inHeader && arrow && event.altKey) {
-      event.preventDefault();
-      // Logical: the arrow pointing toward the inline end grows the column, or
-      // moves it that way with Shift.
-      const towardEnd = (key === 'ArrowRight') === (directionOf(this) === 1);
-      if (event.shiftKey) this.#reorder.byKey({ kind: 'column', id }, towardEnd ? 1 : -1);
-      else this.#resize.step(id, cell, towardEnd);
-      return;
-    }
-    if (inHeader && (key === 'Enter' || key === ' ') && cell.dataset.sortCol !== undefined) {
-      event.preventDefault();
-      this.#requestSort(id);
-      return;
-    }
-    if (
-      !inHeader &&
-      key === 'Enter' &&
-      !event.altKey &&
-      !event.shiftKey &&
-      !event.ctrlKey &&
-      !event.metaKey
-    ) {
-      // Enter on a body cell does what a click does; on a failed row, it retries.
-      const from = gridRowOfCell(cell, layoutOf(this.#table.model));
-      if (!from) return;
-      event.preventDefault();
-      const failed =
-        from.section === 'body' ? dataIndexOf(this.#table.model, from.index) : undefined;
-      if (failed !== undefined && this.#data.stateAt(failed) === 'error') {
-        this.#data.retry(failed);
-      } else {
-        activate(this, this.renderRoot, this.#table.model, event.composedPath());
-      }
-      return;
-    }
-    this.#nav.key(event, cell, id, inHeader, scroller);
-  };
-
-  /**
-   * Escape inside a detail panel's content (not on its cell): focus goes back to
-   * the panel's cell. Not from a dialog or popover in the panel: Escape closes
-   * those. Returns whether it moved focus.
-   */
-  #panelBack(path: readonly EventTarget[], origin: EventTarget): boolean {
-    for (const target of path) {
-      if (!(target instanceof HTMLElement)) continue;
-      if (target.matches('dialog, [popover]')) return false;
-      if (target.dataset.col !== PANEL_COLUMN || target.getRootNode() !== this.renderRoot) continue;
-      if (target === origin) return false;
-      target.focus({ preventScroll: true });
-      return true;
-    }
-    return false;
-  }
-
-  /**
-   * Keys on a focused group header: Alt+Arrow resizes the group, or moves it
-   * with Shift; Enter and Space do nothing (groups don't sort). The rest move
-   * the active cell (`NavigationController.groupKey`).
-   */
-  #groupKey(event: KeyboardEvent, cell: HTMLElement, scroller: HTMLElement): void {
-    const here = groupCellOf(this.#table.model, cell.dataset.groupKey);
-    if (here?.groupId === undefined) return;
-    const { key } = event;
-    if ((key === 'ArrowLeft' || key === 'ArrowRight') && event.altKey) {
-      event.preventDefault();
-      const towardEnd = (key === 'ArrowRight') === (directionOf(this) === 1);
-      if (event.shiftKey) {
-        this.#reorder.byKey({ kind: 'group', id: here.groupId, pin: here.pin }, towardEnd ? 1 : -1);
-      } else {
-        this.#resize.stepGroup(here, towardEnd);
-      }
-      return;
-    }
-    if (key === 'Enter' || key === ' ') {
-      event.preventDefault();
-      return;
-    }
-    this.#nav.groupKey(event, cell, scroller);
-  }
 
   /**
    * `argus-cell-click`, then `argus-row-click`, for clicks in the body; then,
