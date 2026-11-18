@@ -10,6 +10,7 @@ import {
 import Detail from './test/Detail.vue';
 import Groups from './test/Groups.vue';
 import Slots from './test/Slots.vue';
+import Tree from './test/Tree.vue';
 import { counts } from './test/counts.js';
 import { size, type Order } from './test/data.js';
 
@@ -322,5 +323,17 @@ describe('Vue content in detail panels', () => {
     expect(container?.querySelector('output.expanded')?.textContent).toBe('o0');
     expect(el.expanded).toEqual(['o0']);
     expect(el.querySelector('p.detail')?.textContent).toBe('Customer 0');
+  });
+});
+
+describe('Vue tree rows', () => {
+  test('binds treeExpanded two-way', async () => {
+    const el = await mount(() => createApp(Tree));
+    expect(el.textContent).not.toContain('A1');
+    el.shadowRoot?.querySelector<HTMLButtonElement>('[part~="tree-toggle"]')?.click();
+    await settle(el);
+    expect(container?.querySelector('output.tree-expanded')?.textContent).toBe('a');
+    expect(el.treeExpanded).toEqual(['a']);
+    expect(el.textContent).toContain('A1');
   });
 });

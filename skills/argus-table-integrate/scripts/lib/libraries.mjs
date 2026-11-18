@@ -177,11 +177,22 @@ export const LIBRARIES = [
         { gap: 'row-grouping' },
       ),
       f(
+        'sub-rows',
+        /\bgetSubRows\b|\benableSubRowSelection\b|\bfilterFromLeafRows\b|\bmaxLeafRowFilterDepth\b/,
+        'maps',
+        {
+          props: ['getSubRows', 'treeExpanded', 'selectBranches'],
+          events: ['argus-tree-expanded-change'],
+        },
+      ),
+      f(
         'expanding',
-        /\bgetExpandedRowModel\b|\bcreateExpandedRowModel\b|\browExpandingFeature\b|\bgetSubRows\b|\brenderSubComponent\b|\bgetCanExpand\b/,
-        'gap',
-        {},
-        { gap: 'tree-data' },
+        /\bgetExpandedRowModel\b|\bcreateExpandedRowModel\b|\browExpandingFeature\b|\brenderSubComponent\b|\bgetCanExpand\b|\bgetRowCanExpand\b|\bonExpandedChange\b/,
+        'partial',
+        {
+          props: ['treeExpanded', 'rowDetail', 'rowExpandable', 'expanded'],
+          events: ['argus-tree-expanded-change', 'argus-expanded-change'],
+        },
       ),
       f(
         'virtualizer',
@@ -318,7 +329,22 @@ export const LIBRARIES = [
         {},
         { gap: 'row-grouping' },
       ),
-      f('tree-data', /\btreeData\b|\bgetDataPath\b/, 'gap', {}, { gap: 'tree-data' }),
+      f(
+        'tree-data',
+        /\btreeData\b|\bgetDataPath\b|\btreeDataChildrenField\b|\btreeDataParentIdField\b/,
+        'partial',
+        {
+          props: ['getParentId', 'getSubRows', 'getRowId', 'treeExpanded'],
+          events: ['argus-tree-expanded-change'],
+        },
+      ),
+      f(
+        'server-side-tree',
+        /\bisServerSideGroup\b|\bgetServerSideGroupKey\b|\bserverSideGroupOpenLevel\b/,
+        'gap',
+        {},
+        { gap: 'lazy-trees' },
+      ),
       f('master-detail', /\bmasterDetail\b|\bdetailCellRenderer\b/, 'partial', {
         props: ['rowDetail', 'expanded'],
       }),
@@ -508,12 +534,17 @@ export const LIBRARIES = [
         { addons: ['@argus-table/editing'], events: ['argus-cell-edit'] },
       ),
       f(
-        'grouping-tree',
-        /\browGroupingModel\b|\baggregationModel\b|\btreeData\b|\bgetTreeDataPath\b/,
+        'grouping',
+        /\browGroupingModel\b|\baggregationModel\b/,
         'gap',
         {},
         { gap: 'row-grouping' },
       ),
+      f('tree-data', /\btreeData\b|\bgetTreeDataPath\b/, 'partial', {
+        props: ['getParentId', 'getRowId', 'treeExpanded'],
+        events: ['argus-tree-expanded-change'],
+      }),
+      f('lazy-tree', /\bgetChildrenCount\b/, 'gap', {}, { gap: 'lazy-trees' }),
       f('detail-panel', /\bgetDetailPanelContent\b/, 'partial', {
         props: ['rowDetail', 'expanded'],
       }),
@@ -635,7 +666,11 @@ export const LIBRARIES = [
       f('col-group', /<ColumnGroup\b|<p-columnGroup\b/, 'maps', { props: ['columnGroups'] }),
       f('export', /\bexportCSV\b/, 'maps', { addons: ['@argus-table/export'] }),
       f('state', /\bstateStorage\b|\bstateKey\b/, 'maps', { methods: ['getState', 'setState'] }),
-      f('tree', /<TreeTable\b|<p-treeTable\b/, 'gap', {}, { gap: 'tree-data' }),
+      f('tree', /<TreeTable\b|<p-treeTable\b/, 'maps', {
+        props: ['getSubRows', 'getRowId', 'treeExpanded', 'selectBranches'],
+        events: ['argus-tree-expanded-change'],
+      }),
+      f('lazy-tree', /\bonNodeExpand\b|@node-expand\b/, 'gap', {}, { gap: 'lazy-trees' }),
       f('row-click', /\bonRowSelect\b|@row-click\b|\(onRowSelect\)/, 'maps', {
         events: ['argus-row-click'],
       }),
@@ -724,7 +759,10 @@ export const LIBRARIES = [
       f('children', /\bchildren\s*:\s*\[\s*\{[^}]*\bdataIndex\b/, 'maps', {
         props: ['columnGroups'],
       }),
-      f('tree-data', /\bchildrenColumnName\b|\bindentSize\b/, 'gap', {}, { gap: 'tree-data' }),
+      f('tree-data', /\bchildrenColumnName\b|\bindentSize\b|\bcheckStrictly\b/, 'maps', {
+        props: ['getSubRows', 'getRowId', 'treeExpanded', 'selectBranches'],
+        events: ['argus-tree-expanded-change'],
+      }),
       f('editable', /\bEditableCell\b|\bcomponents\s*=\s*\{\{\s*body/, 'partial', {
         addons: ['@argus-table/editing'],
         events: ['argus-cell-edit'],
@@ -765,7 +803,11 @@ export const LIBRARIES = [
       }),
       f('summary', /\bshow-summary\b|\bsummary-method\b/, 'partial', { props: ['pinnedRows'] }),
       f('span', /\bspan-method\b/, 'gap', {}, { gap: 'cell-spanning' }),
-      f('tree', /\btree-props\b|:load\b/, 'gap', {}, { gap: 'tree-data' }),
+      f('tree', /\btree-props\b|\btreeProps\b/, 'maps', {
+        props: ['getSubRows', 'getRowId', 'treeExpanded', 'selectBranches'],
+        events: ['argus-tree-expanded-change'],
+      }),
+      f('lazy-tree', /:load\b/, 'gap', {}, { gap: 'lazy-trees' }),
       f('height', /<el-table\b[^>]*\b(?:max-)?height\s*=/, 'maps'),
       f('stripe-border', /\bstripe\b|\bborder\b/, 'maps'),
       f('slots', /#default\s*=\s*['"]\s*(?:scope|\{)/, 'maps', { column: ['cell'] }),
@@ -821,7 +863,7 @@ export const LIBRARIES = [
 export const GAPS = [
   'pagination',
   'row-grouping',
-  'tree-data',
+  'lazy-trees',
   'range-selection',
   'row-drag',
   'context-menu',
@@ -832,7 +874,7 @@ export const GAPS = [
 ];
 
 /** Gaps that usually decide whether a screen can move (shown first, and make the effort `high`). */
-export const HARD_GAPS = ['row-grouping', 'tree-data', 'range-selection'];
+export const HARD_GAPS = ['row-grouping', 'range-selection'];
 
 /** A feature's argus-table equivalent as one line, for the scan's output. */
 export function describeArgus(argus) {

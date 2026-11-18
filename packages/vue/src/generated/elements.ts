@@ -20,6 +20,7 @@ import type {
   RowDetailContext,
   SelectionChangeDetail,
   SortingChangeDetail,
+  TreeExpandedChangeDetail,
 } from 'argus-table';
 import type { CellEditDetail } from '../cell-edit-events.js';
 import type { FormulaColumnChangeDetail, FormulaColumnDetail } from '../formula-events.js';
@@ -40,6 +41,8 @@ export type ArgusTableElementProps<T = unknown> = Partial<
     | 'dataSource'
     | 'pinnedRows'
     | 'getRowId'
+    | 'getSubRows'
+    | 'getParentId'
     | 'rowHeight'
     | 'density'
     | 'overscan'
@@ -55,8 +58,10 @@ export type ArgusTableElementProps<T = unknown> = Partial<
     | 'selectionMode'
     | 'selectionCheckboxes'
     | 'selection'
+    | 'selectBranches'
     | 'rowExpandable'
     | 'expanded'
+    | 'treeExpanded'
     | 'plugins'
     | 'labels'
   >
@@ -102,7 +107,11 @@ export interface ArgusTableEventProps<T = unknown> {
   'onExpanded-change'?: (event: CustomEvent<ExpandedChangeDetail>) => void;
   /** `v-model:expanded`: the new `expanded` from `argus-expanded-change`. */
   'onUpdate:expanded'?: (value: ArgusTableElement<T>['expanded']) => void;
-  /** `argus-cell-click`: A body or pinned-row cell was clicked, or Enter was pressed on it. `detail: { row, rowId, index, columnId, value, pinned? }`; `pinned` is `'top'` or `'bottom'` for a pinned row, and `index` is then its index in its list. Fires before `argus-row-click`. */
+  /** `argus-tree-expanded-change`: `treeExpanded` changed: a row of a tree was expanded or collapsed with its toggle (a click) or with Right or Left on its cell in the tree column; not for a row a filter keeps expanded. Only with `getSubRows` or `getParentId`. `detail: { treeExpanded, rowId, open }`: `open` is `true` when it was expanded. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
+  'onTree-expanded-change'?: (event: CustomEvent<TreeExpandedChangeDetail>) => void;
+  /** `v-model:treeExpanded`: the new `treeExpanded` from `argus-tree-expanded-change`. */
+  'onUpdate:treeExpanded'?: (value: ArgusTableElement<T>['treeExpanded']) => void;
+  /** `argus-cell-click`: A body or pinned-row cell was clicked, or Enter was pressed on it. `detail: { row, rowId, index, columnId, value, pinned?, depth? }`; `pinned` is `'top'` or `'bottom'` for a pinned row, and `index` is then its index in its list. `depth` is a body row's level in a tree (`0` for a top-level row), set only when the rows form one. Fires before `argus-row-click`. */
   'onCell-click'?: (event: CustomEvent<CellClickDetail<T>>) => void;
   /** `argus-row-click`: A body or pinned row was clicked, or Enter was pressed on one of its cells. `detail: { row, rowId, index, pinned? }`; for a pinned row, `index` is its index in its list. */
   'onRow-click'?: (event: CustomEvent<RowClickDetail<T>>) => void;
@@ -142,6 +151,8 @@ export interface ArgusTableEmit<T = unknown> {
   (event: 'update:selection', value: ArgusTableElement<T>['selection']): void;
   (event: 'expanded-change', payload: CustomEvent<ExpandedChangeDetail>): void;
   (event: 'update:expanded', value: ArgusTableElement<T>['expanded']): void;
+  (event: 'tree-expanded-change', payload: CustomEvent<TreeExpandedChangeDetail>): void;
+  (event: 'update:treeExpanded', value: ArgusTableElement<T>['treeExpanded']): void;
   (event: 'cell-click', payload: CustomEvent<CellClickDetail<T>>): void;
   (event: 'row-click', payload: CustomEvent<RowClickDetail<T>>): void;
   (event: 'range-change', payload: CustomEvent<RangeChangeDetail>): void;
@@ -199,6 +210,8 @@ export const ArgusTable = defineWrapper({
     'dataSource',
     'pinnedRows',
     'getRowId',
+    'getSubRows',
+    'getParentId',
     'rowHeight',
     'density',
     'overscan',
@@ -214,13 +227,15 @@ export const ArgusTable = defineWrapper({
     'selectionMode',
     'selectionCheckboxes',
     'selection',
+    'selectBranches',
     'rowDetail',
     'rowExpandable',
     'expanded',
+    'treeExpanded',
     'plugins',
     'labels',
   ],
-  booleans: ['virtualizeColumns', 'stretchColumns', 'selectionCheckboxes'],
+  booleans: ['virtualizeColumns', 'stretchColumns', 'selectionCheckboxes', 'selectBranches'],
   events: [
     {
       name: 'argus-sorting-change',
@@ -262,6 +277,11 @@ export const ArgusTable = defineWrapper({
       name: 'argus-expanded-change',
       emit: 'expanded-change',
       model: { property: 'expanded', detailKey: 'expanded' },
+    },
+    {
+      name: 'argus-tree-expanded-change',
+      emit: 'tree-expanded-change',
+      model: { property: 'treeExpanded', detailKey: 'treeExpanded' },
     },
     { name: 'argus-cell-click', emit: 'cell-click' },
     { name: 'argus-row-click', emit: 'row-click' },

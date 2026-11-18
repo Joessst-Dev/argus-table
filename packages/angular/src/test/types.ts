@@ -77,6 +77,13 @@ import { orders, type Order } from './data.js';
       </ng-template>
     </argus-table>
     <argus-table [data]="orders" [plugins]="plugins" />
+    <argus-table
+      [data]="orders"
+      [getParentId]="parentOf"
+      selectBranches
+      [(treeExpanded)]="treeOpen"
+      (argus-tree-expanded-change)="takeIds($event.detail.treeExpanded)"
+    />
   `,
 })
 export class TypesComponent {
@@ -90,6 +97,8 @@ export class TypesComponent {
   readonly selected = signal<string[]>([]);
   readonly rows = signal<Order[] | null>(null);
   readonly total = (o: Order) => o.total;
+  readonly parentOf = (o: Order) => (o.total > 50 ? o.id : null);
+  readonly treeOpen = signal<readonly string[]>([]);
   readonly plugins: ArgusPlugin<Order>[] = [
     { name: 'totals', columns: (defs) => [...defs, { id: 'x2', accessor: (o) => o.total * 2 }] },
   ];

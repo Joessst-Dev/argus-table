@@ -29,6 +29,7 @@ import type {
   RowDetailContext,
   SelectionChangeDetail,
   SortingChangeDetail,
+  TreeExpandedChangeDetail,
 } from 'argus-table';
 import type { CellEditDetail } from '../cell-edit-events.js';
 import type { FormulaColumnChangeDetail, FormulaColumnDetail } from '../formula-events.js';
@@ -56,6 +57,7 @@ import { setProperty } from '../set-property.js';
     '(argus-column-filters-change)': 'handleColumnFiltersChange($event)',
     '(argus-selection-change)': 'handleSelectionChange($event)',
     '(argus-expanded-change)': 'handleExpandedChange($event)',
+    '(argus-tree-expanded-change)': 'handleTreeExpandedChange($event)',
     '(argus-cell-click)': 'handleCellClick($event)',
     '(argus-row-click)': 'handleRowClick($event)',
     '(argus-range-change)': 'handleRangeChange($event)',
@@ -92,9 +94,19 @@ export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
     setProperty(this.element, 'pinnedRows', undefined, value);
   }
 
-  /** Returns a stable id for a row. Default: the row's index (in `data`, or among all `dataSource` rows). */
+  /** Returns a stable id for a row, given the row and its index: in `data`, among all `dataSource` rows, or for a nested child of a tree (`getSubRows`) its index from `data.length` on, in depth-first order. Default: the index as a string; a nested child's is its parent's id, a dot and its index among its siblings (`'3.0'`, `'3.0.2'`). */
   @Input() set getRowId(value: ArgusTableElement<T>['getRowId'] | null | undefined) {
     setProperty(this.element, 'getRowId', undefined, value);
+  }
+
+  /** Nested data: a row's child rows, or `undefined` (or `[]`) for a row without any. `data` then holds the top-level rows, and the rows form a tree: a row's children show under it, indented in the first data column, while it is expanded (`treeExpanded`). In that column, the arrow toward the row's end (Right; Left in a right-to-left table) expands a collapsed row; the other arrow collapses an expanded one, else moves to the parent row. A row a filter keeps open for its matches doesn't collapse. Children are sorted among their siblings, and a filter keeps the rows that match with their ancestors, shown expanded with their toggles disabled until the filter clears. A child's default id is its parent's id, a dot and its index among its siblings (`'3.0'`, `'3.0.2'`); top-level rows keep their index in `data`. Functions given a row's index (`getRowId`, a column's `accessor`) get a child's index from `data.length` on, in depth-first order. Wins over `getParentId` (with a console warning). Ignored with a `dataSource` for now. Property only. Keep the function stable: a new function on every render builds and sorts the tree again, as a new `getRowId` reads every id again. */
+  @Input() set getSubRows(value: ArgusTableElement<T>['getSubRows'] | null | undefined) {
+    setProperty(this.element, 'getSubRows', undefined, value);
+  }
+
+  /** Flat data: the id of a row's parent (an id `getRowId` gives), or `null` or `undefined` for a top-level row. `data` holds every row, and the rows form a tree: a row's children show under it, indented in the first data column, while it is expanded (`treeExpanded`). The keys, and a filter keeping the rows that match with their ancestors, work as with `getSubRows`. Rows keep their index in `data`. A row whose parent isn't found, or that is part of a cycle, shows as a top-level row (with a console warning). `getSubRows` wins when both are set. Ignored with a `dataSource` for now. Property only. Keep the function stable: a new function on every render builds and sorts the tree again. */
+  @Input() set getParentId(value: ArgusTableElement<T>['getParentId'] | null | undefined) {
+    setProperty(this.element, 'getParentId', undefined, value);
   }
 
   /** Row height in px, or `'auto'` to fit each row to its content (`row-height="auto"`). Unset: the density (or the `--argus-row-height` token) decides. With `'auto'`, that height is the header's and the least a body or pinned row is; rows grow to fit wrapped text (`wrap` columns) and taller content, and cell content sits at the top. Rows are measured as they render: a row's height counts the columns rendered (see `virtualizeColumns`), and rows not seen yet count as one line. Give images a size, so rows don't move when they load. */
@@ -177,12 +189,19 @@ export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
     setProperty(this.element, 'selectionCheckboxes', 'selection-checkboxes', value);
   }
 
-  /** The selected rows, as row ids (from `getRowId`, or the row's index as a string), e.g. `['p4', 'p7']`. Uncontrolled until set, like `sorting`: once set, a click only fires `argus-selection-change` with the proposed ids. `undefined` hands it back. The table never drops ids on its own: they stay through sorting, a new `data` or reloaded pages. With a `dataSource`, Ctrl/Cmd+A selects the loaded rows only. */
+  /** The selected rows, as row ids (from `getRowId`, or the default ids: see `getRowId`), e.g. `['p4', 'p7']`. Uncontrolled until set, like `sorting`: once set, a click only fires `argus-selection-change` with the proposed ids. `undefined` hands it back. The table never drops ids on its own: they stay through sorting, a new `data` or reloaded pages. With a `dataSource`, Ctrl/Cmd+A selects the loaded rows only. With `selectBranches` a parent row's id is in it only while its whole branch is selected (see `selectBranches`). */
   @Input() set selection(value: ArgusTableElement<T>['selection'] | null | undefined) {
     setProperty(this.element, 'selection', undefined, value);
   }
 
-  /** A detail panel for body rows, under the row: a function that gets `{ row, rowId, index }` and returns its content, like a column's `cell` (a Lit template, a DOM node, text; React, Vue or Angular content through the wrappers). Setting it adds a column of chevrons that open and close the panels (`expanded`). A panel spans the visible width, is as tall as its content up to `--argus-detail-max-height` (past that it scrolls), and works with the keyboard: Down arrow onto it, Enter or F2 into its content, Escape back out. It runs on every update of a panel in view, so return a template or framework content rather than a new DOM node each time. Property only. Panels aren't available on `pinnedRows`. */
+  /** Selects whole branches of a tree (`getSubRows` or `getParentId`), in `multi` `selectionMode` only (ignored in `single` mode and without a tree). Selecting a row, by its checkbox, a click or Space, selects it and its descendants the filters keep, rows under collapsed rows included (rows a filter hides aren't selected), and deselecting it deselects them (rows a filter hides stay as they are). A row's id is in `selection` exactly when its whole branch is: selecting the last of a row's children adds the row, deselecting any child removes its ancestors. A checkbox is ticked when its row's whole branch is selected and part-ticked when some of it is. Ctrl/Cmd and Shift clicks and Shift+Arrow count each row as its branch, and Ctrl/Cmd+A or the header checkbox selects every row the filters keep, whole branches with their collapsed rows; the header checkbox is ticked when all of those are selected. A controlled `selection` that breaks these rules shows as it is until the user changes it. */
+  @Input() set selectBranches(
+    value: ArgusTableElement<T>['selectBranches'] | '' | 'true' | 'false' | null | undefined,
+  ) {
+    setProperty(this.element, 'selectBranches', 'select-branches', value);
+  }
+
+  /** A detail panel for body rows, under the row: a function that gets `{ row, rowId, index, depth? }` (`depth` is the row's level, set only when the rows form a tree) and returns its content, like a column's `cell` (a Lit template, a DOM node, text; React, Vue or Angular content through the wrappers). Setting it adds a column of chevrons that open and close the panels (`expanded`). A panel spans the visible width, is as tall as its content up to `--argus-detail-max-height` (past that it scrolls), and works with the keyboard: Down arrow onto it, Enter or F2 into its content, Escape back out. It runs on every update of a panel in view, so return a template or framework content rather than a new DOM node each time. Property only. Panels aren't available on `pinnedRows`. */
   @Input() set rowDetail(
     value: ((context: RowDetailContext<T>) => AngularCellContent) | null | undefined,
   ) {
@@ -194,9 +213,14 @@ export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
     setProperty(this.element, 'rowExpandable', undefined, value);
   }
 
-  /** The rows whose detail panel is open, as row ids (`getRowId`'s, or the row's index as a string), e.g. `['o1041']`. Several can be open. Uncontrolled until set, like `sorting`: once set, a chevron only fires `argus-expanded-change` with the proposed ids. `undefined` hands it back. Ids stay through sorting, filtering and a new `data`; a row that's filtered out, not loaded yet or not expandable shows no panel until it can. */
+  /** The rows whose detail panel is open, as row ids (`getRowId`'s, or the default ids: see `getRowId`), e.g. `['o1041']`. Several can be open. Uncontrolled until set, like `sorting`: once set, a chevron only fires `argus-expanded-change` with the proposed ids. `undefined` hands it back. Ids stay through sorting, filtering and a new `data`; a row that's filtered out, not loaded yet or not expandable shows no panel until it can. */
   @Input() set expanded(value: ArgusTableElement<T>['expanded'] | null | undefined) {
     setProperty(this.element, 'expanded', undefined, value);
+  }
+
+  /** The expanded rows of a tree (`getSubRows` or `getParentId`), as row ids (`getRowId`'s, or the default ids such as `'3'` and `'3.0'`), e.g. `['3', '3.0']`. A row's children show while it and its ancestors are expanded. While a filter or the quick filter is on, rows holding a match show expanded whatever it says, without changing it, and their toggles are disabled (`aria-disabled`) until the filter clears, so a match is never hidden and nothing changes out of sight. Default: none. Uncontrolled until set, like `expanded`: once set, a toggle only fires `argus-tree-expanded-change` with the proposed ids. `undefined` hands it back. Ids stay through sorting, filtering and a new `data`. */
+  @Input() set treeExpanded(value: ArgusTableElement<T>['treeExpanded'] | null | undefined) {
+    setProperty(this.element, 'treeExpanded', undefined, value);
   }
 
   /** Add-ons, such as `headerMenu()` from `@argus-table/header-menu`. Each one can change the column definitions, handle keys on a focused header or cell, and use the table through a small API. They run in array order. Replace the array to change them; an array with the same plugins in the same order changes nothing. `null` or `undefined` means `[]`. */
@@ -242,7 +266,10 @@ export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
   /** `argus-expanded-change`, for `[(expanded)]`: the new `expanded`. Bind `(argus-expanded-change)` for the whole event. `expanded` changed: a row's detail panel was opened or closed with its chevron (a click, or Enter or Space on the chevron cell). Only with `rowDetail`. `detail: { expanded, rowId, open }`: `open` is `true` when it was opened. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
   @Output() readonly expandedChange = new EventEmitter<ArgusTableElement<T>['expanded']>();
 
-  /** `argus-cell-click`: A body or pinned-row cell was clicked, or Enter was pressed on it. `detail: { row, rowId, index, columnId, value, pinned? }`; `pinned` is `'top'` or `'bottom'` for a pinned row, and `index` is then its index in its list. Fires before `argus-row-click`. */
+  /** `argus-tree-expanded-change`, for `[(treeExpanded)]`: the new `treeExpanded`. Bind `(argus-tree-expanded-change)` for the whole event. `treeExpanded` changed: a row of a tree was expanded or collapsed with its toggle (a click) or with Right or Left on its cell in the tree column; not for a row a filter keeps expanded. Only with `getSubRows` or `getParentId`. `detail: { treeExpanded, rowId, open }`: `open` is `true` when it was expanded. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
+  @Output() readonly treeExpandedChange = new EventEmitter<ArgusTableElement<T>['treeExpanded']>();
+
+  /** `argus-cell-click`: A body or pinned-row cell was clicked, or Enter was pressed on it. `detail: { row, rowId, index, columnId, value, pinned?, depth? }`; `pinned` is `'top'` or `'bottom'` for a pinned row, and `index` is then its index in its list. `depth` is a body row's level in a tree (`0` for a top-level row), set only when the rows form one. Fires before `argus-row-click`. */
   @Output() readonly cellClick = new EventEmitter<CustomEvent<CellClickDetail<T>>>();
 
   /** `argus-row-click`: A body or pinned row was clicked, or Enter was pressed on one of its cells. `detail: { row, rowId, index, pinned? }`; for a pinned row, `index` is its index in its list. */
@@ -370,6 +397,14 @@ export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
     // Events bubble: skip those of a table nested in a cell.
     if (event.target !== this.element) return;
     this.expandedChange.emit((event as CustomEvent<ExpandedChangeDetail>).detail.expanded);
+  }
+
+  protected handleTreeExpandedChange(event: Event): void {
+    // Events bubble: skip those of a table nested in a cell.
+    if (event.target !== this.element) return;
+    this.treeExpandedChange.emit(
+      (event as CustomEvent<TreeExpandedChangeDetail>).detail.treeExpanded,
+    );
   }
 
   protected handleCellClick(event: Event): void {

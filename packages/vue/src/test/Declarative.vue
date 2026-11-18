@@ -72,6 +72,15 @@ defineExpose({ sorting, clicked, table, refresh });
     <ArgusTable :data="orders" @formula-column-add="(e) => e.detail.rows" />
     <ArgusTable :data="orders" @update:sorting="(s) => s.map((i) => i.id)" />
     <ArgusTable :data="orders" @update:expanded="(ids) => ids.join()" />
+    <ArgusTable :data="orders" @update:tree-expanded="(ids) => ids.join()" />
+    <ArgusTable
+      :data="orders"
+      :get-parent-id="(o) => (o.total > 50 ? o.id : null)"
+      select-branches
+      @tree-expanded-change="(e) => e.detail.rowId + String(e.detail.open)"
+    />
+    <!-- @vue-expect-error the row is an Order, which has no `kids` -->
+    <ArgusTable :data="orders" :get-sub-rows="(o) => o.kids" />
     <ArgusTable :data="orders" :row-detail="({ row }) => row.total.toFixed()" />
     <!-- @vue-expect-error the row is an Order, which has no `name` -->
     <ArgusTable :data="orders" :row-detail="({ row }) => row.name" />

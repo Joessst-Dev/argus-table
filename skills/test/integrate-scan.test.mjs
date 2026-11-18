@@ -51,7 +51,9 @@ describe('scan.mjs', () => {
     assert.equal(direct.kind, 'direct');
     assert.deepEqual(feature(direct, 'row-id').at, ['src/orders/OrdersTable.tsx:25']);
     assert.equal(feature(direct, 'virtualizer').fit, 'builtin');
-    assert.deepEqual(direct.summary.hardGaps, ['row-grouping', 'tree-data']);
+    // Expanded grouped rows: the grouping is the gap; expanding itself is treeExpanded or expanded.
+    assert.equal(feature(direct, 'expanding').fit, 'partial');
+    assert.deepEqual(direct.summary.hardGaps, ['row-grouping']);
     assert.equal(direct.summary.effort, 'high');
     // The <table> TanStack renders isn't a plain table of its own.
     assert.ok(!report.usages.some((u) => u.library === 'html-table'));
