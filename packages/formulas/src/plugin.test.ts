@@ -3,7 +3,7 @@ import { html } from 'lit';
 import 'argus-table';
 import type { ArgusPlugin, ArgusTable, ColumnDef, DataSource, PluginHost } from 'argus-table';
 import { headerMenu } from '@argus-table/header-menu';
-import { formulas } from './index.js';
+import { formulas, formulaTrees, type FormulaTrees } from './index.js';
 
 interface Row {
   id: string;
@@ -577,5 +577,136 @@ describe('options and setup', () => {
     await fixture({ columns: withFormulas({ id: 'f', formula: '1' }) });
     const css = document.adoptedStyleSheets.flatMap((s) => [...s.cssRules].map((r) => r.cssText));
     expect(css.join('\n')).toContain('argus-formulas');
+  });
+});
+
+/** What a data source was asked for, with the trees it read. */
+interface Seen {
+  sorting: unknown;
+  trees: FormulaTrees;
+}
+
+/** A data source over `data` that reads the trees of the table on the page, as an app's would. */
+const remote = (seen: Seen[] = []): DataSource<Row> => ({
+  getRows: ({ start, end, sorting }) => {
+    const table = document.querySelector('argus-table');
+    if (table) seen.push({ sorting, trees: formulaTrees(table) });
+    return Promise.resolve({ rows: data.slice(start, end), total: data.length });
+  },
+});
+
+/** A plugin that keeps the host, to read the columns as the table has them. */
+function grabHost() {
+  const got: { host?: PluginHost<Row> } = {};
+  const plugin: ArgusPlugin<Row> = {
+    name: 'grab',
+    connect(h) {
+      got.host = h;
+      return undefined;
+    },
+  };
+  return { got, plugin };
+}
+
+const product = {
+  type: 'binary',
+  operator: '*',
+  left: { type: 'ref', column: 'price' },
+  right: { type: 'ref', column: 'qty' },
+};
+
+describe('with a dataSource and server: true', () => {
+  test('formula columns sort, and getRows reads their trees', async () => {
+    const seen: Seen[] = [];
+    const el = await fixture({
+      data: undefined,
+      dataSource: remote(seen),
+      columns: withFormulas({ id: 'total', formula: '[price] * [qty]', sortable: true }),
+      plugins: [formulas({ server: true })],
+    });
+    headerOf(el, 'total').click();
+    await settle(el);
+    expect(el.sorting).toEqual([{ id: 'total', desc: false }]);
+    await vi.waitFor(() => {
+      expect(seen.at(-1)?.sorting).toEqual([{ id: 'total', desc: false }]);
+    });
+    expect(seen.at(-1)?.trees.columns.total).toEqual(product);
+    expect(seen.at(-1)?.trees.timeZone).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  });
+
+  test('formula columns keep their filter', async () => {
+    const { got, plugin } = grabHost();
+    await fixture({
+      data: undefined,
+      dataSource: remote(),
+      columns: withFormulas({ id: 'total', formula: '[price] * [qty]', filter: 'number' }),
+      plugins: [formulas({ server: true }), plugin],
+    });
+    expect(got.host?.column('total')?.filter).toBe('number');
+  });
+
+  test('broken and whole-column formulas, and those reading them, stay unsortable', async () => {
+    const { got, plugin } = grabHost();
+    const opts = { sortable: true, filter: 'number' } as const;
+    const el = await fixture({
+      data: undefined,
+      dataSource: remote(),
+      columns: withFormulas(
+        { id: 'bad', formula: '[price] *', ...opts },
+        { id: 'share', formula: 'SUM([[price]])', ...opts },
+        { id: 'pct', formula: '[share] * 100', ...opts },
+      ),
+      plugins: [formulas({ server: true }), plugin],
+    });
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    for (const id of ['bad', 'share', 'pct']) {
+      expect(got.host?.column(id)?.sortable).toBe(false);
+      expect(got.host?.column(id)?.filter).toBeUndefined();
+    }
+    expect(formulaTrees(el).columns).toEqual({});
+  });
+
+  test('sortable and filter follow a dataSource set or removed later', async () => {
+    const { got, plugin } = grabHost();
+    const el = await fixture({
+      columns: withFormulas({
+        id: 'total',
+        formula: '[price] * [qty]',
+        sortable: true,
+        filter: 'number',
+      }),
+      plugins: [formulas(), plugin],
+    });
+    expect(got.host?.column('total')?.sortable).toBe(true);
+    el.dataSource = remote();
+    await settle(el);
+    expect(got.host?.column('total')?.sortable).toBe(false);
+    expect(got.host?.column('total')?.filter).toBeUndefined();
+    el.dataSource = undefined;
+    await settle(el);
+    expect(got.host?.column('total')?.sortable).toBe(true);
+    expect(got.host?.column('total')?.filter).toBe('number');
+  });
+
+  test('formulaTrees gives each table its own trees, with one plugin for both', async () => {
+    const plugin = formulas<Row>({ server: true });
+    const a = await fixture({
+      columns: withFormulas({ id: 'total', formula: '[price] * [qty]' }),
+      plugins: [plugin],
+    });
+    const b = await fixture({
+      columns: withFormulas({ id: 'total', formula: '[price] + [qty]' }),
+      plugins: [plugin],
+    });
+    expect(formulaTrees(a).columns.total).toMatchObject({ operator: '*' });
+    expect(formulaTrees(b).columns.total).toMatchObject({ operator: '+' });
+  });
+
+  test('formulaTrees works with data too, and gives no columns without formulas()', async () => {
+    const el = await fixture({
+      columns: withFormulas({ id: 'total', formula: '[price] * [qty]' }),
+    });
+    expect(formulaTrees(el).columns).toEqual({ total: product });
+    expect(formulaTrees(document.createElement('argus-table')).columns).toEqual({});
   });
 });

@@ -2,7 +2,7 @@ import type { ColumnDef } from 'argus-table';
 import { lookupOf, type Compiled } from './columns.js';
 import { FormulaSyntaxError } from './engine/errors.js';
 import type { FunctionTable } from './engine/functions/index.js';
-import type { FormulaNode } from './engine/parse.js';
+import { nodesOf, type FormulaNode } from './engine/parse.js';
 
 /** The operators of a `binary` node in a `FormulaTree`. */
 export type FormulaOperator =
@@ -54,72 +54,75 @@ export function treesOf<T>(
   options: TreesOptions,
 ): Record<string, FormulaTree> {
   const lookup = lookupOf(defs);
-  const byId = new Map(defs.map((d) => [d.id, d]));
-  // Per column: its tree, or `null` once it's known to be left out.
+  // Per formula column: its tree, or `null` once it's known to be left out.
   const done = new Map<string, FormulaTree | null>();
 
-  const convert = (node: FormulaNode): FormulaTree | null => {
-    switch (node.type) {
-      case 'number':
-      case 'text':
-      case 'boolean':
-        return { type: node.type, value: node.value } as FormulaTree;
-      case 'range':
-        return null;
-      case 'ref': {
-        const target = lookup(node.name);
-        if (!target) return null;
-        if (target.formula !== undefined && !treeOf(target.id)) return null;
-        return { type: 'ref', column: target.id };
-      }
-      case 'call': {
-        if (!options.functions[node.name]) return null;
-        const args: FormulaTree[] = [];
-        for (const arg of node.args) {
-          const tree = convert(arg);
-          if (!tree) return null;
-          args.push(tree);
-        }
-        return { type: 'call', name: node.name, args };
-      }
-      case 'unary':
-      case 'percent': {
-        const operand = convert(node.operand);
-        if (!operand) return null;
-        return node.type === 'unary'
-          ? { type: 'unary', operator: node.operator, operand }
-          : { type: 'percent', operand };
-      }
-      case 'binary': {
-        const left = convert(node.left);
-        if (!left) return null;
-        const right = convert(node.right);
-        return right && { type: 'binary', operator: node.operator, left, right };
-      }
-    }
-  };
-
-  const treeOf = (id: string): FormulaTree | null => {
-    const known = done.get(id);
-    if (known !== undefined) return known;
+  const treeOf = (def: ColumnDef<T, unknown>): FormulaTree | null => {
+    let tree = done.get(def.id);
+    if (tree !== undefined) return tree;
     // Cycles are `broken`, so a column never reaches itself here; mark it anyway.
-    done.set(id, null);
-    const formula = byId.get(id)?.formula;
-    const entry = compiled.get(id);
-    const node = formula === undefined ? undefined : options.parse(formula);
-    const tree =
-      entry && !entry.broken && !entry.ranges && node && !(node instanceof FormulaSyntaxError)
-        ? convert(node)
-        : null;
-    done.set(id, tree);
+    done.set(def.id, null);
+    const entry = compiled.get(def.id);
+    const node = options.parse(def.formula ?? '');
+    const ok =
+      entry &&
+      !entry.broken &&
+      !entry.ranges &&
+      !(node instanceof FormulaSyntaxError) &&
+      nodesOf(node).every((n) => {
+        if (n.type === 'call') return n.name in options.functions;
+        if (n.type !== 'ref') return n.type !== 'range';
+        const target = lookup(n.name);
+        return target && (target.formula === undefined || treeOf(target));
+      });
+    // The parser's node without its offsets, and references by column id.
+    tree = ok
+      ? (JSON.parse(
+          JSON.stringify(node, (key, value: FormulaNode | undefined) =>
+            key === 'start' || key === 'end'
+              ? undefined
+              : value?.type === 'ref'
+                ? { type: 'ref', column: lookup(value.name)?.id }
+                : value,
+          ),
+        ) as FormulaTree)
+      : null;
+    done.set(def.id, tree);
     return tree;
   };
 
   const trees: Record<string, FormulaTree> = {};
   for (const def of defs) {
-    if (def.formula === undefined) continue;
-    const tree = treeOf(def.id);
+    const tree = def.formula === undefined ? null : treeOf(def);
     if (tree) trees[def.id] = tree;
   }
   return trees;
+}
+
+/** Each table's trees, read on demand: set by the plugin's `columns` hook, any instance's. */
+const stored = new WeakMap<HTMLElement, () => Record<string, FormulaTree>>();
+
+/** Keeps how to read a table's trees, from the latest run of the `columns` hook. */
+export function setTrees(table: HTMLElement, read: () => Record<string, FormulaTree>): void {
+  stored.set(table, read);
+}
+
+/**
+ * The syntax trees of a table's formula columns, for a `dataSource` that sorts
+ * and filters by them (`formulas({ server: true })`). Column references are
+ * resolved to column ids. Leaves out columns whose formula is broken or uses
+ * whole columns, and those that read them. `columns` is `{}` for a table
+ * without `formulas()`.
+ *
+ * ```ts
+ * table.dataSource = {
+ *   getRows: (request) => api.rows({ ...request, formulas: formulaTrees(table) }),
+ * };
+ * ```
+ */
+export function formulaTrees(table: HTMLElement): FormulaTrees {
+  return {
+    columns: structuredClone(stored.get(table)?.() ?? {}),
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  };
 }

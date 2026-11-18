@@ -17,6 +17,7 @@ import type { Mode, Outcome } from './editor/session.js';
 import { fire } from './events.js';
 import { PLUGIN_LABELS, resolveLabels, type FormulasLabels } from './labels.js';
 import { adoptStyles } from './styles.js';
+import { setTrees, treesOf, type FormulaTree } from './trees.js';
 
 export type { FormulaFunction } from './columns.js';
 
@@ -44,6 +45,13 @@ export interface FormulasOptions {
    * stay English. Text with values in it is a function: `columnAdded: ({ column }) => …`.
    */
   labels?: Partial<FormulasLabels>;
+  /**
+   * Your `dataSource` evaluates formulas: formula columns sort and filter as
+   * their definitions say, and `getRows` reads their syntax trees with
+   * `formulaTrees(table)`. Default `false`: with a `dataSource`, formula columns
+   * don't sort or filter. No effect with `data`.
+   */
+  server?: boolean;
 }
 
 /** An item for `headerMenu()`'s column menu (its `HeaderMenuItem`, by shape: no import needed). */
@@ -80,6 +88,8 @@ interface TableState<T> {
   rows: RowSource<T>;
   /** What `rows` was made for. */
   rowsKey: RowsKey | undefined;
+  /** Whether the table had a `dataSource` when the columns last ran. */
+  remote: boolean;
 }
 
 /** What the rows of whole columns depend on: the data, and the rest as JSON. */
@@ -133,7 +143,8 @@ const errorContent = (error: FormulaError) =>
  * Formulas are compiled once, never evaluated as code, and results are cached
  * per row. With `headerMenu()` (list `formulas()` first), the column menu views
  * or edits formulas (see `editing`); the editor loads when it first opens. One
- * plugin can serve several tables.
+ * plugin can serve several tables. With a `dataSource`, formula columns sort and
+ * filter only with `server: true`, on a server that evaluates `formulaTrees(table)`.
  */
 export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPlugin<T> {
   const functions = functionTable(options.functions);
@@ -165,6 +176,7 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPl
         anchor: undefined,
         rows: rowSource(host),
         rowsKey: undefined,
+        remote: false,
       };
       states.set(host.element, state);
     }
@@ -289,9 +301,14 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPl
     },
 
     willUpdate(changed, host) {
+      const state = stateOf(host);
+      // A `dataSource` set or removed: formula columns sort and filter, or stop.
+      if (state.compiled.size && state.remote !== (host.element.dataSource !== undefined)) {
+        host.invalidateColumns();
+        return;
+      }
       // Other rows for whole columns: the columns using them compute again.
       if (!ROW_PROPERTIES.some((name) => changed.has(name))) return;
-      const state = stateOf(host);
       if (!usesRanges(state.compiled)) return;
       if (!sameKey(rowsKey(host, state.compiled), state.rowsKey)) host.invalidateColumns();
     },
@@ -302,8 +319,12 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPl
       state.defs = defs;
       const editingId = state.editing;
       const hasFormulas = defs.some((def) => def.formula !== undefined);
+      // The server sorts and filters with `dataSource`: by formulas only if it knows them.
+      const remote = host.element.dataSource !== undefined;
+      state.remote = remote;
       if (!hasFormulas && editingId === undefined) {
         state.compiled = new Map();
+        setTrees(host.element, () => ({}));
         return defs;
       }
       // Rows other than those the columns last read (or none read yet): a new source.
@@ -324,8 +345,10 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPl
         : new Map<string, Compiled<T>>();
       state.compiled = compiled;
       state.rowsKey = usesRanges(compiled) ? rowsKey(host, compiled) : undefined;
-      // The server sorts and filters with `dataSource`, and it doesn't know the formulas.
-      const remote = host.element.dataSource !== undefined;
+      let trees: Record<string, FormulaTree> | undefined;
+      const read = () => (trees ??= treesOf(defs, compiled, { parse: parseOnce, functions }));
+      setTrees(host.element, read);
+      const known = remote && options.server ? read() : {};
       return defs.map((def) => {
         const c = compiled.get(def.id);
         const anchor = def.id === editingId ? state.anchor : undefined;
@@ -337,8 +360,8 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPl
           cell: cellFor(def, c),
           align: def.align ?? (numeric ? 'end' : undefined),
           header: marker || anchor ? headerFor(def, marker, anchor, host) : def.header,
-          sortable: remote ? false : def.sortable,
-          filter: remote ? undefined : def.filter,
+          sortable: remote && !(def.id in known) ? false : def.sortable,
+          filter: remote && !(def.id in known) ? undefined : def.filter,
         };
       });
     },
