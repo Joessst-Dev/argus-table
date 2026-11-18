@@ -9,7 +9,6 @@ import {
   toggleBranch,
   toggleRow,
   withBranches,
-  type BranchCheck,
   type BranchTree,
   type SelectionModifiers,
   type SelectionStep,
@@ -95,11 +94,6 @@ export class SelectionController<T> {
     return this.#branches() ? this.#model().branchTree() : undefined;
   }
 
-  /** Each row's checkbox state, by index in the current order (one pass per selection). */
-  #checks(): (index: number) => BranchCheck {
-    return this.#model().branchCheck(this.#selected());
-  }
-
   /** A restored selection: a Shift range starts over from it. */
   restored(): void {
     this.#anchor = undefined;
@@ -116,10 +110,13 @@ export class SelectionController<T> {
     };
   }
 
-  /** The rows' checkboxes: handlers, name, and with branches each row's state. */
+  /**
+   * The rows' checkboxes: handlers, name, and with branches each row's state
+   * (one pass over the rows per selection and kept rows' tree).
+   */
   checkboxes(label: string): RowCheckboxes {
     return this.#branches()
-      ? { ...this.handlers, label, state: this.#checks() }
+      ? { ...this.handlers, label, state: this.#model().branchCheck(this.#selected()) }
       : { ...this.handlers, label };
   }
 
@@ -151,7 +148,7 @@ export class SelectionController<T> {
     const id = this.#model().rowAt(index)?.id;
     if (id === undefined) return;
     const tree = this.#tree();
-    if (tree) this.#request(this.#toggleBranch(id, index, tree));
+    if (tree) this.#request(this.#toggleBranch(id, tree));
     else this.#request(toggleRow(this.state.value, this.mode, id));
   }
 
@@ -273,13 +270,24 @@ export class SelectionController<T> {
       const current = modifiers.toggle ? this.state.value : [];
       return { selection: withBranches(current, ids, tree), anchor: anchor.id };
     }
-    if (modifiers.toggle) return this.#toggleBranch(target.id, target.index, tree);
+    if (modifiers.toggle) return this.#toggleBranch(target.id, tree);
     return { selection: withBranches([], [target.id], tree), anchor: target.id };
   }
 
-  /** Toggles a row's branch: deselects it when its checkbox shows all of it selected. */
-  #toggleBranch(id: string, index: number, tree: BranchTree): SelectionStep {
-    const checked = this.#checks()(index) === 'all';
+  /**
+   * Toggles a row's branch: deselects it when its checkbox shows all of it
+   * selected (the row and every kept descendant), which is read from the
+   * branch alone, not from a pass over every row.
+   */
+  #toggleBranch(id: string, tree: BranchTree): SelectionStep {
+    const selected = this.#selected();
+    let checked = true;
+    const stack = [id];
+    while (checked && stack.length > 0) {
+      const row = stack.pop() ?? '';
+      if (!selected.has(row)) checked = false;
+      else for (const child of tree.children(row)) stack.push(child);
+    }
     return { selection: toggleBranch(this.state.value, id, checked, tree), anchor: id };
   }
 
@@ -304,7 +312,8 @@ export class SelectionController<T> {
   /**
    * Whether all, some or none of the selectable rows are selected (with
    * branches, every row the filters keep). With `data` it's worked out once per
-   * selection and row order (data, sort, filters, expanded rows), not on
+   * selection and row order (data, sort, filters, expanded rows; with branches
+   * the kept rows' tree, so expanding a row doesn't count again), not on
    * scroll; with a `dataSource` every time, over the loaded rows, which
    * eviction keeps few.
    */
@@ -319,7 +328,7 @@ export class SelectionController<T> {
       return n === ids.length ? 'all' : 'some';
     };
     if (this.#remote()) return count();
-    const key = [this.state.value, model.rowOrder, branches];
+    const key = [this.state.value, branches ? model.branchTree() : model.rowOrder];
     const cached = this.#checkAll;
     if (cached?.key.every((k, i) => k === key[i])) return cached.state;
     const state = count();

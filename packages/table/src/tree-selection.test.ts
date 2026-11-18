@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from 'vitest';
+import { userEvent } from 'vitest/browser';
 import type { ArgusTable } from './argus-table.js';
 import type { ColumnDef, SelectionState } from './index.js';
 import { fixture, rowText, rowsInOrder, settle, shadow } from './test-utils.js';
@@ -246,6 +247,67 @@ describe('tree rows: branch selection', () => {
     expect(seen.map(sorted)[1]).toEqual(['0', '0.0', '0.1', '0.2']);
     expect(el.selection).toEqual(['0.0', '0.1']);
     expect(checkbox(el, 'P0')).toMatchObject({ checked: false, indeterminate: true });
+  });
+
+  test('controlled: a real click on a part-ticked box shows it part-ticked again', async () => {
+    const el = await treeTable({ selection: ['0.0'], treeExpanded: ['0'] });
+    const seen = changes(el);
+    expect(checkbox(el, 'P0')).toMatchObject({ checked: false, indeterminate: true });
+    await userEvent.click(checkbox(el, 'P0'));
+    await settle(el);
+    expect(seen.map(sorted)).toEqual([['0', '0.0', '0.1', '0.2']]);
+    expect(checkbox(el, 'P0')).toMatchObject({ checked: false, indeterminate: true });
+    expect(checkbox(el, 'C0.0')).toMatchObject({ checked: true, indeterminate: false });
+  });
+
+  test('turning selectBranches on and off updates the checkboxes', async () => {
+    const el = await treeTable({ selection: ['1.2'] });
+    expect(checkbox(el, 'P1')).toMatchObject({ checked: false, indeterminate: true });
+    expect(checkAll(el)).toMatchObject({ checked: false, indeterminate: true });
+    el.selectBranches = false;
+    await settle(el);
+    // Rows count alone, and only the rows shown.
+    expect(checkbox(el, 'P1')).toMatchObject({ checked: false, indeterminate: false });
+    expect(checkAll(el)).toMatchObject({ checked: false, indeterminate: false });
+    el.selectBranches = true;
+    await settle(el);
+    expect(checkbox(el, 'P1')).toMatchObject({ checked: false, indeterminate: true });
+    expect(checkAll(el)).toMatchObject({ checked: false, indeterminate: true });
+  });
+
+  test('selects branches of flat data with getParentId', async () => {
+    const flat = [
+      { id: 'a', name: 'A', parent: null },
+      { id: 'b', name: 'B', parent: 'a' },
+      { id: 'c', name: 'C', parent: 'a' },
+      { id: 'd', name: 'D', parent: null },
+    ];
+    const el = await fixture({
+      columns: [{ id: 'name', header: 'Name', accessor: 'name' }],
+      data: flat,
+      getRowId: (r) => r.id,
+      getParentId: (r) => r.parent,
+      selectionMode: 'multi',
+      selectionCheckboxes: true,
+      selectBranches: true,
+    });
+    const box = (name: string) => {
+      const input = cellOf(el, name, SELECT).querySelector<HTMLInputElement>('input');
+      if (!input) throw new Error(`no checkbox in ${name}`);
+      return input;
+    };
+    box('A').click();
+    await settle(el);
+    expect(sorted(el.selection)).toEqual(['a', 'b', 'c']);
+    el.treeExpanded = ['a'];
+    await settle(el);
+    box('B').click();
+    await settle(el);
+    expect(el.selection).toEqual(['c']);
+    expect(box('A')).toMatchObject({ checked: false, indeterminate: true });
+    box('B').click();
+    await settle(el);
+    expect(sorted(el.selection)).toEqual(['a', 'b', 'c']);
   });
 
   test('without selectBranches nothing changes', async () => {
