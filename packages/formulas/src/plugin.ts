@@ -90,6 +90,10 @@ interface TableState<T> {
   rowsKey: RowsKey | undefined;
   /** Whether the table had a `dataSource` when the columns last ran. */
   remote: boolean;
+  /** The trees as JSON when the columns last ran with `server` and a `dataSource`. */
+  trees: string | undefined;
+  /** Whether this update starts the data source afresh anyway (see `RESTARTS`). */
+  restarting: boolean;
 }
 
 /** What the rows of whole columns depend on: the data, and the rest as JSON. */
@@ -111,6 +115,9 @@ function rowsKey<T>(host: PluginHost<T>, compiled: ReadonlyMap<string, Compiled<
     rest: JSON.stringify([filters, el.quickFilter, el.columnVisibility]),
   };
 }
+
+/** The table's properties whose change makes a data source load its rows afresh. */
+const RESTARTS = ['dataSource', 'sorting', 'columnFilters', 'quickFilter'];
 
 /** The table's properties the rows of whole columns depend on (see `rowsKey`). */
 const ROW_PROPERTIES = ['data', 'dataSource', 'columnFilters', 'quickFilter', 'columnVisibility'];
@@ -177,6 +184,8 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPl
         rows: rowSource(host),
         rowsKey: undefined,
         remote: false,
+        trees: undefined,
+        restarting: false,
       };
       states.set(host.element, state);
     }
@@ -302,6 +311,7 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPl
 
     willUpdate(changed, host) {
       const state = stateOf(host);
+      state.restarting = RESTARTS.some((name) => changed.has(name));
       // A `dataSource` set or removed: formula columns sort and filter, or stop.
       if (state.compiled.size && state.remote !== (host.element.dataSource !== undefined)) {
         host.invalidateColumns();
@@ -348,7 +358,22 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPl
       let trees: Record<string, FormulaTree> | undefined;
       const read = () => (trees ??= treesOf(defs, compiled, { parse: parseOnce, functions }));
       setTrees(host.element, read);
-      const known = remote && options.server ? read() : {};
+      const server = remote && options.server;
+      const known = server ? read() : {};
+      const json = server ? JSON.stringify(known) : undefined;
+      // The server's rows may depend on a formula that changed: load them again.
+      const el = host.element;
+      if (
+        state.trees !== undefined &&
+        json !== state.trees &&
+        !state.restarting &&
+        (el.sorting.some((sort) => compiled.has(sort.id)) ||
+          Object.keys(el.columnFilters).some((id) => compiled.has(id)) ||
+          el.quickFilter.trim())
+      ) {
+        void el.updateComplete.then(() => el.refresh());
+      }
+      state.trees = json;
       return defs.map((def) => {
         const c = compiled.get(def.id);
         const anchor = def.id === editingId ? state.anchor : undefined;

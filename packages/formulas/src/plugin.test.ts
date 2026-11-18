@@ -710,3 +710,83 @@ describe('with a dataSource and server: true', () => {
     expect(formulaTrees(document.createElement('argus-table')).columns).toEqual({});
   });
 });
+
+describe('reloading a dataSource when formulas change, with server: true', () => {
+  const total = (formula: string): ColumnDef<Row> => ({ id: 'total', formula, sortable: true });
+  const twice: ColumnDef<Row> = { id: 'twice', formula: '[total] * 2', sortable: true };
+
+  /** A table on a data source, settled, with `refresh` watched. */
+  async function mount(props: Partial<ArgusTable<Row>> = {}) {
+    const el = await fixture({
+      data: undefined,
+      dataSource: remote(),
+      columns: withFormulas(total('[price] * [qty]'), twice),
+      plugins: [formulas({ server: true })],
+      ...props,
+    });
+    const refresh = vi.spyOn(el, 'refresh');
+    return { el, refresh };
+  }
+
+  test('changing the sorted formula reloads once', async () => {
+    const { el, refresh } = await mount({ sorting: [{ id: 'total', desc: true }] });
+    el.columns = withFormulas(total('[price] + [qty]'), twice);
+    await settle(el);
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  test('changing a formula the sorted one reads reloads', async () => {
+    const { el, refresh } = await mount({ sorting: [{ id: 'twice', desc: false }] });
+    el.columns = withFormulas(total('[price] + [qty]'), twice);
+    await settle(el);
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  test('a filter on a formula column counts too', async () => {
+    const { el, refresh } = await mount({
+      columnFilters: { total: { kind: 'number', op: 'gt', value: 1 } },
+    });
+    el.columns = withFormulas(total('[price] + [qty]'), twice);
+    await settle(el);
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  test('so does quick filter text', async () => {
+    const { el, refresh } = await mount({ quickFilter: 'a' });
+    el.columns = withFormulas(total('[price] + [qty]'), twice);
+    await settle(el);
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  test('no reload when nothing sorts or filters by formulas', async () => {
+    const { el, refresh } = await mount({ sorting: [{ id: 'name', desc: false }] });
+    el.columns = withFormulas(total('[price] + [qty]'), twice);
+    await settle(el);
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  test('no reload for the same formulas in a new array', async () => {
+    const { el, refresh } = await mount({ sorting: [{ id: 'total', desc: true }] });
+    el.columns = withFormulas(total('[price] * [qty]'), { ...twice });
+    await settle(el);
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  test('no reload when the sort changes in the same update: that reloads already', async () => {
+    const { el, refresh } = await mount({ sorting: [{ id: 'total', desc: true }] });
+    el.columns = withFormulas(total('[price] + [qty]'), twice);
+    el.sorting = [{ id: 'total', desc: false }];
+    await settle(el);
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  test('no reload with server off', async () => {
+    const { el, refresh } = await mount({
+      plugins: [formulas()],
+      quickFilter: 'a',
+    });
+    el.columns = withFormulas(total('[price] + [qty]'), twice);
+    await settle(el);
+    expect(refresh).not.toHaveBeenCalled();
+  });
+});
