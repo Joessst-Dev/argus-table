@@ -20,6 +20,9 @@ import { CustomFunctionsComponent } from '../../../examples/formulas/custom-func
 import ReactEditing from '../../../examples/formulas/editing/react/FormulaEditing.tsx';
 import VueEditing from '../../../examples/formulas/editing/vue/FormulaEditing.vue';
 import { FormulaEditingComponent } from '../../../examples/formulas/editing/angular/formula-editing.component.ts';
+import ReactRemote from '../../../examples/formulas/data-source/react/FormulaDataSource.tsx';
+import VueRemote from '../../../examples/formulas/data-source/vue/FormulaDataSource.vue';
+import { FormulaDataSourceComponent } from '../../../examples/formulas/data-source/angular/formula-data-source.component.ts';
 
 `@argus-table/formulas` is a plugin: `plugins: [formulas()]`. A column with a `formula` computes its value per row from other columns, named in brackets by id or by header: here Total, Gross, Stock and Month. A formula can use another formula column (Gross uses Total), and a formula column sorts, resizes and moves like any other. Numbers and dates align to the end, and the header gets an `ƒx` mark. Create the plugin once: a new instance compiles every formula again.
 
@@ -68,3 +71,116 @@ With `formulas({ editing: 'edit' })` and the column menu, users add, edit, renam
   <VueEditing slot="vue" client:visible />
   <FormulaEditingComponent slot="angular" client:visible />
 </FlavourTabs>
+
+## With a `dataSource`
+
+With a [`dataSource`](../../guides/server-data/), your server sorts and filters, and it doesn't know what a formula computes. So by default formula columns show their values (computed in the browser for the rows loaded) but don't sort or filter. If your server can evaluate formulas, turn them on with `formulas({ server: true })`, and send `formulaTrees(table)` from `getRows`: it gives each formula column's syntax tree, by column id, with references resolved to column ids. Here the pretend server sorts and filters Line total and Order size with a small evaluator of its own; the line under the table shows what it was sent. When a formula that the current sort or filters use changes, the table loads its rows again.
+
+<FlavourTabs example="formulas/data-source" since="1.4">
+  <ReactRemote slot="react" client:visible />
+  <VueRemote slot="vue" client:visible />
+  <FormulaDataSourceComponent slot="angular" client:visible />
+</FlavourTabs>
+
+```ts
+import { formulas, formulaTrees } from '@argus-table/formulas';
+
+table.plugins = [formulas({ server: true }), headerMenu()];
+table.dataSource = {
+  // Your API gets the request with the trees and the time zone: { columns, timeZone }.
+  getRows: ({ signal, ...request }) =>
+    api.rows({ ...request, formulas: formulaTrees(table) }, { signal }),
+};
+```
+
+`formulaTrees(table)` returns `{ columns, timeZone }`. `columns` has a tree per formula column the server can evaluate; columns whose formula is broken (it doesn't parse, names an unknown column or function, or depends on itself) or uses whole columns (`[[name]]`), and those reading such a column, are left out and stay unsortable and unfilterable. `timeZone` is the browser's IANA time zone, for the date functions. A tree is plain JSON:
+
+| `type`    | Fields                      | Meaning                                                                                  |
+| --------- | --------------------------- | ---------------------------------------------------------------------------------------- |
+| `number`  | `value`                     | A number                                                                                 |
+| `text`    | `value`                     | Text in quotes                                                                           |
+| `boolean` | `value`                     | `TRUE` or `FALSE`                                                                        |
+| `ref`     | `column`                    | This row's value of the column with that id; a formula column's tree is in `columns` too |
+| `call`    | `name`, `args`              | A function, its name in upper case: a built-in one (below) or one of your `functions`    |
+| `unary`   | `operator`, `operand`       | `-` or `+` before a value                                                                |
+| `percent` | `operand`                   | `%` after a value: divides it by 100                                                     |
+| `binary`  | `operator`, `left`, `right` | `+ - * / ^` (arithmetic), `&` (joins text), `= <> < <= > >=` (comparisons)               |
+
+`[Unit price] * [Quantity]` is `{ "type": "binary", "operator": "*", "left": { "type": "ref", "column": "price" }, "right": { "type": "ref", "column": "qty" } }`. The format only grows: a later release may add node types (whole columns, say), so treat a `type` you don't know as a formula you can't evaluate.
+
+### What the browser computes
+
+To sort and filter the way the cells read, evaluate as the browser does. These rules describe the current release; a fix may change one in a minor release, and the changelog says so.
+
+- **Values** are numbers, text, booleans and dates. `null`, `undefined` and `''` are blank. An error (`#DIV/0!`, `#VALUE!`, `#NUM!`, `#N/A`) passes through the rest of the formula.
+- **As a number**: blank is 0, `TRUE` 1 and `FALSE` 0, text with a number in it (spaces around it allowed) is that number, other text and dates are `#VALUE!`. A result that isn't finite is `#NUM!`, and so is `0 ^ 0` or `0 ^` a negative number; dividing by 0 is `#DIV/0!`.
+- **As text** (`&`, the text functions): blank is `''`, numbers with at most 15 significant digits (`0.1 + 0.2` is `0.3`), `TRUE` / `FALSE`, dates as `2026-03-09`, with ` 14:05:00` unless the time is midnight.
+- **Comparisons** take numbers by size, text without regard to case, `FALSE` before `TRUE`, dates by time. A blank counts as `0`, `''` or `FALSE`, whichever the other side is. Different types order as numbers < text < booleans.
+- **Dates** are read in the time zone `formulaTrees()` reports: `'2026-03-09'` is local midnight there, and `TODAY()`, `YEAR()`, `MONTH()` and `DAY()` use local time.
+- **Sorting** is by the value, and errors sort last in both directions (the column's accessor gives `undefined` for them).
+- **Filters** apply to the value, and errors count as empty. Text filters and the quick filter match the value's text as the table matches it with `data`: numbers as JavaScript writes them (`String(n)`), booleans as `true` / `false`, dates as their ISO day, without regard to case.
+
+The built-in functions (`[x]` is optional, `…` repeats). An error in an argument is the result, except where a function says otherwise, and the text functions count characters as code points (an emoji is one):
+
+| Function                        | Arguments               | Gives                                                                                                                                                                                                                                     |
+| ------------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SUM`, `MIN`, `MAX`, `AVERAGE`  | value, …                | The sum, smallest, largest or mean of the values as numbers, skipping blanks (`#VALUE!` for text without a number; with no values left 0, or `#DIV/0!` for `AVERAGE`)                                                                     |
+| `COUNT`, `COUNTA`, `COUNTBLANK` | value, …                | How many values are numbers, aren't blank, are blank                                                                                                                                                                                      |
+| `ROUND`, `ROUNDUP`, `ROUNDDOWN` | value, [digits]         | Rounded to `digits` decimals (negative: tens, hundreds…): halves away from zero, away from zero, toward zero; float noise past 15 digits goes first, so `ROUND(1.005, 2)` is 1.01                                                         |
+| `ABS`, `INT`, `SQRT`            | value                   | Without its sign; rounded down; the square root (`#NUM!` below 0)                                                                                                                                                                         |
+| `MOD`                           | value, divisor          | The remainder, with the divisor's sign (`MOD(-3, 2)` is 1; `#DIV/0!` for 0)                                                                                                                                                               |
+| `POWER`                         | base, exponent          | Like `^`                                                                                                                                                                                                                                  |
+| `IF`                            | condition, then, [else] | `then` or `else` (`FALSE` without one). Only the one taken is evaluated, so an error in the other doesn't show                                                                                                                            |
+| `IFS`                           | condition, value, …     | The value of the first true condition, evaluating no further; `#N/A` if none is, `#VALUE!` for an odd number of arguments                                                                                                                 |
+| `AND`, `OR`                     | condition, …            | Whether all or any are true, stopping at the first that decides; blanks don't count, and with none left `#VALUE!`                                                                                                                         |
+| `NOT`                           | condition               | The opposite                                                                                                                                                                                                                              |
+| `IFERROR`                       | value, fallback         | The fallback if the value is an error; the fallback is evaluated only then                                                                                                                                                                |
+| `ISBLANK`                       | value                   | `TRUE` for a blank; `FALSE` for an error, which it doesn't pass on                                                                                                                                                                        |
+| `CONCAT`                        | text, …                 | The texts joined                                                                                                                                                                                                                          |
+| `LEFT`, `RIGHT`                 | text, [count]           | The first or last `count` characters (1 by default; `#VALUE!` below 0)                                                                                                                                                                    |
+| `MID`                           | text, start, count      | `count` characters from position `start`, counting from 1 (`#VALUE!` for a start below 1 or a negative count)                                                                                                                             |
+| `LEN`, `UPPER`, `LOWER`, `TRIM` | text                    | Its length; upper case; lower case; without extra spaces                                                                                                                                                                                  |
+| `TEXT`                          | value, pattern          | A number or date as text, such as `"0.00"` or `"yyyy-mm-dd"`                                                                                                                                                                              |
+| `TODAY`                         |                         | Today's date at local midnight                                                                                                                                                                                                            |
+| `YEAR`, `MONTH`, `DAY`          | date                    | Its year, month (1 to 12) or day of the month                                                                                                                                                                                             |
+| `DAYS`                          | end, start              | Calendar days from `start` to `end`                                                                                                                                                                                                       |
+| `DATEDIF`                       | start, end, unit        | The time between the dates in `"Y"` (whole years), `"M"` (whole months), `"D"` (days), `"YM"` (months past the years), `"MD"` (days past the months), `"YD"` (days past the years); `#NUM!` if `start` is after `end` or for another unit |
+
+`SUMIF`, `COUNTIF`, `AVERAGEIF`, `XLOOKUP`, `MATCH`, `INDEX` and `RANK` work on whole columns, so formulas with them never reach a server. Your own `functions` are yours to implement on the server too. For exact results, the engine's source is in [`packages/formulas/src/engine`](https://github.com/Joessst-Dev/argus-table/tree/main/packages/formulas/src/engine).
+
+### On a SQL server
+
+A tree maps onto an SQL expression for `ORDER BY` and `WHERE`, with your own mapping from column ids to columns and from functions to SQL. A sketch, to adapt to your database and its rules for types and nulls:
+
+```ts
+function sql(tree: FormulaTree, column: (id: string) => string): string {
+  switch (tree.type) {
+    case 'number':
+      return String(tree.value);
+    case 'text':
+      return `'${tree.value.replaceAll("'", "''")}'`;
+    case 'boolean':
+      return tree.value ? 'TRUE' : 'FALSE';
+    case 'ref':
+      return column(tree.column); // a formula column: sql() of its tree, in parentheses
+    case 'unary':
+      return `(${tree.operator}${sql(tree.operand, column)})`;
+    case 'percent':
+      return `(${sql(tree.operand, column)} / 100.0)`;
+    case 'binary': {
+      const op = { '&': '||', '^': '^', '<>': '<>' }[tree.operator] ?? tree.operator;
+      return `(${sql(tree.left, column)} ${op} ${sql(tree.right, column)})`;
+    }
+    case 'call':
+      if (tree.name === 'IF') {
+        const [test, then, otherwise] = tree.args.map((a) => sql(a, column));
+        return `(CASE WHEN ${test} THEN ${then} ELSE ${otherwise ?? 'FALSE'} END)`;
+      }
+      if (tree.name === 'ROUND') return `ROUND(${tree.args.map((a) => sql(a, column)).join(', ')})`;
+      throw new Error(`Can't sort or filter by ${tree.name}`);
+    default:
+      throw new Error("Can't sort or filter by this formula");
+  }
+}
+// ORDER BY (expression) DESC NULLS LAST; division by zero as NULLIF(divisor, 0), and so on.
+```
