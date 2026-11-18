@@ -1789,3 +1789,135 @@ describe('tree rows', () => {
     warn.mockRestore();
   });
 });
+
+describe('tree branch selection', () => {
+  interface Item {
+    name: string;
+    n?: number;
+    kids?: Item[];
+  }
+  const data: Item[] = [
+    {
+      name: 'A',
+      kids: [
+        { name: 'A1', n: 2 },
+        { name: 'A2', n: 1 },
+      ],
+    },
+    { name: 'B', kids: [{ name: 'B1', n: 0 }] },
+  ];
+  const columns: ColumnDef<Item, string>[] = [
+    { id: 'name', accessor: 'name', sortable: true, filter: 'text' },
+    { id: 'n', accessor: 'n', sortable: true },
+  ];
+  const bmodel = (overrides: Partial<TableModelOptions<Item, string>> = {}) =>
+    createTableModel<Item, string>({
+      columns,
+      data,
+      getRowId: (row) => row.name,
+      sorting: [],
+      columnSizing: {},
+      getSubRows: (row) => row.kids,
+      ...overrides,
+    });
+  const checks = (m: ReturnType<typeof bmodel>, selected: readonly string[]) => {
+    const check = m.branchCheck(new Set(selected));
+    const states: Record<string, string> = {};
+    for (let i = 0; i < m.rowCount; i++) states[m.rowAt(i)?.id ?? ''] = check(i);
+    return states;
+  };
+
+  it('branchTree lists kept children in layout order, and parents', () => {
+    const m = bmodel({ sorting: [{ id: 'n', desc: false }] });
+    const tree = m.branchTree();
+    expect(tree?.children('A')).toEqual(['A2', 'A1']);
+    expect(tree?.children('A1')).toEqual([]);
+    expect(tree?.parent('A1')).toBe('A');
+    expect(tree?.parent('A')).toBeUndefined();
+    expect(tree?.children('nope')).toEqual([]);
+    expect(tree?.parent('nope')).toBeUndefined();
+    // Kept per layout: collapsing or expanding keeps it.
+    m.update({ treeExpanded: ['A'] });
+    expect(m.branchTree()).toBe(tree);
+  });
+
+  it('branchTree leaves out the rows the filters drop', () => {
+    const m = bmodel({ columnFilters: { name: { kind: 'text', op: 'equals', value: 'A1' } } });
+    const tree = m.branchTree();
+    expect(tree?.children('A')).toEqual(['A1']);
+    expect(tree?.children('B')).toEqual([]);
+    expect(tree?.parent('A2')).toBeUndefined();
+    expect(tree?.parent('B1')).toBeUndefined();
+  });
+
+  it('branchTree is undefined without a tree', () => {
+    expect(bmodel({ getSubRows: undefined }).branchTree()).toBeUndefined();
+  });
+
+  it('branchCheck counts each row with its kept descendants', () => {
+    const m = bmodel({ treeExpanded: ['A', 'B'] });
+    expect(checks(m, ['A', 'A1', 'A2'])).toEqual({
+      A: 'all',
+      A1: 'all',
+      A2: 'all',
+      B: 'none',
+      B1: 'none',
+    });
+    expect(checks(m, ['A1'])).toMatchObject({ A: 'some', A1: 'all', A2: 'none' });
+  });
+
+  it('a contradicting controlled value is reported as it is', () => {
+    const m = bmodel({ treeExpanded: ['A'] });
+    expect(checks(m, ['A'])).toEqual({ A: 'some', A1: 'none', A2: 'none', B: 'none' });
+    // A parent's whole branch selected without its own id is part-ticked too.
+    expect(checks(m, ['A1', 'A2'])).toMatchObject({ A: 'some' });
+  });
+
+  it('branchCheck counts only the descendants the filters keep', () => {
+    const m = bmodel({ columnFilters: { name: { kind: 'text', op: 'equals', value: 'A1' } } });
+    expect(checks(m, ['A', 'A1'])).toEqual({ A: 'all', A1: 'all' });
+  });
+
+  it('branchCheck counts rows under collapsed parents', () => {
+    const m = bmodel();
+    expect(checks(m, ['A1'])).toEqual({ A: 'some', B: 'none' });
+    expect(checks(m, ['B', 'B1'])).toEqual({ A: 'none', B: 'all' });
+  });
+
+  it('branchCheck is kept per selection and layout', () => {
+    const m = bmodel();
+    const selected = new Set(['A1']);
+    const check = m.branchCheck(selected);
+    expect(m.branchCheck(selected)).toBe(check);
+    expect(check(1)).toBe('none');
+    // A new shown order over the same layout reads the rows where they are now.
+    m.update({ treeExpanded: ['A'] });
+    expect(m.branchCheck(selected)).toBe(check);
+    expect([check(0), check(1), check(3)]).toEqual(['some', 'all', 'none']);
+    m.update({ sorting: [{ id: 'n', desc: false }] });
+    const sorted = m.branchCheck(selected);
+    expect(sorted).not.toBe(check);
+    // One selection is kept: the element asks with its current `Set`.
+    expect(m.branchCheck(new Set(['A1']))).not.toBe(sorted);
+  });
+
+  it('branchCheck without a tree reads the selection', () => {
+    const m = bmodel({ getSubRows: undefined });
+    const check = m.branchCheck(new Set(['B']));
+    expect([check(0), check(1), check(2)]).toEqual(['none', 'all', 'none']);
+  });
+
+  it('branchCheck at a million rows is one linear pass', () => {
+    const big: Item[] = Array.from({ length: 100_000 }, (_, p) => ({
+      name: `P${String(p)}`,
+      kids: Array.from({ length: 9 }, (_, c) => ({ name: `P${String(p)}-${String(c)}` })),
+    }));
+    const m = bmodel({ data: big });
+    expect(m.rowCount).toBe(100_000);
+    const start = performance.now();
+    const check = m.branchCheck(new Set(['P5-3']));
+    const took = performance.now() - start;
+    expect([check(4), check(5), check(6)]).toEqual(['none', 'some', 'none']);
+    expect(took).toBeLessThan(300);
+  });
+});

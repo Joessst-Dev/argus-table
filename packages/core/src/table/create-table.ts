@@ -10,7 +10,8 @@ import { resolveColumns, type ResolvedColumn } from '../columns/resolve-columns.
 import { distinctValues, rowPredicate } from '../filters/filter.js';
 import { buildAllViews, buildViews, hiddenIn, pinIn, sizingOf } from './column-views.js';
 import { RowPipeline } from './row-pipeline.js';
-import { keepWithAncestors } from './tree-order.js';
+import { keepWithAncestors, type TreeLayout } from './tree-order.js';
+import type { BranchCheck, BranchTree } from '../state/selection.js';
 import type {
   CellContext,
   ColumnDef,
@@ -128,6 +129,33 @@ export function createTableModel<TData, TContent>(
   const pinned = (side: RowPin): readonly TData[] => options.pinnedRows?.[side] ?? [];
 
   let allViews: ColumnView<TData, TContent>[] | undefined;
+
+  // Branch selection, kept per tree layout (a filter or sort result).
+  let branches: { layout: TreeLayout; tree: BranchTree } | undefined;
+  // Each kept row's number of kept rows in its subtree, itself included.
+  let subtree: { layout: TreeLayout; size: Int32Array } | undefined;
+  let checks:
+    | {
+        layout: TreeLayout | undefined;
+        selected: ReadonlySet<string>;
+        check: (index: number) => BranchCheck;
+      }
+    | undefined;
+  const subtreeSizes = (layout: TreeLayout, parent: Int32Array): Int32Array => {
+    if (subtree?.layout === layout) return subtree.size;
+    const size = new Int32Array(parent.length);
+    // Preorder backwards: every row comes after its descendants.
+    const { order } = layout;
+    for (let k = order.length - 1; k >= 0; k--) {
+      const row = order[k] ?? 0;
+      const own = (size[row] ?? 0) + 1;
+      size[row] = own;
+      const up = parent[row] ?? -1;
+      if (up !== -1) size[up] = (size[up] ?? 0) + own;
+    }
+    subtree = { layout, size };
+    return size;
+  };
 
   return {
     update(next) {
@@ -315,6 +343,75 @@ export function createTableModel<TData, TContent>(
         return all;
       }
       return rows().map((r) => pipeline.rowId(r));
+    },
+
+    branchTree() {
+      const steps = pipeline.treeSteps();
+      if (!steps) return undefined;
+      const { tree, layout } = steps;
+      if (branches?.layout === layout) return branches.tree;
+      const branchTree: BranchTree = {
+        children(id) {
+          const row = tree.indexOf(id);
+          // Rows the filters drop have no kept children.
+          if (row === undefined || (layout.keptChildren[row] ?? 0) === 0) return [];
+          const kids = layout.children(row);
+          const children = new Array<string>(kids.length);
+          for (let k = 0; k < kids.length; k++) children[k] = tree.ids[kids[k] ?? 0] ?? '';
+          return children;
+        },
+        parent(id) {
+          const row = tree.indexOf(id);
+          // Only kept rows have a position among their siblings.
+          if (row === undefined || (layout.posInSet[row] ?? 0) === 0) return undefined;
+          const up = tree.parent[row] ?? -1;
+          return up === -1 ? undefined : tree.ids[up];
+        },
+      };
+      branches = { layout, tree: branchTree };
+      return branchTree;
+    },
+
+    branchCheck(selected) {
+      const steps = pipeline.treeSteps();
+      const layout = steps?.layout;
+      if (checks?.selected === selected && checks.layout === layout) return checks.check;
+      let check: (index: number) => BranchCheck;
+      if (!steps) {
+        check = (index) => {
+          let id: string | undefined;
+          if (options.remote) id = options.remote.entryAt(index)?.id;
+          else {
+            const row = rows()[index];
+            id = row === undefined ? undefined : pipeline.rowId(row);
+          }
+          return id !== undefined && selected.has(id) ? 'all' : 'none';
+        };
+      } else if (selected.size === 0) {
+        check = () => 'none';
+      } else {
+        const { tree } = steps;
+        const { parent, ids } = tree;
+        const { order } = steps.layout;
+        const size = subtreeSizes(steps.layout, parent);
+        // Selected rows per subtree, counted in one pass like the sizes.
+        const picked = new Int32Array(parent.length);
+        for (let k = order.length - 1; k >= 0; k--) {
+          const row = order[k] ?? 0;
+          let own = picked[row] ?? 0;
+          if (selected.has(ids[row] ?? '')) picked[row] = ++own;
+          const up = parent[row] ?? -1;
+          if (up !== -1 && own > 0) picked[up] = (picked[up] ?? 0) + own;
+        }
+        check = (index) => {
+          const row = rows()[index];
+          const count = row === undefined ? 0 : (picked[row] ?? 0);
+          if (count === 0 || row === undefined) return 'none';
+          return count === (size[row] ?? 0) ? 'all' : 'some';
+        };
+      }
+      checks = { layout, selected, check };
+      return check;
     },
 
     valueAt(index, columnId) {

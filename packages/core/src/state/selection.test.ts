@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { clickSelection, sameSelection, selectAll, selectRange, toggleRow } from './selection.js';
+import {
+  clickSelection,
+  sameSelection,
+  selectAll,
+  selectRange,
+  toggleBranch,
+  toggleRow,
+  withBranches,
+  type BranchTree,
+} from './selection.js';
 
 /** Rows `r0`… by index; `missing` indices aren't loaded. */
 const idAt =
@@ -115,5 +124,92 @@ describe('clickSelection', () => {
 
   it('does nothing in none mode', () => {
     expect(clickSelection([], 'none', at(1), undefined, plain, idAt())).toBeUndefined();
+  });
+});
+
+/** A `BranchTree` from each row's kept children; rows not listed have none. */
+const branchTree = (kids: Record<string, readonly string[]>): BranchTree => {
+  const parents = new Map<string, string>();
+  for (const [parent, children] of Object.entries(kids)) {
+    for (const child of children) parents.set(child, parent);
+  }
+  return {
+    children: (id) => kids[id] ?? [],
+    parent: (id) => parents.get(id),
+  };
+};
+
+// A{A1, A2}, B{B1}
+const ab = branchTree({ A: ['A1', 'A2'], B: ['B1'] });
+
+describe('withBranches', () => {
+  it('withBranches adds descendants and completes parents', () => {
+    expect(sameSelection(withBranches([], ['A'], ab), ['A', 'A1', 'A2'])).toBe(true);
+    expect(sameSelection(withBranches(['A1'], ['A2'], ab), ['A1', 'A2', 'A'])).toBe(true);
+  });
+
+  it('keeps the current order and appends new ids, without duplicates', () => {
+    // B1 isn't ticked here: B stays as it is.
+    expect(withBranches(['B1', 'A1'], ['A', 'A1'], ab)).toEqual(['B1', 'A1', 'A', 'A2']);
+  });
+
+  it('stops at the first ancestor with a child left unselected', () => {
+    const deep = branchTree({ R: ['P', 'Q'], P: ['P1', 'P2'] });
+    expect(sameSelection(withBranches(['P1'], ['P2'], deep), ['P1', 'P2', 'P'])).toBe(true);
+    expect(
+      sameSelection(withBranches(['P1', 'Q'], ['P2'], deep), ['P1', 'Q', 'P2', 'P', 'R']),
+    ).toBe(true);
+  });
+
+  it('ticking under a filter selects only kept rows', () => {
+    const filtered = branchTree({ A: ['A1'], B: ['B1'] });
+    expect(sameSelection(withBranches([], ['A'], filtered), ['A', 'A1'])).toBe(true);
+  });
+
+  it('just adds an id that is not in the tree', () => {
+    expect(withBranches(['A1'], ['X'], ab)).toEqual(['A1', 'X']);
+  });
+
+  it('walks a 100k-deep chain without recursion', () => {
+    const depth = 100_000;
+    const chain: BranchTree = {
+      children: (id) => {
+        const n = Number(id);
+        return n + 1 < depth ? [String(n + 1)] : [];
+      },
+      parent: (id) => {
+        const n = Number(id);
+        return n > 0 ? String(n - 1) : undefined;
+      },
+    };
+    const start = performance.now();
+    expect(withBranches([], ['0'], chain)).toHaveLength(depth);
+    // The deepest row completes every ancestor on its way up.
+    expect(withBranches([], [String(depth - 1)], chain)).toHaveLength(depth);
+    expect(toggleBranch([], String(depth - 1), false, chain)).toHaveLength(depth);
+    expect(toggleBranch(['0', '1', '7'], String(depth - 1), true, chain)).toEqual([]);
+    expect(performance.now() - start).toBeLessThan(1000);
+  });
+});
+
+describe('toggleBranch', () => {
+  it('toggleBranch deselects a branch and its ancestors', () => {
+    expect(toggleBranch(['A', 'A1', 'A2'], 'A1', true, ab)).toEqual(['A2']);
+    expect(toggleBranch(['B1', 'A', 'A1', 'A2'], 'A', true, ab)).toEqual(['B1']);
+  });
+
+  it('selects the branch when it is not all selected', () => {
+    expect(sameSelection(toggleBranch(['A1'], 'A', false, ab), ['A1', 'A', 'A2'])).toBe(true);
+  });
+
+  it('toggles a leaf, completing or clearing its parent', () => {
+    expect(sameSelection(toggleBranch(['B1'], 'A1', false, ab), ['B1', 'A1'])).toBe(true);
+    expect(sameSelection(toggleBranch([], 'B1', false, ab), ['B1', 'B'])).toBe(true);
+    expect(toggleBranch(['B', 'B1', 'A1'], 'B1', true, ab)).toEqual(['A1']);
+  });
+
+  it('leaves descendants the filters hide selected', () => {
+    const filtered = branchTree({ A: ['A1'] });
+    expect(toggleBranch(['A', 'A1', 'A2'], 'A', true, filtered)).toEqual(['A2']);
   });
 });

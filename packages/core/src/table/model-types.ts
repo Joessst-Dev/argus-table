@@ -20,6 +20,7 @@ import type {
   SortState,
   TreeExpandedState,
 } from '../types.js';
+import type { BranchCheck, BranchTree } from '../state/selection.js';
 import type { DisplayRows } from './display-rows.js';
 
 /** Sort direction of a column, or `false` when it isn't sorted. */
@@ -336,6 +337,21 @@ export interface TableModel<TData, TContent> {
    * every row the filters keep, rows under collapsed rows included, depth-first.
    */
   selectableIds(branches?: boolean): string[];
+  /**
+   * The rows the filters keep as a tree of ids (collapsed rows don't matter),
+   * for `withBranches` and `toggleBranch`; `undefined` without a tree. Kept per
+   * filter and sort result.
+   */
+  branchTree(): BranchTree | undefined;
+  /**
+   * Each row's checkbox state for a selection, by index in the current order:
+   * `'all'` when its id and every kept descendant (under collapsed rows too)
+   * are selected, `'some'` when any of them is. A selection that breaks the
+   * branch rules (a parent without all its children) shows as it is. One pass
+   * per selection `Set` and filter and sort result; without a tree, `'all'` or
+   * `'none'` from the row's own id.
+   */
+  branchCheck(selected: ReadonlySet<string>): (index: number) => BranchCheck;
   /** The value a column reads from the row at `index`. */
   valueAt(index: number, columnId: string): unknown;
   /** The value a column reads from any row object, as its accessor gets it at `index`. */
