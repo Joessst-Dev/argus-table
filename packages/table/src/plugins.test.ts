@@ -341,6 +341,29 @@ describe('plugin keys', () => {
     press(cell, 'x');
     expect(seen).toEqual([{ section: 'body', columnId: 'age', rowIndex: 1, rowId: 'p1' }]);
   });
+
+  test('a plugin that handles Enter on a body cell stops the row click', async () => {
+    const seen: unknown[] = [];
+    const enter: ArgusPlugin<Person> = {
+      name: 'enter',
+      keydown(event, target) {
+        if (event.key !== 'Enter') return false;
+        seen.push(target);
+        event.preventDefault();
+        return true;
+      },
+    };
+    const el = await fixture({ columns, data: people(3), plugins: [enter] });
+    const rowClicks: unknown[] = [];
+    el.addEventListener('argus-row-click', (e) => rowClicks.push(e.detail));
+    const cell = shadow(el).querySelector<HTMLElement>('[aria-rowindex="2"] [data-col="name"]');
+    if (!cell) throw new Error('no cell');
+    cell.focus();
+    press(cell, 'Enter');
+    await settle(el);
+    expect(rowClicks).toHaveLength(0);
+    expect(seen).toEqual([{ section: 'body', columnId: 'name', rowIndex: 0, rowId: '0' }]);
+  });
 });
 
 describe('plugin host', () => {
