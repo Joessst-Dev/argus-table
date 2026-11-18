@@ -1,5 +1,6 @@
 import { html } from 'lit';
 import { afterEach, describe, expect, test } from 'vitest';
+import { userEvent } from 'vitest/browser';
 import type { ArgusTable } from './argus-table.js';
 import type {
   ArgusPlugin,
@@ -9,7 +10,7 @@ import type {
   RowDetailContext,
   TreeExpandedChangeDetail,
 } from './index.js';
-import { fixture, rowText, rowsInOrder, settle, shadow } from './test-utils.js';
+import { chevronPointing, fixture, rowText, rowsInOrder, settle, shadow } from './test-utils.js';
 
 interface Item {
   name: string;
@@ -362,9 +363,9 @@ describe('tree rows: the tree column', () => {
     });
     const cellClicks = events(el, 'argus-cell-click');
     const rowClicks = events(el, 'argus-row-click');
-    toggleOf(el, 'P0').click();
-    // Uncontrolled: the event fires after the update that applied it.
-    expect(seen).toEqual([]);
+    // A real pointer click: press, focus, click. Uncontrolled, the event fires
+    // after the update that applied it (`shown`).
+    await userEvent.click(toggleOf(el, 'P0'));
     await settle(el);
     expect(names(el)).toEqual(['P0', 'C0.0', 'C0.1', 'C0.2', 'P1', 'P2']);
     expect(seen).toEqual([
@@ -392,6 +393,45 @@ describe('tree rows: the tree column', () => {
       { treeExpanded: [], rowId: '0', open: false },
     ]);
     expect(toggleOf(el, 'P0').getAttribute('aria-label')).toBe('Expand row');
+  });
+
+  test('the toggle points toward the row end while collapsed, down while expanded', async () => {
+    for (const dir of ['ltr', 'rtl']) {
+      const el = await treeTable({ dir, treeExpanded: ['1'] });
+      expect(chevronPointing(toggleOf(el, 'P0'))).toBe('end');
+      expect(chevronPointing(toggleOf(el, 'P1'))).toBe('down');
+      el.remove();
+    }
+  });
+
+  test('a centred tree column keeps its toggles at the start', async () => {
+    const data: Item[] = [
+      { name: 'A', kids: [{ name: 'A1' }] },
+      { name: 'A rather longer name', kids: [{ name: 'B1 with more text' }] },
+    ];
+    const el = await fixture<Item>({
+      columns: [{ id: 'name', header: 'Name', accessor: 'name', width: 300, align: 'center' }],
+      data,
+      getSubRows,
+      treeExpanded: ['0', '1'],
+    });
+    const left = (e: Element | null | undefined) => e?.getBoundingClientRect().left ?? NaN;
+    const short = cellOf(el, 'A', 'name');
+    const long = cellOf(el, 'A rather longer name', 'name');
+    expect(left(short.querySelector('[part~="tree-toggle"]'))).toBe(
+      left(long.querySelector('[part~="tree-toggle"]')),
+    );
+    expect(left(cellOf(el, 'A1', 'name').querySelector('.tree-spacer'))).toBe(
+      left(cellOf(el, 'B1 with more text', 'name').querySelector('.tree-spacer')),
+    );
+    // The content is centred in the space after the toggle.
+    const content = short.querySelector('slot')?.assignedElements()[0]?.getBoundingClientRect();
+    const toggle = short.querySelector('[part~="tree-toggle"]')?.getBoundingClientRect();
+    const cell = short.getBoundingClientRect();
+    const pad = parseFloat(getComputedStyle(short).paddingInlineEnd);
+    const gap = parseFloat(getComputedStyle(short).fontSize) * 0.25;
+    if (!content || !toggle) throw new Error('no content or toggle');
+    expect(content.left - toggle.right - gap).toBeCloseTo(cell.right - pad - content.right, 0);
   });
 
   test('a toggle press keeps the click from cancelling', async () => {

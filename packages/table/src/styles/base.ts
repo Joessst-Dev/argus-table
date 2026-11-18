@@ -210,14 +210,17 @@ export const baseStyles = css`
       font: inherit;
       cursor: pointer;
     }
-    /* Pointing toward the inline end while closed (mirrored in RTL), down while open. */
+    /*
+     * Pointing toward the inline end while closed (mirrored in RTL: scaleX(-1) is
+     * applied last, so the closed chevron points left), down while open.
+     */
     [part~='expand-toggle']::before {
       content: '';
       inline-size: 0.4em;
       block-size: 0.4em;
       border-right: 0.12em solid currentColor;
       border-bottom: 0.12em solid currentColor;
-      transform: translateX(calc(-0.1em * var(--_dir, 1))) rotate(calc(-45deg * var(--_dir, 1)));
+      transform: scaleX(var(--_dir, 1)) translateX(-0.1em) rotate(-45deg);
     }
     [part~='expand-toggle'][aria-expanded='true']::before {
       transform: translateY(-0.1em) rotate(45deg);
@@ -250,9 +253,20 @@ export const baseStyles = css`
       font: inherit;
       cursor: pointer;
     }
-    /* End-aligned content: the indent and toggle stay at the start. */
-    [data-align='end'] > [part~='tree-toggle'],
-    [data-align='end'] > .tree-spacer {
+    /*
+     * Centred or end-aligned content: the indent and toggle stay at the start, so
+     * toggles line up per depth, and the content is centred in (or put at the end
+     * of) the space after them: the two auto margins share the free space.
+     */
+    :is([data-align='center'], [data-align='end']) > :is([part~='tree-toggle'], .tree-spacer) {
+      margin-inline-end: auto;
+    }
+    :is([data-align='center'], [data-align='end'])
+      > :is([part~='tree-toggle'], .tree-spacer)
+      ~ slot::slotted(*) {
+      margin-inline-start: 0.25em;
+    }
+    [data-align='center'] > :is([part~='tree-toggle'], .tree-spacer) ~ slot::slotted(*) {
       margin-inline-end: auto;
     }
     /* Pointing toward the inline end while collapsed (mirrored in RTL), down while expanded. */
@@ -262,7 +276,7 @@ export const baseStyles = css`
       block-size: 0.4em;
       border-right: 0.12em solid currentColor;
       border-bottom: 0.12em solid currentColor;
-      transform: translateX(calc(-0.1em * var(--_dir, 1))) rotate(calc(-45deg * var(--_dir, 1)));
+      transform: scaleX(var(--_dir, 1)) translateX(-0.1em) rotate(-45deg);
     }
     [part~='tree-toggle'][aria-expanded='true']::before {
       transform: translateY(-0.1em) rotate(45deg);

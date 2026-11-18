@@ -76,3 +76,21 @@ export async function scrollTo(
   await scrolled;
   await settle(el);
 }
+
+/**
+ * Where a chevron button (drawn by its `::before`: the right and bottom borders
+ * of a square, turned) points on screen, from the computed transform.
+ */
+export function chevronPointing(button: Element): 'start' | 'end' | 'down' | 'up' | 'other' {
+  const transform = getComputedStyle(button, '::before').transform;
+  const m = /^matrix\(([^)]+)\)$/.exec(transform);
+  if (!m?.[1]) return 'other';
+  const [a = 0, b = 0, c = 0, d = 0] = m[1].split(',').map(Number);
+  // The square's bottom-right corner, (1, 1) before the transform (y down).
+  const x = a + c;
+  const y = b + d;
+  const rtl = getComputedStyle(button).direction === 'rtl';
+  if (Math.abs(y) < 0.01 && Math.abs(x) > 1) return x > 0 !== rtl ? 'end' : 'start';
+  if (Math.abs(x) < 0.01 && Math.abs(y) > 1) return y > 0 ? 'down' : 'up';
+  return 'other';
+}
