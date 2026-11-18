@@ -310,12 +310,14 @@ export class ArgusTable<T = unknown> extends LitElement {
    * Nested data: a row's child rows, or `undefined` (or `[]`) for a row without
    * any. `data` then holds the top-level rows, and the rows form a tree: a row's
    * children show under it, indented in the first data column, while it is
-   * expanded (`treeExpanded`). In that column, Right (Left in a right-to-left
-   * table) expands a collapsed row; Left collapses an expanded one, else moves
-   * to the parent row. Children are sorted among their siblings, and a
-   * filter keeps the rows that match with their ancestors, shown expanded with
-   * their toggles disabled until the filter clears. A child's default id
-   * is its parent's id, a dot and its index among its siblings (`'3.0'`,
+   * expanded (`treeExpanded`). In that column, the arrow toward the row's end
+   * (Right; Left in a right-to-left table) expands a collapsed row; the other
+   * arrow collapses an expanded one, else moves to the parent row. A row a
+   * filter keeps open for its matches doesn't collapse. Children are sorted
+   * among their siblings, and a filter keeps the rows that match with their
+   * ancestors, shown expanded with their toggles disabled until the filter
+   * clears. A child's default id is its parent's id, a dot and its index among
+   * its siblings (`'3.0'`,
    * `'3.0.2'`); top-level rows keep their index in `data`. Functions given a
    * row's index (`getRowId`, a column's `accessor`) get a child's index from
    * `data.length` on, in depth-first order. Wins over `getParentId` (with a

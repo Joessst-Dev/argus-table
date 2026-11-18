@@ -2,6 +2,7 @@ import { html } from 'lit';
 import { afterEach, describe, expect, test } from 'vitest';
 import { userEvent } from 'vitest/browser';
 import type { ArgusTable } from './argus-table.js';
+import { setMaxElementHeightForTests } from './max-height.js';
 import type {
   ArgusPlugin,
   CellClickDetail,
@@ -61,6 +62,7 @@ function rowOf(el: HTMLElement, name: string): HTMLElement {
 }
 
 afterEach(() => {
+  setMaxElementHeightForTests(undefined);
   document.body.replaceChildren();
 });
 
@@ -500,6 +502,13 @@ describe('tree rows: the tree column', () => {
     expect(rowOf(el, 'Q').getAttribute('aria-level')).toBe('1');
     // Its content lines up with that of a row with a toggle.
     expect(contentLeft(cellOf(el, 'Q', 'name'))).toBe(contentLeft(cellOf(el, 'P0', 'name')));
+    // Right moves right, as on any cell.
+    cellOf(el, 'Q', 'name').focus();
+    await settle(el);
+    await userEvent.keyboard('{ArrowRight}');
+    await settle(el);
+    expect(shadow(el).activeElement).toBe(cellOf(el, 'Q', 'size'));
+    expect(el.treeExpanded).toEqual([]);
 
     // P1 matches, none of its children do.
     el.quickFilter = 'P1';
@@ -653,6 +662,24 @@ describe('tree rows: keys and focus', () => {
     expect(topRowText(el)).toBe('Big');
   });
 
+  test('Left on a child far from its parent in a scaled body brings the parent into view', async () => {
+    // 3000 rows of about 40 px past a 100k px cap: the body is scaled.
+    setMaxElementHeightForTests(100_000);
+    const data: Item[] = [
+      { name: 'Big', kids: Array.from({ length: 3000 }, (_, i) => ({ name: `K${String(i)}` })) },
+      { name: 'Next' },
+    ];
+    const el = await fixture<Item>({ columns, data, getSubRows, treeExpanded: ['0'] });
+    await el.scrollToRow({ id: '0.2999' });
+    await settle(el);
+    expect(topRowText(el)).not.toBe('Big');
+    await focusCell(el, 'K2999', 'name');
+    await press(el, '{ArrowLeft}');
+    await settle(el);
+    expect(focused(el)).toBe(cellOf(el, 'Big', 'name'));
+    expect(topRowText(el)).toBe('Big');
+  });
+
   test('Left on a collapsed top-level row moves left as before', async () => {
     const plain = await treeTable();
     const seen = events<TreeExpandedChangeDetail>(plain, 'argus-tree-expanded-change');
@@ -737,6 +764,74 @@ describe('tree rows: keys and focus', () => {
     expect(clicks.map((c) => [c.rowId, c.columnId])).toEqual([['0', 'name']]);
     expect(el.treeExpanded).toEqual([]);
     expect(names(el)).toEqual(['P0', 'P1', 'P2']);
+  });
+
+  describe('with detail panels open', () => {
+    const detail: Partial<ArgusTable<Item>> = {
+      expanded: ['0', '0.0'],
+      rowDetail: ({ row }) => html`<p>Details of ${row.name}</p>`,
+    };
+    /** The names in row order: the chevron column comes first. */
+    const shownNames = (el: HTMLElement) => rowsInOrder(el).map((r) => rowText(r)[1]);
+    /** The `aria-rowindex` of the row holding the focused cell. */
+    const focusedRow = (el: HTMLElement) =>
+      focused(el)?.parentElement?.getAttribute('aria-rowindex');
+    /** The panel cell under the body row showing `name`. */
+    const panelOf = (el: HTMLElement, name: string) => {
+      const at = Number(rowOf(el, name).getAttribute('aria-rowindex')) + 1;
+      const cell = shadow(el).querySelector<HTMLElement>(
+        `[aria-rowindex="${String(at)}"] > [data-col="--argus-detail"]`,
+      );
+      if (!cell) throw new Error(`no panel under ${name}`);
+      return cell;
+    };
+
+    test("Left on a child goes to its parent's tree cell over the panels", async () => {
+      const el = await treeTable({ ...detail, treeExpanded: ['0'] });
+      expect(shownNames(el)).toEqual(['P0', 'C0.0', 'C0.1', 'C0.2', 'P1', 'P2']);
+      await focusCell(el, 'C0.1', 'name');
+      await press(el, '{ArrowLeft}');
+      expect(focused(el)).toBe(cellOf(el, 'P0', 'name'));
+      expect(focusedRow(el)).toBe(rowOf(el, 'P0').getAttribute('aria-rowindex'));
+    });
+
+    test("by keys, from a child's panel: Up, Left to the parent, Left again", async () => {
+      const el = await treeTable(detail);
+      await focusCell(el, 'P0', 'name');
+      await press(el, '{ArrowRight}');
+      expect(el.treeExpanded).toEqual(['0']);
+      panelOf(el, 'C0.0').focus();
+      await settle(el);
+      await press(el, '{ArrowUp}{ArrowLeft}{ArrowLeft}');
+      expect(shownNames(el)).toEqual(['P0', 'P1', 'P2']);
+      expect(el.treeExpanded).toEqual([]);
+      expect(focused(el)).toBe(cellOf(el, 'P0', 'name'));
+      expect(focusedRow(el)).toBe(rowOf(el, 'P0').getAttribute('aria-rowindex'));
+    });
+
+    test("by a controlled host, from a child's panel", async () => {
+      const el = await treeTable({ ...detail, treeExpanded: ['0'] });
+      await focusCell(el, 'C0.0', 'size');
+      await press(el, '{ArrowDown}');
+      expect(focused(el)).toBe(panelOf(el, 'C0.0'));
+      el.treeExpanded = [];
+      await settle(el);
+      expect(shownNames(el)).toEqual(['P0', 'P1', 'P2']);
+      expect(document.activeElement).toBe(el);
+      // On the row, in the column the active cell had before the panel.
+      expect(focused(el)).toBe(cellOf(el, 'P0', 'size'));
+      expect(focusedRow(el)).toBe(rowOf(el, 'P0').getAttribute('aria-rowindex'));
+    });
+  });
+
+  test('a filter dropping the active child moves the active cell to its parent', async () => {
+    const el = await treeTable({ treeExpanded: ['0'] });
+    await focusCell(el, 'C0.1', 'size');
+    el.quickFilter = 'C0.0';
+    await settle(el);
+    expect(names(el)).toEqual(['P0', 'C0.0']);
+    expect(document.activeElement).toBe(el);
+    expect(focused(el)).toBe(cellOf(el, 'P0', 'size'));
   });
 
   describe('collapsing moves the active cell from a descendant to the row', () => {
