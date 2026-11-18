@@ -120,3 +120,50 @@ describe('toXlsx', () => {
     expect(sheet).toContain(`<t xml:space="preserve">${date.toISOString()}</t>`);
   });
 });
+
+describe('detail rows', () => {
+  const sheet = (): ExportSheet => ({
+    columns: [column('a'), column('b')],
+    groups: [],
+    rows: [
+      ['Ann', 1],
+      ['Bob', 2],
+    ],
+    detail: {
+      columns: [column('p', { width: 200 }), column('q'), column('r')],
+      rows: [
+        [
+          ['x', 1, true],
+          ['y', 2, false],
+        ],
+        [],
+      ],
+    },
+  });
+
+  test('writes a detail header and rows under their row, one column in, at outline level 1', async () => {
+    const { sheet: xmlText } = await sheetXml(sheet());
+    expect(xmlText).toContain(
+      '<row r="3" outlineLevel="1"><c r="B3" s="3" t="inlineStr"><is><t xml:space="preserve">P</t></is></c>',
+    );
+    expect(xmlText).toContain('<row r="4" outlineLevel="1"><c r="B4"');
+    expect(xmlText).toContain('<row r="5" outlineLevel="1"><c r="B5"');
+    // Bob's row, then nothing under it.
+    expect(xmlText).toContain('<row r="6"><c r="A6"');
+    expect(xmlText).not.toContain('<row r="7"');
+  });
+
+  test('collapses toward the row above', async () => {
+    const { sheet: xmlText } = await sheetXml(sheet());
+    expect(xmlText).toContain('<sheetPr><outlinePr summaryBelow="0"/></sheetPr><sheetViews>');
+    expect(xmlText).toContain('<sheetFormatPr defaultRowHeight="15" outlineLevelRow="1"/>');
+  });
+
+  test('drops the autoFilter with detail rows and widens shared columns', async () => {
+    const { sheet: xmlText, files } = await sheetXml(sheet());
+    expect(xmlText).not.toContain('<autoFilter');
+    expect(files.get('xl/workbook.xml')).not.toContain('_FilterDatabase');
+    expect(xmlText).toContain('<col min="2" max="2" width="29.27" customWidth="1"/>');
+    expect(xmlText).toContain('<col min="4" max="4"');
+  });
+});
