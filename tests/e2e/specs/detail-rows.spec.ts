@@ -35,9 +35,14 @@ test.describe('detail rows', () => {
     await settle(page);
     expect([...(await expanded(page))].sort()).toEqual(['r1', 'r3']);
     // Down onto the panel, Enter into its form, type, Escape out.
+    // Focus moves after the update: each key waits for it.
     await page.keyboard.press('ArrowDown');
+    await expect(rowAt(page, 7).locator('[part~="detail"]')).toBeFocused();
     await page.keyboard.press('Enter');
+    const typed = page.locator('body > argus-table input[name="note"]:focus');
+    await expect(typed).toHaveCount(1);
     await page.keyboard.type('fragile');
+    await expect(typed).toHaveValue('fragile');
     await page.keyboard.press('Escape');
     await settle(page);
     await expect(rowAt(page, 7).locator('[part~="detail"]')).toBeFocused();

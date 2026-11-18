@@ -803,17 +803,25 @@ describe('detail rows: review fixes', () => {
 
   it('keeps the active cell on a row still loading when a panel opens above it', async () => {
     const all = people(200);
+    let answered = (): void => undefined;
+    const firstPage = new Promise<void>((resolve) => {
+      answered = resolve;
+    });
     const el = await detailTable({
       data: [],
       dataSource: {
         pageSize: 20,
         // Only the first page ever answers: the rest stay loading.
-        getRows: ({ start, end }) =>
-          start === 0
-            ? Promise.resolve({ rows: all.slice(start, end), total: all.length })
-            : new Promise(() => undefined),
+        getRows: ({ start, end }) => {
+          if (start !== 0) return new Promise(() => undefined);
+          answered();
+          return Promise.resolve({ rows: all.slice(start, end), total: all.length });
+        },
       },
     });
+    // Requests wait out a debounce: scroll once the row count is known.
+    await firstPage;
+    await settle(el);
     await settle(el);
     await el.scrollToRow(60);
     await settle(el);
