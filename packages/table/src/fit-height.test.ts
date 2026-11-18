@@ -89,11 +89,19 @@ describe('fit to content', () => {
     el.style.cssText = 'inline-size: 600px; block-size: auto';
     tab.append(el);
     await settle(el);
+    // Capped before it renders rows, not after rendering every one of them.
+    let most = 0;
+    const observer = new MutationObserver(() => {
+      most = Math.max(most, bodyRows(el));
+    });
+    observer.observe(shadow(el), { childList: true, subtree: true });
     tab.style.display = '';
     await settle(el);
     await settle(el);
+    observer.disconnect();
     expect(height(el)).toBeCloseTo(window.innerHeight, 0);
-    expect(bodyRows(el)).toBeLessThan(window.innerHeight / 20);
+    expect(most).toBeGreaterThan(0);
+    expect(most).toBeLessThan(window.innerHeight / 20);
   });
 
   it('keeps the scroller as tall as the host with a percentage max-block-size', async () => {

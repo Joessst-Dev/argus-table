@@ -1168,6 +1168,9 @@ export class ArgusTable<T = unknown> extends LitElement {
           ? undefined
           : { id: active.rowId, index: active.index },
     });
+    // Before the window: a table without a maximum that just got its layout (it was
+    // in a hidden tab) is capped now, rather than after rendering every row.
+    this.#fit.check(this.#contentPx);
   }
 
   protected override render(): TemplateResult {
