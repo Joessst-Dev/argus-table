@@ -37,6 +37,8 @@ export class PageCache<TData> {
   readonly pageSize: number;
   readonly #getRowId: (row: TData, index: number) => string;
   readonly #pages = new Map<number, CachedRow<TData>[]>();
+  /** Bumped whenever the loaded rows or the row count change. */
+  #version = 0;
   /** In-flight pages and the `end` they asked for. */
   readonly #inFlight = new Map<number, number>();
   readonly #failed = new Set<number>();
@@ -52,6 +54,11 @@ export class PageCache<TData> {
   }
 
   /** Number of rows, loaded or not. */
+  /** Changes whenever the loaded rows or the row count change (`RemoteRows.version`). */
+  get version(): number {
+    return this.#version;
+  }
+
   get rowCount(): number {
     return this.#rowCount;
   }
@@ -123,6 +130,7 @@ export class PageCache<TData> {
     }));
     this.#drop(page);
     if (entries.length > 0) this.#pages.set(page, entries);
+    this.#version++;
     entries.forEach((entry, i) => this.#indexById.set(entry.id, start + i));
 
     if (total !== undefined && Number.isFinite(total) && total >= 0) {
@@ -185,6 +193,7 @@ export class PageCache<TData> {
   }
 
   #setCount(count: number, known: boolean): void {
+    this.#version++;
     this.#rowCount = count;
     this.#totalKnown = known;
     // Rows past the end are gone; drop pages that start there.
@@ -201,5 +210,6 @@ export class PageCache<TData> {
       if (this.#indexById.get(entry.id) === start + i) this.#indexById.delete(entry.id);
     });
     this.#pages.delete(page);
+    this.#version++;
   }
 }

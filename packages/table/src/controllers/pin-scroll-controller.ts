@@ -16,7 +16,7 @@ const SETTLE_MS = 150;
  * carries `data-hscroll` and the cells are sticky, so they don't lag behind
  * the scroll; once it settles they go back to the transform, at the same place.
  * It also sizes the pinned edges' shadow overlays (`.pin-shadow`) to the
- * scroller's visible area.
+ * scroller's visible area, and gives detail panels its width (`--_view-w`).
  */
 export class PinScrollController implements ReactiveController {
   readonly #scroller: () => HTMLElement | null;
@@ -51,6 +51,8 @@ export class PinScrollController implements ReactiveController {
     const s = this.#attached;
     if (!s) return;
     s.style.setProperty('--_max-x', `${String(Math.max(0, s.scrollWidth - s.clientWidth))}px`);
+    // Detail panels span the visible width, whatever the columns' (sticky at the start).
+    s.style.setProperty('--_view-w', `${String(s.clientWidth)}px`);
     // The edge shadows sit over the scroller, clear of its scrollbars.
     for (const shadow of s.parentNode?.querySelectorAll<HTMLElement>(':scope > .pin-shadow') ??
       []) {

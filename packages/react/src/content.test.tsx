@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, test } from 'vitest';
-import { act, createContext, useContext, useLayoutEffect, type ReactElement } from 'react';
+import {
+  act,
+  createContext,
+  useContext,
+  useLayoutEffect,
+  useState,
+  type ReactElement,
+} from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { cellEditing } from '@argus-table/editing';
 import {
@@ -381,5 +388,93 @@ describe('React content in pinned rows and custom editors', () => {
     await settle(el);
     expect(edited).toEqual([3]);
     expect(el.querySelector('button.three')).toBeNull();
+  });
+});
+
+/** A scroller of a table, to scroll it by hand. */
+async function scrollBody(el: ArgusTableElement, top: number) {
+  const scroller = el.shadowRoot?.querySelector<HTMLElement>('[part~="table"]');
+  if (!scroller) throw new Error('no scroller');
+  const scrolled = new Promise((resolve) => {
+    scroller.addEventListener('scroll', resolve, { once: true });
+  });
+  scroller.scrollTop = top;
+  await scrolled;
+  await settle(el);
+}
+
+function Counter() {
+  const [count, setCount] = useState(0);
+  return (
+    <button
+      type="button"
+      className="counter"
+      onClick={() => {
+        setCount(count + 1);
+      }}
+    >
+      {count}
+    </button>
+  );
+}
+
+describe('React content in detail panels', () => {
+  const columns: ReactColumnDef<Order>[] = [
+    { id: 'customer', header: 'Customer', accessor: 'customer' },
+  ];
+  const rowIdOf = (order: Order) => order.id;
+  const detail = () => <Counter />;
+
+  test('renders rowDetail content and keeps its state across scrolling', async () => {
+    const el = await mount(
+      <ArgusTable<Order>
+        style={size}
+        columns={columns}
+        data={orders(300)}
+        getRowId={rowIdOf}
+        rowDetail={detail}
+        expanded={['o2']}
+      />,
+    );
+    const counter = () => el.querySelector<HTMLButtonElement>('button.counter');
+    act(() => {
+      counter()?.click();
+    });
+    act(() => {
+      counter()?.click();
+    });
+    expect(counter()?.textContent).toBe('2');
+    await scrollBody(el, 4000);
+    await scrollBody(el, 0);
+    expect(counter()?.textContent).toBe('2');
+  });
+
+  test('binds expanded two-way', async () => {
+    const seen: (readonly string[])[] = [];
+    function Table() {
+      const [expanded, setExpanded] = useState<readonly string[]>([]);
+      return (
+        <ArgusTable<Order>
+          style={size}
+          columns={columns}
+          data={orders(20)}
+          getRowId={rowIdOf}
+          rowDetail={detail}
+          expanded={expanded}
+          onExpandedChange={(event) => {
+            seen.push(event.detail.expanded);
+            setExpanded(event.detail.expanded);
+          }}
+        />
+      );
+    }
+    const el = await mount(<Table />);
+    act(() => {
+      el.shadowRoot?.querySelector<HTMLButtonElement>('[part~="expand-toggle"]')?.click();
+    });
+    await settle(el);
+    expect(seen).toEqual([['o0']]);
+    expect(el.expanded).toEqual(['o0']);
+    expect(el.querySelector('button.counter')).not.toBeNull();
   });
 });

@@ -97,6 +97,31 @@ export const baseStyles = css`
       inset-block-start: 0;
       inset-inline-start: 0;
     }
+    /*
+     * A detail panel's row: one cell over the visible width, as tall as its content
+     * up to --argus-detail-max-height (then its content scrolls), and at least a row.
+     */
+    /* An idle pool slot: kept for its slots, but out of the way (its display would win over hidden's). */
+    [part~='body'] > .row[hidden] {
+      display: none;
+    }
+    [part~='body'] > .detail-row {
+      display: block;
+      block-size: auto;
+      min-block-size: var(--_row-height);
+    }
+    [part~='detail'] {
+      position: sticky;
+      inset-inline-start: 0;
+      box-sizing: border-box;
+      inline-size: var(--_view-w, 100%);
+      min-block-size: var(--_row-height);
+      max-block-size: var(--argus-detail-max-height, 400px);
+      overflow: auto;
+      padding: var(--_pad);
+      background: var(--argus-bg, Canvas);
+      border-block-end: var(--_border);
+    }
     [part~='row'] {
       --_row-bg: var(--argus-bg, Canvas);
       --_row-surface: var(--_row-bg);
@@ -164,6 +189,38 @@ export const baseStyles = css`
     [part~='selection-checkbox'] {
       margin: 0;
       cursor: pointer;
+    }
+    /* The toggle column of detail panels: a chevron, centred. */
+    [part~='cell-expand'],
+    [part~='header-cell-expand'] {
+      justify-content: center;
+      padding-inline: 0;
+    }
+    [part~='expand-toggle'] {
+      display: grid;
+      place-items: center;
+      inline-size: 1.75em;
+      block-size: 1.75em;
+      margin: 0;
+      padding: 0;
+      border: none;
+      border-radius: 4px;
+      background: none;
+      color: inherit;
+      font: inherit;
+      cursor: pointer;
+    }
+    /* Pointing toward the inline end while closed (mirrored in RTL), down while open. */
+    [part~='expand-toggle']::before {
+      content: '';
+      inline-size: 0.4em;
+      block-size: 0.4em;
+      border-right: 0.12em solid currentColor;
+      border-bottom: 0.12em solid currentColor;
+      transform: translateX(calc(-0.1em * var(--_dir, 1))) rotate(calc(-45deg * var(--_dir, 1)));
+    }
+    [part~='expand-toggle'][aria-expanded='true']::before {
+      transform: translateY(-0.1em) rotate(45deg);
     }
     [part~='header-cell'] {
       background: var(--argus-header-bg, light-dark(#f9fafb, #111827));

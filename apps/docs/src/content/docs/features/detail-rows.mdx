@@ -1,0 +1,52 @@
+---
+title: Detail rows
+description: Open a panel under a row with more about it, a form or a nested table.
+since: '1.4'
+---
+
+import FlavourTabs from '../../../components/FlavourTabs.astro';
+import ReactBasic from '../../../examples/detail-rows/basic/react/BasicDetail.tsx';
+import VueBasic from '../../../examples/detail-rows/basic/vue/BasicDetail.vue';
+import { BasicDetailComponent } from '../../../examples/detail-rows/basic/angular/basic-detail.component.ts';
+import ReactForm from '../../../examples/detail-rows/form/react/FormDetail.tsx';
+import VueForm from '../../../examples/detail-rows/form/vue/FormDetail.vue';
+import { FormDetailComponent } from '../../../examples/detail-rows/form/angular/form-detail.component.ts';
+import ReactNested from '../../../examples/detail-rows/nested-table/react/NestedTable.tsx';
+import VueNested from '../../../examples/detail-rows/nested-table/vue/NestedTable.vue';
+import { NestedTableComponent } from '../../../examples/detail-rows/nested-table/angular/nested-table.component.ts';
+
+`rowDetail` gives rows a panel under them. Setting it adds a column of chevrons; a chevron opens its row's panel, which shows what `rowDetail` returns for the row: `{ row, rowId, index }` comes in, and anything a cell can show goes out (text, DOM nodes, Lit templates, and React, Vue or Angular content through the wrappers: a `#detail` slot in Vue, `<ng-template argusDetail>` in Angular). Several panels can be open at once. Which ones is `expanded`, a list of row ids, so give the table a `getRowId`; it binds two-way like `selection`, and `argus-expanded-change` reports each change.
+
+<FlavourTabs example="detail-rows/basic">
+  <ReactBasic slot="react" client:visible />
+  <VueBasic slot="vue" client:visible />
+  <BasicDetailComponent slot="angular" client:visible />
+</FlavourTabs>
+
+A panel spans the table's visible width and stays in place when the table scrolls sideways. It's as tall as its content, up to `--argus-detail-max-height` (400 px), and its content scrolls past that. Style it through the `detail` part: `argus-table::part(detail) { background: …; padding: … }`. `rowExpandable` picks the rows that can have one: `(row) => row.items.length > 0`. Public indexes don't count panels: `scrollToRow(index)`, the click events' `index` and `argus-range-change` keep counting rows.
+
+## Forms in a panel
+
+Panels hold content people work in. From the keyboard, Down arrow goes from a row onto its panel, Enter (or F2) into the panel's content, and Escape back to the panel. Keys typed in the panel are its content's, and clicks in it fire no row or cell clicks and select nothing. What was typed stays while the panel scrolls out of view and back.
+
+<FlavourTabs example="detail-rows/form">
+  <ReactForm slot="react" client:visible />
+  <VueForm slot="vue" client:visible />
+  <FormDetailComponent slot="angular" client:visible />
+</FlavourTabs>
+
+`rowDetail` runs whenever a panel in view renders again, like a column's `cell`. A template, JSX, a slot or an Angular template updates in place. A function that creates a DOM node would replace the node, and what was typed in it, each time: keep such nodes per row id, as the HTML flavour does.
+
+## A nested table
+
+A panel can hold another table: here, the order's lines. Give it `block-size: auto` and a `max-block-size`: it's as tall as its rows, and past that it scrolls inside the panel. Its sorting, keys and clicks are its own. When its panel scrolls out of view and back, the nested table keeps its sorting and data but starts at its top again, as an element taken out of the page does.
+
+<FlavourTabs example="detail-rows/nested-table">
+  <ReactNested slot="react" client:visible />
+  <VueNested slot="vue" client:visible />
+  <NestedTableComponent slot="angular" client:visible />
+</FlavourTabs>
+
+## One panel at a time
+
+With `expanded` set by the app, a chevron only proposes the change: set `expanded` to `[detail.rowId]` when `detail.open` is `true`, and to `[]` otherwise, and one panel is open at a time.

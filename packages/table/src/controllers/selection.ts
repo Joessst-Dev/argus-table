@@ -12,7 +12,7 @@ import {
   type TableModel,
 } from '@argus-table/core';
 import { SELECTION_CHANGE } from '../events.js';
-import { gridCell, gridRowOf, layoutOf } from '../grid.js';
+import { dataIndexOf, gridCell, gridRowOf, layoutOf } from '../grid.js';
 import { fromInteractive } from '../interactive.js';
 import type { SelectedAt } from '../render/body.js';
 import type { CheckboxHandlers } from '../render/content.js';
@@ -254,15 +254,21 @@ export class SelectionController<T> {
    * content in a cell (a button, a link, an input).
    */
   #rowOf(path: readonly EventTarget[]): SelectionTarget | undefined {
+    // This table's row: a nested table's (in a cell or a panel) is skipped.
     const row = path.find(
-      (t): t is HTMLElement => t instanceof HTMLElement && t.getAttribute('role') === 'row',
+      (t): t is HTMLElement =>
+        t instanceof HTMLElement &&
+        t.getAttribute('role') === 'row' &&
+        t.getRootNode() === this.#host.renderRoot,
     );
     if (!row || fromInteractive(path, row)) return undefined;
     const model = this.#model();
     const at = gridRowOf(row, layoutOf(model));
     if (at?.section !== 'body') return undefined;
-    const id = model.rowAt(at.index)?.id;
-    return id === undefined ? undefined : { id, index: at.index };
+    // A panel's row selects nothing.
+    const index = dataIndexOf(model, at.index);
+    const id = index === undefined ? undefined : model.rowAt(index)?.id;
+    return id === undefined || index === undefined ? undefined : { id, index };
   }
 
   /** The anchor row and where it is now; `undefined` if it isn't in the rows (or not loaded). */

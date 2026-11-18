@@ -11,6 +11,7 @@ import { styleMap } from 'lit/directives/style-map.js';
 import {
   alignOffset,
   controllable,
+  EXPAND_COLUMN_ID,
   RowLayout,
   SELECTION_COLUMN_ID,
   type ColumnView,
@@ -19,6 +20,7 @@ import {
   type TableModel,
 } from '@argus-table/core';
 import { announce } from './announce.js';
+import { firstFocusable } from './focusable.js';
 import { AutoWidths, measureColumns } from './controllers/auto-width.js';
 import { ColumnChildrenController } from './controllers/column-children.js';
 import { ColumnWindowController, type RenderedColumn } from './controllers/column-window.js';
@@ -42,6 +44,7 @@ import {
   COLUMN_RESIZE_END,
   COLUMN_SIZING_CHANGE,
   COLUMN_VISIBILITY_CHANGE,
+  EXPANDED_CHANGE,
   fire,
   LOAD_ERROR,
   RANGE_CHANGE,
@@ -51,8 +54,17 @@ import {
 } from './events.js';
 import { resolveLabels, type TableLabels } from './labels.js';
 import { bodyCap, watchMaxElementHeight } from './max-height.js';
-import { renderBody, type ActiveCell, type Loading } from './render/body.js';
+import {
+  detailRowId,
+  PANEL_COLUMN,
+  renderBody,
+  type ActiveCell,
+  type Loading,
+  type RowToggles,
+} from './render/body.js';
 import { renderLightDom } from './render/cells.js';
+import { detailSlot } from './render/content.js';
+import { DetailContent, type RenderedPanel } from './render/detail-content.js';
 import { content, flushContent, type ContentRenderer } from './render/content-directive.js';
 import { renderHeader } from './render/header.js';
 import { headerText } from './render/header-text.js';
@@ -61,6 +73,7 @@ import type { ArgusPlugin, CellTarget, ColumnInfo, PluginHost, RowSection } from
 import { baseStyles } from './styles/base.js';
 import { rowHeightConverter, switchConverter } from './attributes.js';
 import {
+  dataIndexOf,
   directionOf,
   gridCell,
   groupCellOf,
@@ -68,8 +81,11 @@ import {
   gridRowOfCell,
   groupCell,
   layoutOf,
+  panelRowId,
   pinnedWidth,
   pinShadow,
+  positionOfIndex,
+  rowIdOfPanel,
   sortColumnOf,
   track,
 } from './grid.js';
@@ -86,7 +102,9 @@ import type {
   ColumnVisibilityState,
   DataSource,
   Density,
+  ExpandedState,
   PinnedRows,
+  RowDetailContext,
   RowTarget,
   ScrollAlign,
   ScrollToColumnOptions,
@@ -137,6 +155,7 @@ function attachGridInternals(host: HTMLElement): ElementInternals {
  * @fires {CustomEvent<ColumnVisibilityChangeDetail>} argus-column-visibility-change - `columnVisibility` changed: a column was hidden or shown, through a plugin such as the column menu. `detail: { columnVisibility, columnId, visible }`: `visible` is `false` when it was hidden. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it.
  * @fires {CustomEvent<ColumnFiltersChangeDetail>} argus-column-filters-change - `columnFilters` changed: a column's filter was set, changed or cleared, through a plugin such as the column menu. `detail: { columnFilters, columnId, columnFilter }`: `columnFilter` is the column's new filter, or `undefined` when it was cleared. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it.
  * @fires {CustomEvent<SelectionChangeDetail>} argus-selection-change - `selection` changed: by a click on a row (Ctrl/Cmd toggles, Shift selects a range), with Space, Shift+Arrow or Shift+PageUp/PageDown on a body cell, or with Ctrl/Cmd+A. Only with a `selectionMode`. `detail: { selection }`. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it.
+ * @fires {CustomEvent<ExpandedChangeDetail>} argus-expanded-change - `expanded` changed: a row's detail panel was opened or closed with its chevron (a click, or Enter or Space on the chevron cell). Only with `rowDetail`. `detail: { expanded, rowId, open }`: `open` is `true` when it was opened. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it.
  * @fires {CustomEvent<CellClickDetail<T>>} argus-cell-click - A body or pinned-row cell was clicked, or Enter was pressed on it. `detail: { row, rowId, index, columnId, value, pinned? }`; `pinned` is `'top'` or `'bottom'` for a pinned row, and `index` is then its index in its list. Fires before `argus-row-click`.
  * @fires {CustomEvent<RowClickDetail<T>>} argus-row-click - A body or pinned row was clicked, or Enter was pressed on one of its cells. `detail: { row, rowId, index, pinned? }`; for a pinned row, `index` is its index in its list.
  * @fires {CustomEvent<RangeChangeDetail>} argus-range-change - The rows in view changed (rows rendered ahead of the scroll position not counted). `detail: { first, last }` (row indices in the current order, both inclusive).
@@ -173,6 +192,12 @@ function attachGridInternals(host: HTMLElement): ElementInternals {
  * @csspart cell-selection - Added to `cell` in the checkbox column (`selectionCheckboxes`), pinned rows included.
  * @csspart header-cell-selection - Added to `header-cell` on the checkbox column's header.
  * @csspart selection-checkbox - The checkboxes of the checkbox column: one per selectable row, and the select-all one in the header (`multi` mode).
+ * @csspart row-detail - The row of a detail panel (`rowDetail`), under the row it belongs to. Also has no `row` part.
+ * @csspart detail - A detail panel's one cell: it spans the visible width (it stays in place when the table scrolls sideways), is as tall as its content up to `--argus-detail-max-height`, and scrolls past that.
+ * @csspart row-expanded - Added to `row` on a body row whose detail panel is open (`rowDetail`).
+ * @csspart cell-expand - Added to `cell` in the toggle column of detail panels (`rowDetail`), pinned rows included.
+ * @csspart header-cell-expand - Added to `header-cell` on the toggle column's header: an empty cell (`role="gridcell"`, as an empty column header has no name to read).
+ * @csspart expand-toggle - The chevron button that opens and closes a row's detail panel. It is drawn with borders in `currentColor` (`::before`) and has `aria-expanded`.
  * @csspart row-pinned - Every row from `pinnedRows`, on either side. Also has `row`, but no `row-even`/`row-odd`.
  * @csspart row-pinned-top - The rows pinned below the header.
  * @csspart row-pinned-bottom - The rows pinned to the bottom.
@@ -207,6 +232,7 @@ function attachGridInternals(host: HTMLElement): ElementInternals {
  * @cssprop [--argus-row-hover-bg] - Background of the hovered row. Default: no change.
  * @cssprop [--argus-row-pinned-bg=var(--argus-bg)] - Background of the pinned rows, pinned columns included.
  * @cssprop [--argus-skeleton-bg] - Colour of the skeleton bars in rows still loading. Default: the text colour at low opacity.
+ * @cssprop [--argus-detail-max-height=400px] - The tallest a detail panel (`rowDetail`) is; its content scrolls past it. Style the panel itself (background, padding) through the `detail` part.
  * @cssprop [--argus-row-selected-bg] - Background of selected rows, pinned columns included. Default: the system highlight colour, mixed into `--argus-bg`. It wins over `--argus-row-hover-bg`.
  */
 @customElement('argus-table')
@@ -470,6 +496,44 @@ export class ArgusTable<T = unknown> extends LitElement {
   }
 
   /**
+   * A detail panel for body rows, under the row: a function that gets
+   * `{ row, rowId, index }` and returns its content, like a column's `cell`
+   * (a Lit template, a DOM node, text; React, Vue or Angular content through
+   * the wrappers). Setting it adds a column of chevrons that open and close the
+   * panels (`expanded`). A panel spans the visible width, is as tall as its
+   * content up to `--argus-detail-max-height` (past that it scrolls), and works
+   * with the keyboard: Down arrow onto it, Enter or F2 into its content, Escape
+   * back out. It runs on every update of a panel in view, so return a template
+   * or framework content rather than a new DOM node each time. Property only.
+   * Panels aren't available on `pinnedRows`.
+   */
+  @property({ attribute: false })
+  rowDetail?: (context: RowDetailContext<T>) => CellContent;
+
+  /**
+   * Which rows can open a detail panel (`rowDetail`): those it returns `true`
+   * for. Others get no chevron. Default: every row. Property only.
+   */
+  @property({ attribute: false })
+  rowExpandable?: (row: T) => boolean;
+
+  /**
+   * The rows whose detail panel is open, as row ids (`getRowId`'s, or the row's
+   * index as a string), e.g. `['o1041']`. Several can be open. Uncontrolled
+   * until set, like `sorting`: once set, a chevron only fires
+   * `argus-expanded-change` with the proposed ids. `undefined` hands it back.
+   * Ids stay through sorting, filtering and a new `data`; a row that's filtered
+   * out, not loaded yet or not expandable shows no panel until it can.
+   */
+  @property({ attribute: false })
+  get expanded(): ExpandedState {
+    return this.#expanded.value;
+  }
+  set expanded(value: ExpandedState | undefined) {
+    this.#expanded.set(value);
+  }
+
+  /**
    * Renders header and cell content the table can't render itself, such as React
    * elements, Vue VNodes or Angular templates: `{ render(target, content),
    * release(target), flush?() }`. A `header` or `cell` that returns anything other
@@ -536,6 +600,7 @@ export class ArgusTable<T = unknown> extends LitElement {
   readonly #pinning = controllable<ColumnPinningState>({});
   readonly #visibility = controllable<ColumnVisibilityState>({});
   readonly #filters = controllable<ColumnFilterState>({});
+  readonly #expanded = controllable<ExpandedState>([]);
   #quickFilter = '';
   /** Announce the row count after the update: the filters changed. */
   #announceRows = false;
@@ -563,6 +628,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     COLUMN_FILTERS_CHANGE,
     SORTING_CHANGE,
     SELECTION_CHANGE,
+    EXPANDED_CHANGE,
   ]);
   readonly #select = new SelectionController<T>(
     this,
@@ -602,7 +668,9 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.#nav.moveTo(layoutOf(model).leafHeader, columnId);
     },
     focusCell: (index, columnId, section = 'body') => {
-      this.#nav.moveTo({ section, index }, columnId);
+      const model = this.#table.model;
+      const at = section === 'body' ? positionOfIndex(model, index) : index;
+      this.#nav.moveTo({ section, index: at }, columnId);
     },
     announce: (message) => {
       announce(this.ownerDocument, message);
@@ -665,6 +733,8 @@ export class ArgusTable<T = unknown> extends LitElement {
   #contentEnd: Comment | undefined;
   /** The light-DOM part: disconnected with the table, so foreign content is released. */
   #lightPart: RootPart | undefined;
+  /** The detail panels' content, kept per row while open (`rowDetail`). */
+  readonly #detail = new DetailContent<T>(this);
   #lightConnected = true;
   readonly #data = new DataController<T>(this);
   /** Scroll back to the top after the update (a new sort order for a data source). */
@@ -688,15 +758,24 @@ export class ArgusTable<T = unknown> extends LitElement {
   /** Rows of different heights: reads the rendered rows (`rowHeight: 'auto'` only). */
   readonly #rowMeasure = new RowMeasure(this, {
     bodyIndex: (row) => {
-      const at = gridRowOf(row, layoutOf(this.#table.model));
-      return at?.section === 'body' && this.#data.stateAt(at.index) === 'loaded'
+      const model = this.#table.model;
+      const at = gridRowOf(row, layoutOf(model));
+      if (at?.section !== 'body') return undefined;
+      const shown = model.display.at(at.index);
+      // Panels always; data rows only with `rowHeight: 'auto'`, once loaded.
+      if (shown?.kind === 'detail') return at.index;
+      return shown && this.rowHeight === 'auto' && this.#data.stateAt(shown.index) === 'loaded'
         ? at.index
         : undefined;
     },
     sizeOf: (index) => this.#virtual.sizeOf(index),
     minimum: () => this.#rowPx,
   });
-  #window: VirtualWindow = { rows: [], totalSize: 0, range: null };
+  #window: VirtualWindow = { rows: [], details: [], totalSize: 0, range: null };
+  /** Rows of different heights are measured: every row (`rowHeight: 'auto'`), or open panels. */
+  #measuring = false;
+  /** The row order and displayed rows last given to the virtualizer. */
+  #laidOut: { order: object; display: object; token: object } | undefined;
   /** The active cell, its focus and the keys that move it. */
   readonly #nav = new NavigationController<T>(
     this,
@@ -707,6 +786,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       rowPx: () => this.#rowPx,
       aroundPx: (layout) => this.#headerAndPinnedPx(layout),
       insets: (layout) => this.#bodyInsets(layout),
+      measured: () => this.#measuring,
     },
   );
   /** Column widths: resize handles, Alt+Arrow and fits. */
@@ -763,6 +843,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     if (!this.#lightPart || this.#lightConnected === connected) return;
     this.#lightConnected = connected;
     this.#lightPart.setConnected(connected);
+    this.#detail.setConnected(connected);
     flushContent(this);
   }
 
@@ -884,15 +965,16 @@ export class ArgusTable<T = unknown> extends LitElement {
     for (let i = 0; i < 5; i++) {
       await new Promise(requestAnimationFrame);
       await this.#settled();
-      if (align === 'start' || this.rowHeight !== 'auto' || !this.#scrollRowTo(index, align)) break;
+      if (align === 'start' || !this.#measuring || !this.#scrollRowTo(index, align)) break;
     }
     return index < this.#table.model.rowCount;
   }
 
   /** Scrolls row `index` to `align` in the body. Returns whether it moved. */
   #scrollRowTo(index: number, align: ScrollAlign): boolean {
-    const { before, after } = this.#bodyInsets(layoutOf(this.#table.model));
-    return this.#virtual.scrollToIndex(index, align, before, after);
+    const model = this.#table.model;
+    const { before, after } = this.#bodyInsets(layoutOf(model));
+    return this.#virtual.scrollToIndex(positionOfIndex(model, index), align, before, after);
   }
 
   /** The rows in the scroller above the body (header, top pinned rows) and below it, in px. */
@@ -966,7 +1048,7 @@ export class ArgusTable<T = unknown> extends LitElement {
    */
   async #settled(): Promise<void> {
     let done = await this.updateComplete;
-    for (let i = 0; i < 8 && !done && this.rowHeight === 'auto'; i++) {
+    for (let i = 0; i < 8 && !done && this.#measuring; i++) {
       done = await this.updateComplete;
     }
   }
@@ -974,7 +1056,7 @@ export class ArgusTable<T = unknown> extends LitElement {
   /**
    * The state users change, as one object of plain JSON for saving a user's
    * layout: `sorting`, `columnSizing`, `columnOrder`, `columnPinning`,
-   * `columnVisibility`, `columnFilters`, `selection`, `quickFilter`, and `scroll`
+   * `columnVisibility`, `columnFilters`, `selection`, `expanded`, `quickFilter`, and `scroll`
    * (the row at the top and the inline offset), with `version: 1`. Controlled properties are
    * included with the values you set. The object is a copy: changing it changes
    * nothing in the table.
@@ -990,9 +1072,14 @@ export class ArgusTable<T = unknown> extends LitElement {
       columnVisibility: this.#visibility.value,
       columnFilters: this.#filters.value,
       selection: this.#select.state.value,
+      expanded: this.#expanded.value,
       quickFilter: this.#quickFilter,
       // Negative in RTL.
-      scroll: { row: this.#virtual.topRow, inline: Math.abs(scroller?.scrollLeft ?? 0) },
+      scroll: {
+        // The data row at the top (a panel there counts as its row).
+        row: this.#table.model.display.at(this.#virtual.topRow)?.index ?? 0,
+        inline: Math.abs(scroller?.scrollLeft ?? 0),
+      },
     });
   }
 
@@ -1017,12 +1104,13 @@ export class ArgusTable<T = unknown> extends LitElement {
     this.#restore('columnFilters', this.#filters, state.columnFilters);
     // A Shift range starts over from the restored selection.
     if (this.#restore('selection', this.#select.state, state.selection)) this.#select.restored();
+    this.#restore('expanded', this.#expanded, state.expanded);
     if (state.quickFilter !== undefined) this.quickFilter = state.quickFilter;
     this.#scrollTarget = undefined;
     await this.updateComplete;
     const { scroll } = state;
     if (!scroll) return;
-    this.#virtual.scrollToIndex(scroll.row);
+    this.#virtual.scrollToIndex(positionOfIndex(this.#table.model, scroll.row));
     // A data source counts one page past its loaded rows until it knows the
     // total: scroll on as the count grows.
     const count = this.#table.model.rowCount;
@@ -1108,7 +1196,10 @@ export class ArgusTable<T = unknown> extends LitElement {
       changed.has('columnVisibility') ||
       changed.has('columnFilters') ||
       changed.has('quickFilter') ||
-      changed.has('pinnedRows')
+      changed.has('pinnedRows') ||
+      changed.has('rowDetail') ||
+      changed.has('rowExpandable') ||
+      changed.has('expanded')
     ) {
       if (this.#columnsChanged) {
         this.#autoWidths.sync(columns.filter((c) => c.width === 'auto').map((c) => c.id));
@@ -1126,6 +1217,9 @@ export class ArgusTable<T = unknown> extends LitElement {
         columnFilters: this.#filters.value,
         quickFilter: this.#quickFilter,
         pinnedRows: this.pinnedRows,
+        detail: this.rowDetail !== undefined,
+        expanded: this.#expanded.value,
+        rowExpandable: this.rowExpandable,
       });
     }
     // A new page cache (new source, sort order or refresh) or none, new measured
@@ -1152,16 +1246,46 @@ export class ArgusTable<T = unknown> extends LitElement {
     // The header and pinned rows scroll with the body.
     const extra = this.#headerAndPinnedPx(layout);
     const auto = this.rowHeight === 'auto';
-    if (!auto) this.#rowMeasure.stop();
+    // Body positions: data rows and open panels (`display`); public indexes are data indexes.
+    const display = model.display;
+    const measuring = auto || display.open.length > 0;
+    this.#measuring = measuring;
+    if (!measuring) this.#rowMeasure.stop();
     // Anything but a scroll may change what rows hold (data, columns, widths).
     else if (changed.size > 0 || this.#columnsChanged) this.#rowMeasure.invalidate();
+    const laidOut = this.#laidOut;
+    // Only panels opened or closed: the row at the top keeps its place.
+    const keepTop = laidOut?.order === model.rowOrder && laidOut.display !== display;
+    const token =
+      laidOut?.order === model.rowOrder && laidOut.display === display ? laidOut.token : {};
+    this.#laidOut = { order: model.rowOrder, display, token };
+    const rowIdAt = (index: number): string => {
+      const shown = display.at(index);
+      if (!shown) return String(index);
+      const id = this.#nav.rowId(model, shown.index);
+      return shown.kind === 'data' ? id : panelRowId(id);
+    };
+    const positionOf = (id: string): number | undefined => {
+      const owner = rowIdOfPanel(id);
+      const index = model.indexOf(owner ?? id);
+      if (index === undefined) return undefined;
+      return owner === undefined ? display.positionOf(index) : display.detailPositionOf(index);
+    };
     this.#virtual.configure({
-      count: model.rowCount,
+      count: display.count,
       rowHeight: this.#rowPx,
       cap: (logical) => bodyCap(logical, extra),
-      auto: auto ? { order: model.rowOrder, indexOf: (id) => model.indexOf(id) } : undefined,
+      measure: measuring ? { order: token, indexOf: positionOf, all: auto } : undefined,
+      details: this.rowDetail
+        ? {
+            isDetail: (index) => display.at(index)?.kind === 'detail',
+            dataIndexAt: (index) => display.at(index)?.index ?? -1,
+            positionOf,
+          }
+        : undefined,
+      keepTop,
       overscan: Math.max(0, this.overscan),
-      rowIdAt: (index) => this.#nav.rowId(model, index),
+      rowIdAt,
       // The active body row stays rendered, so the tab stop and focus survive scrolling.
       keep:
         active?.section !== 'body' || active.rowId === undefined
@@ -1257,6 +1381,10 @@ export class ArgusTable<T = unknown> extends LitElement {
                   ? { ...this.#select.handlers, label: labels.selectRow }
                   : undefined,
                 auto,
+                this.rowDetail ? this.#toggles(model) : undefined,
+                this.rowDetail
+                  ? { rows: this.#window.details, colspan: columns.length }
+                  : undefined,
               )
         }
         ${renderPinnedRows('bottom', layout.bottom, rendered, firstIndex('bottom'), activeIn('bottom'))}
@@ -1279,15 +1407,17 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.#rendered,
       model.headerGroups,
       this.#lightDomEnd(),
+      this.#window.details,
     );
     // A new marker starts a new part (the old one was removed): its content is gone.
     if (this.#lightPart && this.#lightPart !== part) this.#lightPart.setConnected(false);
     this.#lightPart = part;
+    this.#syncDetails(model);
     // Foreign content is committed before anything measures it.
     flushContent(this);
     this.#measureAutoWidths(model);
     // Rows of different heights: placed by the update this requests.
-    const resized = this.rowHeight === 'auto' && this.#measureRows();
+    const resized = this.#measuring && this.#measureRows();
     if (this.#scrollToTop) {
       this.#scrollToTop = false;
       const scroller = this.#scroller();
@@ -1303,7 +1433,9 @@ export class ArgusTable<T = unknown> extends LitElement {
       changed.has('columnPinning') ||
       changed.has('columnVisibility') ||
       this.#autoWidthsChanged ||
-      this.#selectionColumnChanged
+      this.#selectionColumnChanged ||
+      // The toggle column comes or goes with it.
+      changed.has('rowDetail')
     ) {
       this.#pinScroll.measure();
     }
@@ -1317,17 +1449,48 @@ export class ArgusTable<T = unknown> extends LitElement {
     }
     this.#events.flush();
     const { range } = this.#window;
-    const key = range ? `${String(range.start)}:${String(range.end)}` : '';
-    if (range && key !== this.#lastRange) {
+    const display = model.display;
+    // Positions to data rows: panels in view don't count.
+    const rows = range && display.dataRange(range.start, range.end);
+    const key = rows ? `${String(rows.first)}:${String(rows.last)}` : '';
+    if (rows && key !== this.#lastRange) {
       this.#lastRange = key;
-      fire(this, RANGE_CHANGE, { first: range.start, last: range.end });
+      fire(this, RANGE_CHANGE, rows);
     }
     if (range) {
-      // The rendered rows: visible plus overscan, end exclusive.
+      // The rendered rows: visible plus overscan.
       const over = Math.max(0, this.overscan);
-      this.#data.request(Math.max(0, range.start - over), range.end + 1 + over);
+      const load = display.dataRange(range.start - over, range.end + over);
+      if (load) this.#data.request(load.first, load.last + 1);
     }
     for (const detail of this.#data.takeErrors()) fire(this, LOAD_ERROR, detail);
+  }
+
+  /**
+   * Renders the detail panels in the window into their slot elements, and releases
+   * the content of panels that closed or whose row can't show one any more.
+   */
+  #syncDetails(model: TableModel<T, CellContent>): void {
+    const { display } = model;
+    // Asked per kept panel only: walking every open one each update costs at scale.
+    const isOpen = (id: string) => {
+      const index = model.indexOf(id);
+      return index !== undefined && display.hasDetail(index);
+    };
+    const rendered: RenderedPanel<T>[] = [];
+    for (const panel of this.#window.details) {
+      const row = panel.idle ? undefined : model.rowAt(panel.row);
+      const slotElement = row
+        ? this.querySelector<HTMLElement>(`:scope > [slot="${detailSlot(panel.slot)}"]`)
+        : null;
+      if (!row || !slotElement) continue;
+      rendered.push({
+        rowId: row.id,
+        slotElement,
+        context: { row: row.original, rowId: row.id, index: panel.row },
+      });
+    }
+    this.#detail.sync(this.rowDetail, isOpen, rendered);
   }
 
   /**
@@ -1357,7 +1520,7 @@ export class ArgusTable<T = unknown> extends LitElement {
    * renders once more.
    */
   #measureAutoWidths(model: TableModel<T, CellContent>): void {
-    const loaded = this.#window.rows.some((r) => model.rowAt(r.index) !== undefined);
+    const loaded = this.#window.rows.some((r) => !r.idle && model.rowAt(r.row) !== undefined);
     if (!loaded && model.rowCount > 0) return;
     if (this.#autoWidths.measure(this.renderRoot, model.columns, loaded)) this.requestUpdate();
   }
@@ -1370,9 +1533,11 @@ export class ArgusTable<T = unknown> extends LitElement {
     const cache = this.#data.rows;
     if (!cache) return undefined;
     const labels = this.#labels;
-    const top = this.#window.range?.start ?? 0;
+    const { range } = this.#window;
+    const top = (range && this.#table.model.display.dataRange(range.start, range.end)?.first) ?? 0;
     const firstByPage = new Map<number, number>();
-    for (const { index } of this.#window.rows) {
+    for (const { row: index, idle } of this.#window.rows) {
+      if (idle) continue;
       if (index < top || cache.stateAt(index) !== 'error') continue;
       const page = cache.pageOf(index);
       const first = firstByPage.get(page);
@@ -1423,9 +1588,16 @@ export class ArgusTable<T = unknown> extends LitElement {
    * Keys from content inside a cell (an input, a button) are left to that content.
    */
   readonly #onKeydown = (event: KeyboardEvent) => {
-    const origin = event.composedPath()[0] ?? event.target ?? this;
-    const group = groupCell(origin);
-    const cell = gridCell(origin) ?? group;
+    const path = event.composedPath();
+    const origin = path[0] ?? event.target ?? this;
+    const root = this.renderRoot;
+    if (event.key === 'Escape' && !event.defaultPrevented && this.#panelBack(path, origin)) {
+      event.preventDefault();
+      return;
+    }
+    // Only this table's cells: keys from content (a nested table's cells too) are the content's.
+    const group = groupCell(origin, root);
+    const cell = gridCell(origin, root) ?? group;
     const id = cell?.dataset.col;
     if (!cell || (id === undefined && !group)) return;
     const scroller = event.currentTarget as HTMLElement;
@@ -1449,7 +1621,32 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.#groupKey(event, cell, scroller);
       return;
     }
-    const pluginTarget = id === SELECTION_COLUMN_ID ? undefined : this.#cellTarget(event);
+    if (id === PANEL_COLUMN) {
+      // A detail panel's cell: Enter or F2 goes into its content; arrows move between rows.
+      if (event.key === 'Enter' || event.key === 'F2') {
+        const content = cell.querySelector('slot')?.assignedElements() ?? [];
+        const target = firstFocusable(content);
+        if (target) {
+          event.preventDefault();
+          target.focus();
+        }
+        return;
+      }
+      this.#nav.key(event, cell, id, false, scroller);
+      return;
+    }
+    if (id === EXPAND_COLUMN_ID && (event.key === 'Enter' || event.key === ' ')) {
+      // Enter or Space on a chevron cell opens or closes its row's panel.
+      const model = this.#table.model;
+      const at = gridRowOfCell(cell, layoutOf(model));
+      const index = at?.section === 'body' ? dataIndexOf(model, at.index) : undefined;
+      if (index === undefined) return;
+      event.preventDefault();
+      this.#toggle(index);
+      return;
+    }
+    const pluginTarget =
+      id === SELECTION_COLUMN_ID || id === EXPAND_COLUMN_ID ? undefined : this.#cellTarget(event);
     if (pluginTarget && this.#plugins.keydown(event, pluginTarget)) return;
     const inHeader = cell.getAttribute('role') === 'columnheader';
     const { key } = event;
@@ -1480,8 +1677,10 @@ export class ArgusTable<T = unknown> extends LitElement {
       const from = gridRowOfCell(cell, layoutOf(this.#table.model));
       if (!from) return;
       event.preventDefault();
-      if (from.section === 'body' && this.#data.stateAt(from.index) === 'error') {
-        this.#data.retry(from.index);
+      const failed =
+        from.section === 'body' ? dataIndexOf(this.#table.model, from.index) : undefined;
+      if (failed !== undefined && this.#data.stateAt(failed) === 'error') {
+        this.#data.retry(failed);
       } else {
         this.#activate(event.composedPath());
       }
@@ -1489,6 +1688,23 @@ export class ArgusTable<T = unknown> extends LitElement {
     }
     this.#nav.key(event, cell, id, inHeader, scroller);
   };
+
+  /**
+   * Escape inside a detail panel's content (not on its cell): focus goes back to
+   * the panel's cell. Not from a dialog or popover in the panel: Escape closes
+   * those. Returns whether it moved focus.
+   */
+  #panelBack(path: readonly EventTarget[], origin: EventTarget): boolean {
+    for (const target of path) {
+      if (!(target instanceof HTMLElement)) continue;
+      if (target.matches('dialog, [popover]')) return false;
+      if (target.dataset.col !== PANEL_COLUMN || target.getRootNode() !== this.renderRoot) continue;
+      if (target === origin) return false;
+      target.focus({ preventScroll: true });
+      return true;
+    }
+    return false;
+  }
 
   /**
    * Keys on a focused group header: Alt+Arrow resizes the group, or moves it
@@ -1533,16 +1749,19 @@ export class ArgusTable<T = unknown> extends LitElement {
   #activate(path: EventTarget[]): void {
     let columnId: string | undefined;
     for (const target of path) {
-      if (!(target instanceof HTMLElement)) continue;
+      // A nested table's cells and rows (in a cell or a panel) aren't this table's: walk on out.
+      if (!(target instanceof HTMLElement) || target.getRootNode() !== this.renderRoot) continue;
       const role = target.getAttribute('role');
       if (role === 'gridcell') columnId = target.dataset.col;
-      if (columnId === SELECTION_COLUMN_ID) return;
+      if (columnId === SELECTION_COLUMN_ID || columnId === EXPAND_COLUMN_ID) return;
       if (role !== 'row') continue;
       const model = this.#table.model;
       const at = gridRowOf(target, layoutOf(model));
       if (!at || at.section === 'header') return;
-      const { index } = at;
       if (at.section === 'body') {
+        // A panel's row fires nothing; a data row's events carry its data index.
+        const index = dataIndexOf(model, at.index);
+        if (index === undefined) return;
         const row = model.rowAt(index);
         if (!row) return;
         if (columnId !== undefined) {
@@ -1558,6 +1777,7 @@ export class ArgusTable<T = unknown> extends LitElement {
         return;
       }
       const pinned = at.section;
+      const { index } = at;
       const row = model.pinnedRowAt(pinned, index);
       if (!row) return;
       if (columnId !== undefined) {
@@ -1574,6 +1794,41 @@ export class ArgusTable<T = unknown> extends LitElement {
       return;
     }
   }
+
+  /** Opens or closes a body row's panel (a data index), through the controlled/uncontrolled rules. */
+  #toggle(index: number): void {
+    const id = this.#table.model.rowAt(index)?.id;
+    if (id === undefined) return;
+    const open = !this.#expanded.value.includes(id);
+    const next = this.#table.model.nextExpanded(id, open, this.#expanded.value);
+    if (!next) return;
+    this.#events.change('expanded', this.#expanded, next, EXPANDED_CHANGE, [
+      [id, { rowId: id, open }],
+    ]);
+  }
+
+  /** The toggle column's chevrons, for the body. */
+  #toggles(model: TableModel<T, CellContent>): RowToggles {
+    const labels = this.#labels;
+    const { display } = model;
+    const panels = new Map(
+      this.#window.details.filter((r) => !r.idle).map((r) => [r.row, detailRowId(r.slot)]),
+    );
+    return {
+      controls: (index) => panels.get(index),
+      expandable: (index) => model.expandable(index),
+      // The model placed a panel after it: expanded, loaded and expandable.
+      open: (index) => display.hasDetail(index),
+      expandLabel: labels.expandRow,
+      collapseLabel: labels.collapseRow,
+      onClick: this.#onToggle,
+    };
+  }
+
+  /** A chevron's click: its row is in `data-row`. */
+  readonly #onToggle = (event: Event) => {
+    this.#toggle(Number((event.currentTarget as HTMLElement).dataset.row));
+  };
 
   /**
    * Pins or unpins a column through the controlled/uncontrolled rules. Starts
@@ -1675,17 +1930,24 @@ export class ArgusTable<T = unknown> extends LitElement {
   /** The header or cell an event happened in, for plugins. */
   #cellTarget(event: Event): CellTarget | undefined {
     for (const target of event.composedPath()) {
-      const cell = gridCell(target);
+      const cell = gridCell(target, this.renderRoot);
       const columnId = cell?.dataset.col;
       if (!cell || columnId === undefined) continue;
+      // A detail panel is no column's cell: plugins get nothing there.
+      if (columnId === PANEL_COLUMN) return undefined;
       const model = this.#table.model;
       const row = gridRowOfCell(cell, layoutOf(model));
       if (!row) return undefined;
       return {
         section: row.section,
         columnId,
-        // `0` for the column headers, whatever group rows are above them.
-        rowIndex: row.section === 'header' ? 0 : row.index,
+        // `0` for the column headers, whatever group rows are above them; a data index in the body.
+        rowIndex:
+          row.section === 'header'
+            ? 0
+            : row.section === 'body'
+              ? (dataIndexOf(model, row.index) ?? -1)
+              : row.index,
         rowId: this.#nav.gridRowId(model, row),
       };
     }

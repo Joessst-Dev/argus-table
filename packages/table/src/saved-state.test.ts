@@ -82,6 +82,7 @@ const saved: Required<TableState> = {
   columnVisibility: { age: true, city: false },
   columnFilters: { age: { kind: 'number', op: 'ge', value: 10 } },
   selection: ['p12', 'p13'],
+  expanded: ['p12'],
   quickFilter: 'Person 1',
   scroll: { row: 3, inline: 0 },
 };
@@ -98,6 +99,7 @@ describe('getState()', () => {
       columnVisibility: {},
       columnFilters: {},
       selection: [],
+      expanded: [],
       quickFilter: '',
       scroll: { row: 0, inline: 0 },
     });

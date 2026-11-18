@@ -113,6 +113,36 @@ export class ArgusGroupHeaderDirective {
   /* eslint-enable @typescript-eslint/no-unused-vars */
 }
 
+/** What an `argusDetail` template gets: the row as `let-row`, and its context. */
+export interface ArgusDetailContext<T = unknown> {
+  $implicit: T;
+  row: T;
+  rowId: string;
+  /** The row's index in the current order. */
+  index: number;
+}
+
+/**
+ * A row's detail panel (`rowDetail`), as a template inside `<argus-table>`:
+ * `<ng-template argusDetail let-row>…</ng-template>`. Used unless `[rowDetail]` is
+ * bound. `[argusDetailOf]="rows"` types `row` with your row type in strict templates.
+ */
+@Directive({ selector: 'ng-template[argusDetail]' })
+export class ArgusDetailDirective<T = unknown> {
+  /** Only for typing: the rows, so `let-row` has their type. */
+  @Input() argusDetailOf?: readonly T[] | null;
+  readonly template = inject<TemplateRef<ArgusDetailContext<T>>>(TemplateRef);
+
+  /* eslint-disable @typescript-eslint/no-unused-vars -- Angular reads the guard's signature only. */
+  static ngTemplateContextGuard<T>(
+    _directive: ArgusDetailDirective<T>,
+    context: unknown,
+  ): context is ArgusDetailContext<T> {
+    return true;
+  }
+  /* eslint-enable @typescript-eslint/no-unused-vars */
+}
+
 const TEMPLATE = Symbol('argus-template');
 
 /** A template with its context, as a `cell` or `header` function returns it: see `argusTemplate()`. */
@@ -215,6 +245,10 @@ export abstract class ArgusTableBase<T = unknown> implements AfterContentInit, O
   protected headerTemplates?: QueryList<ArgusHeaderDirective>;
   @ContentChildren(ArgusGroupHeaderDirective)
   protected groupTemplates?: QueryList<ArgusGroupHeaderDirective>;
+  @ContentChildren(ArgusDetailDirective)
+  protected detailTemplates?: QueryList<ArgusDetailDirective>;
+  /** The `rowDetail` the `argusDetail` template gave, if it set one. */
+  #templateDetail: ArgusTable<T>['rowDetail'];
 
   readonly #renderer = new TemplateRenderer(inject(ViewContainerRef), inject(Injector));
   #host: PluginHost<T> | undefined;
@@ -250,7 +284,24 @@ export abstract class ArgusTableBase<T = unknown> implements AfterContentInit, O
       });
       if (subscription) this.#subscriptions.push(subscription);
     }
+    const detail = this.detailTemplates?.changes.subscribe(() => {
+      this.#applyDetailTemplate();
+    });
+    if (detail) this.#subscriptions.push(detail);
+    this.#applyDetailTemplate();
     this.#host?.invalidateColumns();
+  }
+
+  /** The `argusDetail` template as `rowDetail`, unless `[rowDetail]` is bound (it was set otherwise). */
+  #applyDetailTemplate(): void {
+    const element = this.element;
+    if (element.rowDetail !== this.#templateDetail) return;
+    const template = this.detailTemplates?.get(0)?.template;
+    this.#templateDetail = template
+      ? ({ row, rowId, index }) =>
+          argusTemplate(template, { $implicit: row, row, rowId, index }) as unknown as CellContent
+      : undefined;
+    element.rowDetail = this.#templateDetail;
   }
 
   ngOnDestroy(): void {

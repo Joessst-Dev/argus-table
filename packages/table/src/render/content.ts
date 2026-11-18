@@ -23,6 +23,8 @@ export function formatValue(value: unknown): string {
  */
 export const cellSlot = (slot: number, colSlot: number) => `c-${String(slot)}-${String(colSlot)}`;
 export const headerSlot = (colSlot: number) => `h-${String(colSlot)}`;
+/** The slot of a detail panel's content: one per pool slot of the panel pool. */
+export const detailSlot = (slot: number) => `d-${String(slot)}`;
 /** A column group's header, by the group's slot number (`HeaderGroupCell.slot`). */
 export const groupSlot = (slot: number) => `g-${String(slot)}`;
 export const pinnedSlot = (side: 'top' | 'bottom', index: number, colSlot: number) =>
@@ -38,11 +40,12 @@ interface Pinnable {
  * can't take attribute selectors).
  */
 export function cellParts(
-  column: Pinnable & { sorted: 'asc' | 'desc' | false; kind: 'data' | 'selection' },
+  column: Pinnable & { sorted: 'asc' | 'desc' | false; kind: 'data' | 'selection' | 'expand' },
   pinnedRow = false,
 ): string {
   let parts = pinnedRow ? 'cell cell-in-pinned-row' : 'cell';
   if (column.kind === 'selection') parts += ' cell-selection';
+  else if (column.kind === 'expand') parts += ' cell-expand';
   if (column.pin) parts += column.pinEdge ? ' cell-pinned cell-pinned-edge' : ' cell-pinned';
   if (column.sorted) parts += ' cell-sorted';
   return parts;

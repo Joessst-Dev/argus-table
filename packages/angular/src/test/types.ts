@@ -71,6 +71,10 @@ import { orders, type Order } from './data.js';
         {{ row.total.toFixed(2) }} {{ value }} {{ id.length }}
       </ng-template>
       <ng-template argusHeader="total" let-column>{{ column.toUpperCase() }}</ng-template>
+      <!-- With argusDetailOf, the panel's row has the row type. -->
+      <ng-template argusDetail [argusDetailOf]="orders" let-row let-index="index">
+        {{ row.total.toFixed(2) }} {{ index.toFixed() }}
+      </ng-template>
     </argus-table>
     <argus-table [data]="orders" [plugins]="plugins" />
   `,

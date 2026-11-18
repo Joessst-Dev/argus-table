@@ -97,7 +97,7 @@ Run the command it prints. Put the theme where it says. `--cdn` gives the script
 **B2. Gap review, before any edit.** Read the library's guide in `references/migrate/` ([tanstack](references/migrate/tanstack.md), [ag-grid](references/migrate/ag-grid.md), [mui-x](references/migrate/mui-x.md), [angular-material](references/migrate/angular-material.md), [primeng-primevue](references/migrate/primeng-primevue.md), [vuetify](references/migrate/vuetify.md), [antd](references/migrate/antd.md), [element-plus](references/migrate/element-plus.md), [html-table](references/migrate/html-table.md)). Then show the user, in one message:
 
 - a table of what the old table does → what it becomes (every feature in `features`, with its fit),
-- every `gap` and `partial`, with the options from [references/gaps.md](references/gaps.md) (pagination becomes scrolling; editing is `@argus-table/editing`, with the app applying each edit; grouping, tree rows and master/detail have no equivalent),
+- every `gap` and `partial`, with the options from [references/gaps.md](references/gaps.md) (pagination becomes scrolling; editing is `@argus-table/editing`, with the app applying each edit; detail rows are `rowDetail` with `expanded`; grouping and tree rows have no equivalent),
 - what changes for their users. These usually apply:
   - the table scrolls instead of paging;
   - a header click cycles ascending → descending → unsorted, by that one column;

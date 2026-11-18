@@ -7,14 +7,19 @@ import {
   type TableModel,
 } from '@argus-table/core';
 import {
+  dataIndexOf,
   directionOf,
   gridCell,
   gridRowOf,
   gridRowOfCell,
   groupCell,
   layoutOf,
+  panelRowId,
+  positionOfIndex,
+  rowIdOfPanel,
   type Active,
 } from '../grid.js';
+import { PANEL_COLUMN } from '../render/body.js';
 import type { CellContent } from '../types.js';
 import type { SelectionController } from './selection.js';
 import type { VirtualController } from './virtual-controller.js';
@@ -33,6 +38,8 @@ export interface NavigationSizes {
   aroundPx: (layout: RowLayout) => number;
   /** The rows in the scroller above the body (header, top pinned rows) and below it, in px. */
   insets: (layout: RowLayout) => { before: number; after: number };
+  /** Whether body rows have heights of their own (`rowHeight: 'auto'`, or open detail panels). */
+  measured: () => boolean;
 }
 
 /**
@@ -53,6 +60,8 @@ export class NavigationController<T> {
   #focusPending = false;
   /** The header row of column headers at the last reconcile. */
   #leafLevel = 0;
+  /** The column the active cell was on before it moved onto a detail panel: where it goes back to. */
+  #lastCol: string | undefined;
 
   constructor(
     host: NavigationHost,
@@ -112,10 +121,17 @@ export class NavigationController<T> {
     const from = gridRowOfCell(cell, layout);
     if (!from) return;
     const columns = model.columns;
-    // Rows step by grid position: header, pinned top, body, pinned bottom.
+    // A detail panel is one cell: only moves between rows (and the corners) leave it.
+    const onPanel = id === PANEL_COLUMN;
+    if (!onPanel) this.#lastCol = id;
+    if (onPanel && !corner && key !== 'ArrowDown' && key !== 'ArrowUp' && !key.startsWith('Page')) {
+      return;
+    }
+    // Rows step by grid position: header, pinned top, body (rows and panels), pinned bottom.
     let pos = layout.position(from);
     const last = layout.total - 1;
-    let col = columns.findIndex((c) => c.id === id);
+    let col = columns.findIndex((c) => c.id === (onPanel ? (this.#lastCol ?? id) : id));
+    if (col < 0) col = 0;
     switch (key) {
       case 'PageDown':
       case 'PageUp':
@@ -165,7 +181,9 @@ export class NavigationController<T> {
     if (corner && key === 'End' && row.section === 'bottom') {
       this.#virtual.scrollToEdge('end');
     }
-    this.moveTo(row, target.id);
+    // Onto a detail panel: its one cell.
+    const panel = row.section === 'body' && model.display.at(row.index)?.kind === 'detail';
+    this.moveTo(row, panel ? PANEL_COLUMN : target.id);
   }
 
   /**
@@ -300,7 +318,7 @@ export class NavigationController<T> {
 
   /** How many rows PageUp/PageDown move from grid position `pos`. */
   #pageRows(key: string, pos: number, layout: RowLayout, scroller: HTMLElement): number {
-    if (this.#host.rowHeight !== 'auto') {
+    if (!this.#env.measured()) {
       // Whole rows between the sticky header rows and pinned rows (each one row tall).
       const fit = Math.floor(scroller.clientHeight / this.#env.rowPx() + 0.01);
       return Math.max(1, fit - layout.header - layout.top - layout.bottom);
@@ -350,10 +368,12 @@ export class NavigationController<T> {
     const layout = layoutOf(model);
     const from = gridRowOf(cell.parentElement, layout);
     if (from?.section !== 'body') return false;
+    // Selection keys act on data rows: a panel selects nothing.
+    const fromRow = dataIndexOf(model, from.index);
     if (key === ' ') {
       // Space would scroll the table.
       event.preventDefault();
-      select.toggle(from.index);
+      if (fromRow !== undefined) select.toggle(fromRow);
       return true;
     }
     if (
@@ -364,16 +384,26 @@ export class NavigationController<T> {
       return false;
     }
     event.preventDefault();
+    if (fromRow === undefined) return true;
     // A range stays in the body: the header and pinned rows can't be selected.
     const bodyFirst = layout.position({ section: 'body', index: 0 });
-    const pos = this.#verticalStep(key, layout.position(from), layout, scroller);
-    const to = layout.at(Math.min(Math.max(pos, bodyFirst), bodyFirst + layout.body - 1));
-    if (to?.section !== 'body' || to.index === from.index) return true;
+    const down = key === 'ArrowDown' || key === 'PageDown';
+    let pos = this.#verticalStep(key, layout.position(from), layout, scroller);
+    pos = Math.min(Math.max(pos, bodyFirst), bodyFirst + layout.body - 1);
+    // Over a panel to the next data row in that direction.
+    let toRow = dataIndexOf(model, pos - bodyFirst);
+    if (toRow === undefined) {
+      const shown = model.display.at(pos - bodyFirst);
+      toRow = shown && (down ? shown.index + 1 : shown.index);
+      if (toRow !== undefined && toRow >= model.rowCount) toRow = shown?.index;
+    }
+    if (toRow === undefined || toRow === fromRow) return true;
+    const to = { section: 'body' as const, index: positionOfIndex(model, toRow) };
     if (key.startsWith('Page')) {
       this.#virtual.scrollBy(this.#virtual.startOf(to.index) - this.#virtual.startOf(from.index));
     }
-    select.range(from.index, to.index);
-    this.moveTo(to, col);
+    select.range(fromRow, toRow);
+    this.moveTo(to, col === PANEL_COLUMN ? (this.#lastCol ?? col) : col);
     return true;
   }
 
@@ -392,17 +422,20 @@ export class NavigationController<T> {
       }
       return;
     }
+    const root = this.#host.renderRoot;
     for (const target of event.composedPath()) {
-      const group = groupCell(target);
+      // A nested table's cells (in a cell or a panel) are its own.
+      const group = groupCell(target, root);
       if (group) {
         this.#focusGroup(group);
         return;
       }
-      const cell = gridCell(target);
+      const cell = gridCell(target, root);
       if (cell?.dataset.col !== undefined) {
         const model = this.#model();
         const row = gridRowOfCell(cell, layoutOf(model));
         const { col } = cell.dataset;
+        if (col !== PANEL_COLUMN) this.#lastCol = col;
         const prev = this.#active;
         if (
           row &&
@@ -446,7 +479,13 @@ export class NavigationController<T> {
     const id = model.rowAt(index)?.id;
     if (id !== undefined) return id;
     const active = this.#active;
-    if (active?.index === index && active.rowId !== undefined) return active.rowId;
+    if (
+      active?.section === 'body' &&
+      active.rowId !== undefined &&
+      dataIndexOf(model, active.index) === index
+    ) {
+      return active.rowId;
+    }
     return this.#placeholderId(index);
   }
 
@@ -455,13 +494,25 @@ export class NavigationController<T> {
     return this.#host.getRowId ? `\u0000${String(index)}` : String(index);
   }
 
+  /** The data index a stand-in id from `#placeholderId` holds, or `undefined` for another id. */
+  #placeholderIndex(id: string): number | undefined {
+    const digits = this.#host.getRowId ? (id.startsWith('\u0000') ? id.slice(1) : '') : id;
+    return /^\d+$/.test(digits) ? Number(digits) : undefined;
+  }
+
   /** The id of a grid row: a body or pinned row's id; none for the header. */
   gridRowId(model: TableModel<T, CellContent>, row: GridRow): string | undefined {
     switch (row.section) {
       case 'header':
         return undefined;
-      case 'body':
-        return this.rowId(model, row.index);
+      case 'body': {
+        // A position: a data row's id, or a panel's (from its row's).
+        const shown = model.display.at(row.index);
+        // Past the body (a move to clamp): a stand-in id, so `reconcile()` clamps it.
+        if (!shown) return this.rowId(model, row.index);
+        const id = this.rowId(model, shown.index);
+        return shown.kind === 'data' ? id : panelRowId(id);
+      }
       default:
         return model.pinnedRowAt(row.section, row.index)?.id;
     }
@@ -470,6 +521,7 @@ export class NavigationController<T> {
   /** Makes a cell active and focuses it after the update. The keep-rendered rule renders its row. */
   moveTo(row: GridRow, col: string): void {
     const model = this.#model();
+    if (col !== PANEL_COLUMN) this.#lastCol = col;
     this.#active = { ...row, rowId: this.gridRowId(model, row), col };
     this.#focusPending = true;
     this.#host.requestUpdate();
@@ -510,7 +562,7 @@ export class NavigationController<T> {
     // (from its scroll) shows the row and scrolls sideways. Rows of different
     // heights too: rows measured on the way can move the row again, so it
     // scrolls until they're done.
-    if (active.section === 'body' && (this.#virtual.scaled || this.#host.rowHeight === 'auto')) {
+    if (active.section === 'body' && (this.#virtual.scaled || this.#env.measured())) {
       const { before, after } = this.#env.insets(layout);
       if (this.#virtual.reveal(active.index, before, after)) {
         this.#focusPending = true;
@@ -538,9 +590,11 @@ export class NavigationController<T> {
     const layout = layoutOf(model);
     const leaf = layout.header - 1;
     const prev = this.#active ?? { ...layout.leafHeader, rowId: undefined, col: first.id };
-    const col = columns.some((c) => c.id === prev.col)
-      ? prev.col
-      : this.#columnInPlaceOf(model, prev.col, first.id);
+    // On a detail panel the column is the panel's own; it's checked with the row below.
+    let col =
+      prev.col === PANEL_COLUMN || columns.some((c) => c.id === prev.col)
+        ? prev.col
+        : this.#columnInPlaceOf(model, prev.col, first.id);
     let { section, index, rowId } = prev;
     // The cell went away with its column while focused: focus its replacement.
     let moved = col !== prev.col && this.#active !== undefined;
@@ -556,13 +610,28 @@ export class NavigationController<T> {
     }
     this.#leafLevel = leaf;
     if (section === 'body' && rowId !== undefined) {
-      const found = model.indexOf(rowId);
-      const unloaded = index < model.rowCount && model.rowAt(index) === undefined;
-      if (found !== undefined) {
-        index = found;
+      const display = model.display;
+      // A panel's id names its row's: the panel follows the row.
+      const owner = rowIdOfPanel(rowId);
+      const found = model.indexOf(owner ?? rowId);
+      const data = dataIndexOf(model, index);
+      const unloaded = data !== undefined && model.rowAt(data) === undefined;
+      // A row not loaded yet keeps its stand-in id, which holds its data index:
+      // its position follows panels that appear above it.
+      const held = found === undefined ? this.#placeholderIndex(rowId) : undefined;
+      if (held !== undefined && held < model.rowCount && model.rowAt(held) === undefined) {
+        index = display.positionOf(held);
+      } else if (found !== undefined) {
+        const panel = owner === undefined ? undefined : display.detailPositionOf(found);
+        index = panel ?? display.positionOf(found);
+        if (owner !== undefined && panel === undefined) {
+          // Its panel closed: to the row it belonged to.
+          rowId = owner;
+          moved = true;
+        }
       } else if (!unloaded) {
-        index = Math.min(index, model.rowCount - 1);
-        rowId = index >= 0 ? (model.rowAt(index)?.id ?? this.#placeholderId(index)) : undefined;
+        index = Math.min(index, display.count - 1);
+        rowId = index >= 0 ? this.gridRowId(model, { section: 'body', index }) : undefined;
         moved = true;
       }
     } else if (section === 'top' || section === 'bottom') {
@@ -576,6 +645,15 @@ export class NavigationController<T> {
     if (index < 0) {
       ({ section, index } = layout.leafHeader);
       rowId = undefined;
+    }
+    // A panel's one cell, or back to a column off one.
+    const onPanel = section === 'body' && model.display.at(index)?.kind === 'detail';
+    if (onPanel) col = PANEL_COLUMN;
+    else if (col === PANEL_COLUMN) {
+      col =
+        this.#lastCol !== undefined && columns.some((c) => c.id === this.#lastCol)
+          ? this.#lastCol
+          : first.id;
     }
     if (moved && this.#host.matches(':focus-within')) this.#focusPending = true;
     if (

@@ -81,10 +81,16 @@ const GROUP = 'group-';
 
 type Slots = Readonly<Record<string, ((props: never) => VNodeChild) | undefined>>;
 
-/** The names of the cell and header slots, to notice when they change. */
+/** The names of the content slots (cells, headers, groups, the detail panel), to notice when they change. */
 export function slotKey(slots: Slots): string {
   return Object.keys(slots)
-    .filter((name) => name.startsWith(CELL) || name.startsWith(HEADER) || name.startsWith(GROUP))
+    .filter(
+      (name) =>
+        name.startsWith(CELL) ||
+        name.startsWith(HEADER) ||
+        name.startsWith(GROUP) ||
+        name === DETAIL,
+    )
     .sort()
     .join('\n');
 }
@@ -95,6 +101,20 @@ export function slotKey(slots: Slots): string {
  * without the table. A compiled slot is "stable", so the parent changing doesn't
  * re-render `<ArgusTable>` (or call the slot) otherwise.
  */
+/** The `#detail` slot: a row's detail panel (`rowDetail`). */
+const DETAIL = 'detail';
+
+/**
+ * A `rowDetail` that renders the `#detail` slot through `ArgusSlot` (so a panel
+ * follows the parent state it reads), or `undefined` without one. Made once, and
+ * again only when the slots change.
+ */
+export function detailFromSlot(slots: Slots): ((context: object) => CellContent) | undefined {
+  if (slots[DETAIL] === undefined) return undefined;
+  return (context) =>
+    h(ArgusSlot, { slots, name: DETAIL, slotProps: context }) as unknown as CellContent;
+}
+
 const ArgusSlot = defineComponent({
   name: 'ArgusSlot',
   props: {

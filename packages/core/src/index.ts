@@ -28,6 +28,8 @@ export {
 export { spreadWidth, type SpreadColumn } from './columns/spread-width.js';
 export {
   createTableModel,
+  EXPAND_COLUMN_ID,
+  EXPAND_COLUMN_WIDTH,
   SELECTION_COLUMN_ID,
   SELECTION_COLUMN_WIDTH,
   type ColumnView,
@@ -38,6 +40,7 @@ export {
   type TableModelOptions,
 } from './table/create-table.js';
 export { RowLayout, type GridRow, type GridSection } from './grid/row-layout.js';
+export { DisplayRows, type DisplayRow } from './table/display-rows.js';
 export { controllable, type Controllable } from './state/controllable.js';
 export {
   clickSelection,

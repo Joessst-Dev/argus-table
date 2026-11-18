@@ -99,7 +99,7 @@ export function renderHeader<T>({
         (c) =>
           html`<div
             part=${headerParts(c, drag)}
-            role="columnheader"
+            role=${c.kind === 'expand' ? 'gridcell' : 'columnheader'}
             aria-colindex=${c.colIndex}
             aria-sort=${ariaSort(c.sorted) ?? nothing}
             aria-description=${c.filtered ? labels.filtered : nothing}
@@ -114,7 +114,9 @@ export function renderHeader<T>({
             ${
               c.kind === 'selection'
                 ? selectAllCheckbox(checkAll, labels.selectAllRows)
-                : html`<slot name=${headerSlot(c.slot)}></slot>`
+                : c.kind === 'expand'
+                  ? nothing
+                  : html`<slot name=${headerSlot(c.slot)}></slot>`
             }
             ${
               c.sortable
@@ -150,6 +152,7 @@ function headerParts<T>(c: RenderedColumn<T>, drag: HeaderDrag | undefined): str
     parts += c.pinEdge ? ' header-cell-pinned header-cell-pinned-edge' : ' header-cell-pinned';
   if (c.filtered) parts += ' header-cell-filtered';
   if (c.kind === 'selection') parts += ' header-cell-selection';
+  else if (c.kind === 'expand') parts += ' header-cell-expand';
   if (drag?.columns.has(c.id)) parts += ' header-cell-dragging';
   return parts;
 }

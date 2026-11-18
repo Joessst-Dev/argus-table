@@ -412,3 +412,82 @@ describe('Angular content in pinned rows and custom editors', () => {
     expect(el.querySelector('button.three')).toBeNull();
   });
 });
+
+/** A component with state of its own, to see that a panel keeps it. */
+@Component({
+  selector: 'test-counter',
+  template:
+    '<button type="button" class="counter" (click)="count.set(count() + 1)">{{ count() }}</button>',
+})
+class Counter {
+  readonly count = signal(0);
+}
+
+@Component({
+  imports: [ARGUS_TABLE, Counter],
+  template: `
+    <output class="expanded">{{ expanded().join(',') }}</output>
+    <argus-table
+      style="${SIZE}"
+      [columns]="columns"
+      [data]="rows"
+      [getRowId]="idOf"
+      [(expanded)]="expanded"
+    >
+      <ng-template argusDetail [argusDetailOf]="rows" let-row>
+        <p class="detail">{{ row.customer }}</p>
+        <test-counter />
+      </ng-template>
+    </argus-table>
+  `,
+})
+class Detail {
+  readonly rows = orders(300);
+  readonly columns = columns;
+  readonly idOf = (order: Order) => order.id;
+  readonly expanded = signal<readonly string[]>(['o2']);
+}
+
+describe('Angular content in detail panels', () => {
+  async function scrollBody(
+    fixture: ComponentFixture<unknown>,
+    el: ArgusTableElement,
+    top: number,
+  ) {
+    const scroller = el.shadowRoot?.querySelector<HTMLElement>('[part~="table"]');
+    if (!scroller) throw new Error('no scroller');
+    const scrolled = new Promise((resolve) => {
+      scroller.addEventListener('scroll', resolve, { once: true });
+    });
+    scroller.scrollTop = top;
+    await scrolled;
+    await settle(fixture, el);
+  }
+
+  test('renders the argusDetail template and keeps its state across scrolling', async () => {
+    const { fixture, el } = await mount(Detail);
+    expect(el.querySelector('p.detail')?.textContent).toBe('Customer 2');
+    const counter = () => el.querySelector<HTMLButtonElement>('button.counter');
+    counter()?.click();
+    counter()?.click();
+    await settle(fixture, el);
+    expect(counter()?.textContent).toBe('2');
+    await scrollBody(fixture, el, 4000);
+    await scrollBody(fixture, el, 0);
+    expect(counter()?.textContent).toBe('2');
+  });
+
+  test('binds expanded two-way', async () => {
+    const { fixture, el, host } = await mount(Detail);
+    host.expanded.set([]);
+    await settle(fixture, el);
+    expect(el.querySelector('p.detail')).toBeNull();
+    el.shadowRoot?.querySelector<HTMLButtonElement>('[part~="expand-toggle"]')?.click();
+    await settle(fixture, el);
+    expect(host.expanded()).toEqual(['o0']);
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('output.expanded')?.textContent,
+    ).toBe('o0');
+    expect(el.querySelector('p.detail')?.textContent).toBe('Customer 0');
+  });
+});

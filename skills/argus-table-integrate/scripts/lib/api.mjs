@@ -120,6 +120,9 @@ export const PROPERTIES = {
   selectionMode: 'selection-mode',
   selectionCheckboxes: 'selection-checkboxes',
   selection: null,
+  rowDetail: null,
+  rowExpandable: null,
+  expanded: null,
   plugins: null,
   labels: null,
 };
@@ -136,6 +139,7 @@ export const CONTROLLABLES = [
   'columnVisibility',
   'columnFilters',
   'selection',
+  'expanded',
 ];
 
 /** The element's events. */
@@ -148,6 +152,7 @@ export const EVENTS = [
   'argus-column-visibility-change',
   'argus-column-filters-change',
   'argus-selection-change',
+  'argus-expanded-change',
   'argus-cell-click',
   'argus-row-click',
   'argus-range-change',

@@ -85,7 +85,7 @@ export function resolveColumnGroups<TContent>(
 /** What header rows need to know about a shown column (a `ColumnView` fits). */
 export interface GroupedColumn {
   id: string;
-  kind: 'data' | 'selection';
+  kind: 'data' | 'selection' | 'expand';
   colIndex: number;
   pin: ColumnPin | undefined;
   offset: number;

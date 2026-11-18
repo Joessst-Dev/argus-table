@@ -45,6 +45,7 @@ const LENGTHS = new Set([
   '--argus-row-height',
   '--argus-cell-padding-inline',
   '--argus-cell-padding-block',
+  '--argus-detail-max-height',
 ]);
 const TEXTS = new Set([
   '--argus-font',
@@ -188,4 +189,5 @@ export const SIZE_TOKENS: ReadonlySet<string> = new Set([
   '--argus-row-height',
   '--argus-cell-padding-inline',
   '--argus-cell-padding-block',
+  '--argus-detail-max-height',
 ]);

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { ColumnDef } from '../types.js';
 import {
   createTableModel,
+  EXPAND_COLUMN_ID,
+  EXPAND_COLUMN_WIDTH,
   SELECTION_COLUMN_ID,
   SELECTION_COLUMN_WIDTH,
   type TableModelOptions,
@@ -1153,5 +1155,143 @@ describe('createTableModel: column groups', () => {
         ['-', 7, 1],
       ],
     ]);
+  });
+});
+
+describe('createTableModel: expanded rows', () => {
+  const byId = (p: Person) => p.id;
+
+  it('adds the toggle column after the selection column', () => {
+    const m = model({ detail: true, selectionColumn: true });
+    const [selection, expand, first] = m.columns;
+    expect(selection?.kind).toBe('selection');
+    expect(expand).toMatchObject({
+      id: EXPAND_COLUMN_ID,
+      kind: 'expand',
+      pin: 'start',
+      width: EXPAND_COLUMN_WIDTH,
+      colIndex: 2,
+      offset: SELECTION_COLUMN_WIDTH,
+      pinEdge: false,
+    });
+    expect(first).toMatchObject({ id: 'id', colIndex: 3, offset: 80 });
+    expect(m.allColumns.some((c) => c.kind === 'expand')).toBe(false);
+    expect(m.orderOf()).not.toContain(EXPAND_COLUMN_ID);
+  });
+
+  it('makes the toggle column the pinned edge when no data column is pinned to the start', () => {
+    const m = model({
+      detail: true,
+      columnPinning: { id: false, name: false },
+    });
+    expect(m.columns[0]).toMatchObject({ kind: 'expand', offset: 0, pinEdge: true });
+  });
+
+  it('reserves the toggle column id', () => {
+    expect(
+      () => model({ detail: true, columns: [...columns, { id: EXPAND_COLUMN_ID }] }).columns,
+    ).toThrow(/reserved/);
+  });
+
+  it('shows panels for expanded rows in the current order', () => {
+    const m = model({
+      detail: true,
+      getRowId: byId,
+      expanded: ['p3'],
+      sorting: [{ id: 'name', desc: false }],
+    });
+    const at = m.indexOf('p3') ?? -1;
+    expect(m.display.count).toBe(5);
+    expect(m.display.detailPositionOf(at)).toBe(at + 1);
+  });
+
+  it('shows no panel for ids it cannot place', () => {
+    const m = model({
+      detail: true,
+      getRowId: byId,
+      expanded: ['p3', 'p3', 'nope', 'p2'],
+      rowExpandable: (p) => p.id !== 'p2',
+      quickFilter: 'Dan',
+    });
+    expect(m.display.count).toBe(m.rowCount);
+    expect(m.expandable(0)).toBe(true);
+    m.update({ quickFilter: '' });
+    expect(m.display.count).toBe(m.rowCount + 1);
+    expect(m.display.hasDetail(m.indexOf('p3') ?? -1)).toBe(true);
+    expect(m.expandable(m.indexOf('p2') ?? -1)).toBe(false);
+  });
+
+  it('is the identity without detail', () => {
+    const m = model({ getRowId: byId, expanded: ['p1'] });
+    expect(m.display.count).toBe(m.rowCount);
+    expect(m.columns.some((c) => c.kind === 'expand')).toBe(false);
+    expect(m.expandable(0)).toBe(false);
+  });
+
+  it('proposes the next expanded state', () => {
+    const m = model({ detail: true, getRowId: byId, rowExpandable: (p) => p.id !== 'p2' });
+    expect(m.nextExpanded('p1', true)).toEqual(['p1']);
+    expect(m.nextExpanded('p2', true)).toBeUndefined();
+    expect(m.nextExpanded('nope', true)).toBeUndefined();
+    m.update({ expanded: ['p1'] });
+    expect(m.nextExpanded('p1', true)).toBeUndefined();
+    expect(m.nextExpanded('p1', false)).toEqual([]);
+    expect(m.nextExpanded('p4', true, ['p3'])).toEqual(['p3', 'p4']);
+  });
+
+  it('places panels only for loaded remote rows', () => {
+    const [first] = people as [Person];
+    const remote = {
+      rowCount: 50,
+      entryAt: (index: number) =>
+        index < 10 ? { id: `r${String(index)}`, row: first } : undefined,
+      indexOf: (id: string) => {
+        const index = Number(id.slice(1));
+        return index < 10 ? index : undefined;
+      },
+      loadedIds: () => Array.from({ length: 10 }, (_, i) => `r${String(i)}`),
+    };
+    const m = model({ detail: true, remote, expanded: ['r3', 'r40'] });
+    expect(m.display.open).toEqual([3]);
+    expect(m.expandable(40)).toBe(false);
+  });
+
+  it("keeps a remote source's display until its version changes", () => {
+    const [first] = people as [Person];
+    let version = 1;
+    let loaded = 10;
+    let reads = 0;
+    const remote = {
+      rowCount: 50,
+      get version() {
+        return version;
+      },
+      entryAt: (index: number) =>
+        index < loaded ? { id: `r${String(index)}`, row: first } : undefined,
+      indexOf: (id: string) => {
+        reads++;
+        const index = Number(id.slice(1));
+        return index < loaded ? index : undefined;
+      },
+      loadedIds: () => Array.from({ length: loaded }, (_, i) => `r${String(i)}`),
+    };
+    const m = model({ detail: true, remote, expanded: ['r3', 'r40'] });
+    const display = m.display;
+    const before = reads;
+    expect(m.display).toBe(display);
+    expect(reads).toBe(before);
+    // Row 40's page loads.
+    loaded = 50;
+    version++;
+    expect(m.display.open).toEqual([3, 40]);
+  });
+
+  it('keeps display while nothing it reads changes', () => {
+    const m = model({ detail: true, getRowId: byId, expanded: ['p1'] });
+    const display = m.display;
+    m.update({ columnSizing: { age: 99 } });
+    expect(m.display).toBe(display);
+    m.update({ expanded: ['p1', 'p2'] });
+    expect(m.display).not.toBe(display);
   });
 });

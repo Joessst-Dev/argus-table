@@ -334,6 +334,19 @@ export type SelectionMode = 'none' | 'single' | 'multi';
 /** The selected rows, as row ids (from `getRowId`, or the row's index as a string). */
 export type SelectionState = readonly string[];
 
+/** The rows whose detail panel is open, as row ids (from `getRowId`, or the row's index as a string). */
+export type ExpandedState = readonly string[];
+
+/** What `rowDetail` receives for the row whose panel it renders. */
+export interface RowDetailContext<TData> {
+  /** The row object from `data` (or loaded from the `dataSource`). */
+  row: TData;
+  /** The id from `getRowId`, or the row's index as a string. */
+  rowId: string;
+  /** Index of the row in the current (filtered and sorted) row order. Panels don't count. */
+  index: number;
+}
+
 /**
  * Where the body is scrolled: the row at the top, as an index in the current row
  * order, and the inline offset in px from the start edge (positive in RTL too).
@@ -388,8 +401,19 @@ export interface TableState {
   columnVisibility?: ColumnVisibilityState;
   columnFilters?: ColumnFilterState;
   selection?: SelectionState;
+  expanded?: ExpandedState;
   quickFilter?: string;
   scroll?: ScrollState;
+}
+
+/** `detail` of `argus-expanded-change`. */
+export interface ExpandedChangeDetail {
+  /** The rows with an open panel: the new ones, or the proposed ones when `expanded` is controlled. */
+  expanded: ExpandedState;
+  /** The row whose panel was opened or closed. */
+  rowId: string;
+  /** `true` when it was opened. */
+  open: boolean;
 }
 
 /** `detail` of `argus-selection-change`. */

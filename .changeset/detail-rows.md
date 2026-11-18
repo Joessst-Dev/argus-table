@@ -1,0 +1,7 @@
+---
+'argus-table': minor
+---
+
+Detail rows: `rowDetail` gives body rows a panel under them, opened by a new column of chevrons (a click, or Enter or Space on the chevron cell). A panel shows whatever `rowDetail` returns for its row (`{ row, rowId, index }`): text, DOM nodes, Lit templates, a form, another `<argus-table>`. It spans the visible width, is as tall as its content up to `--argus-detail-max-height` (400px) and scrolls past that; style it through the `detail` part. `rowExpandable` picks the rows that can have one, and `expanded` (row ids, in `getState()` too) says which are open: uncontrolled until set, with `argus-expanded-change` for each change. From the keyboard, Down arrow goes onto a panel, Enter or F2 into its content and Escape back. What was typed in a panel stays while it scrolls out of view and back; clicks in a panel fire no row or cell clicks and select nothing, and a table nested in a panel keeps its keys and clicks to itself. Public indexes don't count panels. New parts: `row-detail`, `detail`, `row-expanded`, `cell-expand`, `header-cell-expand`, `expand-toggle`; new labels: `expandRow`, `collapseRow`.
+
+A table nested in another table's cell is no longer mistaken for part of the outer one: a click in it fires the outer table's events for the outer row that holds it (not for the row at the nested row's position), and arrow keys, focus and Shift+click selection in it are the nested table's own.
