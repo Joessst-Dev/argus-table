@@ -4,7 +4,7 @@ import { CELL_CLICK, fire, ROW_CLICK } from './events.js';
 import { dataIndexOf, gridCell, gridRowOf, gridRowOfCell, layoutOf } from './grid.js';
 import type { CellTarget } from './plugins.js';
 import { PANEL_COLUMN } from './render/body.js';
-import type { CellContent } from './types.js';
+import type { CellClickDetail, CellContent } from './types.js';
 
 /**
  * Fires `argus-cell-click` (when a cell is on the path), then `argus-row-click`,
@@ -34,13 +34,17 @@ export function activate<T>(
       const row = model.rowAt(index);
       if (!row) return;
       if (columnId !== undefined) {
-        fire(element, CELL_CLICK, {
+        const detail: CellClickDetail<T> = {
           row: row.original,
           rowId: row.id,
           index,
           columnId,
           value: model.valueAt(index, columnId),
-        });
+        };
+        // No `depth` key without a tree: details stay as they were.
+        const depth = model.treeRow(index)?.depth;
+        if (depth !== undefined) detail.depth = depth;
+        fire(element, CELL_CLICK, detail);
       }
       fire(element, ROW_CLICK, { row: row.original, rowId: row.id, index });
       return;

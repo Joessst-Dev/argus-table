@@ -119,8 +119,10 @@ export interface ColumnDef<TData, TContent = unknown> {
   header?: TContent | ((context: HeaderContext) => TContent);
   /**
    * How to read the cell value: a property path such as `'customer.name'`, or a
-   * function of the row. Without an accessor the value is `undefined`; the column
-   * then needs a `cell` function to show anything.
+   * function of the row and its index (in `data`, or among all `dataSource` rows;
+   * a nested child of a tree, `getSubRows`, gets an index from `data.length` on,
+   * in depth-first order). Without an accessor the value is `undefined`; the
+   * column then needs a `cell` function to show anything.
    */
   accessor?: string | ((row: TData, index: number) => unknown);
   /**
@@ -418,6 +420,8 @@ export interface TableState {
   columnFilters?: ColumnFilterState;
   selection?: SelectionState;
   expanded?: ExpandedState;
+  /** The expanded rows of a tree (`getSubRows` or `getParentId`). */
+  treeExpanded?: TreeExpandedState;
   quickFilter?: string;
   scroll?: ScrollState;
 }
