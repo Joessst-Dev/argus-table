@@ -132,20 +132,24 @@ export function tableExport<T = unknown>(options: TableExportOptions<T> = {}): E
     headerMenuItems(_columnId, host) {
       if (options.menu === false) return [];
       const formats = options.formats ?? (['csv', 'xlsx', 'pdf'] as const);
-      return [
-        {
-          label: labels.group,
-          items: formats.map((format) => ({
-            label: labels[format],
-            run: () => {
-              downloadTable(host.element, format).catch((error: unknown) => {
+      const group = (label: string, withDetail: boolean): ExportMenuGroup => ({
+        label,
+        items: formats.map((format) => ({
+          label: labels[format],
+          run: () => {
+            // With a detail option, the first group exports without details.
+            downloadTable(host.element, format, withDetail ? {} : { detail: false }).catch(
+              (error: unknown) => {
                 console.error(error);
                 host.announce(labels.failed);
-              });
-            },
-          })),
-        },
-      ];
+              },
+            );
+          },
+        })),
+      });
+      return options.detail
+        ? [group(labels.group, false), group(labels.withDetails, true)]
+        : [group(labels.group, true)];
     },
   };
 }

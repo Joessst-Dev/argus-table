@@ -59,23 +59,24 @@ const columns = [
 ];
 ```
 
-| Option           | Default                                     | What it does                                                                                       |
-| ---------------- | ------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `rows`           | `'view'`                                    | `'selected'` exports only the selected rows (`selection`), in the order shown                      |
-| `pinnedRows`     | `true` (`false` with `rows: 'selected'`)    | Includes the pinned rows                                                                           |
-| `hiddenColumns`  | `false`                                     | Includes hidden columns, in their place in the column order (and leaves out the group header rows) |
-| `headerGroups`   | `true`                                      | Includes the group header rows                                                                     |
-| `allRows`        | `false`                                     | With a `dataSource`: fetches every row through `getRows` (see below)                               |
-| `columns`        |                                             | Per column id: `header` (text), `value(value, row)` (what to write), `exclude`; wins over `meta`   |
-| `signal`         |                                             | An `AbortSignal` that stops the export                                                             |
-| `filename`       | `'table'`                                   | `downloadTable()` only: the file name; the extension is added                                      |
-| `delimiter`      | `','`                                       | CSV: between fields                                                                                |
-| `bom`            | `true`                                      | CSV: starts with a byte order mark, so Excel reads UTF-8                                           |
-| `escapeFormulas` | `true`                                      | CSV: puts `'` before text starting with `=`, `+`, `-`, `@`, a tab or a carriage return             |
-| `sheetName`      | `'Sheet1'`                                  | Excel: the worksheet's name                                                                        |
-| `pageSize`       | `'a4'`                                      | PDF: `'a4'` or `'letter'`                                                                          |
-| `orientation`    | landscape when the columns don't fit across | PDF: `'portrait'` or `'landscape'`                                                                 |
-| `title`          |                                             | PDF: a heading on the first page and the document's title                                          |
+| Option           | Default                                     | What it does                                                                                          |
+| ---------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `rows`           | `'view'`                                    | `'selected'` exports only the selected rows (`selection`), in the order shown                         |
+| `pinnedRows`     | `true` (`false` with `rows: 'selected'`)    | Includes the pinned rows                                                                              |
+| `hiddenColumns`  | `false`                                     | Includes hidden columns, in their place in the column order (and leaves out the group header rows)    |
+| `headerGroups`   | `true`                                      | Includes the group header rows                                                                        |
+| `allRows`        | `false`                                     | With a `dataSource`: fetches every row through `getRows` (see below)                                  |
+| `columns`        |                                             | Per column id: `header` (text), `value(value, row)` (what to write), `exclude`; wins over `meta`      |
+| `signal`         |                                             | An `AbortSignal` that stops the export                                                                |
+| `detail`         |                                             | Each row's detail rows: `{ columns, rows(row, { rowId, signal }) }` (see below); `false` turns it off |
+| `filename`       | `'table'`                                   | `downloadTable()` only: the file name; the extension is added                                         |
+| `delimiter`      | `','`                                       | CSV: between fields                                                                                   |
+| `bom`            | `true`                                      | CSV: starts with a byte order mark, so Excel reads UTF-8                                              |
+| `escapeFormulas` | `true`                                      | CSV: puts `'` before text starting with `=`, `+`, `-`, `@`, a tab or a carriage return                |
+| `sheetName`      | `'Sheet1'`                                  | Excel: the worksheet's name                                                                           |
+| `pageSize`       | `'a4'`                                      | PDF: `'a4'` or `'letter'`                                                                             |
+| `orientation`    | landscape when the columns don't fit across | PDF: `'portrait'` or `'landscape'`                                                                    |
+| `title`          |                                             | PDF: a heading on the first page and the document's title                                             |
 
 ```js
 await downloadTable(table, 'csv', {
@@ -91,6 +92,24 @@ await downloadTable(table, 'csv', {
 
 The table loads only the rows near the scroll position, so an export holds the rows that are loaded. With `allRows: true`, it fetches every row from your `getRows`, a page at a time (the source's `pageSize`). It sends the table's sort, filters and quick filter, and stops at `total` or at a page with fewer rows. Pass a `signal` to cancel a long export.
 
+### Detail rows
+
+`detail` adds the rows behind each row, an order's lines say: their `columns` (`id`, `header`, and optionally `value(item)`, `align`, `width` in px) and `rows(row, { rowId, signal })`, which returns a row's detail rows or a promise of them. It's called for every exported row, in order and at most six at a time, but not for pinned rows or rows the table's `rowExpandable` rejects. It works with or without `rowDetail`: the export writes the data you give it, not what a panel shows.
+
+```js
+tableExport({
+  detail: {
+    columns: [
+      { id: 'product', header: 'Product' },
+      { id: 'qty', header: 'Qty', align: 'end' },
+    ],
+    rows: (order, { signal }) => fetchLines(order.id, { signal }),
+  },
+});
+```
+
+Excel writes each row's detail rows under it, one column in, with a header row, grouped so they collapse (and without the filter on the header row). PDF indents them under their row. CSV writes one table: the row's columns, then the detail columns, one line per detail row with the row's values repeated. With `detail` in `tableExport()`, the column menu has a second group, Export with details (`labels.withDetails`); `detail: false` leaves the detail rows out of one export.
+
 ## Formats
 
 - **CSV:** RFC 4180, UTF-8 with a byte order mark, CRLF line endings. Dates are local `YYYY-MM-DD` with `HH:MM` when they have a time. Text a spreadsheet would run as a formula is escaped (CSV injection).
@@ -99,7 +118,7 @@ The table loads only the rows near the scroll position, so an export holds the r
 
 ## Labels
 
-The menu items, the PDF footer and the announcements are English by default. Pass `labels` with any of `group`, `csv`, `xlsx`, `pdf`, `page({ page, pages })`, `exported({ rows, format })` and `failed`:
+The menu items, the PDF footer and the announcements are English by default. Pass `labels` with any of `group`, `csv`, `xlsx`, `pdf`, `withDetails`, `page({ page, pages })`, `exported({ rows, format })` and `failed`:
 
 ```js
 tableExport({

@@ -126,3 +126,89 @@ describe('toPdf', () => {
     expect(forced.text).toContain('/MediaBox [0 0 841.89 595.28]');
   });
 });
+
+describe('detail rows', () => {
+  /** Each shown text with the x it starts at. */
+  const placed = (content: string) =>
+    [...content.matchAll(/([\d.]+) [\d.]+ Td <([0-9a-f]*)> Tj/g)].map((m) => ({
+      x: Number(m[1]),
+      text: String.fromCharCode(...(m[2]?.match(/../g) ?? []).map((h) => parseInt(h, 16))),
+    }));
+  const sheet = (lines: number): ExportSheet => ({
+    columns: [column('name'), column('n', 60, 'end')],
+    groups: [],
+    rows: [
+      ['Ann', 1],
+      ['Bob', 2],
+    ],
+    detail: {
+      columns: [column('product'), column('qty', 60, 'end')],
+      rows: [Array.from({ length: lines }, (_, i) => [`P${String(i)}`, i]), []],
+    },
+  });
+
+  test('writes a detail header and rows under their row, indented 16pt', async () => {
+    const { contents } = await read(await toPdf(sheet(2), {}, { footer }));
+    const page = placed(contents[0] ?? '');
+    expect(page.map((t) => t.text).slice(0, 10)).toEqual([
+      'name',
+      'n',
+      'Ann',
+      '1',
+      'product',
+      'qty',
+      'P0',
+      '0',
+      'P1',
+      '1',
+    ]);
+    expect(page[10]?.text).toBe('Bob');
+    expect(page.filter((t) => t.text === 'product')).toHaveLength(1);
+    const ann = page.find((t) => t.text === 'Ann');
+    const product = page.find((t) => t.text === 'product');
+    expect((product?.x ?? 0) - (ann?.x ?? 0)).toBeCloseTo(16, 2);
+  });
+
+  test('repeats the detail header when a block runs onto the next page', async () => {
+    const { contents } = await read(await toPdf(sheet(80), {}, { footer }));
+    expect(contents).toHaveLength(2);
+    expect(shown(contents[1] ?? '').slice(0, 4)).toEqual(['name', 'n', 'product', 'qty']);
+  });
+
+  test('keeps a detail header with its rows across a page break', async () => {
+    // 47 lines fit on an A4 page: 45 orders without lines, then one with them,
+    // would leave its detail header alone at the bottom.
+    const many: ExportSheet = {
+      columns: [column('name'), column('n', 60, 'end')],
+      groups: [],
+      rows: Array.from({ length: 47 }, (_, i) => [`R${String(i)}`, i]),
+      detail: {
+        columns: [column('product'), column('qty', 60, 'end')],
+        rows: Array.from({ length: 47 }, (_, i) => (i === 45 ? [['P0', 0]] : undefined)),
+      },
+    };
+    const { contents } = await read(await toPdf(many, {}, { footer }));
+    const first = shown(contents[0] ?? '');
+    expect(first.at(-2)).not.toBe('qty');
+    expect(first.filter((t) => t === 'product')).toHaveLength(0);
+    expect(shown(contents[1] ?? '').slice(0, 5)).toEqual(['name', 'n', 'product', 'qty', 'P0']);
+  });
+
+  test('writes nothing for detail columns past the page edge', async () => {
+    const wide: ExportSheet = {
+      columns: [column('name', 100)],
+      groups: [],
+      rows: [['Ann']],
+      detail: {
+        // Short headers: one partly on the page fits; the ones past it get nothing.
+        columns: Array.from({ length: 20 }, (_, i) => ({
+          ...column(`d${String(i)}`, 50),
+          header: 'h',
+        })),
+        rows: [[Array.from({ length: 20 }, () => '')]],
+      },
+    };
+    const { contents } = await read(await toPdf(wide, { orientation: 'portrait' }, { footer }));
+    expect(shown(contents[0] ?? '')).not.toContain('\x85');
+  });
+});

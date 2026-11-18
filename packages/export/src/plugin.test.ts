@@ -3,7 +3,7 @@ import { html } from 'lit';
 import 'argus-table';
 import type { ArgusTable, ColumnDef, DataSource, RowsRequest } from 'argus-table';
 import { headerMenu } from '@argus-table/header-menu';
-import { downloadTable, exportTable, tableExport } from './index.js';
+import { downloadTable, exportTable, tableExport, type ExportDetail } from './index.js';
 import { unzip } from './test/unzip.js';
 
 interface Row {
@@ -234,6 +234,47 @@ describe('exportTable', () => {
   });
 });
 
+describe('detail rows', () => {
+  interface Line {
+    product: string;
+    qty: number;
+  }
+  const lines = (r: Row): Line[] =>
+    r.id === 'b'
+      ? []
+      : [
+          { product: `${r.name} A`, qty: 1 },
+          { product: `${r.name} B`, qty: 2 },
+        ];
+  const detailOf = (rows: ExportDetail<Row, Line>['rows']): ExportDetail<Row, Line> => ({
+    columns: [
+      { id: 'product', header: 'Product' },
+      { id: 'qty', header: 'Qty', align: 'end' },
+    ],
+    rows,
+  });
+
+  test('calls rows() for body rows only, not pinned rows or rows rowExpandable rejects', async () => {
+    const el = await fixture({
+      pinnedRows: { top: data.slice(0, 1) },
+      rowExpandable: (r) => r.id !== 'c',
+    });
+    const rows = vi.fn<ExportDetail<Row, Line>['rows']>(lines);
+    await csv(el, { detail: detailOf(rows) });
+    expect(rows.mock.calls.map(([row]) => row.id)).toEqual(['a', 'b', 'd']);
+    expect(rows.mock.calls[0]?.[1]).toEqual({ rowId: 'a', signal: undefined });
+  });
+
+  test("detail: false turns the plugin's detail off", async () => {
+    const rows = vi.fn<ExportDetail<Row, Line>['rows']>(lines);
+    const plain = await csv(await fixture());
+    document.body.replaceChildren();
+    const el = await fixture({ plugins: [tableExport<Row>({ detail: detailOf(rows) })] });
+    expect(await csv(el, { detail: false })).toBe(plain);
+    expect(rows).not.toHaveBeenCalled();
+  });
+});
+
 describe('with a dataSource', () => {
   const all = Array.from({ length: 250 }, (_, i) => ({
     id: `r${String(i)}`,
@@ -274,6 +315,19 @@ describe('with a dataSource', () => {
       [200, 300],
     ]);
     expect(requests[0]).toMatchObject({ sorting: [], filters: {}, quickFilter: 'Row' });
+  });
+
+  test('passes the index as rowId with allRows and no getRowId', async () => {
+    const { source } = server();
+    const el = await fixture({ data: undefined, dataSource: source, getRowId: undefined });
+    const rows = vi.fn<ExportDetail<Row>['rows']>(() => []);
+    await csv(el, { allRows: true, detail: { columns: [{ id: 'x', header: 'X' }], rows } });
+    expect(rows.mock.calls.slice(0, 3).map(([, context]) => context.rowId)).toEqual([
+      '0',
+      '1',
+      '2',
+    ]);
+    expect(rows).toHaveBeenCalledTimes(250);
   });
 
   test('allRows with rows: selected keeps the selected ids', async () => {
@@ -341,6 +395,36 @@ describe('downloads and the column menu', () => {
     await vi.waitFor(() => {
       expect(links.map((l) => l.download)).toEqual(['table.csv']);
     });
+  });
+
+  test('offers the formats with and without details in the column menu', async () => {
+    const links = clicks();
+    const detail: ExportDetail<Row> = {
+      columns: [{ id: 'product', header: 'Product' }],
+      rows: (r) => [{ product: `${r.name} A` }],
+    };
+    const el = await fixture({ plugins: [tableExport<Row>({ detail })] });
+    const plugin = el.plugins[0] as ReturnType<typeof tableExport<Row>>;
+    const host = { element: el, announce: () => undefined } as never;
+    const groups = plugin.headerMenuItems('name', host);
+    expect(groups.map((g) => [g.label, g.items.map((i) => i.label)])).toEqual([
+      ['Export', ['CSV', 'Excel (.xlsx)', 'PDF']],
+      ['Export with details', ['CSV', 'Excel (.xlsx)', 'PDF']],
+    ]);
+    const download = async (group: number) => {
+      groups[group]?.items[0]?.run();
+      await vi.waitFor(() => {
+        expect(links).toHaveLength(group + 1);
+      });
+      return (await fetch(links[group]?.href ?? '')).text();
+    };
+    expect(await download(0)).not.toContain('Product');
+    expect(await download(1)).toContain('Product');
+
+    document.body.replaceChildren();
+    const plain = await fixture();
+    const plainPlugin = plain.plugins[0] as ReturnType<typeof tableExport<Row>>;
+    expect(plainPlugin.headerMenuItems('name', host).map((g) => g.label)).toEqual(['Export']);
   });
 
   test('menu: false adds no items', async () => {

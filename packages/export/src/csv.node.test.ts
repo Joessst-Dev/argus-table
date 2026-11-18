@@ -62,3 +62,37 @@ describe('toCsv', () => {
     expect(toCsv(sheet, { bom: false })).toBe('Who,,\r\na,b,c\r\n');
   });
 });
+
+describe('toCsv with detail rows', () => {
+  const sheet = (groups: ExportSheet['groups'] = []): ExportSheet => ({
+    columns: [column('name', 'Name'), column('city', 'City')],
+    groups,
+    rows: [
+      ['Ann', 'Oslo'],
+      ['Bob', 'Rome'],
+      ['Sum', null],
+    ],
+    detail: {
+      columns: [column('product', 'Product'), column('qty', 'Qty')],
+      rows: [
+        [
+          ['x', 1],
+          ['=cmd', new Date(2026, 0, 2)],
+        ],
+        [],
+        undefined,
+      ],
+    },
+  });
+
+  test('repeats the row for each detail row, one line for rows without', () => {
+    expect(toCsv(sheet(), { bom: false })).toBe(
+      "Name,City,Product,Qty\r\nAnn,Oslo,x,1\r\nAnn,Oslo,'=cmd,2026-01-02\r\nBob,Rome,,\r\nSum,,,\r\n",
+    );
+  });
+
+  test('leaves the group rows empty over the detail columns', () => {
+    const lines = toCsv(sheet([[{ text: 'Who', span: 2 }]]), { bom: false }).split('\r\n');
+    expect(lines[0]).toBe('Who,,,');
+  });
+});

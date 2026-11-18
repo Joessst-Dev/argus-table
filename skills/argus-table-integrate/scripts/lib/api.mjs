@@ -60,6 +60,7 @@ export const ADDONS = {
       'headerGroups',
       'allRows',
       'columns',
+      'detail',
       'delimiter',
       'bom',
       'escapeFormulas',

@@ -134,28 +134,56 @@ function worksheet(sheet: ExportSheet, name: string): { xml: string; filter: str
   out.push(
     `<row r="${h}">${columns.map((c, i) => text(`${columnName(i)}${h}`, HEADER * 3 + (aligns[i] ?? 0), c.header)).join('')}</row>`,
   );
-  rows.forEach((values, index) => {
-    const r = String(headerRows + 1 + index);
+  // Detail rows go under their row, one column in, at outline level 1.
+  const detail = sheet.detail;
+  const detailAligns = detail?.columns.map((c) => alignIndex[c.align]) ?? [];
+  let next = headerRows + 1;
+  let outlined = false;
+  for (const [index, values] of rows.entries()) {
+    const r = String(next++);
     out.push(
       `<row r="${r}">${values.map((v, i) => cell(`${columnName(i)}${r}`, v, aligns[i] ?? 0)).join('')}</row>`,
     );
-  });
+    const lines = detail?.rows[index];
+    if (!detail || !lines?.length) continue;
+    outlined = true;
+    const d = String(next++);
+    out.push(
+      `<row r="${d}" outlineLevel="1">${detail.columns.map((c, i) => text(`${columnName(i + 1)}${d}`, HEADER * 3 + (detailAligns[i] ?? 0), c.header)).join('')}</row>`,
+    );
+    for (const line of lines) {
+      const n = String(next++);
+      out.push(
+        `<row r="${n}" outlineLevel="1">${line.map((v, i) => cell(`${columnName(i + 1)}${n}`, v, detailAligns[i] ?? 0)).join('')}</row>`,
+      );
+    }
+  }
 
   // Freeze the header rows and the columns pinned to the start.
   const pinned = columns.findIndex((c) => c.pin !== 'start');
   const x = pinned === -1 ? 0 : pinned;
   const topLeft = `${columnName(x)}${String(headerRows + 1)}`;
   const pane = `<pane${x ? ` xSplit="${String(x)}"` : ''} ySplit="${h}" topLeftCell="${topLeft}" activePane="${x ? 'bottomRight' : 'bottomLeft'}" state="frozen"/>`;
-  const cols = columns
-    .map((c, i) => {
+  // A spreadsheet column as wide as the wider of the table's and the detail column in it.
+  const widths = columns.map((c) => c.width);
+  if (outlined) {
+    detail?.columns.forEach((c, i) => {
+      widths[i + 1] = Math.max(widths[i + 1] ?? 0, c.width);
+    });
+  }
+  const cols = widths
+    .map((px, i) => {
       const n = String(i + 1);
       // Excel's width unit is the width of a digit, about 7 px in Calibri 11.
-      const width = Math.min(255, Math.max(2, Math.round((c.width / 7 + 0.7) * 100) / 100));
+      const width = Math.min(255, Math.max(2, Math.round((px / 7 + 0.7) * 100) / 100));
       return `<col min="${n}" max="${n}" width="${String(width)}" customWidth="1"/>`;
     })
     .join('');
-  const range = columns.length ? `A${h}:${last}${String(headerRows + rows.length)}` : undefined;
-  const xmlText = `${HEAD}<worksheet xmlns="${MAIN}" xmlns:r="${REL}"><sheetViews><sheetView workbookViewId="0">${pane}</sheetView></sheetViews><sheetFormatPr defaultRowHeight="15"/>${cols ? `<cols>${cols}</cols>` : ''}<sheetData>${out.join('')}</sheetData>${range ? `<autoFilter ref="${range}"/>` : ''}${merges.length ? `<mergeCells count="${String(merges.length)}">${merges.map((m) => `<mergeCell ref="${m}"/>`).join('')}</mergeCells>` : ''}</worksheet>`;
+  // A filter would take detail rows for rows of the table: none with detail rows.
+  const range =
+    columns.length && !outlined ? `A${h}:${last}${String(headerRows + rows.length)}` : undefined;
+  const outline = outlined ? '<sheetPr><outlinePr summaryBelow="0"/></sheetPr>' : '';
+  const xmlText = `${HEAD}<worksheet xmlns="${MAIN}" xmlns:r="${REL}">${outline}<sheetViews><sheetView workbookViewId="0">${pane}</sheetView></sheetViews><sheetFormatPr defaultRowHeight="15"${outlined ? ' outlineLevelRow="1"' : ''}/>${cols ? `<cols>${cols}</cols>` : ''}<sheetData>${out.join('')}</sheetData>${range ? `<autoFilter ref="${range}"/>` : ''}${merges.length ? `<mergeCells count="${String(merges.length)}">${merges.map((m) => `<mergeCell ref="${m}"/>`).join('')}</mergeCells>` : ''}</worksheet>`;
   // The defined name Excel keeps for an auto filter, with absolute references.
   const filter = range
     ? `'${name.replaceAll("'", "''")}'!${range.replace(/([A-Z]+)(\d+)/g, '$$$1$$$2')}`

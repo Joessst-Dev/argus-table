@@ -28,6 +28,11 @@ export interface ExportSheet {
   groups: ExportHeaderCell[][];
   /** The rows, each with one value per column. */
   rows: ExportValue[][];
+  /**
+   * Detail rows (`ExportDetail`): their columns, and for each entry of `rows` its
+   * detail rows; `undefined` for pinned rows and rows without any.
+   */
+  detail?: { columns: ExportColumn[]; rows: (ExportValue[][] | undefined)[] };
 }
 
 /**

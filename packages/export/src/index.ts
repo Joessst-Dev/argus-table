@@ -6,7 +6,12 @@ export type {
   ExportPlugin,
   TableExportOptions,
 } from './plugin.js';
-export type { CollectOptions, ExportColumnOptions } from './collect.js';
+export type {
+  CollectOptions,
+  ExportColumnOptions,
+  ExportDetail,
+  ExportDetailColumn,
+} from './collect.js';
 export type { CsvOptions } from './csv.js';
 export type { XlsxOptions } from './xlsx/xlsx.js';
 export type { PdfOptions } from './pdf/pdf.js';
