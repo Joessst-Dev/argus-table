@@ -331,8 +331,8 @@ git commit -m "feat(formulas): reload a data source when a formula it sorts or f
 **Interfaces:**
 - Consumes: `formulas`, `formulaTrees`, type `FormulaTrees`/`FormulaTree` from `@argus-table/formulas`; `itemsOf`, `Item`, `dataColumns` from `examples/formulas/data.ts`.
 - Produces, in `server.ts`:
-  - `createFormulaSource(trees: () => FormulaTrees, onRequest: (request: FormulaRequest) => void): DataSource<Item>`
-  - `interface FormulaRequest { start: number; end: number; sorting: SortState; filters: ColumnFilterState; quickFilter: string; trees: FormulaTrees }`
+  - `createFormulaSource(table: () => HTMLElement | null | undefined, onRequest: (request: FormulaRequest) => void): DataSource<Item>`: its `getRows` calls `formulaTrees(table())` (the browser side), then the pretend server (as built: the element, not a trees getter, so every flavour passes its element the way it has it)
+  - `interface FormulaRequest { start: number; end: number; sorting: SortState; filters: ColumnFilterState; quickFilter: string; formulas: FormulaTrees }`
   - `describe(request: FormulaRequest): string`: one log line with the range, sorting, filters and the trees of the sorted and filtered formula columns as JSON.
 
 - [ ] **Step 1: Write the pretend server**

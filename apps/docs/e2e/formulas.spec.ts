@@ -1,6 +1,6 @@
 import { expect, test, type Locator } from '@playwright/test';
 import { cellText, expectAccessible, FLAVOURS, openFlavour } from './flavours';
-import { items, type Item } from '../src/examples/formulas/data';
+import { items, itemsOf, type Item } from '../src/examples/formulas/data';
 
 const header = (table: Locator, id: string) =>
   table.locator(`[role="columnheader"][data-col="${id}"]`);
@@ -131,6 +131,36 @@ for (const flavour of FLAVOURS) {
     await dialog.getByRole('button', { name: 'Add column' }).click();
     await expect(header(table, 'net')).toBeVisible();
     await expect.poll(() => at(table, 1, 'net')).toBe('21.28');
+    await expectAccessible(page, example);
+  });
+}
+
+/** The largest line total the pretend server has (`ROUND(…, 2)`), over all its rows. */
+const largestTotal = Math.max(
+  ...itemsOf(10_000).map((item) => Math.round(totalOf(item) * 100) / 100),
+);
+
+for (const flavour of FLAVOURS) {
+  test(`${flavour}: a data source sorts and filters by formula columns`, async ({ page }) => {
+    await page.goto('features/formulas/');
+    const example = await openFlavour(page, 'formulas/data-source', flavour);
+    const table = example.locator('argus-table');
+    const log = example.locator('output');
+    // The starting filter, Line total ≥ 200, applied by the server.
+    await expect.poll(async () => Number(await at(table, 0, 'total'))).toBeGreaterThanOrEqual(200);
+    for (let row = 1; row < 5; row++) {
+      expect(Number(await at(table, row, 'total'))).toBeGreaterThanOrEqual(200);
+    }
+    await expect(log).toContainText('"type":"binary"');
+    // Descending: the server's largest total of all its rows comes first.
+    await header(table, 'total').click();
+    await header(table, 'total').click();
+    await expect(header(table, 'total')).toHaveAttribute('aria-sort', 'descending');
+    await expect(log).toContainText('sorting [{"id":"total","desc":true}]');
+    await expect.poll(async () => Number(await at(table, 0, 'total'))).toBe(largestTotal);
+    expect(Number(await at(table, 0, 'total'))).toBeGreaterThanOrEqual(
+      Number(await at(table, 1, 'total')),
+    );
     await expectAccessible(page, example);
   });
 }
