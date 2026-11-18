@@ -49,7 +49,7 @@ With a coding agent, the [`argus-table-integrate` skill](https://github.com/Joes
 </script>
 ```
 
-- **Height:** the table virtualizes its rows, so it needs a bounded height. Its default is 400 px.
+- **Height:** the table virtualizes its rows, so it needs a bounded height. Its default is 400 px. To fit a short table to its rows, give it `block-size: auto` and a `max-block-size`: it grows with its rows up to that height, then scrolls (without a maximum it stops at the window's height).
 - **Label:** give it a name with `aria-label` or `aria-labelledby`.
 - **Columns and data** are JavaScript properties, because they hold objects and functions.
 - **Cells:** a column's `cell` function can return a string, a number, a DOM node or a Lit template.

@@ -31,3 +31,27 @@ for (const flavour of FLAVOURS) {
     await expectAccessible(page, example);
   });
 }
+
+for (const flavour of FLAVOURS) {
+  test(`${flavour}: fits its rows up to its maximum height`, async ({ page }) => {
+    await page.goto('features/scrolling/');
+    const example = await openFlavour(page, 'scrolling/fit-to-content', flavour);
+    const table = example.locator('argus-table');
+    const height = async () => (await table.boundingBox())?.height ?? 0;
+    const rows = () => table.locator('[part~="body"] > [role="row"]').count();
+
+    // The header and 4 rows: 5 rows tall.
+    await expect.poll(rows).toBe(4);
+    const row = (await height()) / 5;
+    await example.getByRole('button', { name: 'Add row' }).click();
+    await expect.poll(height).toBeCloseTo(6 * row, 0);
+    await example.getByRole('button', { name: 'Remove row' }).click();
+    await example.getByRole('button', { name: 'Remove row' }).click();
+    await expect.poll(height).toBeCloseTo(4 * row, 0);
+
+    // Past 320px it stops growing and scrolls.
+    for (let i = 0; i < 10; i++) await example.getByRole('button', { name: 'Add row' }).click();
+    await expect.poll(height).toBeCloseTo(320, 0);
+    await expectAccessible(page, example);
+  });
+}

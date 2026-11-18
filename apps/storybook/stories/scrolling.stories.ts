@@ -125,3 +125,38 @@ export const ScrollToRowAndColumn: Story = {
     await expect(table.scrollToRow({ id: 'nope' })).resolves.toBe(false);
   },
 };
+
+const items = (count: number) => orders(count).map(({ id, customer }) => ({ id, customer }));
+
+/**
+ * A table with `block-size: auto` and a `max-block-size` fits its rows: as tall as
+ * its header and rows up to the maximum, and past that it scrolls and virtualizes.
+ * Give the maximum as a length. Without one, the table stops at the window's height.
+ */
+export const FitToContent: Story = {
+  render: () =>
+    html`<argus-table
+      aria-label="Line items"
+      style="inline-size: 480px; block-size: auto; max-block-size: 320px"
+      .columns=${[
+        { id: 'id', header: 'Order', accessor: 'id', width: 120 },
+        { id: 'customer', header: 'Customer', accessor: 'customer', width: { flex: 1 } },
+      ]}
+      .data=${items(3)}
+    ></argus-table>`,
+  play: async ({ canvasElement }) => {
+    const table =
+      canvasElement.querySelector<ArgusTable<{ id: string; customer: string }>>('argus-table');
+    if (!table) return;
+    await table.updateComplete;
+    const height = () => table.getBoundingClientRect().height;
+    const row = () =>
+      table.shadowRoot?.querySelector('[part~="body"] > [role="row"]')?.getBoundingClientRect()
+        .height ?? 0;
+    // The header and 3 rows.
+    await waitFor(() => expect(Math.abs(height() - 4 * row())).toBeLessThan(1));
+    table.data = items(2000);
+    await waitFor(() => expect(Math.abs(height() - 320)).toBeLessThan(1));
+    table.data = items(3);
+  },
+};
