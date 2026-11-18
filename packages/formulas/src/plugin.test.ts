@@ -758,6 +758,13 @@ describe('reloading a dataSource when formulas change, with server: true', () =>
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
+  test('removing the last formula columns reloads, with quick filter text', async () => {
+    const { el, refresh } = await mount({ quickFilter: 'a' });
+    el.columns = withFormulas();
+    await settle(el);
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
   test('no reload when nothing sorts or filters by formulas', async () => {
     const { el, refresh } = await mount({ sorting: [{ id: 'name', desc: false }] });
     el.columns = withFormulas(total('[price] + [qty]'), twice);

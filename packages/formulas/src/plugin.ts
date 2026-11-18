@@ -171,6 +171,27 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPl
     return tree;
   };
 
+  /**
+   * After the columns ran: with `server` and a `dataSource`, loads the rows again
+   * when the trees changed and the server's rows can depend on them, unless this
+   * update starts the data source afresh anyway.
+   */
+  const reloadFor = (state: TableState<T>, trees: Record<string, FormulaTree>, ids: string[]) => {
+    const el = state.host.element;
+    const json = el.dataSource && options.server ? JSON.stringify(trees) : undefined;
+    if (
+      state.trees !== undefined &&
+      json !== state.trees &&
+      !state.restarting &&
+      (el.sorting.some((sort) => ids.includes(sort.id)) ||
+        Object.keys(el.columnFilters).some((id) => ids.includes(id)) ||
+        el.quickFilter.trim())
+    ) {
+      void el.updateComplete.then(() => el.refresh());
+    }
+    state.trees = json;
+  };
+
   const stateOf = (host: PluginHost<T>): TableState<T> => {
     let state = states.get(host.element);
     if (!state) {
@@ -333,6 +354,8 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPl
       const remote = host.element.dataSource !== undefined;
       state.remote = remote;
       if (!hasFormulas && editingId === undefined) {
+        // The formula columns that were (sorted, say) are gone.
+        reloadFor(state, {}, [...state.compiled.keys()]);
         state.compiled = new Map();
         setTrees(host.element, () => ({}));
         return defs;
@@ -358,22 +381,8 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPl
       let trees: Record<string, FormulaTree> | undefined;
       const read = () => (trees ??= treesOf(defs, compiled, { parse: parseOnce, functions }));
       setTrees(host.element, read);
-      const server = remote && options.server;
-      const known = server ? read() : {};
-      const json = server ? JSON.stringify(known) : undefined;
-      // The server's rows may depend on a formula that changed: load them again.
-      const el = host.element;
-      if (
-        state.trees !== undefined &&
-        json !== state.trees &&
-        !state.restarting &&
-        (el.sorting.some((sort) => compiled.has(sort.id)) ||
-          Object.keys(el.columnFilters).some((id) => compiled.has(id)) ||
-          el.quickFilter.trim())
-      ) {
-        void el.updateComplete.then(() => el.refresh());
-      }
-      state.trees = json;
+      const known = remote && options.server ? read() : {};
+      reloadFor(state, known, [...compiled.keys()]);
       return defs.map((def) => {
         const c = compiled.get(def.id);
         const anchor = def.id === editingId ? state.anchor : undefined;

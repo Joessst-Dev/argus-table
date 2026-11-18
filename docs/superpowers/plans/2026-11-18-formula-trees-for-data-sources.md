@@ -14,7 +14,7 @@
 
 - No change to `packages/table` or `packages/core`.
 - With `server` off (the default), behaviour is exactly as today, except the fix in Task 2 (the hook re-runs when `dataSource` is set or removed).
-- Plugin budget: 12.8 kB min+gzip (`packages/formulas/.size-limit.js`), raised from 12.3 kB with the maintainer's approval (the feature costs 0.47 kB).
+- Plugin budget: 12.8 kB min+gzip (`packages/formulas/.size-limit.js`), raised from 12.3 kB with the maintainer's approval (the feature costs 0.51 kB).
 - Public names, exact: option `server?: boolean`; `formulaTrees(table: HTMLElement): FormulaTrees`; types `FormulaTrees`, `FormulaTree`, `FormulaOperator`.
 - The tree format can only grow once released (ADR 0004). No `range` node.
 - `@argus-table/formulas` stays framework-agnostic, with `argus-table` and `lit` as peers.
@@ -34,12 +34,14 @@
 ### Task 1: The tree conversion
 
 **Files:**
+
 - Create: `packages/formulas/src/trees.ts`
 - Modify: `packages/formulas/src/columns.ts` (`Compiled<T>`, `entry()`, `broken()`, the `#CYCLE!` entry in `compileColumns`)
 - Test: `packages/formulas/src/trees.node.test.ts`
 - Also commit the spec: `docs/superpowers/specs/2026-11-18-formula-trees-for-data-sources-design.md`
 
 **Interfaces:**
+
 - Consumes: `lookupOf`, `Compiled<T>`, `compileColumns`, `functionTable`, `parseOrError` (`columns.ts`); `FormulaNode`, `BinaryOperator` (`engine/parse.ts`); `FunctionTable` (`engine/functions/index.ts`); `FormulaSyntaxError` (`engine/errors.ts`).
 - Produces:
   - `Compiled<T>.broken: boolean`: `true` for an entry that is `#ERROR!` or `#CYCLE!` in every row (a parse error, the wrong number of arguments, a cycle), `false` otherwise.
@@ -69,28 +71,41 @@ it('turns a formula into a tree with column ids and no spans', () => {
 
 it.each([
   ['[unit price]', 'price'], // text header, any case
-  ['[QTY]', 'qty'],          // id, any case
-  ['[weight]', 'w'],         // a header function's text mode
+  ['[QTY]', 'qty'], // id, any case
+  ['[weight]', 'w'], // a header function's text mode
 ])('resolves %s to %s', (formula, id) => {
   expect(trees({ f: formula }).f).toEqual(ref(id));
 });
 
 it('keeps literals, calls, unary minus and percent', () => {
   expect(trees({ f: 'IF([qty] > 0, "yes", TRUE)' }).f).toEqual({
-    type: 'call', name: 'IF', args: [
+    type: 'call',
+    name: 'IF',
+    args: [
       { type: 'binary', operator: '>', left: ref('qty'), right: { type: 'number', value: 0 } },
       { type: 'text', value: 'yes' },
       { type: 'boolean', value: true },
     ],
   });
-  expect(trees({ f: '-[price]' }).f).toEqual({ type: 'unary', operator: '-', operand: ref('price') });
+  expect(trees({ f: '-[price]' }).f).toEqual({
+    type: 'unary',
+    operator: '-',
+    operand: ref('price'),
+  });
   expect(trees({ f: '[price]%' }).f).toEqual({ type: 'percent', operand: ref('price') });
-  expect(trees({ f: 'vat([price])' }).f).toEqual({ type: 'call', name: 'VAT', args: [ref('price')] });
+  expect(trees({ f: 'vat([price])' }).f).toEqual({
+    type: 'call',
+    name: 'VAT',
+    args: [ref('price')],
+  });
 });
 
 it('keeps a reference to another formula column as a ref', () => {
   expect(trees({ total: '[price] * [qty]', twice: '[total] * 2' }).twice).toEqual({
-    type: 'binary', operator: '*', left: ref('total'), right: { type: 'number', value: 2 },
+    type: 'binary',
+    operator: '*',
+    left: ref('total'),
+    right: { type: 'number', value: 2 },
   });
 });
 
@@ -106,7 +121,17 @@ it.each([
 
 it('leaves out cycles, and columns reading a left-out column', () => {
   expect(trees({ a: '[b]', b: '[a]' })).toEqual({});
-  expect(Object.keys(trees({ share: 'SUM([[price]])', pct: '[share] * 100', bad: '[price] *', next: '[bad] + 1', ok: '[qty]' }))).toEqual(['ok']);
+  expect(
+    Object.keys(
+      trees({
+        share: 'SUM([[price]])',
+        pct: '[share] * 100',
+        bad: '[price] *',
+        next: '[bad] + 1',
+        ok: '[qty]',
+      }),
+    ),
+  ).toEqual(['ok']);
 });
 
 it('gives plain JSON', () => {
@@ -143,12 +168,14 @@ git commit -m "feat(formulas): turn formula columns into syntax trees with colum
 ### Task 2: The `server` option and `formulaTrees()`
 
 **Files:**
+
 - Modify: `packages/formulas/src/trees.ts` (the per-table store and `formulaTrees`)
 - Modify: `packages/formulas/src/plugin.ts` (`FormulasOptions.server`, `willUpdate`, the `columns` hook, the plugin's JSDoc)
 - Modify: `packages/formulas/src/index.ts`
 - Test: `packages/formulas/src/plugin.test.ts`
 
 **Interfaces:**
+
 - Consumes: `treesOf` and the types from Task 1.
 - Produces:
   - `export function formulaTrees(table: HTMLElement): FormulaTrees` (the spec's JSDoc). `timeZone` is `Intl.DateTimeFormat().resolvedOptions().timeZone`; `columns` is `{}` for a table the plugin never saw.
@@ -166,7 +193,12 @@ test('formula columns sort, and getRows reads their trees', async () => {
   await settle(el);
   expect(el.sorting).toEqual([{ id: 'total', desc: false }]);
   await vi.waitFor(() => expect(seen.at(-1)?.sorting).toEqual([{ id: 'total', desc: false }]));
-  expect(seen.at(-1)?.trees.columns.total).toEqual({ type: 'binary', operator: '*', left: { type: 'ref', column: 'price' }, right: { type: 'ref', column: 'qty' } });
+  expect(seen.at(-1)?.trees.columns.total).toEqual({
+    type: 'binary',
+    operator: '*',
+    left: { type: 'ref', column: 'price' },
+    right: { type: 'ref', column: 'qty' },
+  });
   expect(seen.at(-1)?.trees.timeZone).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone);
 });
 
@@ -186,10 +218,12 @@ test('broken and whole-column formulas, and those reading them, stay unsortable'
 
 test('sortable and filter follow a dataSource set or removed later', async () => {
   // mount with data, formulas() (server off), total sortable with filter 'number'
-  el.data = undefined; el.dataSource = source([]);
+  el.data = undefined;
+  el.dataSource = source([]);
   await settle(el);
   expect(host?.column('total')?.sortable).toBe(false);
-  el.dataSource = undefined; el.data = data;
+  el.dataSource = undefined;
+  el.data = data;
   await settle(el);
   expect(host?.column('total')?.sortable).toBe(true);
 });
@@ -242,10 +276,12 @@ git commit -m "feat(formulas): server option and formulaTrees() for data sources
 ### Task 3: Reload when a formula the server uses changes
 
 **Files:**
+
 - Modify: `packages/formulas/src/plugin.ts` (`TableState`, `willUpdate`, the `columns` hook)
 - Test: `packages/formulas/src/plugin.test.ts`
 
 **Interfaces:**
+
 - Consumes: the memoized trees reader from Task 2.
 - Produces: `TableState` gains `trees: string | undefined` (the last run's trees as JSON, `undefined` before the first) and `restarting: boolean` (set in every `willUpdate`: `true` when `dataSource`, `sorting`, `columnFilters` or `quickFilter` changed, since the data source then starts a fresh cache itself).
 
@@ -324,11 +360,13 @@ git commit -m "feat(formulas): reload a data source when a formula it sorts or f
 ### Task 4: The docs example and its e2e
 
 **Files:**
+
 - Create: `apps/docs/src/examples/formulas/server.ts`
 - Create: `apps/docs/src/examples/formulas/data-source/html/{index.html,main.js}`, `react/FormulaDataSource.tsx`, `vue/FormulaDataSource.vue`, `angular/formula-data-source.component.ts`
 - Modify: `apps/docs/e2e/formulas.spec.ts`
 
 **Interfaces:**
+
 - Consumes: `formulas`, `formulaTrees`, type `FormulaTrees`/`FormulaTree` from `@argus-table/formulas`; `itemsOf`, `Item`, `dataColumns` from `examples/formulas/data.ts`.
 - Produces, in `server.ts`:
   - `createFormulaSource(table: () => HTMLElement | null | undefined, onRequest: (request: FormulaRequest) => void): DataSource<Item>`: its `getRows` calls `formulaTrees(table())` (the browser side), then the pretend server (as built: the element, not a trees getter, so every flavour passes its element the way it has it)
@@ -376,6 +414,7 @@ git commit -m "docs(formulas): example of a data source sorting by formula colum
 ### Task 5: Docs, records and release note
 
 **Files:**
+
 - Modify: `apps/docs/src/content/docs/features/formulas.mdx` (new section "With a `dataSource`", with the example's `FlavourTabs`)
 - Modify: `apps/docs/src/content/docs/guides/server-data.mdx` (one sentence linking to it)
 - Modify: `packages/formulas/README.md` (a short "With a `dataSource`" section; keep the `# ` first line)
