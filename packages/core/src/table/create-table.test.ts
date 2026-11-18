@@ -1296,6 +1296,42 @@ describe('createTableModel: expanded rows', () => {
   });
 });
 
+describe('createTableModel: identities', () => {
+  it('keeps columns and allColumns between reads', () => {
+    const m = model();
+    expect(m.columns).toBe(m.columns);
+    expect(m.allColumns).toBe(m.allColumns);
+  });
+
+  it('builds new views on an update, and keeps them on an update that changes nothing', () => {
+    const sorting: TableModelOptions<Person, string>['sorting'] = [];
+    const m = model({ sorting });
+    const views = m.columns;
+    const all = m.allColumns;
+    m.update({ sorting, data: people });
+    expect(m.columns).toBe(views);
+    m.update({ columnSizing: { age: 99 } });
+    expect(m.columns).not.toBe(views);
+    expect(m.allColumns).not.toBe(all);
+  });
+
+  it('keeps rowOrder when pinning or visibility change without a filter', () => {
+    const m = model();
+    const order = m.rowOrder;
+    m.update({ columnPinning: { age: 'start' } });
+    expect(m.rowOrder).toBe(order);
+    m.update({ columnVisibility: { city: false } });
+    expect(m.rowOrder).toBe(order);
+  });
+
+  it('filters again when visibility changes under a quick filter', () => {
+    const m = model({ quickFilter: 'a' });
+    const order = m.rowOrder;
+    m.update({ columnVisibility: { city: false } });
+    expect(m.rowOrder).not.toBe(order);
+  });
+});
+
 describe('stretched columns', () => {
   const three = (
     widths: [number, number, number] = [150, 150, 150],
