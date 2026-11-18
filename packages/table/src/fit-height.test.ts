@@ -77,4 +77,38 @@ describe('fit to content', () => {
     expect(height(el)).toBeCloseTo(2000, 0);
     expect(warn).not.toHaveBeenCalled();
   });
+
+  it('caps a table that was hidden when it first rendered, once it shows', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const tab = document.createElement('div');
+    tab.style.display = 'none';
+    document.body.append(tab);
+    const el = document.createElement('argus-table') as ArgusTable<Person>;
+    el.columns = columns;
+    el.data = people(2000);
+    el.style.cssText = 'inline-size: 600px; block-size: auto';
+    tab.append(el);
+    await settle(el);
+    tab.style.display = '';
+    await settle(el);
+    await settle(el);
+    expect(height(el)).toBeCloseTo(window.innerHeight, 0);
+    expect(bodyRows(el)).toBeLessThan(window.innerHeight / 20);
+  });
+
+  it('keeps the scroller as tall as the host with a percentage max-block-size', async () => {
+    const box = document.createElement('div');
+    box.style.blockSize = '800px';
+    document.body.append(box);
+    const el = document.createElement('argus-table') as ArgusTable<Person>;
+    el.columns = columns;
+    el.data = people(2000);
+    el.style.cssText = 'inline-size: 600px; block-size: 600px; max-block-size: 90%';
+    box.append(el);
+    await settle(el);
+    await settle(el);
+    const scroller = shadow(el).querySelector<HTMLElement>('[part~="table"]');
+    expect(height(el)).toBeCloseTo(600, 0);
+    expect(scroller?.getBoundingClientRect().height).toBeCloseTo(600, 0);
+  });
 });
