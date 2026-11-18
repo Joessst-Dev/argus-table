@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildRowTree } from './row-tree.js';
+import { buildRowTree, type RowTree } from './row-tree.js';
 import { keepWithAncestors, layoutTree, showOpen } from './tree-order.js';
 
 interface Row {
@@ -26,6 +26,25 @@ const named =
   (...names: string[]) =>
   (row: Row) =>
     names.includes(row.name);
+
+/**
+ * Rows of `order` that don't come right under their parent: each row's parent
+ * must be the last row before it one level up, so parents come first and
+ * depths go down by at most one step at a time.
+ */
+const depthFirstErrors = (tree: RowTree<Row>, order: Iterable<number>): number => {
+  // The last row seen at each depth: the path from the top to the current row.
+  const path: number[] = [];
+  let errors = 0;
+  for (const row of order) {
+    const depth = tree.depth[row] ?? 0;
+    const parent = tree.parent[row] ?? -1;
+    if (depth > path.length || parent !== (depth === 0 ? -1 : path[depth - 1])) errors++;
+    path.length = depth;
+    path.push(row);
+  }
+  return errors;
+};
 
 describe('keepWithAncestors', () => {
   it("keeps a match's ancestors but not its descendants", () => {
@@ -88,6 +107,10 @@ describe('layoutTree', () => {
     const tree = fixture();
     const layout = layoutTree(tree, [B1, A2, B, A1a, A1, A]);
     expect([...layout.order]).toEqual([B, B1, A, A2, A1, A1a]);
+    expect(depthFirstErrors(tree, layout.order)).toBe(0);
+    // The check catches a child before its parent and one under the wrong parent.
+    expect(depthFirstErrors(tree, [A1, A])).toBe(1);
+    expect(depthFirstErrors(tree, [A, B, B1, A1])).toBe(1);
     expect(layout.posInSet[A2]).toBe(1);
     expect(layout.posInSet[A1]).toBe(2);
     expect(layout.posInSet[B]).toBe(1);
@@ -181,9 +204,12 @@ describe('showOpen', () => {
     const shown = showOpen(tree, layout, (index) => index % 2 === 0);
     const elapsed = performance.now() - started;
 
-    expect(layout.order).toHaveLength(kept.rows.length);
-    expect(shown.length).toBeGreaterThan(0);
     // A guard against quadratic code, not the performance target.
     expect(elapsed).toBeLessThan(1000);
+
+    expect(layout.order).toHaveLength(kept.rows.length);
+    expect(shown.length).toBeGreaterThan(0);
+    expect(depthFirstErrors(tree, layout.order)).toBe(0);
+    expect(depthFirstErrors(tree, shown)).toBe(0);
   });
 });

@@ -1,7 +1,7 @@
 import type { RowPredicate } from '../filters/filter.js';
 import type { RowTree } from './row-tree.js';
 
-/**
+/*
  * The tree's three steps between its rows and the body: keep the rows the
  * filters pass with their ancestors, lay the kept rows out depth-first with
  * each group of siblings in sort order, and drop the rows under collapsed
@@ -14,9 +14,9 @@ export interface KeptRows {
   /** The source indexes the filters keep, ascending (as `sortRows` wants them). */
   rows: readonly number[];
   /**
-   * 1 for each row kept because a descendant matches, per source index, while a
-   * filter is on; `undefined` without one. Such rows are shown open, so a match
-   * is never hidden under a collapsed row.
+   * 1 for each row with a matching descendant (whether or not it matches
+   * itself), per source index, while a filter is on; `undefined` without one.
+   * Such rows are shown open, so a match is never hidden under a collapsed row.
    */
   holdsMatch: Uint8Array | undefined;
 }
@@ -68,7 +68,10 @@ export interface TreeLayout {
   readonly keptChildren: Int32Array;
   /** 1-based position among kept siblings, per source index. */
   readonly posInSet: Int32Array;
-  /** Kept children of a row in layout order; `-1` for the kept top-level rows. */
+  /**
+   * Kept children of a row in layout order; `-1` for the kept top-level rows.
+   * A view into the layout's storage: read it, don't keep or modify it.
+   */
   children(parent: number): Int32Array;
 }
 
