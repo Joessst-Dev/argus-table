@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import type { ArgusTable } from './index.js';
 import { setMaxElementHeightForTests } from './max-height.js';
-import type { ColumnDef, DataSource } from './types.js';
+import type { ColumnDef, DataSource, ScrollToColumnOptions } from './types.js';
 import { bodyRows, fixture, people, rowText, settle, shadow, type Person } from './test-utils.js';
 
 afterEach(() => {
@@ -340,5 +340,29 @@ describe('scrollToColumn', () => {
     const box = headerBox(el, 'c150');
     const { left, right } = area(el);
     expect(Math.abs((box.left + box.right) / 2 - (left + right) / 2)).toBeLessThan(1);
+  });
+
+  test('reads virtualizeColumns and its options once the pending update is done', async () => {
+    const el = await table();
+    const options: ScrollToColumnOptions = {};
+    const done = el.scrollToColumn('c8', options);
+    // Set in the same task: the scroll goes by them.
+    el.virtualizeColumns = true;
+    options.align = 'center';
+    await expect(done).resolves.toBe(true);
+    await settle(el);
+    const box = headerBox(el, 'c8');
+    const { left, right } = area(el);
+    expect(Math.abs((box.left + box.right) / 2 - (left + right) / 2)).toBeLessThan(1);
+  });
+
+  test('bad options reject the promise rather than throwing', async () => {
+    const el = await table({ columns: wide([{ pin: 'start' }]) });
+    // `null` from plain JavaScript: the default parameter doesn't replace it.
+    const row = el.scrollToRow(3, null as never);
+    await expect(row).rejects.toThrow(TypeError);
+    // A pinned column is in view: its options are never read.
+    await expect(el.scrollToColumn('c0', null as never)).resolves.toBe(true);
+    await expect(el.scrollToColumn('c5', null as never)).rejects.toThrow(TypeError);
   });
 });

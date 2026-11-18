@@ -1,7 +1,14 @@
 import type { ReactiveElement } from 'lit';
 import { alignOffset, type RowLayout, type TableModel } from '@argus-table/core';
 import { directionOf, layoutOf, pinnedWidth, positionOfIndex } from '../grid.js';
-import type { CellContent, RowTarget, ScrollAlign, ScrollState } from '../types.js';
+import type {
+  CellContent,
+  RowTarget,
+  ScrollAlign,
+  ScrollState,
+  ScrollToColumnOptions,
+  ScrollToRowOptions,
+} from '../types.js';
 import type { DataController } from './data-controller.js';
 import type { VirtualController } from './virtual-controller.js';
 
@@ -53,11 +60,12 @@ export class ScrollTarget<T> {
   };
 
   /** `scrollToRow()`: see its documentation on the element. */
-  async toRow(target: RowTarget, align: ScrollAlign): Promise<boolean> {
+  async toRow(target: RowTarget, options: ScrollToRowOptions): Promise<boolean> {
     await this.#host.updateComplete;
     const model = this.#model();
     const index = typeof target === 'number' ? target : model.indexOf(target.id);
     if (index === undefined || !Number.isInteger(index) || index < 0) return false;
+    const align = options.align ?? 'start';
     const count = model.rowCount;
     this.#target =
       this.#data.rows?.totalKnown === false && index >= count
@@ -76,18 +84,22 @@ export class ScrollTarget<T> {
   }
 
   /** `scrollToColumn()`: see its documentation on the element. */
-  async toColumn(id: string, align: ScrollAlign, virtualize: boolean): Promise<boolean> {
+  async toColumn(
+    id: string,
+    options: ScrollToColumnOptions,
+    virtualize: () => boolean,
+  ): Promise<boolean> {
     const host = this.#host;
     await host.updateComplete;
     const column = this.#model().columns.find((c) => c.id === id && c.kind === 'data');
     if (!column) return false;
     if (column.pin !== undefined) return true;
-    if (virtualize) {
+    if (virtualize()) {
       this.keep = id;
       host.requestUpdate();
       await host.updateComplete;
     }
-    this.#scrollColumnTo(id, align);
+    this.#scrollColumnTo(id, options.align ?? 'nearest');
     if (this.keep !== undefined) {
       this.keep = undefined;
       host.requestUpdate();
