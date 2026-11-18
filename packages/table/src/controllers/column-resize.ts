@@ -152,27 +152,38 @@ export class ColumnResize<T> {
     if (single) this.#endResize();
   }
 
+  #kept: string | undefined;
+
+  /**
+   * The column resized last on its own (a drag or Alt+Arrow): with `stretchColumns`
+   * it keeps its width while the others fill the table. Not state: kept until
+   * another column is resized.
+   */
+  get kept(): string | undefined {
+    return this.#kept;
+  }
+
   /** Sets one column's width (clamped by core), through the controlled/uncontrolled rules. */
   #requestResize(columnId: string, width: number): void {
+    this.#kept = columnId;
     this.request(new Map([[columnId, width]]));
   }
 
   /**
-   * The width a resize starts from: the latest requested width (key presses can
-   * come faster than renders), else the model's fixed width, else the rendered
-   * width of a flex column.
+   * The width a resize starts from: for the column resized last, the latest
+   * requested width (key presses can come faster than renders); else the width
+   * it renders at (stretched or not), or a flex column's rendered width.
    */
   #currentWidth(columnId: string, cell: HTMLElement): number {
     const sized = this.state.value[columnId];
-    if (sized !== undefined) return sized;
+    if (sized !== undefined && columnId === this.#kept) return sized;
     const view = this.#model().columns.find((c) => c.id === columnId);
     return view && view.flex === undefined ? view.width : cell.getBoundingClientRect().width;
   }
 
   /**
-   * The widths a group resize starts from, by column: the latest requested ones
-   * (key presses can come faster than renders), else the model's, else the
-   * rendered width of a flex column.
+   * The widths a group resize starts from, by column: each column's
+   * `#currentWidth()`, else the model's.
    */
   #groupWidths(columnIds: readonly string[]): Map<string, number> {
     const widths = new Map<string, number>();
@@ -181,8 +192,7 @@ export class ColumnResize<T> {
         `[part~='header-cell'][data-col="${CSS.escape(id)}"]`,
       );
       const view = this.#model().columns.find((c) => c.id === id);
-      const sized = this.state.value[id];
-      widths.set(id, sized ?? (header ? this.#currentWidth(id, header) : (view?.width ?? 0)));
+      widths.set(id, header ? this.#currentWidth(id, header) : (view?.width ?? 0));
     }
     return widths;
   }
