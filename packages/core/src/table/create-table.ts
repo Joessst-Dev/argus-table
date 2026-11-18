@@ -279,6 +279,7 @@ export function createTableModel<TData, TContent>(
         depth: tree.depth[row] ?? 0,
         hasChildren,
         open: hasChildren && pipeline.treeOpen(row),
+        forced: hasChildren && steps.holdsMatch?.[row] === 1,
         expanded: pipeline.treeExpanded(row),
         parent: parent === -1 ? undefined : parent,
         setSize: up === -1 ? steps.roots : (layout.keptChildren[up] ?? 0),

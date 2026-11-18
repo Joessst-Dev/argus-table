@@ -1495,6 +1495,7 @@ describe('tree rows', () => {
       depth: 0,
       hasChildren: true,
       open: true,
+      forced: true,
       expanded: false,
       parent: undefined,
       setSize: 1,
@@ -1504,6 +1505,7 @@ describe('tree rows', () => {
       depth: 1,
       hasChildren: false,
       open: false,
+      forced: false,
       expanded: false,
       parent: 0,
       setSize: 1,
@@ -1521,6 +1523,7 @@ describe('tree rows', () => {
       depth: 0,
       hasChildren: true,
       open: true,
+      forced: false,
       expanded: true,
       parent: undefined,
       setSize: 2,
@@ -1530,6 +1533,7 @@ describe('tree rows', () => {
       depth: 1,
       hasChildren: false,
       open: false,
+      forced: false,
       expanded: false,
       parent: 0,
       setSize: 2,
@@ -1539,6 +1543,7 @@ describe('tree rows', () => {
       depth: 0,
       hasChildren: true,
       open: false,
+      forced: false,
       expanded: false,
       parent: undefined,
       setSize: 2,
@@ -1746,6 +1751,34 @@ describe('tree rows', () => {
     m.update({ columnFilters: {} });
     expect(tids(m)).toEqual(['0', '1']);
     expect(m.treeRow(0)).toMatchObject({ open: false, expanded: false });
+  });
+
+  it('marks the rows a filter keeps open as forced', () => {
+    const deep: Item[] = [
+      { name: 'A', kids: [{ name: 'A1', kids: [{ name: 'A1x' }, { name: 'A1y' }] }] },
+      { name: 'B', kids: [{ name: 'B1' }] },
+    ];
+    const forced = (m: ReturnType<typeof tmodel>) => tids(m).map((_, i) => m.treeRow(i)?.forced);
+    // A grandchild matches: its ancestors are forced open, whatever `treeExpanded` says.
+    const m = tmodel({
+      data: deep,
+      treeExpanded: ['0'],
+      columnFilters: { name: { kind: 'text', op: 'equals', value: 'A1y' } },
+    });
+    expect(tids(m)).toEqual(['0', '0.0', '0.0.1']);
+    expect(forced(m)).toEqual([true, true, false]);
+    // A match without matching descendants isn't forced; its ancestor is.
+    m.update({ columnFilters: { name: { kind: 'text', op: 'equals', value: 'A1' } } });
+    expect(tids(m)).toEqual(['0', '0.0']);
+    expect(forced(m)).toEqual([true, false]);
+    // A match holding another match is forced.
+    m.update({ columnFilters: { name: { kind: 'text', op: 'startsWith', value: 'A1' } } });
+    expect(tids(m)).toEqual(['0', '0.0', '0.0.0', '0.0.1']);
+    expect(forced(m)).toEqual([true, true, false, false]);
+    // Without a filter nothing is.
+    m.update({ columnFilters: {}, treeExpanded: ['0', '0.0', '1'] });
+    expect(tids(m)).toEqual(['0', '0.0', '0.0.0', '0.0.1', '1', '1.0']);
+    expect(forced(m)).toEqual([false, false, false, false, false, false]);
   });
 
   it('sorts a tree again when a column reads its values differently', () => {

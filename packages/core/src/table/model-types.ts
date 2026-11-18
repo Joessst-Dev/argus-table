@@ -127,6 +127,12 @@ export interface TreeRowInfo {
    */
   open: boolean;
   /**
+   * Shown open because a filter keeps a match under it (whatever `treeExpanded`
+   * says): its toggle can't change that until the filter clears. Always `false`
+   * without a filter or without children.
+   */
+  forced: boolean;
+  /**
    * The row's id is in `treeExpanded`. A toggle flips this (`nextTreeExpanded(id,
    * !expanded)`), so every toggle can be undone; while a filter forces the row
    * open, the change shows once the filter clears.

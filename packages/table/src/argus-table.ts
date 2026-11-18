@@ -145,7 +145,7 @@ function attachGridInternals(host: HTMLElement): ElementInternals {
  * @fires {CustomEvent<ColumnFiltersChangeDetail>} argus-column-filters-change - `columnFilters` changed: a column's filter was set, changed or cleared, through a plugin such as the column menu. `detail: { columnFilters, columnId, columnFilter }`: `columnFilter` is the column's new filter, or `undefined` when it was cleared. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it.
  * @fires {CustomEvent<SelectionChangeDetail>} argus-selection-change - `selection` changed: by a click on a row (Ctrl/Cmd toggles, Shift selects a range), with Space, Shift+Arrow or Shift+PageUp/PageDown on a body cell, or with Ctrl/Cmd+A. Only with a `selectionMode`. `detail: { selection }`. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it.
  * @fires {CustomEvent<ExpandedChangeDetail>} argus-expanded-change - `expanded` changed: a row's detail panel was opened or closed with its chevron (a click, or Enter or Space on the chevron cell). Only with `rowDetail`. `detail: { expanded, rowId, open }`: `open` is `true` when it was opened. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it.
- * @fires {CustomEvent<TreeExpandedChangeDetail>} argus-tree-expanded-change - `treeExpanded` changed: a row of a tree was expanded or collapsed with its toggle (a click) or with Right or Left on its cell in the tree column. Only with `getSubRows` or `getParentId`. `detail: { treeExpanded, rowId, open }`: `open` is `true` when it was expanded. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it.
+ * @fires {CustomEvent<TreeExpandedChangeDetail>} argus-tree-expanded-change - `treeExpanded` changed: a row of a tree was expanded or collapsed with its toggle (a click) or with Right or Left on its cell in the tree column; not for a row a filter keeps expanded. Only with `getSubRows` or `getParentId`. `detail: { treeExpanded, rowId, open }`: `open` is `true` when it was expanded. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it.
  * @fires {CustomEvent<CellClickDetail<T>>} argus-cell-click - A body or pinned-row cell was clicked, or Enter was pressed on it. `detail: { row, rowId, index, columnId, value, pinned?, depth? }`; `pinned` is `'top'` or `'bottom'` for a pinned row, and `index` is then its index in its list. `depth` is a body row's level in a tree (`0` for a top-level row), set only when the rows form one. Fires before `argus-row-click`.
  * @fires {CustomEvent<RowClickDetail<T>>} argus-row-click - A body or pinned row was clicked, or Enter was pressed on one of its cells. `detail: { row, rowId, index, pinned? }`; for a pinned row, `index` is its index in its list.
  * @fires {CustomEvent<RangeChangeDetail>} argus-range-change - The rows in view changed (rows rendered ahead of the scroll position not counted). `detail: { first, last }` (row indices in the current order, both inclusive).
@@ -188,7 +188,7 @@ function attachGridInternals(host: HTMLElement): ElementInternals {
  * @csspart cell-expand - Added to `cell` in the toggle column of detail panels (`rowDetail`), pinned rows included.
  * @csspart header-cell-expand - Added to `header-cell` on the toggle column's header: an empty cell (`role="gridcell"`, as an empty column header has no name to read).
  * @csspart expand-toggle - The chevron button that opens and closes a row's detail panel. It is drawn with borders in `currentColor` (`::before`) and has `aria-expanded`.
- * @csspart tree-toggle - The button that expands and collapses a tree row (`getSubRows` or `getParentId`), in the first data column after the row's indent; only rows with children have one. It is drawn with borders in `currentColor` (`::before`) and has `aria-expanded`.
+ * @csspart tree-toggle - The button that expands and collapses a tree row (`getSubRows` or `getParentId`), in the first data column after the row's indent; only rows with children have one. It is drawn with borders in `currentColor` (`::before`) and has `aria-expanded`. While a filter keeps its row expanded (the row holds a match), it has `aria-disabled="true"`, is dimmed, and does nothing.
  * @csspart row-pinned - Every row from `pinnedRows`, on either side. Also has `row`, but no `row-even`/`row-odd`.
  * @csspart row-pinned-top - The rows pinned below the header.
  * @csspart row-pinned-bottom - The rows pinned to the bottom.
@@ -311,7 +311,8 @@ export class ArgusTable<T = unknown> extends LitElement {
    * any. `data` then holds the top-level rows, and the rows form a tree: a row's
    * children show under it, indented in the first data column, while it is
    * expanded (`treeExpanded`). Children are sorted among their siblings, and a
-   * filter keeps the rows that match with their ancestors. A child's default id
+   * filter keeps the rows that match with their ancestors, shown expanded with
+   * their toggles disabled until the filter clears. A child's default id
    * is its parent's id, a dot and its index among its siblings (`'3.0'`,
    * `'3.0.2'`); top-level rows keep their index in `data`. Functions given a
    * row's index (`getRowId`, a column's `accessor`) get a child's index from
@@ -327,7 +328,8 @@ export class ArgusTable<T = unknown> extends LitElement {
    * Flat data: the id of a row's parent (an id `getRowId` gives), or `null` or
    * `undefined` for a top-level row. `data` holds every row, and the rows form a
    * tree: a row's children show under it, indented in the first data column,
-   * while it is expanded (`treeExpanded`). Rows keep their index in `data`. A row
+   * while it is expanded (`treeExpanded`). A filter keeps the rows that match
+   * with their ancestors, as with `getSubRows`. Rows keep their index in `data`. A row
    * whose parent isn't found, or that is part of a cycle, shows as a top-level
    * row (with a console warning). `getSubRows` wins when both are set. Ignored
    * with a `dataSource` for now. Property only. Keep the function stable: a new
@@ -599,7 +601,9 @@ export class ArgusTable<T = unknown> extends LitElement {
    * (`getRowId`'s, or the default ids such as `'3'` and `'3.0'`), e.g.
    * `['3', '3.0']`. A row's children show while it and its ancestors are
    * expanded. While a filter or the quick filter is on, rows holding a match
-   * show expanded whatever it says, without changing it. Default: none.
+   * show expanded whatever it says, without changing it, and their toggles are
+   * disabled (`aria-disabled`) until the filter clears, so a match is never
+   * hidden and nothing changes out of sight. Default: none.
    * Uncontrolled until set, like `expanded`: once set, a toggle only fires
    * `argus-tree-expanded-change` with the proposed ids. `undefined` hands it
    * back. Ids stay through sorting, filtering and a new `data`.
@@ -1589,13 +1593,15 @@ export class ArgusTable<T = unknown> extends LitElement {
   /**
    * Expands or collapses a tree row (a data index), through the controlled/uncontrolled
    * rules. It flips the row's membership in `treeExpanded`, so every toggle can be
-   * undone, and a row a filter shows open can still be collapsed: the change shows
-   * once the filter clears.
+   * undone. A row a filter keeps open (`forced`) is left alone: its toggle is
+   * disabled until the filter clears, so nothing changes out of sight.
    */
   #toggleTree(index: number): void {
     const model = this.#table.model;
     const id = model.rowAt(index)?.id;
-    if (id === undefined || !model.treeRow(index)) return;
+    const info = model.treeRow(index);
+    // A row a filter keeps open stays so until the filter clears: nothing changes invisibly.
+    if (id === undefined || !info || info.forced) return;
     // From the latest requested value, like `#toggle`: two toggles before an update don't cancel out.
     const open = !this.#treeExpanded.value.includes(id);
     const next = model.nextTreeExpanded(id, open, this.#treeExpanded.value);

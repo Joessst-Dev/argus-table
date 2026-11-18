@@ -267,6 +267,11 @@ export const baseStyles = css`
     [part~='tree-toggle'][aria-expanded='true']::before {
       transform: translateY(-0.1em) rotate(45deg);
     }
+    /* A row a filter keeps expanded: its toggle does nothing until the filter clears. */
+    [part~='tree-toggle'][aria-disabled='true'] {
+      opacity: 0.4;
+      cursor: default;
+    }
     [part~='header-cell'] {
       background: var(--argus-header-bg, light-dark(#f9fafb, #111827));
       color: var(--argus-header-fg, inherit);

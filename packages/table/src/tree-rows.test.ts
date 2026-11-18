@@ -403,6 +403,43 @@ describe('tree rows: the tree column', () => {
     expect(el.treeExpanded).toEqual(['1']);
   });
 
+  test('a row a filter keeps open has a disabled toggle', async () => {
+    const el = await treeTable();
+    const seen = events<TreeExpandedChangeDetail>(el, 'argus-tree-expanded-change');
+    el.quickFilter = 'C0.1';
+    await settle(el);
+    expect(names(el)).toEqual(['P0', 'C0.1']);
+    const toggle = toggleOf(el, 'P0');
+    expect(toggle.getAttribute('aria-disabled')).toBe('true');
+    // Still a button with its name, on an expanded row.
+    expect(toggle.hasAttribute('disabled')).toBe(false);
+    expect(toggle.getAttribute('aria-label')).toBe('Collapse row');
+    expect(rowOf(el, 'P0').getAttribute('aria-expanded')).toBe('true');
+    toggle.click();
+    await settle(el);
+    expect(seen).toEqual([]);
+    expect(el.treeExpanded).toEqual([]);
+    expect(names(el)).toEqual(['P0', 'C0.1']);
+
+    // Also when the row is in `treeExpanded`.
+    el.treeExpanded = ['0'];
+    await settle(el);
+    expect(toggleOf(el, 'P0').getAttribute('aria-disabled')).toBe('true');
+    toggleOf(el, 'P0').click();
+    await settle(el);
+    expect(seen).toEqual([]);
+    expect(el.treeExpanded).toEqual(['0']);
+
+    el.quickFilter = '';
+    await settle(el);
+    expect(names(el)).toEqual(['P0', 'C0.0', 'C0.1', 'C0.2', 'P1', 'P2']);
+    expect(toggleOf(el, 'P0').hasAttribute('aria-disabled')).toBe(false);
+    expect(toggleOf(el, 'P1').hasAttribute('aria-disabled')).toBe(false);
+    toggleOf(el, 'P0').click();
+    await settle(el);
+    expect(seen).toEqual([{ treeExpanded: [], rowId: '0', open: false }]);
+  });
+
   test('controlled: the toggle proposes and changes nothing', async () => {
     const el = await treeTable({ treeExpanded: [] });
     const seen = events<TreeExpandedChangeDetail>(el, 'argus-tree-expanded-change');
