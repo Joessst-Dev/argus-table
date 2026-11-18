@@ -1625,6 +1625,45 @@ describe('keyboard and focus', () => {
     await settle(el);
   }
 
+  test('keeps keys from a table nested in a cell to that table', async () => {
+    const el = await fixture({
+      columns: [
+        { id: 'name', header: 'Name', accessor: 'name', width: 120 },
+        {
+          id: 'nested',
+          header: 'Nested',
+          width: 400,
+          cell: () =>
+            html`<argus-table
+              class="nested"
+              style="block-size: 140px; inline-size: 380px"
+              .columns=${columns}
+              .data=${people(5)}
+            ></argus-table>`,
+        },
+      ],
+      data: people(3),
+      rowHeight: 160,
+    });
+    const nested = el.querySelector<ArgusTable<Person>>('argus-table.nested');
+    if (!nested) throw new Error('no nested table');
+    await settle(nested);
+    const cell = shadow(nested).querySelector<HTMLElement>(
+      '[aria-rowindex="2"] > [data-col="name"]',
+    );
+    if (!cell) throw new Error('no nested cell');
+    cell.focus();
+    await settle(nested);
+    await settle(el);
+    // Focus in a cell's content makes that cell the outer table's active cell; keys stay inside.
+    const outerStop = tabStops(el);
+    press(cell, 'ArrowDown');
+    await settle(nested);
+    await settle(el);
+    expect(focused(nested)?.parentElement?.getAttribute('aria-rowindex')).toBe('3');
+    expect(tabStops(el)).toEqual(outerStop);
+  });
+
   test('focus that lands on the scroll container moves on to the active cell', async (ctx) => {
     const el = await fixture({ columns, data: people(50) });
     const scroller = shadow(el).querySelector<HTMLElement>('[part~="table"]');
