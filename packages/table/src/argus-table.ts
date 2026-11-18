@@ -771,7 +771,9 @@ export class ArgusTable<T = unknown> extends LitElement {
   /** The scroller's inner width, for `stretchColumns`. */
   #viewWidth = 0;
   /** What `stretchColumns` passed to the model last, kept while it's the same. */
-  #stretch: { width: number; keep: string | undefined } | undefined;
+  #stretch: { width: number; keep: readonly string[] | undefined } | undefined;
+  /** The stretched widths changed: the pinned columns' scroll range is measured again. */
+  #stretchChanged = false;
   readonly #columnWindow = new ColumnWindowController<T>(this, () => this.#scroller());
   /** `block-size: auto` without a maximum: capped at the window's height. */
   readonly #fit = new FitHeight(this, () => this.#scroller());
@@ -1265,9 +1267,10 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.stretchColumns && this.#viewWidth > 0
         ? { width: this.#viewWidth, keep: this.#resize.kept }
         : undefined;
-    if (stretch?.width !== this.#stretch?.width || stretch?.keep !== this.#stretch?.keep) {
-      this.#stretch = stretch;
-    }
+    const keyOf = (s: typeof stretch) =>
+      s ? `${String(s.width)}|${s.keep?.join('\u0001') ?? ''}` : '';
+    this.#stretchChanged = keyOf(stretch) !== keyOf(this.#stretch);
+    if (this.#stretchChanged) this.#stretch = stretch;
     this.#table.update({
       remote: this.#data.rows,
       autoWidths,
@@ -1496,7 +1499,10 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.#autoWidthsChanged ||
       this.#selectionColumnChanged ||
       // The toggle column comes or goes with it.
-      changed.has('rowDetail')
+      changed.has('rowDetail') ||
+      // Stretched widths change the scroll range end-pinned cells are shifted by.
+      this.#stretchChanged ||
+      changed.has('stretchColumns')
     ) {
       this.#pinScroll.measure();
     }

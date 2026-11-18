@@ -37,6 +37,7 @@
 **Files:** Modify `packages/core/src/table/create-table.ts`, `packages/core/src/types.ts` only if `ColumnView` lives there (else in `create-table.ts`). Test: `packages/core/src/table/create-table.test.ts` (`describe('stretched columns', …)`).
 
 **Interfaces:**
+
 - Produces: `TableOptions.stretch?: { width: number; keep?: string | undefined } | undefined`; `ColumnView.ownWidth: number` (system views: their width); `ColumnView.width` = rendered width. `totalWidth` sums rendered widths. Memoization of views includes `stretch.width` and `stretch.keep`.
 - Uses `spreadWidth(columns: SpreadColumn[], total)` from `columns/spread-width.ts` for capped proportional shares (pass `minWidth: 0`, `maxWidth: maxWidth − own`, `width: own`), then the rounding rule.
 
@@ -61,6 +62,7 @@
 **Files:** Modify `packages/table/src/argus-table.ts`, `packages/table/src/controllers/pin-scroll-controller.ts`, `packages/table/src/controllers/column-resize.ts`. Test: create `packages/table/src/stretch-columns.test.ts`.
 
 **Interfaces:**
+
 - Consumes: Task 1's `stretch` option and `ownWidth`.
 - Produces: `@property({ type: Boolean, reflect: true, attribute: 'stretch-columns' }) stretchColumns = false` with JSDoc (manifest). `PinScrollController` gets a third constructor parameter `onWidth: (width: number) => void`, called from `measure()` with `Math.floor(clientWidth)`. The element keeps `#viewWidth` and `#keep` (the id of the column resized last; set by `ColumnResize` when a resize of one column starts, kept until another column is resized) and passes `stretch: this.stretchColumns && this.#viewWidth > 0 ? { width: this.#viewWidth, keep: this.#keep } : undefined` in the `update()` call that passes `columnSizing`. `ColumnResize` starts a key resize from `view.width` unless the column is `#keep` (then the requested width in state, as today); drags already start from the cell's rendered width.
 
@@ -83,6 +85,7 @@
 ### Task 3: Wrappers, docs, story, skill, changeset, size
 
 **Files:**
+
 - Regenerate: `packages/react/src/generated/elements.ts`, `packages/vue/src/generated/*`, `packages/angular/src/generated/*` (`pnpm nx build argus-table`, then each wrapper's `generate`).
 - Modify: `apps/docs/src/content/docs/features/resizing.mdx` (a "Columns that fill the width" section with `FlavourTabs ... since="1.4"`), `apps/docs/e2e/resizing.spec.ts`, `apps/storybook/stories/resizing.stories.ts` (story `StretchColumns`), `skills/argus-table-integrate/scripts/lib/api.mjs` (property list, attribute `stretch-columns`), `skills/argus-table-integrate/references/api.md` (properties table row), `CLAUDE.md` (a paragraph after "Auto widths"), `packages/table/README.md` if it lists properties.
 - Create: `apps/docs/src/examples/resizing/stretch/{html/index.html,html/main.js,react/StretchColumns.tsx,vue/StretchColumns.vue,angular/stretch-columns.component.ts}` (four fixed-width columns with `stretchColumns`, resizable), `.changeset/stretch-columns.md` (`argus-table`: minor; user-facing text).

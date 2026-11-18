@@ -149,41 +149,41 @@ export class ColumnResize<T> {
     for (const [columnId] of targets) {
       if (!resize.columnIds.includes(columnId)) resize.columnIds.push(columnId);
     }
+    this.#kept = [...resize.columnIds];
     if (single) this.#endResize();
   }
 
-  #kept: string | undefined;
+  #kept: readonly string[] | undefined;
 
   /**
-   * The column resized last on its own (a drag or Alt+Arrow): with `stretchColumns`
-   * it keeps its width while the others fill the table. Not state: kept until
-   * another column is resized.
+   * The columns the last resize changed (a drag, Alt+Arrow, a group resize, a
+   * fit): with `stretchColumns` they don't take the space the stretching columns
+   * leave over. Not state: kept until the next resize.
    */
-  get kept(): string | undefined {
+  get kept(): readonly string[] | undefined {
     return this.#kept;
   }
 
   /** Sets one column's width (clamped by core), through the controlled/uncontrolled rules. */
   #requestResize(columnId: string, width: number): void {
-    this.#kept = columnId;
     this.request(new Map([[columnId, width]]));
   }
 
   /**
-   * The width a resize starts from: for the column resized last, the latest
-   * requested width (key presses can come faster than renders); else the width
-   * it renders at (stretched or not), or a flex column's rendered width.
+   * The width a resize starts from: the latest requested width (key presses can
+   * come faster than renders), unless the column is stretched now
+   * (`stretchColumns`), then the width it renders at; a flex column's rendered width.
    */
   #currentWidth(columnId: string, cell: HTMLElement): number {
     const sized = this.state.value[columnId];
-    if (sized !== undefined && columnId === this.#kept) return sized;
     const view = this.#model().columns.find((c) => c.id === columnId);
+    if (sized !== undefined && (view === undefined || view.width === view.ownWidth)) return sized;
     return view && view.flex === undefined ? view.width : cell.getBoundingClientRect().width;
   }
 
   /**
    * The widths a group resize starts from, by column: each column's
-   * `#currentWidth()`, else the model's.
+   * `#currentWidth()`, else the latest requested one, else the model's.
    */
   #groupWidths(columnIds: readonly string[]): Map<string, number> {
     const widths = new Map<string, number>();
@@ -192,7 +192,10 @@ export class ColumnResize<T> {
         `[part~='header-cell'][data-col="${CSS.escape(id)}"]`,
       );
       const view = this.#model().columns.find((c) => c.id === id);
-      widths.set(id, header ? this.#currentWidth(id, header) : (view?.width ?? 0));
+      widths.set(
+        id,
+        header ? this.#currentWidth(id, header) : (this.state.value[id] ?? view?.width ?? 0),
+      );
     }
     return widths;
   }

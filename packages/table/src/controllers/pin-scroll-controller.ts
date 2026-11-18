@@ -27,7 +27,7 @@ export class PinScrollController implements ReactiveController {
 
   readonly #onWidth: (width: number) => void;
 
-  /** `onWidth`: the scroller's inner width (`clientWidth`, whole px), at every measure. */
+  /** `onWidth`: the scroller's inner width (whole px, rounded down), at every measure. */
   constructor(
     host: ReactiveControllerHost,
     scroller: () => HTMLElement | null,
@@ -61,7 +61,10 @@ export class PinScrollController implements ReactiveController {
     s.style.setProperty('--_max-x', `${String(Math.max(0, s.scrollWidth - s.clientWidth))}px`);
     // Detail panels span the visible width, whatever the columns' (sticky at the start).
     s.style.setProperty('--_view-w', `${String(s.clientWidth)}px`);
-    this.#onWidth(Math.floor(s.clientWidth));
+    // The inner width, floored from the fractional box (clientWidth rounds, and
+    // stretched columns as wide as a rounded-up width would scroll by a fraction).
+    const frame = s.offsetWidth - s.clientWidth;
+    this.#onWidth(Math.max(0, Math.floor(s.getBoundingClientRect().width - frame)));
     // The edge shadows sit over the scroller, clear of its scrollbars.
     for (const shadow of s.parentNode?.querySelectorAll<HTMLElement>(':scope > .pin-shadow') ??
       []) {

@@ -183,3 +183,56 @@ describe('stretchColumns', () => {
     expect(Math.abs(sum(widths(el)) - scrollerOf(el).clientWidth)).toBeLessThanOrEqual(1);
   });
 });
+
+describe('stretchColumns with pinned columns and resizes', () => {
+  afterEach(() => {
+    document.body.replaceChildren();
+  });
+
+  it('keeps end-pinned cells under their header when the table narrows', async () => {
+    const cols: ColumnDef<Person>[] = [
+      ...three,
+      { id: 'end', header: 'End', accessor: 'id', width: 100, pin: 'end' },
+    ];
+    const el = await stretched({ columns: cols });
+    el.style.inlineSize = '760px';
+    await resized(el);
+    await resized(el);
+    const head = shadow(el)
+      .querySelector('[part~="header-cell"][data-col="end"]')
+      ?.getBoundingClientRect();
+    const cell = shadow(el)
+      .querySelector('[part~="body"] [data-col="end"]')
+      ?.getBoundingClientRect();
+    expect(Math.abs((cell?.left ?? 0) - (head?.left ?? 0))).toBeLessThanOrEqual(1);
+  });
+
+  it('keeps stretching a column whose resize the app rejected', async () => {
+    const el = await stretched({ columnSizing: {} });
+    const before = widths(el);
+    await drag(el, 1, -100);
+    // Anything else that updates the table (here, a forced update).
+    el.requestUpdate();
+    await settle(el);
+    expect(widths(el)).toEqual(before);
+  });
+
+  it('a group resize over every column follows the pointer, with no filler among them', async () => {
+    const el = await stretched({
+      columnGroups: [{ id: 'all', header: 'All', columns: ['a', 'b', 'c'] }],
+    });
+    const group = shadow(el).querySelector<HTMLElement>('[data-resize-group]');
+    if (!group) throw new Error('no group handle');
+    const total = sum(widths(el));
+    const x = group.getBoundingClientRect().left + 4;
+    const opts = { bubbles: true, composed: true, pointerId: 1, button: 0 };
+    group.dispatchEvent(new PointerEvent('pointerdown', { ...opts, clientX: x }));
+    group.dispatchEvent(new PointerEvent('pointermove', { ...opts, clientX: x - 50 }));
+    await new Promise(requestAnimationFrame);
+    group.dispatchEvent(new PointerEvent('pointermove', { ...opts, clientX: x - 100 }));
+    group.dispatchEvent(new PointerEvent('pointerup', { ...opts, clientX: x - 100 }));
+    await settle(el);
+    await resized(el);
+    expect(Math.abs(sum(widths(el)) - (total - 100))).toBeLessThanOrEqual(2);
+  });
+});

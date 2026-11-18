@@ -1349,19 +1349,38 @@ describe('stretched columns', () => {
   it('gives the space to the last column when all are resized, else the one before it if it is keep', () => {
     const sizing = { a: 150, b: 150, c: 150 };
     expect(widths(at({ columnSizing: sizing, stretch: { width: 600 } }))).toEqual([150, 150, 300]);
-    expect(widths(at({ columnSizing: sizing, stretch: { width: 600, keep: 'c' } }))).toEqual([
+    expect(widths(at({ columnSizing: sizing, stretch: { width: 600, keep: ['c'] } }))).toEqual([
       150, 300, 150,
     ]);
   });
 
-  it('never stretches the column kept', () => {
-    expect(widths(at({ stretch: { width: 600, keep: 'a' } }))).toEqual([150, 225, 225]);
+  it('keep only steers what the unresized columns leave over', () => {
+    // Unresized columns stretch whatever keep says (a rejected, controlled resize).
+    expect(widths(at({ stretch: { width: 600, keep: ['a'] } }))).toEqual([200, 200, 200]);
+  });
+
+  it('gives what capped columns leave to the last columns, skipping keep', () => {
+    const cols = three();
+    cols[0] = { id: 'a', width: 150, maxWidth: 160 };
+    const sizing = { b: 150, c: 150 };
+    expect(widths(at({ columns: cols, columnSizing: sizing, stretch: { width: 900 } }))).toEqual([
+      160, 150, 590,
+    ]);
+    expect(
+      widths(at({ columns: cols, columnSizing: sizing, stretch: { width: 900, keep: ['c'] } })),
+    ).toEqual([160, 590, 150]);
+  });
+
+  it('never overflows a fractional width', () => {
+    const m = at({ columns: three([100.4, 150, 150]), stretch: { width: 600.7 } });
+    expect(m.totalWidth).toBeLessThanOrEqual(600.7);
   });
 
   it('caps stretching at maxWidth', () => {
     const cols = three();
     cols[0] = { id: 'a', width: 150, maxWidth: 160 };
     expect(widths(at({ columns: cols, stretch: { width: 900 } }))).toEqual([160, 370, 370]);
+    // Every column capped: the space stays empty.
     expect(
       widths(at({ columns: three(undefined, { maxWidth: 160 }), stretch: { width: 900 } })),
     ).toEqual([160, 160, 160]);

@@ -210,13 +210,13 @@ export interface TableModelOptions<TData, TContent> {
   rowExpandable?: ((row: TData) => boolean) | undefined;
   /**
    * Stretches the scrolling columns to fill `width` px (the table's inner width)
-   * when they are narrower, in proportion to their own widths and up to their
-   * `maxWidth`. Columns with a `columnSizing` entry keep it; when every scrolling
-   * column has one, the last takes the space (the one before it when the last is
-   * `keep`). `keep`: the column resized last, which never stretches. Nothing
-   * stretches while an unresized flex column is shown.
+   * when they are narrower: the columns without a `columnSizing` entry share the
+   * space in proportion to their own widths, up to their `maxWidth`; what they
+   * can't take goes to the last scrolling columns that can, except those in
+   * `keep` (the columns the last resize changed). Nothing stretches while an
+   * unresized flex column is shown.
    */
-  stretch?: { width: number; keep?: string | undefined } | undefined;
+  stretch?: { width: number; keep?: readonly string[] | undefined } | undefined;
 }
 
 export interface TableModel<TData, TContent> {
@@ -688,21 +688,32 @@ export function createTableModel<TData, TContent>(
       (options.selectionColumn ? SELECTION_COLUMN_WIDTH : 0) +
       (options.detail ? EXPAND_COLUMN_WIDTH : 0);
     const own = [...start, ...center, ...end].reduce((sum, def) => sum + widthOf(def.id), 0);
-    const free = stretch.width - systemPx - own;
+    // Whole px, so fractional own widths never overflow the width.
+    const free = Math.floor(stretch.width - systemPx - own);
     if (free <= 0) return new Map();
-    let stretching = center.filter((def) => !resized(def) && def.id !== stretch.keep);
-    if (stretching.length === 0) {
-      // Every scrolling column has a width of its own: the last one takes the space.
-      const last = center.at(-1);
-      const filler = last?.id === stretch.keep ? center.at(-2) : last;
-      stretching = filler ? [filler] : [];
+    // The unresized columns share the space in proportion, up to their maxWidth.
+    const spread = center
+      .filter((def) => !resized(def))
+      .map((def) => {
+        const width = widthOf(def.id);
+        return { id: def.id, width, minWidth: width, maxWidth: Math.max(width, def.maxWidth) };
+      });
+    const widths = spread.length
+      ? spreadWidth(spread, spread.reduce((sum, c) => sum + c.width, 0) + free)
+      : new Map<string, number>();
+    let left = free - spread.reduce((sum, c) => sum + (widths.get(c.id) ?? c.width) - c.width, 0);
+    // What they can't take goes to the last columns that can, skipping the ones
+    // resized last (they keep the width they were given).
+    const keep = new Set(stretch.keep);
+    for (let i = center.length - 1; i >= 0 && left > 0; i--) {
+      const def = center[i];
+      if (!def || keep.has(def.id)) continue;
+      const now = widths.get(def.id) ?? widthOf(def.id);
+      const add = Math.min(left, Math.max(0, def.maxWidth - now));
+      if (add > 0) widths.set(def.id, now + add);
+      left -= add;
     }
-    if (stretching.length === 0) return new Map();
-    const spread = stretching.map((def) => {
-      const width = widthOf(def.id);
-      return { id: def.id, width, minWidth: width, maxWidth: Math.max(width, def.maxWidth) };
-    });
-    return spreadWidth(spread, spread.reduce((sum, c) => sum + c.width, 0) + free);
+    return widths;
   };
 
   const buildViews = (): ColumnView<TData, TContent>[] => {
