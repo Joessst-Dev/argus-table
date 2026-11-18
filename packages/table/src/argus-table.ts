@@ -54,7 +54,7 @@ import { resolveLabels, type TableLabels } from './labels.js';
 import { watchMaxElementHeight } from './max-height.js';
 import { renderBody, type ActiveCell } from './render/body.js';
 import { loadingState, rowToggles } from './render/body-state.js';
-import { renderLightDom } from './render/cells.js';
+import { contentFirst, lightCount, renderLightDom } from './render/cells.js';
 import { detailSlot } from './render/content.js';
 import { DetailContent, type RenderedPanel } from './render/detail-content.js';
 import { content, flushContent, type ContentRenderer } from './render/content-directive.js';
@@ -716,6 +716,8 @@ export class ArgusTable<T = unknown> extends LitElement {
   #contentEnd: Comment | undefined;
   /** The light-DOM part: disconnected with the table, so foreign content is released. */
   #lightPart: RootPart | undefined;
+  /** How many children the light DOM was last rendered with (`lightCount`). */
+  #lightCount = 0;
   /** The detail panels' content, kept per row while open (`rowDetail`). */
   readonly #detail = new DetailContent<T>(this);
   #lightConnected = true;
@@ -1165,19 +1167,51 @@ export class ArgusTable<T = unknown> extends LitElement {
     this.#fit.check(this.#contentPx);
   }
 
-  protected override render(): TemplateResult {
+  protected override update(changed: PropertyValues<this>): void {
     const model = this.#table.model;
-    const columns = model.columns;
-    const labels = this.#labels;
     this.#window = this.#virtual.computeWindow();
     const rendered = this.#columnWindow.compute(
-      columns,
+      model.columns,
       this.virtualizeColumns,
       this.virtualizeColumns ? this.#keptColumns(model) : [],
     );
     this.#rendered = rendered;
     const editable = this.#editable;
     if (editable) for (const c of rendered) c.readonly = !editable.has(c.id);
+    // In WebKit, before the shadow root unless it shrinks: it slots new content
+    // fast only when the slots come after it (`contentFirst`).
+    let before = false;
+    if (contentFirst) {
+      const { rows, details } = this.#window;
+      const count = lightCount(model, rows, rendered, model.headerGroups, details);
+      before = count >= this.#lightCount;
+      this.#lightCount = count;
+    }
+    if (before) this.#renderLight(model);
+    super.update(changed);
+    if (!before) this.#renderLight(model);
+  }
+
+  #renderLight(model: TableModel<T, CellContent>): void {
+    const part = renderLightDom(
+      this,
+      model,
+      this.#window.rows,
+      this.#rendered,
+      model.headerGroups,
+      this.#lightDomEnd(),
+      this.#window.details,
+    );
+    // A new marker starts a new part (the old one was removed): its content is gone.
+    if (this.#lightPart && this.#lightPart !== part) this.#lightPart.setConnected(false);
+    this.#lightPart = part;
+  }
+
+  protected override render(): TemplateResult {
+    const model = this.#table.model;
+    const columns = model.columns;
+    const labels = this.#labels;
+    const rendered = this.#rendered;
     const pinStart = pinnedWidth(columns, 'start');
     const pinEnd = pinnedWidth(columns, 'end');
     const cols = columns.map(track).join(' ');
@@ -1290,18 +1324,6 @@ export class ArgusTable<T = unknown> extends LitElement {
 
   protected override updated(changed: PropertyValues<this>): void {
     const model = this.#table.model;
-    const part = renderLightDom(
-      this,
-      model,
-      this.#window.rows,
-      this.#rendered,
-      model.headerGroups,
-      this.#lightDomEnd(),
-      this.#window.details,
-    );
-    // A new marker starts a new part (the old one was removed): its content is gone.
-    if (this.#lightPart && this.#lightPart !== part) this.#lightPart.setConnected(false);
-    this.#lightPart = part;
     this.#syncDetails(model);
     // Foreign content is committed before anything measures it.
     flushContent(this);

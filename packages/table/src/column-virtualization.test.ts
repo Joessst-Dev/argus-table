@@ -1,6 +1,7 @@
-import { afterEach, describe, expect, test } from 'vitest';
+import { afterEach, describe, expect, onTestFinished, test } from 'vitest';
 import type { ArgusTable } from './index.js';
 import { LOAD_DEBOUNCE_MS } from './controllers/data-controller.js';
+import { setContentFirstForTests } from './render/cells.js';
 import type { ColumnDef, DataSource } from './types.js';
 import {
   fixture,
@@ -338,6 +339,53 @@ describe('virtualizeColumns', () => {
     }
     expect(cellIn(row, 'c0')?.querySelector('[part~="retry"]')).not.toBeNull();
   });
+
+  test.each([false, true])(
+    'cells keep their own content as columns come and go (content first: %s)',
+    async (first) => {
+      // Content first (WebKit), the light DOM renders before the shadow root when it
+      // grows and after it when it shrinks; elsewhere always after. Either way every
+      // slot shows its own content, and nothing is left over.
+      setContentFirstForTests(first);
+      onTestFinished(() => {
+        setContentFirstForTests(undefined);
+      });
+      const el = await fixture({ columns: wide(), data: people(20), virtualizeColumns: true });
+      const expectSlotted = () => {
+        const cells = rowsInOrder(el).flatMap((row, r) =>
+          [...row.querySelectorAll<HTMLElement>('[data-col^="c"]')].map((cell) => {
+            const i = (cell.dataset.col ?? '').slice(1);
+            return [slotted(cell)?.textContent, `Person ${String(r)}·${i}`];
+          }),
+        );
+        const titles = headers(el)
+          .filter((h) => h.dataset.col?.startsWith('c'))
+          .map((h) => [slotted(h)?.textContent, `C${(h.dataset.col ?? '').slice(1)}`]);
+        expect(cells.length).toBeGreaterThan(0);
+        for (const [shown, own] of [...cells, ...titles]) expect(shown).toBe(own);
+        const slots = new Set([...shadow(el).querySelectorAll('slot')].map((s) => s.name));
+        const loose = [...el.children].filter((c) => c.slot && !slots.has(c.slot));
+        expect(loose).toEqual([]);
+      };
+      expectSlotted();
+      el.virtualizeColumns = false;
+      await settle(el);
+      expectSlotted();
+      el.columnVisibility = Object.fromEntries(
+        Array.from({ length: 60 }, (_, i) => [`c${String(i)}`, false]),
+      );
+      await settle(el);
+      expectSlotted();
+      el.columnVisibility = {};
+      await settle(el);
+      expectSlotted();
+      el.virtualizeColumns = true;
+      await settle(el);
+      expectSlotted();
+      await scrollInline(el, 3000);
+      expectSlotted();
+    },
+  );
 
   test('turning it off renders every column again', async () => {
     const el = await fixture({ columns: wide(), data: people(20), virtualizeColumns: true });
