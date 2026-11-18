@@ -9,15 +9,13 @@ import { moveUnit, normalizeOrder, siblingUnits } from '../columns/column-order.
 import { resolveColumns, type ResolvedColumn } from '../columns/resolve-columns.js';
 import { distinctValues, rowPredicate } from '../filters/filter.js';
 import { buildAllViews, buildViews, hiddenIn, pinIn, sizingOf } from './column-views.js';
-import { DisplayRows } from './display-rows.js';
-import { sortRows } from './sorted-row-model.js';
+import { RowPipeline } from './row-pipeline.js';
 import type {
   ColumnDef,
   ColumnOrderState,
   ColumnPin,
   ColumnSizingState,
   RowPin,
-  SortState,
 } from '../types.js';
 import type { ColumnView, TableModel, TableModelOptions } from './model-types.js';
 
@@ -87,9 +85,6 @@ export function createTableModel<TData, TContent>(
   let order: ColumnOrderState | undefined;
   const orderState = (): ColumnOrderState =>
     (order ??= normalizeOrder(options.columnOrder ?? [], orderable(), tree));
-  // Built lazily per row order (a sort, a filter or new data gives a new array).
-  let indexById: { rows: readonly number[]; map: Map<string, number> } | undefined;
-
   // The row test of the filters, the quick filter and the shown columns (which the quick
   // filter reads). Remote rows are filtered by their source.
   // `except`: columns whose filter is left out; with `quick`, their text is left out
@@ -110,106 +105,14 @@ export function createTableModel<TData, TContent>(
   // their order may not be.
   let valueVersion = 0;
 
-  // The rows are indexes into `data`: no object per row (ADR 0010). Each step keeps
-  // its array while what it reads is the same, so `rowOrder` keeps its identity.
-  // A new `getRowId` gives a new array too: the ids at each index changed.
-  let all: { data: readonly TData[]; getRowId: unknown; rows: number[] } | undefined;
-  const allRows = (): readonly number[] => {
-    const { data, getRowId } = options;
-    if (all?.data !== data || all.getRowId !== getRowId) {
-      const rows = new Array<number>(data.length);
-      for (let i = 0; i < rows.length; i++) rows[i] = i;
-      all = { data, getRowId, rows };
-    }
-    return all.rows;
-  };
-  let filtered:
-    | { source: readonly number[]; test: unknown; version: number; rows: readonly number[] }
-    | undefined;
-  const filteredRows = (): readonly number[] => {
-    const source = allRows();
-    const test = predicate;
-    if (!test) return source;
-    const prev = filtered;
-    if (prev?.source === source && prev.test === test && prev.version === valueVersion) {
-      return prev.rows;
-    }
-    const { data } = options;
-    const rows = source.filter((i) => test(data[i] as TData, i));
-    filtered = { source, test, version: valueVersion, rows };
-    return rows;
-  };
-  let sorted:
-    | { source: readonly number[]; sorting: SortState; version: number; rows: readonly number[] }
-    | undefined;
-  // The body rows in the current order. Remote rows aren't here: the model reads them
-  // from `options.remote`.
-  const rows = (): readonly number[] => {
-    if (options.remote) return [];
-    const source = filteredRows();
-    const { sorting } = options;
-    const prev = sorted;
-    if (prev?.source === source && prev.sorting === sorting && prev.version === valueVersion) {
-      return prev.rows;
-    }
-    const result = sortRows(options.data, source, sorting, (id) => byId.get(id));
-    sorted = { source, sorting, version: valueVersion, rows: result };
-    return result;
-  };
-  const rowIdOf = (dataIndex: number): string =>
-    options.getRowId
-      ? options.getRowId(options.data[dataIndex] as TData, dataIndex)
-      : String(dataIndex);
+  const pipeline = new RowPipeline<TData, TContent>(
+    () => options,
+    () => byId,
+    () => predicate,
+    () => valueVersion,
+  );
+  const rows = () => pipeline.rows();
   const pinned = (side: RowPin): readonly TData[] => options.pinnedRows?.[side] ?? [];
-
-  /** The row object at an index of the current order; `undefined` for a remote row not loaded. */
-  const rowObjectAt = (index: number): TData | undefined => {
-    if (options.remote) return options.remote.entryAt(index)?.row;
-    const row = rows()[index];
-    return row === undefined ? undefined : options.data[row];
-  };
-  const expandableAt = (index: number): boolean => {
-    if (!options.detail) return false;
-    const row = rowObjectAt(index);
-    return row !== undefined && (options.rowExpandable?.(row) ?? true);
-  };
-  const indexOfId = (rowId: string): number | undefined => {
-    if (options.remote) return options.remote.indexOf(rowId);
-    const current = rows();
-    if (indexById?.rows !== current) {
-      indexById = { rows: current, map: new Map(current.map((r, i) => [rowIdOf(r), i])) };
-    }
-    return indexById.map.get(rowId);
-  };
-  // The displayed rows, kept while what they read is the same: with remote rows,
-  // their `version` (rows load without a new order). A remote without one is built
-  // again on each read, keeping the previous object when nothing differs.
-  let display: { key: readonly unknown[] | undefined; rows: DisplayRows } | undefined;
-  const displayRows = (): DisplayRows => {
-    const count = options.remote?.rowCount ?? rows().length;
-    const { remote } = options;
-    const key = remote
-      ? remote.version === undefined
-        ? undefined
-        : [remote, remote.version, options.expanded, options.rowExpandable, options.detail]
-      : [rows(), options.expanded, options.rowExpandable, options.detail];
-    const prev = display;
-    if (key && prev?.key?.every((part, i) => part === key[i])) return prev.rows;
-    const open: number[] = [];
-    if (options.detail) {
-      for (const id of options.expanded ?? []) {
-        const index = indexOfId(id);
-        if (index !== undefined && expandableAt(index)) open.push(index);
-      }
-    }
-    const next = new DisplayRows(count, open);
-    const same =
-      prev?.rows.count === next.count &&
-      prev.rows.dataCount === next.dataCount &&
-      prev.rows.open.every((index, i) => index === next.open[i]);
-    display = { key, rows: same ? prev.rows : next };
-    return display.rows;
-  };
 
   let allViews: ColumnView<TData, TContent>[] | undefined;
 
@@ -314,24 +217,24 @@ export function createTableModel<TData, TContent>(
       }
       const row = rows()[index];
       if (row === undefined) return undefined;
-      return { id: rowIdOf(row), index, original: options.data[row] as TData };
+      return { id: pipeline.rowId(row), index, original: options.data[row] as TData };
     },
 
     indexOf(rowId) {
-      return indexOfId(rowId);
+      return pipeline.indexOf(rowId);
     },
 
     get display() {
-      return displayRows();
+      return pipeline.display();
     },
 
     expandable(index) {
-      return expandableAt(index);
+      return pipeline.expandable(index);
     },
 
     nextExpanded(rowId, open, base = options.expanded ?? []) {
-      const index = indexOfId(rowId);
-      if (index === undefined || !expandableAt(index)) return undefined;
+      const index = pipeline.indexOf(rowId);
+      if (index === undefined || !pipeline.expandable(index)) return undefined;
       const has = base.includes(rowId);
       if (has === open) return undefined;
       return open ? [...base, rowId] : base.filter((id) => id !== rowId);
@@ -339,7 +242,7 @@ export function createTableModel<TData, TContent>(
 
     selectableIds() {
       if (options.remote) return options.remote.loadedIds();
-      return rows().map(rowIdOf);
+      return rows().map((r) => pipeline.rowId(r));
     },
 
     valueAt(index, columnId) {
@@ -376,7 +279,7 @@ export function createTableModel<TData, TContent>(
       const original = options.data[row] as TData;
       return {
         row: original,
-        rowId: rowIdOf(row),
+        rowId: pipeline.rowId(row),
         index,
         columnId,
         value: column.getValue(original, row),
