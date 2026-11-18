@@ -92,6 +92,13 @@ describe('treesOf', () => {
     expect(Object.keys(result)).toEqual(['ok']);
   });
 
+  it('keeps an id such as __proto__ as a key', () => {
+    const defs: ColumnDef[] = [...dataColumns, { id: '__proto__', formula: '[qty]' }];
+    const compiled = compileColumns(defs, { functions, parse: parseOrError });
+    const result = treesOf(defs, compiled, { parse: parseOrError, functions });
+    expect(Object.hasOwn(result, '__proto__')).toBe(true);
+  });
+
   it('gives plain JSON', () => {
     const result = trees({ total: '[price] * [qty]' });
     expect(JSON.parse(JSON.stringify(result))).toEqual(result);

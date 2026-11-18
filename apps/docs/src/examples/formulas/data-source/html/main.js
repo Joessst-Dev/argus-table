@@ -40,7 +40,11 @@ const filters = { total: { kind: 'number', op: 'ge', value: 200 } };
 table.columns = columns;
 table.getRowId = (/** @type {Item} */ item) => item.id;
 table.plugins = plugins;
+// Starts filtered. Setting columnFilters makes it controlled: apply each change from the menu.
 table.columnFilters = filters;
+table.addEventListener('argus-column-filters-change', (event) => {
+  table.columnFilters = event.detail.columnFilters;
+});
 // getRows sends `formulaTrees(table)` with each request.
 table.dataSource = createFormulaSource(
   () => table,

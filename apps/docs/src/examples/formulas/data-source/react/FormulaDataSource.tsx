@@ -31,12 +31,14 @@ const columns: ColumnDef<Item>[] = [
 ];
 // `server: true`: the server sorts and filters by the formulas' trees.
 const plugins = [formulas<Item>({ server: true }), headerMenu<Item>()];
-const filters: ColumnFilterState = { total: { kind: 'number', op: 'ge', value: 200 } };
+const startFilters: ColumnFilterState = { total: { kind: 'number', op: 'ge', value: 200 } };
 const rowId = (item: Item) => item.id;
 
 export default function FormulaDataSource() {
   const table = useRef<ArgusTableElement<Item>>(null);
   const [last, setLast] = useState('');
+  // Starts filtered; the column menu changes it.
+  const [filters, setFilters] = useState(startFilters);
   // Created once: getRows sends `formulaTrees(table)` with each request.
   const [source] = useState(() =>
     createFormulaSource(
@@ -57,6 +59,9 @@ export default function FormulaDataSource() {
         getRowId={rowId}
         plugins={plugins}
         columnFilters={filters}
+        onColumnFiltersChange={(event) => {
+          setFilters(event.detail.columnFilters);
+        }}
       />
       <p>
         Last request: <output>{last}</output>

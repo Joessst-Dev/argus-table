@@ -334,7 +334,7 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPl
       const state = stateOf(host);
       state.restarting = RESTARTS.some((name) => changed.has(name));
       // A `dataSource` set or removed: formula columns sort and filter, or stop.
-      if (state.compiled.size && state.remote !== (host.element.dataSource !== undefined)) {
+      if (state.remote !== (host.element.dataSource !== undefined)) {
         host.invalidateColumns();
         return;
       }
@@ -376,13 +376,14 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPl
             },
           })
         : new Map<string, Compiled<T>>();
-      state.compiled = compiled;
-      state.rowsKey = usesRanges(compiled) ? rowsKey(host, compiled) : undefined;
       let trees: Record<string, FormulaTree> | undefined;
       const read = () => (trees ??= treesOf(defs, compiled, { parse: parseOnce, functions }));
       setTrees(host.element, read);
       const known = remote && options.server ? read() : {};
-      reloadFor(state, known, [...compiled.keys()]);
+      // Columns gone count too: the server may still sort or filter by them.
+      reloadFor(state, known, [...state.compiled.keys(), ...compiled.keys()]);
+      state.compiled = compiled;
+      state.rowsKey = usesRanges(compiled) ? rowsKey(host, compiled) : undefined;
       return defs.map((def) => {
         const c = compiled.get(def.id);
         const anchor = def.id === editingId ? state.anchor : undefined;
@@ -394,8 +395,8 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPl
           cell: cellFor(def, c),
           align: def.align ?? (numeric ? 'end' : undefined),
           header: marker || anchor ? headerFor(def, marker, anchor, host) : def.header,
-          sortable: remote && !(def.id in known) ? false : def.sortable,
-          filter: remote && !(def.id in known) ? undefined : def.filter,
+          sortable: remote && !Object.hasOwn(known, def.id) ? false : def.sortable,
+          filter: remote && !Object.hasOwn(known, def.id) ? undefined : def.filter,
         };
       });
     },

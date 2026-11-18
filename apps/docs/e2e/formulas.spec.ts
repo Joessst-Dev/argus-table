@@ -161,6 +161,17 @@ for (const flavour of FLAVOURS) {
     expect(Number(await at(table, 0, 'total'))).toBeGreaterThanOrEqual(
       Number(await at(table, 1, 'total')),
     );
+    // The column menu changes the filter: the app applies it, the server filters.
+    await menuItem(table, 'total', 'Filter…');
+    const form = table.locator('.argus-header-filter:popover-open');
+    await form.locator('input[type="number"]').first().fill('1000');
+    await expect(log).toContainText('"op":"ge","value":1000');
+    await page.keyboard.press('Escape');
+    await expect.poll(async () => Number(await at(table, 0, 'total'))).toBe(largestTotal);
+    for (let row = 0; row < 3; row++) {
+      const value = await at(table, row, 'total');
+      if (value) expect(Number(value)).toBeGreaterThanOrEqual(1000);
+    }
     await expectAccessible(page, example);
   });
 }

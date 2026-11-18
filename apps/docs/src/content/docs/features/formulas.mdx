@@ -102,7 +102,7 @@ table.dataSource = {
 | `boolean` | `value`                     | `TRUE` or `FALSE`                                                                        |
 | `ref`     | `column`                    | This row's value of the column with that id; a formula column's tree is in `columns` too |
 | `call`    | `name`, `args`              | A function, its name in upper case: a built-in one (below) or one of your `functions`    |
-| `unary`   | `operator`, `operand`       | `-` or `+` before a value                                                                |
+| `unary`   | `operator`, `operand`       | `-` before a value makes a number of it; `+` leaves the value as it is                   |
 | `percent` | `operand`                   | `%` after a value: divides it by 100                                                     |
 | `binary`  | `operator`, `left`, `right` | `+ - * / ^` (arithmetic), `&` (joins text), `= <> < <= > >=` (comparisons)               |
 
@@ -117,7 +117,7 @@ To sort and filter the way the cells read, evaluate as the browser does. These r
 - **As text** (`&`, the text functions): blank is `''`, numbers with at most 15 significant digits (`0.1 + 0.2` is `0.3`), `TRUE` / `FALSE`, dates as `2026-03-09`, with ` 14:05:00` unless the time is midnight.
 - **Comparisons** take numbers by size, text without regard to case, `FALSE` before `TRUE`, dates by time. A blank counts as `0`, `''` or `FALSE`, whichever the other side is. Different types order as numbers < text < booleans.
 - **Dates** are read in the time zone `formulaTrees()` reports: `'2026-03-09'` is local midnight there, and `TODAY()`, `YEAR()`, `MONTH()` and `DAY()` use local time.
-- **Sorting** is by the value, and errors sort last in both directions (the column's accessor gives `undefined` for them).
+- **Sorting** is by the value, and errors sort last in both directions (the column's accessor gives `undefined` for them); blank results don't. With `data`, the table picks each column's sort from its first values (natural order for text with numbers in it, for one), so sort formula columns the way your server sorts its other columns of that type.
 - **Filters** apply to the value, and errors count as empty. Text filters and the quick filter match the value's text as the table matches it with `data`: numbers as JavaScript writes them (`String(n)`), booleans as `true` / `false`, dates as their ISO day, without regard to case.
 
 The built-in functions (`[x]` is optional, `…` repeats). An error in an argument is the result, except where a function says otherwise, and the text functions count characters as code points (an emoji is one):
@@ -146,7 +146,7 @@ The built-in functions (`[x]` is optional, `…` repeats). An error in an argume
 | `DAYS`                          | end, start              | Calendar days from `start` to `end`                                                                                                                                                                                                       |
 | `DATEDIF`                       | start, end, unit        | The time between the dates in `"Y"` (whole years), `"M"` (whole months), `"D"` (days), `"YM"` (months past the years), `"MD"` (days past the months), `"YD"` (days past the years); `#NUM!` if `start` is after `end` or for another unit |
 
-`SUMIF`, `COUNTIF`, `AVERAGEIF`, `XLOOKUP`, `MATCH`, `INDEX` and `RANK` work on whole columns, so formulas with them never reach a server. Your own `functions` are yours to implement on the server too. For exact results, the engine's source is in [`packages/formulas/src/engine`](https://github.com/Joessst-Dev/argus-table/tree/main/packages/formulas/src/engine).
+`SUMIF`, `COUNTIF`, `AVERAGEIF`, `XLOOKUP`, `MATCH`, `INDEX` and `RANK` take whole columns, and formulas using whole columns never reach a server. Given single values instead (`COUNTIF([status], "x")`), they're `#VALUE!` in every row, and their trees reach the server as calls: give `#VALUE!` (an error) for them too. Your own `functions` are yours to implement on the server too. For exact results, the engine's source is in [`packages/formulas/src/engine`](https://github.com/Joessst-Dev/argus-table/tree/main/packages/formulas/src/engine).
 
 ### On a SQL server
 

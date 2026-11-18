@@ -16,7 +16,7 @@ import { createFormulaSource, describe } from '../../server';
       [dataSource]="source"
       [getRowId]="rowId"
       [plugins]="plugins"
-      [columnFilters]="filters"
+      [(columnFilters)]="filters"
     />
     <p>
       Last request: <output>{{ last() }}</output>
@@ -46,9 +46,10 @@ export class FormulaDataSourceComponent {
   ];
   // `server: true`: the server sorts and filters by the formulas' trees.
   protected readonly plugins = [formulas<Item>({ server: true }), headerMenu<Item>()];
-  protected readonly filters: ColumnFilterState = {
+  // Starts filtered; the column menu changes it.
+  protected readonly filters = signal<ColumnFilterState>({
     total: { kind: 'number', op: 'ge', value: 200 },
-  };
+  });
   protected readonly rowId = (item: Item) => item.id;
   protected readonly last = signal('');
   // Created once: getRows sends `formulaTrees(table)` with each request.

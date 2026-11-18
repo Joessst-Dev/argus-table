@@ -91,12 +91,13 @@ export function treesOf<T>(
     return tree;
   };
 
-  const trees: Record<string, FormulaTree> = {};
-  for (const def of defs) {
-    const tree = def.formula === undefined ? null : treeOf(def);
-    if (tree) trees[def.id] = tree;
-  }
-  return trees;
+  // Entries, not assignments: an id such as `__proto__` stays a key.
+  return Object.fromEntries(
+    defs.flatMap((def) => {
+      const tree = def.formula === undefined ? null : treeOf(def);
+      return tree ? [[def.id, tree] as const] : [];
+    }),
+  );
 }
 
 /** Each table's trees, read on demand: set by the plugin's `columns` hook, any instance's. */

@@ -107,8 +107,11 @@ function evaluate(
     case 'ref':
       return value(item, tree.column);
     case 'unary': {
-      const n = numberOf(at(tree.operand));
-      return n === undefined ? undefined : tree.operator === '-' ? -n : n;
+      // `+` leaves the value as it is; `-` makes a number of it.
+      const v = at(tree.operand);
+      if (tree.operator === '+') return v;
+      const n = numberOf(v);
+      return n === undefined ? undefined : -n;
     }
     case 'percent': {
       const n = numberOf(at(tree.operand));
@@ -120,8 +123,9 @@ function evaluate(
       if (tree.name === 'IF') {
         // Lazy, like the browser: only the branch taken is evaluated.
         const [test, then, otherwise] = tree.args;
-        if (!test) return undefined;
-        const chosen = at(test) ? then : otherwise;
+        const condition = test && booleanOf(at(test));
+        if (condition === undefined) return undefined;
+        const chosen = condition ? then : otherwise;
         return chosen ? at(chosen) : false;
       }
       if (tree.name === 'ROUND') {
@@ -177,6 +181,16 @@ function numberOf(v: unknown): number | undefined {
   if (typeof v === 'boolean') return Number(v);
   const n = typeof v === 'number' ? v : typeof v === 'string' ? Number(v) : NaN;
   return Number.isFinite(n) ? n : undefined;
+}
+
+/** A value as a condition: blank is false, numbers true unless 0, text only `TRUE` or `FALSE`. */
+function booleanOf(v: unknown): boolean | undefined {
+  if (v === undefined) return undefined;
+  if (v === null || v === '') return false;
+  if (typeof v === 'boolean') return v;
+  if (typeof v === 'number') return v !== 0;
+  const text = typeof v === 'string' ? v.trim().toUpperCase() : '';
+  return text === 'TRUE' ? true : text === 'FALSE' ? false : undefined;
 }
 
 /** A value's text in lower case, as the table matches it: `String(n)` for numbers, `true` / `false`. */

@@ -27,7 +27,8 @@ const columns: ColumnDef<Item>[] = [
 ];
 // `server: true`: the server sorts and filters by the formulas' trees.
 const plugins = [formulas<Item>({ server: true }), headerMenu<Item>()];
-const filters: ColumnFilterState = { total: { kind: 'number', op: 'ge', value: 200 } };
+// Starts filtered; the column menu changes it.
+const filters = ref<ColumnFilterState>({ total: { kind: 'number', op: 'ge', value: 200 } });
 const rowId = (item: Item) => item.id;
 
 const table = useTemplateRef('table');
@@ -50,7 +51,7 @@ const source = createFormulaSource(
     :data-source="source"
     :get-row-id="rowId"
     :plugins="plugins"
-    :column-filters="filters"
+    v-model:column-filters="filters"
   />
   <p>
     Last request: <output>{{ last }}</output>

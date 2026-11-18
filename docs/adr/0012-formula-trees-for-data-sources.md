@@ -27,6 +27,6 @@ Who evaluates formulas on a server varies too much (SQL, search engines, an API 
 
 ## Consequences
 
-- The plugin grows by 0.51 kB min+gzip (12.77 kB); its budget goes from 12.3 to 12.8 kB. The conversion and the reload check can't load later: `getRows` calls `formulaTrees()` synchronously, and the check runs on every update.
+- The plugin grows by 0.50 kB min+gzip (12.76 kB); its budget goes from 12.3 to 12.8 kB. The conversion and the reload check can't load later: `getRows` calls `formulaTrees()` synchronously, and the check runs on every update.
 - Formula columns also follow a `dataSource` set or removed after the first render (before, the plugin noticed only when `columns` changed).
 - Whole columns with a `dataSource` stay `#N/A`; sending them is a later addition (a `range` node type).

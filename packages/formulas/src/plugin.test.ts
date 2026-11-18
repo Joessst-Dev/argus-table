@@ -688,6 +688,18 @@ describe('with a dataSource and server: true', () => {
     expect(got.host?.column('total')?.filter).toBe('number');
   });
 
+  test('an id named like an Object property is no exception', async () => {
+    const { got, plugin } = grabHost();
+    const el = await fixture({
+      data: undefined,
+      dataSource: remote(),
+      columns: withFormulas({ id: 'toString', formula: '[price] * [qty]', sortable: true }),
+      plugins: [formulas(), plugin],
+    });
+    expect(got.host?.column('toString')?.sortable).toBe(false);
+    expect(Object.keys(formulaTrees(el).columns)).toEqual(['toString']);
+  });
+
   test('formulaTrees gives each table its own trees, with one plugin for both', async () => {
     const plugin = formulas<Row>({ server: true });
     const a = await fixture({
@@ -761,6 +773,13 @@ describe('reloading a dataSource when formulas change, with server: true', () =>
   test('removing the last formula columns reloads, with quick filter text', async () => {
     const { el, refresh } = await mount({ quickFilter: 'a' });
     el.columns = withFormulas();
+    await settle(el);
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  test('removing the sorted formula column reloads, with other formula columns left', async () => {
+    const { el, refresh } = await mount({ sorting: [{ id: 'twice', desc: false }] });
+    el.columns = withFormulas(total('[price] * [qty]'));
     await settle(el);
     expect(refresh).toHaveBeenCalledTimes(1);
   });
