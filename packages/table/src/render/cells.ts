@@ -80,6 +80,50 @@ function headerContent<T>(column: Column<T>): unknown {
 }
 
 /** Content of the rows pinned to one side, slotted by side, index and column. */
+/**
+ * Whether the table renders its light DOM before the shadow root when it grows
+ * (`lightCount`): in WebKit (Safari, every browser on iOS) only.
+ *
+ * WebKit assigns a new child to a slot that exists in time proportional to the
+ * slots in the shadow root, but a new slot to a child that is already there in
+ * no time: n added cells cost O(n) going in before their slots, O(n²) after them
+ * (200 columns: 18 s to render every column, 0.8 s). Removed cells cost O(n²)
+ * either way, about 1.7 times as much with the children gone first. Chromium and
+ * Firefox are the other way round: a new slot looks for its child among all of
+ * the host's children, so content first is O(n²) there.
+ */
+export let contentFirst = webKit();
+
+function webKit(): boolean {
+  return typeof navigator === 'object' && navigator.vendor === 'Apple Computer, Inc.';
+}
+
+/** Tests: render content first in any engine (`undefined`: by the engine again). */
+export function setContentFirstForTests(on: boolean | undefined): void {
+  contentFirst = on ?? webKit();
+}
+
+/**
+ * How many children `renderLightDom` renders for these arguments. With content
+ * first, the light DOM goes first when it adds at least as many cells as it
+ * removes, which its count tells: the kept ones cancel out.
+ */
+export function lightCount<T>(
+  model: TableModel<T, CellContent>,
+  rows: readonly WindowRow[],
+  rendered: readonly RenderedColumn<T>[],
+  groups: readonly (readonly HeaderGroupCell<CellContent>[])[],
+  details: readonly WindowRow[],
+): number {
+  // The header, the pinned rows and the body rows, by the data columns.
+  const lines = 1 + model.pinnedCount('top') + model.pinnedCount('bottom') + rows.length;
+  return (
+    lines * rendered.filter((c) => c.kind === 'data').length +
+    groups.flat().filter((g) => g.kind === 'group').length +
+    details.length
+  );
+}
+
 function pinnedContent<T>(
   model: TableModel<T, CellContent>,
   columns: readonly RenderedColumn<T>[],

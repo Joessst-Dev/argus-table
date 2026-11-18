@@ -20,7 +20,7 @@ argus-table is built to scroll a million rows as smoothly as a hundred.
 - **Keep `columns` and their functions stable.** A new `accessor` function makes the table read and sort that column again. Define columns once (at module scope, `useMemo`, a class field), or keep their functions stable when you build a new array.
 - **Give rows ids** with `getRowId`. Without it, a row's id is its index in `data`, which holds through sorting and filtering but not when you add, remove or reorder rows in a new `data`: then selection, focus and measured heights would follow the wrong rows.
 - **Keep cell content light.** Every row in view renders its cells: a heavy component in each cell multiplies.
-- **Turn on `virtualizeColumns`** when a table has many more columns than fit on screen, and beyond about 30 columns in any case: in Safari, rendering slows with the square of the cells on screen (a few thousand cells take seconds). See [Column virtualization](/argus-table/features/column-virtualization/).
+- **Turn on `virtualizeColumns`** when a table has many more columns than fit on screen, and beyond about 30 columns in any case: every rendered cell is work when the table scrolls, and in Safari removing thousands of cells at once (hiding or replacing many columns) takes seconds. See [Column virtualization](/argus-table/features/column-virtualization/).
 
 ## Benchmarks
 
