@@ -161,6 +161,27 @@ describe('withBranches', () => {
     ).toBe(true);
   });
 
+  it('completes a parent once a sibling branch completes first', () => {
+    const tree = branchTree({ R: ['P', 'Q'], P: ['P1', 'P2'], Q: ['Q1'] });
+    expect(
+      sameSelection(withBranches(['P1'], ['Q1', 'P2'], tree), ['P1', 'Q1', 'P2', 'Q', 'P', 'R']),
+    ).toBe(true);
+  });
+
+  it('drops a selected ancestor whose branch is not whole', () => {
+    // ['A'] alone breaks the rules: ticking A1 normalizes it.
+    const once = withBranches(['A'], ['A1'], ab);
+    expect(once).toEqual(['A1']);
+    expect(sameSelection(withBranches(once, ['A2'], ab), ['A1', 'A2', 'A'])).toBe(true);
+  });
+
+  it('drops every selected ancestor above an incomplete one', () => {
+    const tree = branchTree({ G: ['P', 'Q'], P: ['P1', 'P2'] });
+    expect(withBranches(['G', 'P', 'Q'], ['P1'], tree)).toEqual(['Q', 'P1']);
+    // Not selected itself, P still keeps G from being whole.
+    expect(withBranches(['G', 'Q'], ['P1'], tree)).toEqual(['Q', 'P1']);
+  });
+
   it('ticking under a filter selects only kept rows', () => {
     const filtered = branchTree({ A: ['A1'], B: ['B1'] });
     expect(sameSelection(withBranches([], ['A'], filtered), ['A', 'A1'])).toBe(true);

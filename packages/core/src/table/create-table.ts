@@ -405,8 +405,9 @@ export function createTableModel<TData, TContent>(
         }
         check = (index) => {
           const row = rows()[index];
-          const count = row === undefined ? 0 : (picked[row] ?? 0);
-          if (count === 0 || row === undefined) return 'none';
+          if (row === undefined) return 'none';
+          const count = picked[row] ?? 0;
+          if (count === 0) return 'none';
           return count === (size[row] ?? 0) ? 'all' : 'some';
         };
       }

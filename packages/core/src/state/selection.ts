@@ -134,9 +134,12 @@ const WALKED = 2;
 /**
  * `current` plus each of `ids` with all its kept descendants; then, from each
  * of `ids` up, each ancestor whose kept children are now all selected, up to
- * the first that has one left unselected. Keeps `current`'s order and appends
- * the new ids. Iterative, so a deep tree can't overflow the stack, and each
- * row's children are counted once.
+ * the first that has one left unselected. That one and every ancestor above it
+ * aren't whole branches, so those that are selected (a value set against the
+ * rules) lose their ids: what the user changes comes back normalized. Keeps
+ * `current`'s order and appends the new ids. Iterative, so a deep tree can't
+ * overflow the stack; linear in the rows added and the children of the
+ * ancestors reached, whose unselected children are counted once per call.
  */
 export function withBranches(
   current: readonly string[],
@@ -190,7 +193,27 @@ export function withBranches(
       if (above !== undefined && count !== undefined) missing.set(above, count - 1);
     }
   }
-  return selection;
+
+  // Up again, dropping selected ancestors above the first incomplete one. Each
+  // row is passed once while complete and once above an incomplete one.
+  const drop = new Set<string>();
+  const passed = new Set<string>();
+  const broken = new Set<string>();
+  for (const id of ids) {
+    let whole = true;
+    for (let up = tree.parent(id); up !== undefined; up = tree.parent(up)) {
+      if (whole && complete.has(up)) {
+        if (passed.has(up)) break;
+        passed.add(up);
+        continue;
+      }
+      whole = false;
+      if (broken.has(up)) break;
+      broken.add(up);
+      if (have.has(up)) drop.add(up);
+    }
+  }
+  return drop.size === 0 ? selection : selection.filter((s) => !drop.has(s));
 }
 
 /**
