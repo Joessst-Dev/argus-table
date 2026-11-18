@@ -397,6 +397,36 @@ describe('downloads and the column menu', () => {
     });
   });
 
+  test('offers the formats with and without details in the column menu', async () => {
+    const links = clicks();
+    const detail: ExportDetail<Row> = {
+      columns: [{ id: 'product', header: 'Product' }],
+      rows: (r) => [{ product: `${r.name} A` }],
+    };
+    const el = await fixture({ plugins: [tableExport<Row>({ detail })] });
+    const plugin = el.plugins[0] as ReturnType<typeof tableExport<Row>>;
+    const host = { element: el, announce: () => undefined } as never;
+    const groups = plugin.headerMenuItems('name', host);
+    expect(groups.map((g) => [g.label, g.items.map((i) => i.label)])).toEqual([
+      ['Export', ['CSV', 'Excel (.xlsx)', 'PDF']],
+      ['Export with details', ['CSV', 'Excel (.xlsx)', 'PDF']],
+    ]);
+    const download = async (group: number) => {
+      groups[group]?.items[0]?.run();
+      await vi.waitFor(() => {
+        expect(links).toHaveLength(group + 1);
+      });
+      return (await fetch(links[group]?.href ?? '')).text();
+    };
+    expect(await download(0)).not.toContain('Product');
+    expect(await download(1)).toContain('Product');
+
+    document.body.replaceChildren();
+    const plain = await fixture();
+    const plainPlugin = plain.plugins[0] as ReturnType<typeof tableExport<Row>>;
+    expect(plainPlugin.headerMenuItems('name', host).map((g) => g.label)).toEqual(['Export']);
+  });
+
   test('menu: false adds no items', async () => {
     const el = await fixture({ plugins: [tableExport<Row>({ menu: false }), headerMenu<Row>()] });
     const plugin = el.plugins[0] as ReturnType<typeof tableExport<Row>>;

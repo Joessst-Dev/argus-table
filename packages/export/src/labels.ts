@@ -17,6 +17,11 @@ export interface ExportLabels {
   xlsx: string;
   /** Default: `PDF`. */
   pdf: string;
+  /**
+   * Heading of the column menu's second export group, which includes each row's
+   * detail rows (shown when `tableExport()` has a `detail`). Default: `Export with details`.
+   */
+  withDetails: string;
   /** Footer of each PDF page. Default: `Page 2 of 5`. */
   page: (item: { page: number; pages: number }) => string;
   /** Announced when a download starts. Default: `Exported 120 rows`, `Exported 1 row`. */
@@ -30,6 +35,7 @@ const DEFAULT_LABELS: ExportLabels = {
   csv: 'CSV',
   xlsx: 'Excel (.xlsx)',
   pdf: 'PDF',
+  withDetails: 'Export with details',
   page: ({ page, pages }) => `Page ${String(page)} of ${String(pages)}`,
   exported: ({ rows }) => `Exported ${String(rows)} ${rows === 1 ? 'row' : 'rows'}`,
   failed: 'Export failed',

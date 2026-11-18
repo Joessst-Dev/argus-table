@@ -181,6 +181,7 @@ export const exportLabels = {
   csv: 'CSV',
   xlsx: 'Excel (.xlsx)',
   pdf: 'PDF',
+  withDetails: 'Mit Details exportieren',
   page: ({ page, pages }) => `Seite ${String(page)} von ${String(pages)}`,
   exported: ({ rows }) => `${count(rows, 'Zeile', 'Zeilen')} exportiert`,
   failed: 'Export fehlgeschlagen',
