@@ -576,3 +576,228 @@ describe('tree rows: the tree column', () => {
     expect(toggleOf(el, 'P1').getAttribute('aria-label')).toBe('Zu');
   });
 });
+
+describe('tree rows: keys and focus', () => {
+  /** The cell holding focus in the table's shadow root. */
+  const focused = (el: HTMLElement) => shadow(el).activeElement;
+
+  async function focusCell(el: ArgusTable<Item>, name: string, col: string) {
+    cellOf(el, name, col).focus();
+    await settle(el);
+  }
+
+  /** Real key presses on whatever has focus. */
+  async function press(el: ArgusTable<Item>, keys: string) {
+    await userEvent.keyboard(keys);
+    await settle(el);
+  }
+
+  test('Right expands a collapsed parent and keeps focus', async () => {
+    const el = await treeTable();
+    const seen = events<TreeExpandedChangeDetail>(el, 'argus-tree-expanded-change');
+    await focusCell(el, 'P0', 'name');
+    await press(el, '{ArrowRight}');
+    expect(names(el)).toEqual(['P0', 'C0.0', 'C0.1', 'C0.2', 'P1', 'P2']);
+    expect(seen).toEqual([{ treeExpanded: ['0'], rowId: '0', open: true }]);
+    expect(focused(el)).toBe(cellOf(el, 'P0', 'name'));
+  });
+
+  test('Right on an expanded row or a leaf moves right', async () => {
+    const el = await treeTable({ treeExpanded: ['0'] });
+    const seen = events<TreeExpandedChangeDetail>(el, 'argus-tree-expanded-change');
+    await focusCell(el, 'P0', 'name');
+    await press(el, '{ArrowRight}');
+    expect(focused(el)).toBe(cellOf(el, 'P0', 'size'));
+    await focusCell(el, 'C0.1', 'name');
+    await press(el, '{ArrowRight}');
+    expect(focused(el)).toBe(cellOf(el, 'C0.1', 'size'));
+    expect(seen).toEqual([]);
+  });
+
+  test('Left collapses an expanded row', async () => {
+    const el = await treeTable();
+    const seen = events<TreeExpandedChangeDetail>(el, 'argus-tree-expanded-change');
+    await focusCell(el, 'P1', 'name');
+    await press(el, '{ArrowRight}');
+    await press(el, '{ArrowLeft}');
+    expect(names(el)).toEqual(['P0', 'P1', 'P2']);
+    expect(seen).toEqual([
+      { treeExpanded: ['1'], rowId: '1', open: true },
+      { treeExpanded: [], rowId: '1', open: false },
+    ]);
+    expect(focused(el)).toBe(cellOf(el, 'P1', 'name'));
+  });
+
+  test("Left on a child moves to its parent's tree cell", async () => {
+    const el = await treeTable({ treeExpanded: ['0'] });
+    const seen = events<TreeExpandedChangeDetail>(el, 'argus-tree-expanded-change');
+    await focusCell(el, 'C0.1', 'name');
+    await press(el, '{ArrowLeft}');
+    expect(focused(el)).toBe(cellOf(el, 'P0', 'name'));
+    expect(seen).toEqual([]);
+    expect(names(el)).toEqual(['P0', 'C0.0', 'C0.1', 'C0.2', 'P1', 'P2']);
+  });
+
+  test('Left on a child far from its parent brings the parent into view', async () => {
+    const data: Item[] = [
+      { name: 'Big', kids: Array.from({ length: 60 }, (_, i) => ({ name: `K${String(i)}` })) },
+      { name: 'Next' },
+    ];
+    const el = await fixture<Item>({ columns, data, getSubRows, treeExpanded: ['0'] });
+    await el.scrollToRow({ id: '0.59' });
+    await settle(el);
+    await focusCell(el, 'K59', 'name');
+    await press(el, '{ArrowLeft}');
+    await settle(el);
+    expect(focused(el)).toBe(cellOf(el, 'Big', 'name'));
+    expect(topRowText(el)).toBe('Big');
+  });
+
+  test('Left on a collapsed top-level row moves left as before', async () => {
+    const plain = await treeTable();
+    const seen = events<TreeExpandedChangeDetail>(plain, 'argus-tree-expanded-change');
+    await focusCell(plain, 'P1', 'name');
+    await press(plain, '{ArrowLeft}');
+    expect(focused(plain)).toBe(cellOf(plain, 'P1', 'name'));
+    expect(seen).toEqual([]);
+    plain.remove();
+
+    const el = await treeTable({ selectionMode: 'multi', selectionCheckboxes: true });
+    await focusCell(el, 'P1', 'name');
+    await press(el, '{ArrowLeft}');
+    expect(focused(el)).toBe(cellOf(el, 'P1', '--argus-selection'));
+    expect(el.treeExpanded).toEqual([]);
+  });
+
+  test('RTL swaps the arrows', async () => {
+    const el = await treeTable({ dir: 'rtl' });
+    await focusCell(el, 'P0', 'name');
+    await press(el, '{ArrowLeft}');
+    expect(names(el)).toEqual(['P0', 'C0.0', 'C0.1', 'C0.2', 'P1', 'P2']);
+    expect(focused(el)).toBe(cellOf(el, 'P0', 'name'));
+    await press(el, '{ArrowRight}');
+    expect(names(el)).toEqual(['P0', 'P1', 'P2']);
+    expect(focused(el)).toBe(cellOf(el, 'P0', 'name'));
+    expect(el.treeExpanded).toEqual([]);
+    // Toward the end is a move once the row is open.
+    await press(el, '{ArrowLeft}');
+    await press(el, '{ArrowLeft}');
+    expect(focused(el)).toBe(cellOf(el, 'P0', 'size'));
+  });
+
+  test('keys off the tree column behave as before', async () => {
+    const three: ColumnDef<Item>[] = [
+      ...columns,
+      { id: 'kind', header: 'Kind', accessor: (r) => (r.kids ? 'parent' : 'leaf'), width: 100 },
+    ];
+    const el = await treeTable({ columns: three });
+    const seen = events<TreeExpandedChangeDetail>(el, 'argus-tree-expanded-change');
+    await focusCell(el, 'P0', 'size');
+    await press(el, '{ArrowRight}');
+    expect(focused(el)).toBe(cellOf(el, 'P0', 'kind'));
+    await press(el, '{ArrowLeft}');
+    await press(el, '{ArrowLeft}');
+    expect(focused(el)).toBe(cellOf(el, 'P0', 'name'));
+    // Header cells and modified keys too.
+    await press(el, '{Shift>}{ArrowRight}{/Shift}');
+    shadow(el).querySelector<HTMLElement>('[role="columnheader"][data-col="name"]')?.focus();
+    await settle(el);
+    await press(el, '{ArrowRight}');
+    expect(focused(el)?.getAttribute('data-col')).toBe('size');
+    expect(seen).toEqual([]);
+    expect(names(el)).toEqual(['P0', 'P1', 'P2']);
+  });
+
+  test('a row a filter keeps open is left alone; Left on its match goes to it', async () => {
+    const el = await treeTable();
+    const seen = events<TreeExpandedChangeDetail>(el, 'argus-tree-expanded-change');
+    el.quickFilter = 'C0.1';
+    await settle(el);
+    expect(names(el)).toEqual(['P0', 'C0.1']);
+    await focusCell(el, 'P0', 'name');
+    // Top-level and kept open: Left moves left as before (nothing to its left).
+    await press(el, '{ArrowLeft}');
+    expect(focused(el)).toBe(cellOf(el, 'P0', 'name'));
+    expect(names(el)).toEqual(['P0', 'C0.1']);
+    await focusCell(el, 'C0.1', 'name');
+    await press(el, '{ArrowLeft}');
+    expect(focused(el)).toBe(cellOf(el, 'P0', 'name'));
+    // Open: Right moves right.
+    await press(el, '{ArrowRight}');
+    expect(focused(el)).toBe(cellOf(el, 'P0', 'size'));
+    expect(seen).toEqual([]);
+    expect(el.treeExpanded).toEqual([]);
+  });
+
+  test('Enter on a tree cell still does what a click does', async () => {
+    const el = await treeTable();
+    const clicks = events<CellClickDetail<Item>>(el, 'argus-cell-click');
+    await focusCell(el, 'P0', 'name');
+    await press(el, '{Enter}');
+    expect(clicks.map((c) => [c.rowId, c.columnId])).toEqual([['0', 'name']]);
+    expect(el.treeExpanded).toEqual([]);
+    expect(names(el)).toEqual(['P0', 'P1', 'P2']);
+  });
+
+  describe('collapsing moves the active cell from a descendant to the row', () => {
+    test('by a click on the toggle', async () => {
+      const el = await treeTable();
+      await focusCell(el, 'P0', 'name');
+      await press(el, '{ArrowRight}');
+      await focusCell(el, 'C0.2', 'size');
+      await userEvent.click(toggleOf(el, 'P0'));
+      await settle(el);
+      expect(names(el)).toEqual(['P0', 'P1', 'P2']);
+      // The click puts focus on the toggle's cell.
+      expect(document.activeElement).toBe(el);
+      expect(focused(el)).toBe(cellOf(el, 'P0', 'name'));
+    });
+
+    test('by keys: Left to the parent, Left again', async () => {
+      const el = await treeTable();
+      await focusCell(el, 'P0', 'name');
+      await press(el, '{ArrowRight}');
+      await focusCell(el, 'C0.2', 'name');
+      await press(el, '{ArrowLeft}{ArrowLeft}');
+      expect(names(el)).toEqual(['P0', 'P1', 'P2']);
+      expect(focused(el)).toBe(cellOf(el, 'P0', 'name'));
+    });
+
+    test('by a controlled host, in the same column', async () => {
+      const el = await treeTable({ treeExpanded: ['0', '1'] });
+      await focusCell(el, 'C0.2', 'size');
+      el.treeExpanded = [];
+      await settle(el);
+      expect(names(el)).toEqual(['P0', 'P1', 'P2']);
+      expect(document.activeElement).toBe(el);
+      expect(focused(el)).toBe(cellOf(el, 'P0', 'size'));
+    });
+
+    test('a deeper descendant goes to its nearest shown ancestor', async () => {
+      const data: Item[] = [
+        { name: 'A', kids: [{ name: 'A1', kids: [{ name: 'A1a' }, { name: 'A1b' }] }] },
+        { name: 'B' },
+      ];
+      const el = await fixture<Item>({ columns, data, getSubRows, treeExpanded: ['0', '0.0'] });
+      await focusCell(el, 'A1b', 'size');
+      el.treeExpanded = ['0'];
+      await settle(el);
+      expect(focused(el)).toBe(cellOf(el, 'A1', 'size'));
+      el.treeExpanded = [];
+      await settle(el);
+      expect(focused(el)).toBe(cellOf(el, 'A', 'size'));
+    });
+
+    test('without focus in the table, the tab stop moves and focus stays put', async () => {
+      const outside = document.createElement('button');
+      document.body.append(outside);
+      const el = await treeTable({ treeExpanded: ['0'] });
+      await focusCell(el, 'C0.2', 'size');
+      outside.focus();
+      el.treeExpanded = [];
+      await settle(el);
+      expect(document.activeElement).toBe(outside);
+      expect(cellOf(el, 'P0', 'size').tabIndex).toBe(0);
+    });
+  });
+});

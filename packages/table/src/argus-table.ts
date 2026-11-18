@@ -310,7 +310,9 @@ export class ArgusTable<T = unknown> extends LitElement {
    * Nested data: a row's child rows, or `undefined` (or `[]`) for a row without
    * any. `data` then holds the top-level rows, and the rows form a tree: a row's
    * children show under it, indented in the first data column, while it is
-   * expanded (`treeExpanded`). Children are sorted among their siblings, and a
+   * expanded (`treeExpanded`). In that column, Right (Left in a right-to-left
+   * table) expands a collapsed row; Left collapses an expanded one, else moves
+   * to the parent row. Children are sorted among their siblings, and a
    * filter keeps the rows that match with their ancestors, shown expanded with
    * their toggles disabled until the filter clears. A child's default id
    * is its parent's id, a dot and its index among its siblings (`'3.0'`,
@@ -328,12 +330,13 @@ export class ArgusTable<T = unknown> extends LitElement {
    * Flat data: the id of a row's parent (an id `getRowId` gives), or `null` or
    * `undefined` for a top-level row. `data` holds every row, and the rows form a
    * tree: a row's children show under it, indented in the first data column,
-   * while it is expanded (`treeExpanded`). A filter keeps the rows that match
-   * with their ancestors, as with `getSubRows`. Rows keep their index in `data`. A row
-   * whose parent isn't found, or that is part of a cycle, shows as a top-level
-   * row (with a console warning). `getSubRows` wins when both are set. Ignored
-   * with a `dataSource` for now. Property only. Keep the function stable: a new
-   * function on every render builds and sorts the tree again.
+   * while it is expanded (`treeExpanded`). The keys, and a filter keeping the
+   * rows that match with their ancestors, work as with `getSubRows`. Rows keep
+   * their index in `data`. A row whose parent isn't found, or that is part of a
+   * cycle, shows as a top-level row (with a console warning). `getSubRows` wins
+   * when both are set. Ignored with a `dataSource` for now. Property only. Keep
+   * the function stable: a new function on every render builds and sorts the
+   * tree again.
    */
   @property({ attribute: false })
   getParentId?: (row: T) => string | null | undefined;
@@ -901,6 +904,9 @@ export class ArgusTable<T = unknown> extends LitElement {
     this.#data,
     (index) => {
       this.#toggle(index);
+    },
+    (index) => {
+      this.#toggleTree(index);
     },
     (columnId) => {
       this.#requestSort(columnId);
