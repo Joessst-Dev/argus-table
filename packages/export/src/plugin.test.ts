@@ -192,6 +192,26 @@ describe('exportTable', () => {
     expect((await csv(el)).split('\r\n')[0]).toBe('Name;Age;City');
   });
 
+  test('exports data rows only: open detail panels, the chevron and checkbox columns are left out', async () => {
+    const el = await fixture({
+      rowDetail: ({ row }) => html`<p>Detail of ${row.name}</p>`,
+      expanded: ['a', 'c'],
+      selectionMode: 'multi',
+      selectionCheckboxes: true,
+      selection: ['a', 'c'],
+      columnPinning: { name: 'start' },
+    });
+    expect(await csv(el)).toBe(
+      "Name,Age,City\r\nAnn,30,Oslo\r\nBob,10,Rome\r\nCid,20,Lima\r\nDee,40,'=cmd\r\n",
+    );
+    expect(await csv(el, { rows: 'selected' })).toBe(
+      'Name,Age,City\r\nAnn,30,Oslo\r\nCid,20,Lima\r\n',
+    );
+    // Frozen panes cover Name alone, not the system columns before it.
+    const files = await unzip(new Uint8Array(await (await exportTable(el, 'xlsx')).arrayBuffer()));
+    expect(files.get('xl/worksheets/sheet1.xml')).toContain('<pane xSplit="1" ySplit="1"');
+  });
+
   test('uses the plugin options as defaults for every export', async () => {
     const el = await fixture({ plugins: [tableExport<Row>({ delimiter: ';', bom: false })] });
     expect((await (await exportTable(el, 'csv')).text()).split('\r\n')[0]).toBe('Name;Age;City');

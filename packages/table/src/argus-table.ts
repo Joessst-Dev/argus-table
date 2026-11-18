@@ -85,6 +85,8 @@ import {
   pinnedWidth,
   pinShadow,
   positionOfIndex,
+  edgeRuns,
+  renderEdgeRuns,
   rowIdOfPanel,
   sortColumnOf,
   track,
@@ -1345,6 +1347,22 @@ export class ArgusTable<T = unknown> extends LitElement {
     const contentPx =
       this.#headerAndPinnedPx(layout) + (model.rowCount === 0 ? 0 : this.#window.totalSize);
     this.#contentPx = contentPx;
+    // With detail panels, the body's part of the pinned edges is drawn in the body,
+    // so it stops at each panel (an overlay can't go under a panel).
+    const edges =
+      this.rowDetail && pinStart + pinEnd > 0
+        ? renderEdgeRuns(
+            pinStart,
+            pinEnd,
+            edgeRuns(this.#window.rows, (row) => row.size ?? this.#rowPx),
+          )
+        : undefined;
+    const bands = edges
+      ? {
+          top: layout.header * this.#rowPx + this.#pinnedPx('top', layout),
+          bottom: this.#pinnedPx('bottom', layout),
+        }
+      : undefined;
     return html`<div
         part="table"
         role="presentation"
@@ -1385,12 +1403,14 @@ export class ArgusTable<T = unknown> extends LitElement {
                 this.rowDetail
                   ? { rows: this.#window.details, colspan: columns.length }
                   : undefined,
+                edges,
               )
         }
         ${renderPinnedRows('bottom', layout.bottom, rendered, firstIndex('bottom'), activeIn('bottom'))}
         <div class="probe" aria-hidden="true"></div>
       </div>
-      ${pinShadow('start', pinStart, contentPx)} ${pinShadow('end', pinEnd, contentPx)}`;
+      ${pinShadow('start', pinStart, contentPx, bands)}
+      ${pinShadow('end', pinEnd, contentPx, bands)}`;
   }
 
   protected override firstUpdated(): void {

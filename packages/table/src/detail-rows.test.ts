@@ -857,3 +857,95 @@ describe('detail rows: review fixes', () => {
     expect(back?.value).toBe('kept');
   });
 });
+
+describe('detail rows: pinned edges', () => {
+  afterEach(() => {
+    document.body.replaceChildren();
+  });
+
+  const wide = [
+    { id: 'name', header: 'Name', accessor: 'name', width: 150, pin: 'start' as const },
+    { id: 'a', header: 'A', accessor: 'name', width: 300 },
+    { id: 'b', header: 'B', accessor: 'name', width: 300 },
+    { id: 'c', header: 'C', accessor: 'name', width: 300 },
+    { id: 'age', header: 'Age', accessor: 'age', width: 80, pin: 'end' as const },
+  ];
+  const scrollerOf = (el: ArgusTable<Person>) => {
+    const scroller = shadow(el).querySelector<HTMLElement>('[part~="table"]');
+    if (!scroller) throw new Error('no scroller');
+    return scroller;
+  };
+  const runs = (el: ArgusTable<Person>, side: 'start' | 'end') => [
+    ...shadow(el).querySelectorAll(`.edge-runs[data-side="${side}"] > .edge-run`),
+  ];
+  const container = (el: ArgusTable<Person>, side: 'start' | 'end') => {
+    const found = shadow(el).querySelector(`.edge-runs[data-side="${side}"]`);
+    if (!found) throw new Error(`no ${side} edge`);
+    return found.getBoundingClientRect();
+  };
+
+  it('stops the pinned edges at each panel', async () => {
+    const el = await detailTable({ columns: wide, expanded: ['p2'] });
+    await settle(el);
+    const panel = shadow(el).querySelector('[part~="row-detail"]:not([hidden])');
+    if (!panel) throw new Error('no panel');
+    const { top, bottom } = panel.getBoundingClientRect();
+    for (const side of ['start', 'end'] as const) {
+      const [above, below, ...rest] = runs(el, side).map((r) => r.getBoundingClientRect());
+      expect(rest).toHaveLength(0);
+      // Rows 0 to 2 above the panel, the rest below it.
+      expect(above?.bottom).toBeCloseTo(top, 0);
+      expect(above?.height).toBeCloseTo(3 * rowAt(el, 2).getBoundingClientRect().height, 0);
+      expect(below?.top).toBeCloseTo(bottom, 0);
+    }
+    // The overlay shows only over the header (and pinned rows).
+    const overlay = shadow(el).querySelector<HTMLElement>('.pin-shadow[data-side="start"]');
+    expect(overlay?.hasAttribute('data-bands')).toBe(true);
+    const header = shadow(el).querySelector('[part~="header-row"]')?.getBoundingClientRect();
+    expect(parseFloat(overlay?.style.getPropertyValue('--_band-top') ?? '')).toBeCloseTo(
+      header?.height ?? 0,
+      0,
+    );
+  });
+
+  it('keeps the edges at the sides when the table scrolls sideways', async () => {
+    const el = await detailTable({ columns: wide, expanded: ['p2'] });
+    const scroller = scrollerOf(el);
+    const box = scroller.getBoundingClientRect();
+    const inView = () => {
+      expect(container(el, 'start').left).toBeCloseTo(box.left + scroller.clientLeft, 0);
+      // The chevron column (40px) and Name.
+      expect(container(el, 'start').width).toBeCloseTo(190, 0);
+      expect(container(el, 'end').right).toBeCloseTo(
+        box.left + scroller.clientLeft + scroller.clientWidth,
+        0,
+      );
+    };
+    inView();
+    scroller.scrollLeft = 200;
+    await settle(el);
+    // While it scrolls (sticky), and once it has settled.
+    inView();
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    await settle(el);
+    inView();
+  });
+
+  it('mirrors the edges in a right-to-left table', async () => {
+    const el = await detailTable({ columns: wide, expanded: ['p2'], dir: 'rtl' });
+    await settle(el);
+    const scroller = scrollerOf(el);
+    const box = scroller.getBoundingClientRect();
+    expect(container(el, 'start').right).toBeCloseTo(box.right - scroller.clientLeft, 0);
+    expect(container(el, 'end').left).toBeCloseTo(
+      box.right - scroller.clientLeft - scroller.clientWidth,
+      0,
+    );
+  });
+
+  it('draws the edges with the overlay alone without rowDetail', async () => {
+    const el = await fixture({ columns: wide, data: people(20) });
+    expect(shadow(el).querySelector('.edge-runs')).toBeNull();
+    expect(shadow(el).querySelector('.pin-shadow')?.hasAttribute('data-bands')).toBe(false);
+  });
+});

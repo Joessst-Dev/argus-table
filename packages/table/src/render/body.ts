@@ -1,4 +1,4 @@
-import { html, nothing } from 'lit';
+import { html, nothing, type TemplateResult } from 'lit';
 import { live } from 'lit/directives/live.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { styleMap } from 'lit/directives/style-map.js';
@@ -84,10 +84,12 @@ export function renderBody<T>(
   inset = false,
   toggles?: RowToggles,
   details?: DetailRows,
+  edges?: TemplateResult | typeof nothing,
 ) {
   return html`<div
     part="body"
     role="rowgroup"
+    ?data-edges=${edges !== undefined && edges !== nothing}
     style=${styleMap({ blockSize: `${String(totalSize)}px` })}
   >
     ${repeat(
@@ -120,7 +122,7 @@ export function renderBody<T>(
               ),
           )
         : nothing
-    }
+    }${edges ?? nothing}
   </div>`;
 }
 
