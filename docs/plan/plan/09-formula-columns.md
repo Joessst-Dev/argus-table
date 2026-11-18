@@ -46,7 +46,7 @@ Manager      = XLOOKUP([manager_id], [[id]], [[name]], "—")
 - **Criteria** of `SUMIF`, `COUNTIF`, `AVERAGEIF`: a value (equal; text without case; numeric text equals its number), or text with an operator (`">10"`, `"<>done"`, ISO dates compared as dates), with `*` and `?` wildcards in `=` and `<>` text.
 - **Lookups and rank:** `XLOOKUP` (exact matches only, `#N/A` or the fallback), `MATCH` (`0` exact, `1` / `-1` binary search on sorted data, `1` the default as in Excel), `INDEX` (from 1, `#REF!` outside), `RANK` (descending by default, ties share the best rank, `#N/A` for a value not in the column). `INDEX` and `XLOOKUP` take their result column's type (`returnsFrom`).
 - **Cycles:** `[[x]]` is an edge in the dependency graph like `[x]`, so `SUM([[Total]])` in `Total` is `#CYCLE!`.
-- **With a `dataSource`** whole columns are `#N/A`: the rows aren't all loaded. (Passing whole columns to `getRows` stays open, like the syntax tree.)
+- **With a `dataSource`** whole columns are `#N/A`: the rows aren't all loaded. (Passing whole columns to `getRows` stays open; the syntax tree is decided, see below.)
 
 **Per-row work stays O(1) amortised** (1M rows would be O(n²) otherwise):
 
@@ -85,7 +85,7 @@ See the "Add formula column" and "Column header menu" [mockups](../mockups.md).
 
 ## Open points
 
-- [x] Server-side `dataSource`: the server can't sort or filter by a formula column. Decided: formula columns aren't sortable or filterable with a `dataSource` (the plugin drops their `sortable` and `filter`). Still open: passing the syntax tree to `getRows` so a server can implement them. With `data`, formula columns filter like any other (errors are empty values) and the quick filter finds their results.
-- [x] Size budgets for `@argus-table/formulas`, min+gzip with `lit` and `argus-table` excluded, checked by `pnpm size`: 12.3 kB for the plugin (11.9 kB with whole columns; 8.5 kB with the menu items; 7.3 kB in step 1) and 8 kB for the editor, which loads on first use (7.9 kB). Whole columns cost 3.4 kB: the range indexes (2.9 kB minified), criteria (2.1 kB) and the Columns functions (1.7 kB).
+- [x] Server-side `dataSource`: the server can't sort or filter by a formula column. Decided: formula columns aren't sortable or filterable with a `dataSource` (the plugin drops their `sortable` and `filter`). Decided later ([ADR 0012](../../adr/0012-formula-trees-for-data-sources.md)): with `formulas({ server: true })` they sort and filter, and `getRows` sends `formulaTrees(table)` to the server. With `data`, formula columns filter like any other (errors are empty values) and the quick filter finds their results.
+- [x] Size budgets for `@argus-table/formulas`, min+gzip with `lit` and `argus-table` excluded, checked by `pnpm size`: 12.8 kB for the plugin (12.76 kB with `server` and `formulaTrees()`, 0.50 kB of it; 11.9 kB with whole columns; 8.5 kB with the menu items; 7.3 kB in step 1) and 8 kB for the editor, which loads on first use (7.9 kB). Whole columns cost 3.4 kB: the range indexes (2.9 kB minified), criteria (2.1 kB) and the Columns functions (1.7 kB).
 - [x] Function implementations: written in-house rather than borrowed from [`@formulajs/formulajs`](https://www.jsdelivr.com/package/npm/@formulajs/formulajs): the 34 functions, parser and plugin fit the plugin's budget together, with spreadsheet error values and coercions throughout.
 - [x] Rejected engines: [HyperFormula](https://hyperformula.handsontable.com/docs/guide/licensing.md) (GPLv3/proprietary, incompatible with MIT users) and [expr-eval](https://nvd.nist.gov/vuln/detail/CVE-2025-12735) (critical code-execution CVE).

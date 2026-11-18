@@ -159,7 +159,22 @@ A `cell` function on a formula column only gets values: the plugin shows errors 
 
 Each formula is parsed and compiled once into plain functions: there is no `eval` or `new Function`, and a formula can only reach the columns and functions it names. Results are cached per row object, so replace `data` to update, as with the table itself. Formula columns are evaluated in dependency order, and only for the rows the table reads.
 
-**With a `dataSource`**, formula columns can't be sorted: the server sorts, and it doesn't know the formulas.
+## With a `dataSource`
+
+With a `dataSource` the server sorts and filters, and by default it doesn't know the formulas: formula columns show their values but don't sort or filter. If your server can evaluate formulas, turn them on and send their syntax trees from `getRows`:
+
+```ts
+import { formulas, formulaTrees } from '@argus-table/formulas';
+
+table.plugins = [formulas({ server: true })];
+table.dataSource = {
+  // { columns: { total: { type: 'binary', operator: '*', left: …, right: … } }, timeZone: 'Europe/Berlin' }
+  getRows: ({ signal, ...request }) =>
+    api.rows({ ...request, formulas: formulaTrees(table) }, { signal }),
+};
+```
+
+`formulaTrees(table)` gives each formula column's tree by column id, with references resolved to column ids, and the browser's time zone. Columns whose formula is broken or uses whole columns, and those reading them, are left out and stay unsortable. When a formula the current sort or filters use changes, the table loads its rows again. The tree format, and the rules a server follows to compute what the browser shows, are on the [Formulas page](https://joessst-dev.github.io/argus-table/features/formulas/#with-a-datasource).
 
 ## Styling
 

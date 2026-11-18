@@ -1,4 +1,6 @@
 export { formulas } from './plugin.js';
+export { formulaTrees } from './trees.js';
+export type { FormulaOperator, FormulaTree, FormulaTrees } from './trees.js';
 export type { FormulasEditorLabels, FormulasLabels, FormulasPluginLabels } from './labels.js';
 export type {
   FormulaFunction,

@@ -35,7 +35,7 @@ table.getRowId = (order) => order.id;
 
 - **`start` and `end`:** the rows to load, `end` exclusive, like `slice()`. Pages are aligned: `start` is a multiple of `pageSize` (100 by default), and `end - start` is `pageSize`, less for the last page. A page-based API gets `page = start / pageSize`.
 - **`sorting`:** the order, as `[{ id, desc }]`; `[]` when unsorted. The table doesn't sort these rows, the server does. Columns still need `sortable: true` for their headers to sort.
-- **`filters` and `quickFilter`:** the column filters and the search text, for the server to apply. Column ids are what the server gets; map them to your API's field names in `getRows` if they differ.
+- **`filters` and `quickFilter`:** the column filters and the search text, for the server to apply. Column ids are what the server gets; map them to your API's field names in `getRows` if they differ. Formula columns sort and filter only if the server evaluates their formulas: see [Formulas with a `dataSource`](../../features/formulas/#with-a-datasource).
 - **`signal`:** aborted when the rows aren't needed anymore (scrolled far away, a new sort). Pass it to `fetch` to cancel the request. A client without one works too: the table drops answers it no longer wants.
 
 ## What it returns

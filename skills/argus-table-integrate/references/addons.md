@@ -87,7 +87,7 @@ const columns = [
 
 - Spreadsheet-style formulas over other columns (`[price]`, `SUM([[qty]])` for a whole column, `IF`, `ROUND`, …).
 - `formulas({ editing: 'edit' | 'view' | 'none' })`: with the column menu, users can add and edit formula columns. The editor never changes `columns` itself: it fires `argus-formula-column-add`, `-change` and `-remove` with `detail.columns`, and the app sets `columns` to it (React `onFormulaColumnAdd`, Vue `@formula-column-add`, Angular `(formulaColumnAdd)`). With `editing: 'none'` there's nothing to handle.
-- With a `dataSource`, formula columns don't sort or filter.
+- With a `dataSource`, formula columns don't sort or filter, unless the server evaluates formulas: `formulas({ server: true })`, and `getRows` sends `formulaTrees(table)` (`{ columns, timeZone }`: each formula column's syntax tree by column id) to the server. The tree format and the rules the server follows are in the docs' Formulas page, "With a `dataSource`".
 
 ## Translations
 

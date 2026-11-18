@@ -118,6 +118,8 @@ export interface Compiled<T> {
   accessor: (row: T, index: number) => unknown;
   /** Whether it uses whole columns, itself or through a column it reads. */
   ranges: boolean;
+  /** Whether it is `#ERROR!` or `#CYCLE!` in every row: a formula that can't be read, or a cycle. */
+  broken: boolean;
 }
 
 const NAME = /^[A-Za-z_][A-Za-z0-9_.]*$/;
@@ -174,6 +176,7 @@ function entry<T>(
   type: ValueType,
   evaluate: Evaluate<Scope<T>>,
   ranges = false,
+  broken = false,
 ): Compiled<T> {
   const cache = new WeakMap<object, unknown>();
   const result = (row: T, index: number): unknown => {
@@ -188,6 +191,7 @@ function entry<T>(
     inputs,
     type,
     ranges,
+    broken,
     result,
     accessor: (row, index) => {
       const value = result(row, index);
@@ -319,7 +323,7 @@ export function compileColumns<T>(
   const broken = (def: ColumnDef<T, unknown>, formula: string, error: FormulaSyntaxError) => {
     options.onBroken?.(def, error);
     const value = new FormulaError('#ERROR!', error.message);
-    return entry<T>(formula, ['broken'], 'unknown', () => value);
+    return entry<T>(formula, ['broken'], 'unknown', () => value, false, true);
   };
 
   for (const id of order) {
@@ -335,7 +339,8 @@ export function compileColumns<T>(
       const value = new FormulaError('#CYCLE!', 'The formula depends on its own result.');
       next.set(
         id,
-        reuse(id, formula, ['cycle']) ?? entry<T>(formula, ['cycle'], 'unknown', () => value),
+        reuse(id, formula, ['cycle']) ??
+          entry<T>(formula, ['cycle'], 'unknown', () => value, false, true),
       );
       continue;
     }

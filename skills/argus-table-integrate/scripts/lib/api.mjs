@@ -74,8 +74,8 @@ export const ADDONS = {
   },
   '@argus-table/formulas': {
     factory: 'formulas',
-    exports: ['formulas'],
-    options: ['functions', 'marker', 'editing', 'labels'],
+    exports: ['formulas', 'formulaTrees'],
+    options: ['functions', 'marker', 'editing', 'labels', 'server'],
     peers: ['argus-table', 'lit'],
   },
   '@argus-table/header-menu': {
