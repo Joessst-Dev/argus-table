@@ -9,11 +9,9 @@ import {
 import { customElement, property } from 'lit/decorators.js';
 import { styleMap } from 'lit/directives/style-map.js';
 import {
-  alignOffset,
   controllable,
   RowLayout,
   type ColumnView,
-  type Controllable,
   type GridRow,
   type TableModel,
 } from '@argus-table/core';
@@ -33,7 +31,8 @@ import { ColumnReorder } from './controllers/column-reorder.js';
 import { ColumnResize } from './controllers/column-resize.js';
 import { NavigationController } from './controllers/navigation.js';
 import { SelectionController } from './controllers/selection.js';
-import { StateEvents } from './controllers/state-events.js';
+import { restore, StateEvents } from './controllers/state-events.js';
+import { ScrollTarget } from './controllers/scroll-target.js';
 import { VirtualController, type VirtualWindow } from './controllers/virtual-controller.js';
 import {
   COLUMN_FILTERS_CHANGE,
@@ -69,7 +68,6 @@ import type { ArgusPlugin, ColumnInfo, PluginHost, RowSection } from './plugins.
 import { baseStyles } from './styles/base.js';
 import { rowHeightConverter, switchConverter } from './attributes.js';
 import {
-  directionOf,
   gridRowOf,
   layoutOf,
   panelRowId,
@@ -99,7 +97,6 @@ import type {
   PinnedRows,
   RowDetailContext,
   RowTarget,
-  ScrollAlign,
   ScrollToColumnOptions,
   ScrollToRowOptions,
   SelectionMode,
@@ -618,8 +615,6 @@ export class ArgusTable<T = unknown> extends LitElement {
   #selectionColumnChanged = false;
   /** Columns `autosizeColumns()` renders out of view for its measurement. */
   #measureKeep: readonly string[] = [];
-  /** The column `scrollToColumn()` renders out of view to measure where it is. */
-  #scrollKeep: string | undefined;
   /** Measured widths of `width: 'auto'` columns. */
   readonly #autoWidths = new AutoWidths(() => {
     this.requestUpdate();
@@ -839,32 +834,23 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.#requestSort(columnId);
     },
   );
+  /** Scrolling to rows and columns, and the restored row still to reach. */
+  readonly #scroll = new ScrollTarget<T>(
+    this,
+    () => this.#table.model,
+    this.#virtual,
+    this.#data,
+    (layout) => this.#bodyInsets(layout),
+    () => this.#measuring,
+    () => this.#scroller(),
+  );
   #lastRange = '';
   #unwatchMaxHeight: (() => void) | undefined;
-
-  /**
-   * The row `setState()` or `scrollToRow()` still has to scroll to: a data
-   * source's rows that far aren't counted yet. Scrolled to again whenever the
-   * row count changes.
-   */
-  #scrollTarget: { row: number; count: number; align: ScrollAlign } | undefined;
 
   /** The scroll container (`part="table"`); `null` before the first render. */
   #scroller(): HTMLElement | null {
     return this.renderRoot.querySelector<HTMLElement>('[part~="table"]');
   }
-
-  constructor() {
-    super();
-    // The user's own scrolling (or a click, or a key) wins over a restored position.
-    for (const type of ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const) {
-      this.addEventListener(type, this.#dropScrollTarget, { passive: true });
-    }
-  }
-
-  readonly #dropScrollTarget = () => {
-    this.#scrollTarget = undefined;
-  };
 
   override connectedCallback(): void {
     super.connectedCallback();
@@ -986,34 +972,8 @@ export class ArgusTable<T = unknown> extends LitElement {
    * `false` and the table scrolls on toward the row as pages arrive, until the
    * user scrolls, clicks or presses a key.
    */
-  async scrollToRow(target: RowTarget, options: ScrollToRowOptions = {}): Promise<boolean> {
-    await this.updateComplete;
-    const model = this.#table.model;
-    const index = typeof target === 'number' ? target : model.indexOf(target.id);
-    if (index === undefined || !Number.isInteger(index) || index < 0) return false;
-    const align = options.align ?? 'start';
-    const count = model.rowCount;
-    this.#scrollTarget =
-      this.#data.rows?.totalKnown === false && index >= count
-        ? { row: index, count, align }
-        : undefined;
-    this.#scrollRowTo(index, align);
-    // The scroll event comes before the next frame, and the rows move with its
-    // update. Rows measured on the way (`rowHeight: 'auto'`) move a row that
-    // isn't at the top: align it again until they're done.
-    for (let i = 0; i < 5; i++) {
-      await new Promise(requestAnimationFrame);
-      await this.#settled();
-      if (align === 'start' || !this.#measuring || !this.#scrollRowTo(index, align)) break;
-    }
-    return index < this.#table.model.rowCount;
-  }
-
-  /** Scrolls row `index` to `align` in the body. Returns whether it moved. */
-  #scrollRowTo(index: number, align: ScrollAlign): boolean {
-    const model = this.#table.model;
-    const { before, after } = this.#bodyInsets(layoutOf(model));
-    return this.#virtual.scrollToIndex(positionOfIndex(model, index), align, before, after);
+  scrollToRow(target: RowTarget, options: ScrollToRowOptions = {}): Promise<boolean> {
+    return this.#scroll.toRow(target, options.align ?? 'start');
   }
 
   /** The rows in the scroller above the body (header, top pinned rows) and below it, in px. */
@@ -1033,63 +993,8 @@ export class ArgusTable<T = unknown> extends LitElement {
    * view (a pinned column always is, and doesn't scroll), `false` for an id of
    * no column or of a hidden one.
    */
-  async scrollToColumn(id: string, options: ScrollToColumnOptions = {}): Promise<boolean> {
-    await this.updateComplete;
-    const column = this.#table.model.columns.find((c) => c.id === id && c.kind === 'data');
-    if (!column) return false;
-    if (column.pin !== undefined) return true;
-    if (this.virtualizeColumns) {
-      this.#scrollKeep = id;
-      this.requestUpdate();
-      await this.updateComplete;
-    }
-    this.#scrollColumnTo(id, options.align ?? 'nearest');
-    if (this.#scrollKeep !== undefined) {
-      this.#scrollKeep = undefined;
-      this.requestUpdate();
-    }
-    // The column window moves with the scroll event, before the next frame.
-    await new Promise(requestAnimationFrame);
-    await this.updateComplete;
-    return true;
-  }
-
-  /**
-   * Scrolls the column's header cell to `align` in the scrolling area. Measured,
-   * not computed from widths: a flex column is as wide as its grid track.
-   */
-  #scrollColumnTo(id: string, align: ScrollAlign): void {
-    const scroller = this.#scroller();
-    const model = this.#table.model;
-    const layout = layoutOf(model);
-    const header = `[role='row'][aria-rowindex="${String(layout.header)}"]`;
-    const cell = this.renderRoot.querySelector(`${header} > [data-col="${CSS.escape(id)}"]`);
-    if (!scroller || !cell) return;
-    const direction = directionOf(this);
-    const ltr = direction === 1;
-    const box = scroller.getBoundingClientRect();
-    const rect = cell.getBoundingClientRect();
-    // The inner start edge: past the border, and past a scrollbar on that side.
-    const edge = box.left + scroller.clientLeft + (ltr ? 0 : scroller.clientWidth);
-    const pinStart = pinnedWidth(model.columns, 'start');
-    const view = scroller.clientWidth - pinStart - pinnedWidth(model.columns, 'end');
-    // Negative in RTL.
-    const offset = Math.abs(scroller.scrollLeft);
-    const start = offset + (ltr ? rect.left - edge : edge - rect.right) - pinStart;
-    const target = alignOffset(start, rect.width, offset, view, align);
-    const inline = Math.min(Math.round(target), scroller.scrollWidth - scroller.clientWidth);
-    if (inline !== offset) scroller.scrollLeft = inline * direction;
-  }
-
-  /**
-   * Waits for the update, and with `rowHeight: 'auto'` for the ones measured
-   * rows request (a few at most: heights don't depend on positions).
-   */
-  async #settled(): Promise<void> {
-    let done = await this.updateComplete;
-    for (let i = 0; i < 8 && !done && this.#measuring; i++) {
-      done = await this.updateComplete;
-    }
+  scrollToColumn(id: string, options: ScrollToColumnOptions = {}): Promise<boolean> {
+    return this.#scroll.toColumn(id, options.align ?? 'nearest', this.virtualizeColumns);
   }
 
   /**
@@ -1135,60 +1040,20 @@ export class ArgusTable<T = unknown> extends LitElement {
   async setState(state: TableState): Promise<void> {
     // Another format (a later version's): nothing it holds can be trusted to mean the same.
     if (((state.version as number | undefined) ?? 1) !== 1) return;
-    this.#restore('sorting', this.#sorting, state.sorting);
-    this.#restore('columnSizing', this.#resize.state, state.columnSizing);
-    this.#restore('columnOrder', this.#reorder.state, state.columnOrder);
-    this.#restore('columnPinning', this.#pinning, state.columnPinning);
-    this.#restore('columnVisibility', this.#visibility, state.columnVisibility);
-    this.#restore('columnFilters', this.#filters, state.columnFilters);
+    restore(this, 'sorting', this.#sorting, state.sorting);
+    restore(this, 'columnSizing', this.#resize.state, state.columnSizing);
+    restore(this, 'columnOrder', this.#reorder.state, state.columnOrder);
+    restore(this, 'columnPinning', this.#pinning, state.columnPinning);
+    restore(this, 'columnVisibility', this.#visibility, state.columnVisibility);
+    restore(this, 'columnFilters', this.#filters, state.columnFilters);
     // A Shift range starts over from the restored selection.
-    if (this.#restore('selection', this.#select.state, state.selection)) this.#select.restored();
-    this.#restore('expanded', this.#expanded, state.expanded);
+    if (restore(this, 'selection', this.#select.state, state.selection)) this.#select.restored();
+    restore(this, 'expanded', this.#expanded, state.expanded);
     if (state.quickFilter !== undefined) this.quickFilter = state.quickFilter;
-    this.#scrollTarget = undefined;
+    this.#scroll.drop();
     await this.updateComplete;
     const { scroll } = state;
-    if (!scroll) return;
-    this.#virtual.scrollToIndex(positionOfIndex(this.#table.model, scroll.row));
-    // A data source counts one page past its loaded rows until it knows the
-    // total: scroll on as the count grows.
-    const count = this.#table.model.rowCount;
-    if (this.#data.rows?.totalKnown === false && scroll.row >= count) {
-      this.#scrollTarget = { row: scroll.row, count, align: 'start' };
-    }
-    const scroller = this.#scroller();
-    if (scroller && scroll.inline >= 0) {
-      scroller.scrollLeft = scroll.inline * directionOf(this);
-    }
-    // The scroll event comes before the next frame, and the rows move with its update.
-    await new Promise(requestAnimationFrame);
-    await this.#settled();
-  }
-
-  /**
-   * Scrolls on toward the row `setState()` restored, or `scrollToRow()` asked
-   * for, once more rows are counted.
-   */
-  #chaseScrollTarget(count: number): void {
-    const target = this.#scrollTarget;
-    if (!target || target.count === count) return;
-    target.count = count;
-    this.#scrollRowTo(target.row, target.align);
-    if (target.row < count || this.#data.rows?.totalKnown !== false) this.#scrollTarget = undefined;
-  }
-
-  /**
-   * Applies a restored value to uncontrolled state without an event, as a user
-   * change would without the event. Returns whether it changed.
-   */
-  #restore<V>(name: keyof TableState, state: Controllable<V>, value: V | undefined): boolean {
-    if (value === undefined || state.controlled) return false;
-    // The same value restored again doesn't reload a data source.
-    if (JSON.stringify(value) === JSON.stringify(state.value)) return false;
-    const old = state.value;
-    state.request(structuredClone(value));
-    this.requestUpdate(name, old);
-    return true;
+    if (scroll) await this.#scroll.restoreScroll(scroll);
   }
 
   protected override willUpdate(changed: PropertyValues<this>): void {
@@ -1220,7 +1085,7 @@ export class ArgusTable<T = unknown> extends LitElement {
         this.#scrollToTop = !changed.has('dataSource');
       }
       // Other rows: a position restored for the old ones no longer applies.
-      this.#scrollTarget = undefined;
+      this.#scroll.drop();
     }
     if (filtersChanged && this.hasUpdated) this.#announceRows = true;
     if (
@@ -1494,7 +1359,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       const scroller = this.#scroller();
       if (scroller) scroller.scrollTop = 0;
     }
-    this.#chaseScrollTarget(model.rowCount);
+    this.#scroll.chase(model.rowCount);
     this.#fit.check(this.#contentPx);
     if (
       this.#columnsChanged ||
@@ -1583,7 +1448,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.dataSource ? model.columns.find((c) => c.kind === 'data')?.id : undefined,
       ...this.#autoWidths.pending(model.columns),
       ...this.#measureKeep,
-      this.#scrollKeep,
+      this.#scroll.keep,
     ];
   }
 
