@@ -119,8 +119,18 @@ export interface TreeRowInfo {
   depth: number;
   /** Has children the filters keep. */
   hasChildren: boolean;
-  /** Shown open: in `treeExpanded`, or holding a match while a filter is on. Always `false` without children. */
+  /**
+   * What shows: open when it has children and is `expanded`, or holds a match while
+   * a filter is on (shown open whatever `treeExpanded` says). Always `false`
+   * without children.
+   */
   open: boolean;
+  /**
+   * The row's id is in `treeExpanded`. A toggle flips this (`nextTreeExpanded(id,
+   * !expanded)`), so every toggle can be undone; while a filter forces the row
+   * open, the change shows once the filter clears.
+   */
+  expanded: boolean;
   /** The parent's index in the current order; `undefined` for a top-level row. */
   parent: number | undefined;
   /** The number of its siblings the filters keep, itself included. */

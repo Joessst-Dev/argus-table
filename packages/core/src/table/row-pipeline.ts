@@ -66,7 +66,14 @@ export class RowPipeline<TData, TContent> {
     | undefined;
   #kept: { tree: RowTree<TData>; test: unknown; version: number; kept: KeptRows } | undefined;
   #layout:
-    { kept: KeptRows; sorting: SortState; version: number; steps: TreeSteps<TData> } | undefined;
+    | {
+        kept: KeptRows;
+        sorting: SortState;
+        version: number;
+        sorted: readonly number[];
+        steps: TreeSteps<TData>;
+      }
+    | undefined;
   #expandedSet: { state: TreeExpandedState | undefined; set: ReadonlySet<string> } | undefined;
   #shown:
     { steps: TreeSteps<TData>; expanded: ReadonlySet<string>; rows: readonly number[] } | undefined;
@@ -144,6 +151,11 @@ export class RowPipeline<TData, TContent> {
     // One sort over every kept row (ascending, so the radix sort applies), then
     // bucketed by parent: each sibling group ends up in sort order.
     const sorted = sortRows(tree.rows, kept.rows, sorting, (id) => byId.get(id));
+    // Nothing sorts (`sortRows` gives back its input): the layout is the same.
+    if (prev?.sorted === sorted) {
+      this.#layout = { ...prev, sorting, version };
+      return prev.steps;
+    }
     const layout = layoutTree(tree, sorted);
     const steps = {
       tree,
@@ -151,7 +163,7 @@ export class RowPipeline<TData, TContent> {
       roots: layout.children(-1).length,
       holdsMatch: kept.holdsMatch,
     };
-    this.#layout = { kept, sorting, version, steps };
+    this.#layout = { kept, sorting, version, sorted, steps };
     return steps;
   }
 
@@ -160,8 +172,16 @@ export class RowPipeline<TData, TContent> {
     const prev = this.#expandedSet;
     if (prev && prev.state === treeExpanded) return prev.set;
     const set = new Set(treeExpanded);
-    this.#expandedSet = { state: treeExpanded, set };
-    return set;
+    // The same ids in a new array keep the Set, and so the shown rows and `rowOrder`.
+    const same = prev?.set.size === set.size && [...set].every((id) => prev.set.has(id));
+    this.#expandedSet = { state: treeExpanded, set: same ? prev.set : set };
+    return this.#expandedSet.set;
+  }
+
+  /** Whether a row's id (a source index) is in `treeExpanded`. */
+  treeExpanded(row: number): boolean {
+    const tree = this.tree();
+    return tree !== undefined && this.#expanded().has(tree.ids[row] ?? '');
   }
 
   /** Whether a row (a source index) with kept children is shown open. */

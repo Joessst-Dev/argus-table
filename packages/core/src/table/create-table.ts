@@ -12,6 +12,7 @@ import { buildAllViews, buildViews, hiddenIn, pinIn, sizingOf } from './column-v
 import { RowPipeline } from './row-pipeline.js';
 import { keepWithAncestors } from './tree-order.js';
 import type {
+  CellContext,
   ColumnDef,
   ColumnOrderState,
   ColumnPin,
@@ -250,6 +251,7 @@ export function createTableModel<TData, TContent>(
         depth: tree.depth[row] ?? 0,
         hasChildren,
         open: hasChildren && pipeline.treeOpen(row),
+        expanded: pipeline.treeExpanded(row),
         parent: parent === -1 ? undefined : parent,
         setSize: up === -1 ? steps.roots : (layout.keptChildren[up] ?? 0),
         posInSet: layout.posInSet[row] ?? 0,
@@ -348,7 +350,7 @@ export function createTableModel<TData, TContent>(
       if (row === undefined || !column) return undefined;
       const tree = pipeline.tree();
       const original = (tree ? tree.rows : options.data)[row] as TData;
-      const context = {
+      const context: CellContext<TData> = {
         row: original,
         rowId: pipeline.rowId(row),
         index,
@@ -356,7 +358,8 @@ export function createTableModel<TData, TContent>(
         value: column.getValue(original, row),
       };
       // No `depth` key without a tree: contexts stay as they were.
-      return tree ? { ...context, depth: tree.depth[row] ?? 0 } : context;
+      if (tree) context.depth = tree.depth[row] ?? 0;
+      return context;
     },
 
     nextSorting(columnId) {

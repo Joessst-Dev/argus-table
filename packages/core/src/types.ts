@@ -356,9 +356,10 @@ export interface RowDetailContext<TData> {
 }
 
 /**
- * The rows of a tree that are expanded (their children shown), as row ids (from
- * `getRowId`, or the default ids: the index in `data` for a top-level row, the
- * parent's id, a dot and the index among its siblings for a nested child).
+ * The rows of a tree that are expanded (their children shown), as row ids: from
+ * `getRowId`, else the default ids. Those are a row's index in `data`, except for
+ * the children in nested data (`getSubRows`), whose id is the parent's id, a dot
+ * and the index among its siblings (`'3.0'`, `'3.0.2'`).
  */
 export type TreeExpandedState = readonly string[];
 
