@@ -13,6 +13,7 @@ import {
   type SiblingUnit,
 } from '../columns/column-order.js';
 import { resolveColumns, type ResolvedColumn } from '../columns/resolve-columns.js';
+import { spreadWidth } from '../columns/spread-width.js';
 import { distinctValues, rowPredicate } from '../filters/filter.js';
 import { DisplayRows } from './display-rows.js';
 import { sortRows } from './sorted-row-model.js';
@@ -83,8 +84,13 @@ export interface ColumnView<TData, TContent> {
    * holds the ones the table shows.
    */
   hidden: boolean;
-  /** Current width in px (a resized width wins over the column's own). */
+  /**
+   * Width in px as rendered: the own width, plus a share of the free space when
+   * the table stretches its columns (`stretch`).
+   */
   width: number;
+  /** The column's own width in px (a resized width wins over its definition's), unstretched. */
+  ownWidth: number;
   /** Share of free space, or `undefined` for a fixed width. A resized column stops flexing. */
   flex: number | undefined;
   /**
@@ -202,6 +208,15 @@ export interface TableModelOptions<TData, TContent> {
   expanded?: ExpandedState | undefined;
   /** Rows that can open a panel; default: every row. */
   rowExpandable?: ((row: TData) => boolean) | undefined;
+  /**
+   * Stretches the scrolling columns to fill `width` px (the table's inner width)
+   * when they are narrower, in proportion to their own widths and up to their
+   * `maxWidth`. Columns with a `columnSizing` entry keep it; when every scrolling
+   * column has one, the last takes the space (the one before it when the last is
+   * `keep`). `keep`: the column resized last, which never stretches. Nothing
+   * stretches while an unresized flex column is shown.
+   */
+  stretch?: { width: number; keep?: string | undefined } | undefined;
 }
 
 export interface TableModel<TData, TContent> {
@@ -384,6 +399,7 @@ function systemView<TData, TContent>(
     pinEdge,
     hidden: false,
     width,
+    ownWidth: width,
     flex: undefined,
     auto: false,
     minWidth: width,
@@ -619,6 +635,7 @@ export function createTableModel<TData, TContent>(
     colIndex: number,
     offset: number,
     pinEdge: boolean,
+    stretched?: number,
   ): ColumnView<TData, TContent> => {
     const sort = options.sorting.find((s) => s.id === def.id);
     const pin = pinOf(def);
@@ -631,7 +648,8 @@ export function createTableModel<TData, TContent>(
       offset,
       pinEdge,
       hidden: colIndex === 0,
-      width: widthOf(def.id),
+      width: stretched ?? widthOf(def.id),
+      ownWidth: widthOf(def.id),
       flex: pin === undefined && !resized ? def.flex : undefined,
       auto: def.auto && !resized,
       minWidth: def.minWidth,
@@ -651,6 +669,40 @@ export function createTableModel<TData, TContent>(
       meta: def.meta,
       hasAccessor: def.hasAccessor,
     };
+  };
+
+  // The scrolling columns' rendered widths when the table stretches them (`stretch`),
+  // by id; columns not listed render at their own width.
+  const stretchedWidths = (
+    start: readonly ResolvedColumn<TData, TContent>[],
+    center: readonly ResolvedColumn<TData, TContent>[],
+    end: readonly ResolvedColumn<TData, TContent>[],
+  ): Map<string, number> => {
+    const stretch = options.stretch;
+    if (!stretch || center.length === 0) return new Map();
+    const sizing = options.columnSizing;
+    const resized = (def: ResolvedColumn<TData, TContent>) => sizing[def.id] !== undefined;
+    // An unresized flex column takes the free space through its grid track.
+    if (center.some((def) => def.flex !== undefined && !resized(def))) return new Map();
+    const systemPx =
+      (options.selectionColumn ? SELECTION_COLUMN_WIDTH : 0) +
+      (options.detail ? EXPAND_COLUMN_WIDTH : 0);
+    const own = [...start, ...center, ...end].reduce((sum, def) => sum + widthOf(def.id), 0);
+    const free = stretch.width - systemPx - own;
+    if (free <= 0) return new Map();
+    let stretching = center.filter((def) => !resized(def) && def.id !== stretch.keep);
+    if (stretching.length === 0) {
+      // Every scrolling column has a width of its own: the last one takes the space.
+      const last = center.at(-1);
+      const filler = last?.id === stretch.keep ? center.at(-2) : last;
+      stretching = filler ? [filler] : [];
+    }
+    if (stretching.length === 0) return new Map();
+    const spread = stretching.map((def) => {
+      const width = widthOf(def.id);
+      return { id: def.id, width, minWidth: width, maxWidth: Math.max(width, def.maxWidth) };
+    });
+    return spreadWidth(spread, spread.reduce((sum, c) => sum + c.width, 0) + free);
   };
 
   const buildViews = (): ColumnView<TData, TContent>[] => {
@@ -675,6 +727,7 @@ export function createTableModel<TData, TContent>(
       }
     }
     const lead = system.length;
+    const stretched = stretchedWidths(start, center, end);
     const systemViews: ColumnView<TData, TContent>[] = [];
     let x = 0;
     for (const [i, kind] of system.entries()) {
@@ -691,7 +744,7 @@ export function createTableModel<TData, TContent>(
     });
     x = 0;
     for (const [i, def] of center.entries()) {
-      const v = view(def, lead + start.length + i + 1, x, false);
+      const v = view(def, lead + start.length + i + 1, x, false, stretched.get(def.id));
       list.push(v);
       x += v.width;
     }
