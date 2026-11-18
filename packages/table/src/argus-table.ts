@@ -54,7 +54,7 @@ import {
 import { resolveLabels, type TableLabels } from './labels.js';
 import { watchMaxElementHeight } from './max-height.js';
 import { renderBody, type ActiveCell } from './render/body.js';
-import { loadingState, rowToggles } from './render/body-state.js';
+import { loadingState, rowToggles, treeRows } from './render/body-state.js';
 import { contentFirst, lightCount, renderLightDom } from './render/cells.js';
 import { detailSlot } from './render/content.js';
 import { DetailContent, type RenderedPanel } from './render/detail-content.js';
@@ -65,7 +65,9 @@ import type { ArgusPlugin, ColumnInfo, PluginHost, RowSection } from './plugins.
 import { baseStyles } from './styles/base.js';
 import { rowHeightConverter, switchConverter } from './attributes.js';
 import {
+  gridCell,
   gridRowOf,
+  gridRowOfCell,
   layoutOf,
   pinnedWidth,
   pinShadow,
@@ -186,6 +188,7 @@ function attachGridInternals(host: HTMLElement): ElementInternals {
  * @csspart cell-expand - Added to `cell` in the toggle column of detail panels (`rowDetail`), pinned rows included.
  * @csspart header-cell-expand - Added to `header-cell` on the toggle column's header: an empty cell (`role="gridcell"`, as an empty column header has no name to read).
  * @csspart expand-toggle - The chevron button that opens and closes a row's detail panel. It is drawn with borders in `currentColor` (`::before`) and has `aria-expanded`.
+ * @csspart tree-toggle - The button that expands and collapses a tree row (`getSubRows` or `getParentId`), in the first data column after the row's indent; only rows with children have one. It is drawn with borders in `currentColor` (`::before`) and has `aria-expanded`.
  * @csspart row-pinned - Every row from `pinnedRows`, on either side. Also has `row`, but no `row-even`/`row-odd`.
  * @csspart row-pinned-top - The rows pinned below the header.
  * @csspart row-pinned-bottom - The rows pinned to the bottom.
@@ -220,6 +223,7 @@ function attachGridInternals(host: HTMLElement): ElementInternals {
  * @cssprop [--argus-row-hover-bg] - Background of the hovered row. Default: no change.
  * @cssprop [--argus-row-pinned-bg=var(--argus-bg)] - Background of the pinned rows, pinned columns included.
  * @cssprop [--argus-skeleton-bg] - Colour of the skeleton bars in rows still loading. Default: the text colour at low opacity.
+ * @cssprop [--argus-tree-indent=1.25rem] - The indent per level of a tree row (`getSubRows` or `getParentId`), before the toggle in the first data column.
  * @cssprop [--argus-detail-max-height=400px] - The tallest a detail panel (`rowDetail`) is; its content scrolls past it. Style the panel itself (background, padding) through the `detail` part.
  * @cssprop [--argus-row-selected-bg] - Background of selected rows, pinned columns included. Default: the system highlight colour, mixed into `--argus-bg`. It wins over `--argus-row-hover-bg`.
  */
@@ -520,8 +524,8 @@ export class ArgusTable<T = unknown> extends LitElement {
   selectionCheckboxes = false;
 
   /**
-   * The selected rows, as row ids (from `getRowId`, or the row's index as a
-   * string), e.g. `['p4', 'p7']`. Uncontrolled until set, like `sorting`: once
+   * The selected rows, as row ids (from `getRowId`, or the default ids: see
+   * `getRowId`), e.g. `['p4', 'p7']`. Uncontrolled until set, like `sorting`: once
    * set, a click only fires `argus-selection-change` with the proposed ids.
    * `undefined` hands it back. The table never drops ids on its own: they stay
    * through sorting, a new `data` or reloaded pages. With a `dataSource`,
@@ -553,7 +557,8 @@ export class ArgusTable<T = unknown> extends LitElement {
 
   /**
    * A detail panel for body rows, under the row: a function that gets
-   * `{ row, rowId, index }` and returns its content, like a column's `cell`
+   * `{ row, rowId, index, depth? }` (`depth` is the row's level, set only when
+   * the rows form a tree) and returns its content, like a column's `cell`
    * (a Lit template, a DOM node, text; React, Vue or Angular content through
    * the wrappers). Setting it adds a column of chevrons that open and close the
    * panels (`expanded`). A panel spans the visible width, is as tall as its
@@ -574,8 +579,8 @@ export class ArgusTable<T = unknown> extends LitElement {
   rowExpandable?: (row: T) => boolean;
 
   /**
-   * The rows whose detail panel is open, as row ids (`getRowId`'s, or the row's
-   * index as a string), e.g. `['o1041']`. Several can be open. Uncontrolled
+   * The rows whose detail panel is open, as row ids (`getRowId`'s, or the
+   * default ids: see `getRowId`), e.g. `['o1041']`. Several can be open. Uncontrolled
    * until set, like `sorting`: once set, a chevron only fires
    * `argus-expanded-change` with the proposed ids. `undefined` hands it back.
    * Ids stay through sorting, filtering and a new `data`; a row that's filtered
@@ -1404,6 +1409,7 @@ export class ArgusTable<T = unknown> extends LitElement {
                   ? { rows: this.#window.details, colspan: columns.length }
                   : undefined,
                 edges,
+                treeRows(model, labels, this.#onTreeToggle),
               )
         }
         ${renderPinnedRows('bottom', layout.bottom, rendered, firstIndex('bottom'), activeIn('bottom'))}
@@ -1586,13 +1592,12 @@ export class ArgusTable<T = unknown> extends LitElement {
    * undone, and a row a filter shows open can still be collapsed: the change shows
    * once the filter clears.
    */
-  // eslint-disable-next-line no-unused-private-class-members -- until the tree toggle and keys call it.
   #toggleTree(index: number): void {
     const model = this.#table.model;
     const id = model.rowAt(index)?.id;
-    const info = model.treeRow(index);
-    if (id === undefined || !info) return;
-    const open = !info.expanded;
+    if (id === undefined || !model.treeRow(index)) return;
+    // From the latest requested value, like `#toggle`: two toggles before an update don't cancel out.
+    const open = !this.#treeExpanded.value.includes(id);
     const next = model.nextTreeExpanded(id, open, this.#treeExpanded.value);
     if (!next) return;
     this.#events.change('treeExpanded', this.#treeExpanded, next, TREE_EXPANDED_CHANGE, [
@@ -1614,6 +1619,20 @@ export class ArgusTable<T = unknown> extends LitElement {
   /** A chevron's click: its row is in `data-row`. */
   readonly #onToggle = (event: Event) => {
     this.#toggle(Number((event.currentTarget as HTMLElement).dataset.row));
+  };
+
+  /**
+   * A tree toggle's click: its row (a data index) is in `data-row`. The toggle's
+   * cell becomes the active cell and takes focus after the update (a click on a
+   * button doesn't focus it in every engine).
+   */
+  readonly #onTreeToggle = (event: Event) => {
+    const button = event.currentTarget as HTMLElement;
+    this.#toggleTree(Number(button.dataset.row));
+    const cell = button.parentElement ? gridCell(button.parentElement) : undefined;
+    const row = cell && gridRowOfCell(cell, layoutOf(this.#table.model));
+    const col = cell?.dataset.col;
+    if (row && col !== undefined) this.#nav.moveTo(row, col);
   };
 
   /**

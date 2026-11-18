@@ -6,10 +6,13 @@ import type { CellTarget } from './plugins.js';
 import { PANEL_COLUMN } from './render/body.js';
 import type { CellClickDetail, CellContent } from './types.js';
 
+const TREE_TOGGLE = '[part~="tree-toggle"]';
+
 /**
  * Fires `argus-cell-click` (when a cell is on the path), then `argus-row-click`,
  * for the body or pinned row on an event path. Clicks and Enter on a cell use
- * it. Rows that haven't loaded, the header and the checkbox column fire nothing.
+ * it. Rows that haven't loaded, the header, the checkbox column and a tree row's
+ * toggle fire nothing.
  */
 export function activate<T>(
   element: HTMLElement,
@@ -21,6 +24,8 @@ export function activate<T>(
   for (const target of path) {
     // A nested table's cells and rows (in a cell or a panel) aren't this table's: walk on out.
     if (!(target instanceof HTMLElement) || target.getRootNode() !== root) continue;
+    // A tree row's toggle only expands or collapses it.
+    if (target.matches(TREE_TOGGLE)) return;
     const role = target.getAttribute('role');
     if (role === 'gridcell') columnId = target.dataset.col;
     if (columnId === SELECTION_COLUMN_ID || columnId === EXPAND_COLUMN_ID) return;

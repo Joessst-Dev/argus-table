@@ -7,6 +7,7 @@ import type {
   ColumnDef,
   PluginHost,
   RowDetailContext,
+  TreeExpandedChangeDetail,
 } from './index.js';
 import { fixture, rowText, rowsInOrder, settle, shadow } from './test-utils.js';
 
@@ -51,9 +52,9 @@ function topRowText(el: HTMLElement): string | undefined {
   return row ? rowText(row)[0] : undefined;
 }
 
-/** The body row showing `name` in its first cell. */
+/** The body row showing `name` in a cell. */
 function rowOf(el: HTMLElement, name: string): HTMLElement {
-  const row = rowsInOrder(el).find((r) => rowText(r)[0] === name);
+  const row = rowsInOrder(el).find((r) => rowText(r).includes(name));
   if (!row) throw new Error(`no row ${name}`);
   return row;
 }
@@ -152,6 +153,13 @@ describe('tree rows: role', () => {
     document.body.append(el);
     await settle(el);
     expect(el.getAttribute('role')).toBe('grid');
+    // Also when the tree goes and comes back.
+    el.getSubRows = undefined;
+    await settle(el);
+    expect(el.getAttribute('role')).toBe('grid');
+    el.getSubRows = getSubRows;
+    await settle(el);
+    expect(el.getAttribute('role')).toBe('grid');
   });
 });
 
@@ -190,6 +198,22 @@ describe('tree rows: contexts', () => {
     expect(child?.depth).toBe(1);
     expect(child?.index).toBe(2);
     expect(el.expanded).toEqual(['0.1']);
+  });
+
+  test('rowDetail gets no depth without a tree', async () => {
+    const seen: RowDetailContext<Item>[] = [];
+    await fixture<Item>({
+      columns,
+      data: tree(),
+      expanded: ['1'],
+      rowDetail: (context) => {
+        seen.push(context);
+        return html`<p>Details of ${context.row.name}</p>`;
+      },
+    });
+    const panel = seen.find((c) => c.rowId === '1');
+    expect(panel).toBeDefined();
+    expect(panel && 'depth' in panel).toBe(false);
   });
 });
 
@@ -230,5 +254,248 @@ describe('tree rows: plugin host', () => {
     expect(host.rowDepth(0, 'top')).toBe(0);
     expect(host.sourceRow(1)).toBe(data[1]);
     expect(host.sourceRow(3)).toBeUndefined();
+  });
+});
+
+/** The tree toggle in the body row showing `name`, or `null`. */
+const toggleIn = (el: HTMLElement, name: string) =>
+  rowOf(el, name).querySelector<HTMLButtonElement>('[part~="tree-toggle"]');
+
+function toggleOf(el: HTMLElement, name: string): HTMLButtonElement {
+  const button = toggleIn(el, name);
+  if (!button) throw new Error(`no toggle in ${name}`);
+  return button;
+}
+
+/** The details of `name` events `el` fires. */
+function events<D>(el: HTMLElement, name: string): D[] {
+  const seen: D[] = [];
+  el.addEventListener(name, (event) => {
+    seen.push((event as CustomEvent<D>).detail);
+  });
+  return seen;
+}
+
+/** The cell of column `col` in the body row showing `name`. */
+function cellOf(el: HTMLElement, name: string, col: string): HTMLElement {
+  const cell = rowOf(el, name).querySelector<HTMLElement>(`[data-col="${col}"]`);
+  if (!cell) throw new Error(`no ${col} cell in ${name}`);
+  return cell;
+}
+
+/** Where a cell's slotted content starts, in px from the viewport's left. */
+const contentLeft = (cell: Element) =>
+  cell.querySelector('slot')?.assignedElements()[0]?.getBoundingClientRect().left ?? NaN;
+
+describe('tree rows: the tree column', () => {
+  test('rows carry aria-level, aria-expanded, aria-setsize and aria-posinset', async () => {
+    const el = await treeTable({ treeExpanded: ['0'] });
+    const p0 = rowOf(el, 'P0');
+    expect(p0.getAttribute('aria-level')).toBe('1');
+    expect(p0.getAttribute('aria-expanded')).toBe('true');
+    expect(p0.getAttribute('aria-setsize')).toBe('3');
+    expect(p0.getAttribute('aria-posinset')).toBe('1');
+    const c01 = rowOf(el, 'C0.1');
+    expect(c01.getAttribute('aria-level')).toBe('2');
+    expect(c01.getAttribute('aria-setsize')).toBe('3');
+    expect(c01.getAttribute('aria-posinset')).toBe('2');
+    expect(c01.hasAttribute('aria-expanded')).toBe(false);
+    const p2 = rowOf(el, 'P2');
+    expect(p2.getAttribute('aria-expanded')).toBe('false');
+    expect(p2.getAttribute('aria-posinset')).toBe('3');
+
+    el.getSubRows = undefined;
+    await settle(el);
+    const flat = rowOf(el, 'P0');
+    for (const name of ['aria-level', 'aria-expanded', 'aria-setsize', 'aria-posinset']) {
+      expect(flat.hasAttribute(name)).toBe(false);
+    }
+    expect(shadow(el).querySelector('[part~="tree-toggle"]')).toBeNull();
+  });
+
+  test('only rows with children get a toggle, in the first data column', async () => {
+    const el = await treeTable({ treeExpanded: ['0'] });
+    const toggles = () => [...shadow(el).querySelectorAll<HTMLElement>('[part~="tree-toggle"]')];
+    expect(toggles()).toHaveLength(3);
+    expect(toggleIn(el, 'C0.0')).toBeNull();
+    for (const t of toggles())
+      expect(t.closest('[role="gridcell"]')?.getAttribute('data-col')).toBe('name');
+    const p0 = toggleOf(el, 'P0');
+    expect(p0.type).toBe('button');
+    expect(p0.tabIndex).toBe(-1);
+    expect(p0.getAttribute('aria-expanded')).toBe('true');
+
+    el.columnOrder = ['size', 'name'];
+    await settle(el);
+    expect(toggles()).toHaveLength(3);
+    for (const t of toggles())
+      expect(t.closest('[role="gridcell"]')?.getAttribute('data-col')).toBe('size');
+
+    el.columnOrder = ['name', 'size'];
+    el.selectionMode = 'multi';
+    el.selectionCheckboxes = true;
+    await settle(el);
+    expect(toggles()).toHaveLength(3);
+    for (const t of toggles())
+      expect(t.closest('[role="gridcell"]')?.getAttribute('data-col')).toBe('name');
+  });
+
+  test('the indent grows with depth', async () => {
+    const el = await treeTable({ treeExpanded: ['0'] });
+    el.style.setProperty('--argus-tree-indent', '20px');
+    await settle(el);
+    const indent = (name: string) =>
+      cellOf(el, name, 'name').querySelector('.tree-indent')?.getBoundingClientRect().width;
+    expect(indent('P0')).toBe(0);
+    expect(indent('C0.0')).toBe(20);
+    // A leaf's content lines up with where its parent's would be one level in.
+    expect(contentLeft(cellOf(el, 'C0.0', 'name')) - contentLeft(cellOf(el, 'P0', 'name'))).toBe(
+      20,
+    );
+  });
+
+  test('the toggle toggles, and does nothing else', async () => {
+    const el = await treeTable({ selectionMode: 'multi' });
+    const seen: { detail: TreeExpandedChangeDetail; shown: (string | undefined)[] }[] = [];
+    el.addEventListener('argus-tree-expanded-change', (e) => {
+      seen.push({ detail: e.detail, shown: names(el) });
+    });
+    const cellClicks = events(el, 'argus-cell-click');
+    const rowClicks = events(el, 'argus-row-click');
+    toggleOf(el, 'P0').click();
+    // Uncontrolled: the event fires after the update that applied it.
+    expect(seen).toEqual([]);
+    await settle(el);
+    expect(names(el)).toEqual(['P0', 'C0.0', 'C0.1', 'C0.2', 'P1', 'P2']);
+    expect(seen).toEqual([
+      {
+        detail: { treeExpanded: ['0'], rowId: '0', open: true },
+        shown: ['P0', 'C0.0', 'C0.1', 'C0.2', 'P1', 'P2'],
+      },
+    ]);
+    expect(el.treeExpanded).toEqual(['0']);
+    expect(cellClicks).toEqual([]);
+    expect(rowClicks).toEqual([]);
+    expect(el.selection).toEqual([]);
+    // Focus is on the toggle's cell.
+    const cell = cellOf(el, 'P0', 'name');
+    expect(shadow(el).activeElement).toBe(cell);
+    expect(cell.tabIndex).toBe(0);
+    expect(toggleOf(el, 'P0').getAttribute('aria-expanded')).toBe('true');
+    expect(toggleOf(el, 'P0').getAttribute('aria-label')).toBe('Collapse row');
+
+    toggleOf(el, 'P0').click();
+    await settle(el);
+    expect(names(el)).toEqual(['P0', 'P1', 'P2']);
+    expect(seen.map((s) => s.detail)).toEqual([
+      { treeExpanded: ['0'], rowId: '0', open: true },
+      { treeExpanded: [], rowId: '0', open: false },
+    ]);
+    expect(toggleOf(el, 'P0').getAttribute('aria-label')).toBe('Expand row');
+  });
+
+  test('a toggle press keeps the click from cancelling', async () => {
+    const el = await treeTable();
+    const click = new MouseEvent('click', { bubbles: true, composed: true, cancelable: true });
+    toggleOf(el, 'P1').dispatchEvent(click);
+    expect(click.defaultPrevented).toBe(false);
+    await settle(el);
+    expect(el.treeExpanded).toEqual(['1']);
+  });
+
+  test('controlled: the toggle proposes and changes nothing', async () => {
+    const el = await treeTable({ treeExpanded: [] });
+    const seen = events<TreeExpandedChangeDetail>(el, 'argus-tree-expanded-change');
+    toggleOf(el, 'P0').click();
+    // Right away, with the proposed ids.
+    expect(seen).toEqual([{ treeExpanded: ['0'], rowId: '0', open: true }]);
+    await settle(el);
+    expect(names(el)).toEqual(['P0', 'P1', 'P2']);
+    expect(el.treeExpanded).toEqual([]);
+    expect(seen).toHaveLength(1);
+  });
+
+  test('a row with empty children, or children all filtered out, has no toggle', async () => {
+    const data: Item[] = [...tree(2), { name: 'Q', kids: [] }];
+    const el = await fixture<Item>({ columns, data, getSubRows: (r) => r.kids ?? [] });
+    expect(toggleIn(el, 'Q')).toBeNull();
+    expect(rowOf(el, 'Q').hasAttribute('aria-expanded')).toBe(false);
+    expect(rowOf(el, 'Q').getAttribute('aria-level')).toBe('1');
+    // Its content lines up with that of a row with a toggle.
+    expect(contentLeft(cellOf(el, 'Q', 'name'))).toBe(contentLeft(cellOf(el, 'P0', 'name')));
+
+    // P1 matches, none of its children do.
+    el.quickFilter = 'P1';
+    await settle(el);
+    expect(names(el)).toEqual(['P1']);
+    expect(toggleIn(el, 'P1')).toBeNull();
+    expect(rowOf(el, 'P1').hasAttribute('aria-expanded')).toBe(false);
+  });
+
+  test('child rows work with detail panels', async () => {
+    const el = await treeTable({
+      treeExpanded: ['0'],
+      expanded: ['0.1'],
+      rowDetail: ({ row }) => html`<p>Details of ${row.name}</p>`,
+    });
+    const child = rowOf(el, 'C0.1');
+    const at = Number(child.getAttribute('aria-rowindex'));
+    const panel = shadow(el).querySelector(`[part~="row-detail"]`);
+    expect(panel?.getAttribute('aria-rowindex')).toBe(String(at + 1));
+    // The tree toggle is in the first data column, after the chevrons.
+    expect(toggleOf(el, 'P0').closest('[role="gridcell"]')?.getAttribute('data-col')).toBe('name');
+    expect(child.querySelector('[part~="expand-toggle"]')?.getAttribute('aria-expanded')).toBe(
+      'true',
+    );
+  });
+
+  test('child rows work with column virtualization', async () => {
+    const wide: ColumnDef<Item>[] = [
+      { id: 'name', header: 'Name', accessor: 'name', width: 100 },
+      ...Array.from({ length: 59 }, (_, i): ColumnDef<Item> => ({
+        id: `c${String(i)}`,
+        header: `C${String(i)}`,
+        accessor: (r) => `${r.name}·${String(i)}`,
+        width: 100,
+      })),
+    ];
+    const el = await fixture<Item>({
+      columns: wide,
+      data: tree(),
+      getSubRows,
+      treeExpanded: ['0'],
+      virtualizeColumns: true,
+    });
+    const toggles = () => shadow(el).querySelectorAll('[part~="tree-toggle"]');
+    expect(toggles()).toHaveLength(3);
+    const s = scroller(el);
+    const scrollInline = async (left: number) => {
+      const scrolled = new Promise((resolve) => {
+        s.addEventListener('scroll', resolve, { once: true });
+      });
+      s.scrollLeft = left;
+      await scrolled;
+      await settle(el);
+    };
+    await scrollInline(s.scrollWidth);
+    // The active cell's column stays rendered: move it off the tree column.
+    shadow(el).querySelector<HTMLElement>('[role="columnheader"][data-col="c58"]')?.focus();
+    await settle(el);
+    expect(shadow(el).querySelector('[part~="body"] [data-col="name"]')).toBeNull();
+    // The tree column stays the first data column, not the first rendered one.
+    expect(toggles()).toHaveLength(0);
+    expect(shadow(el).querySelector('.tree-indent')).toBeNull();
+    await scrollInline(0);
+    expect(toggles()).toHaveLength(3);
+    expect(toggleOf(el, 'P0').closest('[role="gridcell"]')?.getAttribute('data-col')).toBe('name');
+  });
+
+  test("the toggle's name follows labels", async () => {
+    const el = await treeTable({
+      treeExpanded: ['1'],
+      labels: { expandTreeRow: 'Auf', collapseTreeRow: 'Zu' },
+    });
+    expect(toggleOf(el, 'P0').getAttribute('aria-label')).toBe('Auf');
+    expect(toggleOf(el, 'P1').getAttribute('aria-label')).toBe('Zu');
   });
 });

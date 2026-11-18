@@ -33,10 +33,11 @@ export type ColumnWidth = number | 'auto' | { flex: number };
 
 /** What a `cell` function receives besides the row itself. */
 export interface CellContext<TData> {
-  /** The row object from `data` (or from `pinnedRows`). */
+  /** The row object: from `data`, a nested child of a tree (`getSubRows`), or from `pinnedRows`. */
   row: TData;
   /**
-   * The id from `getRowId`, or the row's index as a string. A pinned row without
+   * The id from `getRowId`, or the default id (see `getRowId`: the row's index as
+   * a string, `'3.0'` for a nested child of a tree). A pinned row without
    * `getRowId` gets `'top-0'`, `'bottom-0'` and so on.
    */
   rowId: string;
@@ -339,17 +340,17 @@ export type ColumnFilterState = Record<string, ColumnFilter>;
  */
 export type SelectionMode = 'none' | 'single' | 'multi';
 
-/** The selected rows, as row ids (from `getRowId`, or the row's index as a string). */
+/** The selected rows, as row ids (from `getRowId`, or the default ids: see `getRowId`). */
 export type SelectionState = readonly string[];
 
-/** The rows whose detail panel is open, as row ids (from `getRowId`, or the row's index as a string). */
+/** The rows whose detail panel is open, as row ids (from `getRowId`, or the default ids: see `getRowId`). */
 export type ExpandedState = readonly string[];
 
 /** What `rowDetail` receives for the row whose panel it renders. */
 export interface RowDetailContext<TData> {
-  /** The row object from `data` (or loaded from the `dataSource`). */
+  /** The row object: from `data`, a nested child of a tree (`getSubRows`), or loaded from the `dataSource`. */
   row: TData;
-  /** The id from `getRowId`, or the row's index as a string. */
+  /** The id from `getRowId`, or the default id (see `getRowId`: the row's index as a string, `'3.0'` for a nested child). */
   rowId: string;
   /** Index of the row in the current (filtered and sorted) row order. Panels don't count. */
   index: number;

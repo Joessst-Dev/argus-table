@@ -16,6 +16,10 @@ export interface TableLabels {
   expandRow: string;
   /** Accessible name of a row's chevron while its detail panel is open (`rowDetail`). Default: `Hide details`. */
   collapseRow: string;
+  /** Accessible name of a collapsed tree row's toggle (`getSubRows` or `getParentId`). Default: `Expand row`. */
+  expandTreeRow: string;
+  /** Accessible name of an expanded tree row's toggle (`getSubRows` or `getParentId`). Default: `Collapse row`. */
+  collapseTreeRow: string;
   /** Accessible name of a column's resize handle. Default: `Resize column`. */
   resizeColumn: string;
   /** Accessible name of a column group's resize handle. Default: `Resize group`. */
@@ -51,6 +55,8 @@ const DEFAULT_LABELS: TableLabels = {
   selectAllRows: 'Select all rows',
   expandRow: 'Show details',
   collapseRow: 'Hide details',
+  expandTreeRow: 'Expand row',
+  collapseTreeRow: 'Collapse row',
   resizeColumn: 'Resize column',
   resizeGroup: 'Resize group',
   filtered: 'Filtered',

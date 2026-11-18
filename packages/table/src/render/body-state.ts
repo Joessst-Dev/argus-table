@@ -2,7 +2,13 @@ import type { PageCache, TableModel } from '@argus-table/core';
 import type { VirtualWindow } from '../controllers/virtual-controller.js';
 import type { TableLabels } from '../labels.js';
 import type { CellContent } from '../types.js';
-import { detailRowId, type Loading, type RowToggles } from './body.js';
+import {
+  detailRowId,
+  firstDataColumn,
+  type Loading,
+  type RowToggles,
+  type TreeRows,
+} from './body.js';
 
 /**
  * Loading state for the body while a data source is set: the state of each
@@ -58,5 +64,25 @@ export function rowToggles<T>(
     expandLabel: labels.expandRow,
     collapseLabel: labels.collapseRow,
     onClick: onToggle,
+  };
+}
+
+/**
+ * The tree column and the rows' places in the tree, for the body; `undefined`
+ * while the rows don't form a tree. The tree column is the model's first data
+ * column, rendered or not (`virtualizeColumns`).
+ */
+export function treeRows<T>(
+  model: TableModel<T, CellContent>,
+  labels: TableLabels,
+  onClick: (event: Event) => void,
+): TreeRows | undefined {
+  if (!model.tree) return undefined;
+  return {
+    column: firstDataColumn(model.columns),
+    row: (index) => model.treeRow(index),
+    expandLabel: labels.expandTreeRow,
+    collapseLabel: labels.collapseTreeRow,
+    onClick,
   };
 }
