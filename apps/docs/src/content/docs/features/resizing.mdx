@@ -12,6 +12,9 @@ import { ResizingComponent } from '../../../examples/resizing/basic/angular/resi
 import ReactSaved from '../../../examples/resizing/controlled/react/SavedWidths.tsx';
 import VueSaved from '../../../examples/resizing/controlled/vue/SavedWidths.vue';
 import { SavedWidthsComponent } from '../../../examples/resizing/controlled/angular/saved-widths.component.ts';
+import ReactStretch from '../../../examples/resizing/stretch/react/StretchColumns.tsx';
+import VueStretch from '../../../examples/resizing/stretch/vue/StretchColumns.vue';
+import { StretchColumnsComponent } from '../../../examples/resizing/stretch/angular/stretch-columns.component.ts';
 
 Drag the handle on a header's end edge, or focus a header and press Alt+Arrow to resize it by 10 px; a double-click on the handle fits the column to its content <Since since="0.2" />. Widths stay within `minWidth` and `maxWidth`, a resized flex column becomes fixed, and a column with `resizable: false` has no handle.
 
@@ -29,4 +32,16 @@ Drag the handle on a header's end edge, or focus a header and press Alt+Arrow to
   <ReactSaved slot="react" client:visible />
   <VueSaved slot="vue" client:visible />
   <SavedWidthsComponent slot="angular" client:visible />
+</FlavourTabs>
+
+## Columns that fill the width
+
+With `stretchColumns` (the attribute `stretch-columns`), the columns fill the table's width: when they're narrower than the table, they stretch in proportion to their widths, up to their `maxWidth`. When the table gets narrower, they shrink back to their own widths, never below, and past that the table scrolls sideways as usual.
+
+A column you resize keeps the width you give it, and the other columns share the space it frees; once you've resized every column, the last one takes the free space. Pinned columns and the checkbox and chevron columns keep their widths. A `{ flex }` column already takes the free space, so nothing stretches while one is shown. `columnSizing`, `getState()` and the resize events hold each column's own width, never a stretched one, so a saved layout fits any width. Here the # column stays at its `maxWidth`.
+
+<FlavourTabs example="resizing/stretch" since="1.4">
+  <ReactStretch slot="react" client:visible />
+  <VueStretch slot="vue" client:visible />
+  <StretchColumnsComponent slot="angular" client:visible />
 </FlavourTabs>

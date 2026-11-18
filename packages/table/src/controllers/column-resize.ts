@@ -149,7 +149,19 @@ export class ColumnResize<T> {
     for (const [columnId] of targets) {
       if (!resize.columnIds.includes(columnId)) resize.columnIds.push(columnId);
     }
+    this.#kept = [...resize.columnIds];
     if (single) this.#endResize();
+  }
+
+  #kept: readonly string[] | undefined;
+
+  /**
+   * The columns the last resize changed (a drag, Alt+Arrow, a group resize, a
+   * fit): with `stretchColumns` they don't take the space the stretching columns
+   * leave over. Not state: kept until the next resize.
+   */
+  get kept(): readonly string[] | undefined {
+    return this.#kept;
   }
 
   /** Sets one column's width (clamped by core), through the controlled/uncontrolled rules. */
@@ -159,20 +171,19 @@ export class ColumnResize<T> {
 
   /**
    * The width a resize starts from: the latest requested width (key presses can
-   * come faster than renders), else the model's fixed width, else the rendered
-   * width of a flex column.
+   * come faster than renders), unless the column is stretched now
+   * (`stretchColumns`), then the width it renders at; a flex column's rendered width.
    */
   #currentWidth(columnId: string, cell: HTMLElement): number {
     const sized = this.state.value[columnId];
-    if (sized !== undefined) return sized;
     const view = this.#model().columns.find((c) => c.id === columnId);
+    if (sized !== undefined && (view === undefined || view.width === view.ownWidth)) return sized;
     return view && view.flex === undefined ? view.width : cell.getBoundingClientRect().width;
   }
 
   /**
-   * The widths a group resize starts from, by column: the latest requested ones
-   * (key presses can come faster than renders), else the model's, else the
-   * rendered width of a flex column.
+   * The widths a group resize starts from, by column: each column's
+   * `#currentWidth()`, else the latest requested one, else the model's.
    */
   #groupWidths(columnIds: readonly string[]): Map<string, number> {
     const widths = new Map<string, number>();
@@ -181,8 +192,10 @@ export class ColumnResize<T> {
         `[part~='header-cell'][data-col="${CSS.escape(id)}"]`,
       );
       const view = this.#model().columns.find((c) => c.id === id);
-      const sized = this.state.value[id];
-      widths.set(id, sized ?? (header ? this.#currentWidth(id, header) : (view?.width ?? 0)));
+      widths.set(
+        id,
+        header ? this.#currentWidth(id, header) : (this.state.value[id] ?? view?.width ?? 0),
+      );
     }
     return widths;
   }

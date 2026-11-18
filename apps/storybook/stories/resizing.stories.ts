@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { html } from 'lit';
-import { expect } from 'storybook/test';
+import { expect, waitFor } from 'storybook/test';
 import type {
   ArgusTable,
   ColumnDef,
@@ -89,5 +89,47 @@ export const ControlledAndSaved: Story = {
       .columnSizing=${savedWidths()}
       @argus-column-sizing-change=${onResize}
     ></argus-table>`;
+  },
+};
+
+const fixedColumns: ColumnDef<Task>[] = [
+  { id: 'id', header: '#', accessor: 'id', width: 70, align: 'end', maxWidth: 70 },
+  { id: 'title', header: 'Title', accessor: 'title', width: 200 },
+  { id: 'owner', header: 'Owner', accessor: 'owner', width: 120 },
+  { id: 'estimate', header: 'Estimate (h)', accessor: 'estimate', width: 120, align: 'end' },
+];
+
+/**
+ * `stretchColumns` (`stretch-columns`): the columns fill the table's width. When
+ * they're narrower than the table they stretch in proportion to their widths, up
+ * to their `maxWidth` (the # column stays at 70 px); when the table gets
+ * narrower they shrink back to their own widths and the table scrolls. A column
+ * you resize keeps its width and the others share the space it frees.
+ * `columnSizing` keeps own widths, never stretched ones.
+ */
+export const StretchColumns: Story = {
+  render: () =>
+    html`<argus-table
+      stretch-columns
+      style="block-size: 420px"
+      .columns=${fixedColumns}
+      .data=${data}
+    ></argus-table>`,
+  play: async ({ canvasElement }) => {
+    const table = canvasElement.querySelector<ArgusTable<Task>>('argus-table');
+    if (!table) throw new Error('no <argus-table>');
+    const scroller = table.shadowRoot?.querySelector<HTMLElement>('[part~="table"]');
+    const total = () =>
+      [
+        ...(table.shadowRoot?.querySelectorAll<HTMLElement>('[role="columnheader"][data-col]') ??
+          []),
+      ].reduce((sum, cell) => sum + cell.getBoundingClientRect().width, 0);
+    await waitFor(() => expect(Math.abs(total() - (scroller?.clientWidth ?? 0))).toBeLessThan(2));
+    // Narrower than the columns' own widths: they keep them and the table scrolls.
+    table.style.inlineSize = '300px';
+    await waitFor(() =>
+      expect(scroller?.scrollWidth ?? 0).toBeGreaterThan(scroller?.clientWidth ?? 0),
+    );
+    table.style.inlineSize = '';
   },
 };

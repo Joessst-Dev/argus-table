@@ -121,6 +121,13 @@ export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
     setProperty(this.element, 'virtualizeColumns', 'virtualize-columns', value);
   }
 
+  /** Makes the columns fill the table's width: when the scrolling columns are narrower than the table, they stretch, in proportion to their widths and up to their `maxWidth`. When they're wider, the table scrolls sideways as usual, and columns never get narrower than their own width. A column you resize keeps the width you give it, and the others take the free space; when every column has been resized, the last one does. Pinned columns and the checkbox and chevron columns keep their width, and nothing stretches while a `{ flex }` column takes the space. `columnSizing`, `getState()` and the resize events carry each column's own width, never a stretched one, so a saved layout fits any width. Off by default. As an attribute, `stretch-columns="false"` is off, like no attribute. */
+  @Input() set stretchColumns(
+    value: ArgusTableElement<T>['stretchColumns'] | '' | 'true' | 'false' | null | undefined,
+  ) {
+    setProperty(this.element, 'stretchColumns', 'stretch-columns', value);
+  }
+
   /** The sort order, e.g. `[{ id: 'total', desc: true }]`; `[]` when unsorted. Unset, the table keeps it itself and header clicks change it. Once set, it is controlled: a click only fires `argus-sorting-change` with the proposed order, and nothing changes until you set the property. Set `undefined` to hand it back. */
   @Input() set sorting(value: ArgusTableElement<T>['sorting'] | null | undefined) {
     setProperty(this.element, 'sorting', undefined, value);

@@ -1295,3 +1295,103 @@ describe('createTableModel: expanded rows', () => {
     expect(m.display).not.toBe(display);
   });
 });
+
+describe('stretched columns', () => {
+  const three = (
+    widths: [number, number, number] = [150, 150, 150],
+    extra: Partial<ColumnDef<Person, string>> = {},
+  ): ColumnDef<Person, string>[] =>
+    (['a', 'b', 'c'] as const).map((id, i) => ({ id, width: widths[i], ...extra }));
+  const at = (overrides: Partial<TableModelOptions<Person, string>>) =>
+    model({ columns: three(), ...overrides });
+  const widths = (m: ReturnType<typeof model>) => m.columns.map((c) => c.width);
+
+  it('leaves widths alone without stretch', () => {
+    const m = at({});
+    expect(widths(m)).toEqual([150, 150, 150]);
+    expect(m.columns.map((c) => c.ownWidth)).toEqual([150, 150, 150]);
+  });
+
+  it('stretches scrolling columns in proportion to fill the width', () => {
+    const m = at({ columns: three([100, 200, 300]), stretch: { width: 1200 } });
+    expect(widths(m)).toEqual([200, 400, 600]);
+    expect(m.columns.map((c) => c.ownWidth)).toEqual([100, 200, 300]);
+    expect(m.totalWidth).toBe(1200);
+  });
+
+  it('rounds to whole px that add up to the width', () => {
+    expect(widths(at({ stretch: { width: 1000 } }))).toEqual([333, 334, 333]);
+  });
+
+  it('keeps pinned and system columns, and fills with the scrolling ones', () => {
+    const cols = three();
+    cols[0] = { id: 'a', width: 150, pin: 'start' };
+    const m = at({ columns: cols, selectionColumn: true, stretch: { width: 1000 } });
+    const byId = new Map(m.columns.map((c) => [c.id, c.width]));
+    expect(byId.get(SELECTION_COLUMN_ID)).toBe(SELECTION_COLUMN_WIDTH);
+    expect(byId.get('a')).toBe(150);
+    expect((byId.get('b') ?? 0) + (byId.get('c') ?? 0)).toBe(1000 - 150 - SELECTION_COLUMN_WIDTH);
+  });
+
+  it('does not stretch while an unresized flex column is shown', () => {
+    const cols = three();
+    cols[1] = { id: 'b', width: { flex: 1 } };
+    const plain = at({ columns: cols });
+    const stretched = at({ columns: cols, stretch: { width: 1000 } });
+    expect(widths(stretched)).toEqual(widths(plain));
+  });
+
+  it('stretches only unresized columns', () => {
+    const m = at({ columnSizing: { a: 120 }, stretch: { width: 1000 } });
+    expect(widths(m)).toEqual([120, 440, 440]);
+  });
+
+  it('gives the space to the last column when all are resized, else the one before it if it is keep', () => {
+    const sizing = { a: 150, b: 150, c: 150 };
+    expect(widths(at({ columnSizing: sizing, stretch: { width: 600 } }))).toEqual([150, 150, 300]);
+    expect(widths(at({ columnSizing: sizing, stretch: { width: 600, keep: ['c'] } }))).toEqual([
+      150, 300, 150,
+    ]);
+  });
+
+  it('keep only steers what the unresized columns leave over', () => {
+    // Unresized columns stretch whatever keep says (a rejected, controlled resize).
+    expect(widths(at({ stretch: { width: 600, keep: ['a'] } }))).toEqual([200, 200, 200]);
+  });
+
+  it('gives what capped columns leave to the last columns, skipping keep', () => {
+    const cols = three();
+    cols[0] = { id: 'a', width: 150, maxWidth: 160 };
+    const sizing = { b: 150, c: 150 };
+    expect(widths(at({ columns: cols, columnSizing: sizing, stretch: { width: 900 } }))).toEqual([
+      160, 150, 590,
+    ]);
+    expect(
+      widths(at({ columns: cols, columnSizing: sizing, stretch: { width: 900, keep: ['c'] } })),
+    ).toEqual([160, 590, 150]);
+  });
+
+  it('never overflows a fractional width', () => {
+    const m = at({ columns: three([100.4, 150, 150]), stretch: { width: 600.7 } });
+    expect(m.totalWidth).toBeLessThanOrEqual(600.7);
+  });
+
+  it('caps stretching at maxWidth', () => {
+    const cols = three();
+    cols[0] = { id: 'a', width: 150, maxWidth: 160 };
+    expect(widths(at({ columns: cols, stretch: { width: 900 } }))).toEqual([160, 370, 370]);
+    // Every column capped: the space stays empty.
+    expect(
+      widths(at({ columns: three(undefined, { maxWidth: 160 }), stretch: { width: 900 } })),
+    ).toEqual([160, 160, 160]);
+  });
+
+  it('does nothing when the columns are wider than the width', () => {
+    expect(widths(at({ stretch: { width: 300 } }))).toEqual([150, 150, 150]);
+  });
+
+  it('offsets follow rendered widths', () => {
+    const m = at({ columns: three([100, 200, 300]), stretch: { width: 1200 } });
+    expect(m.columns.map((c) => c.offset)).toEqual([0, 200, 600]);
+  });
+});

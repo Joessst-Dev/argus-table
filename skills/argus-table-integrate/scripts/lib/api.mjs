@@ -111,6 +111,7 @@ export const PROPERTIES = {
   density: 'density',
   overscan: 'overscan',
   virtualizeColumns: 'virtualize-columns',
+  stretchColumns: 'stretch-columns',
   sorting: null,
   columnSizing: null,
   columnOrder: null,

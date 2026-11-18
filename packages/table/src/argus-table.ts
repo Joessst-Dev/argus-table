@@ -349,6 +349,22 @@ export class ArgusTable<T = unknown> extends LitElement {
   virtualizeColumns = false;
 
   /**
+   * Makes the columns fill the table's width: when the scrolling columns are
+   * narrower than the table, they stretch, in proportion to their widths and up
+   * to their `maxWidth`. When they're wider, the table scrolls sideways as usual,
+   * and columns never get narrower than their own width. A column you resize
+   * keeps the width you give it, and the others take the free space; when every
+   * column has been resized, the last one does. Pinned columns and the checkbox
+   * and chevron columns keep their width, and nothing stretches while a
+   * `{ flex }` column takes the space. `columnSizing`, `getState()` and the
+   * resize events carry each column's own width, never a stretched one, so a
+   * saved layout fits any width. Off by default. As an attribute,
+   * `stretch-columns="false"` is off, like no attribute.
+   */
+  @property({ attribute: 'stretch-columns', converter: switchConverter })
+  stretchColumns = false;
+
+  /**
    * The sort order, e.g. `[{ id: 'total', desc: true }]`; `[]` when unsorted. Unset,
    * the table keeps it itself and header clicks change it. Once set, it is
    * controlled: a click only fires `argus-sorting-change` with the proposed order,
@@ -743,7 +759,21 @@ export class ArgusTable<T = unknown> extends LitElement {
   #scrollToTop = false;
   // Looked up lazily: the virtualizer's hostUpdated runs before firstUpdated.
   readonly #virtual = new VirtualController(this, () => this.#scroller());
-  readonly #pinScroll = new PinScrollController(this, () => this.#scroller());
+  readonly #pinScroll = new PinScrollController(
+    this,
+    () => this.#scroller(),
+    (width) => {
+      if (width === this.#viewWidth) return;
+      this.#viewWidth = width;
+      if (this.stretchColumns) this.requestUpdate();
+    },
+  );
+  /** The scroller's inner width, for `stretchColumns`. */
+  #viewWidth = 0;
+  /** What `stretchColumns` passed to the model last, kept while it's the same. */
+  #stretch: { width: number; keep: readonly string[] | undefined } | undefined;
+  /** The stretched widths changed: the pinned columns' scroll range is measured again. */
+  #stretchChanged = false;
   readonly #columnWindow = new ColumnWindowController<T>(this, () => this.#scroller());
   /** `block-size: auto` without a maximum: capped at the window's height. */
   readonly #fit = new FitHeight(this, () => this.#scroller());
@@ -1232,7 +1262,21 @@ export class ArgusTable<T = unknown> extends LitElement {
     const selectionColumn = this.#select.column;
     this.#selectionColumnChanged = selectionColumn !== this.#selectionColumn;
     this.#selectionColumn = selectionColumn;
-    this.#table.update({ remote: this.#data.rows, autoWidths, selectionColumn });
+    // The scrolling columns fill the table's width (`stretchColumns`).
+    const stretch =
+      this.stretchColumns && this.#viewWidth > 0
+        ? { width: this.#viewWidth, keep: this.#resize.kept }
+        : undefined;
+    const keyOf = (s: typeof stretch) =>
+      s ? `${String(s.width)}|${s.keep?.join('\u0001') ?? ''}` : '';
+    this.#stretchChanged = keyOf(stretch) !== keyOf(this.#stretch);
+    if (this.#stretchChanged) this.#stretch = stretch;
+    this.#table.update({
+      remote: this.#data.rows,
+      autoWidths,
+      selectionColumn,
+      stretch: this.#stretch,
+    });
     const model = this.#table.model;
     this.#nav.reconcile(model);
     const active = this.#nav.active;
@@ -1455,7 +1499,10 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.#autoWidthsChanged ||
       this.#selectionColumnChanged ||
       // The toggle column comes or goes with it.
-      changed.has('rowDetail')
+      changed.has('rowDetail') ||
+      // Stretched widths change the scroll range end-pinned cells are shifted by.
+      this.#stretchChanged ||
+      changed.has('stretchColumns')
     ) {
       this.#pinScroll.measure();
     }
