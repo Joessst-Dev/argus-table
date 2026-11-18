@@ -28,6 +28,11 @@ const ROW = 16;
 const PAD = 4;
 const TITLE = 14;
 const FOOTER = 8;
+/** How far detail rows are indented, in pt. */
+const DETAIL_INDENT = 16;
+
+/** A line of a page: a row of the table, a detail rows' header, or a detail row. */
+type Line = { kind: 'row' | 'detail'; values: ExportValue[] } | { kind: 'detail-header' };
 /** CSS px to pt, the most a column is scaled. */
 const PX = 0.75;
 const ELLIPSIS = 0x85;
@@ -195,15 +200,40 @@ export async function toPdf(
     return y;
   };
 
+  // Detail rows: under their row, DETAIL_INDENT in, with a header of their own.
+  const detail = sheet.detail;
+  const detailStart = MARGIN + DETAIL_INDENT;
+  const detailWidths = (detail?.columns ?? []).map((c) => c.width * scale);
+  const detailStarts = detailWidths.map(
+    (_, i) => detailStart + detailWidths.slice(0, i).reduce((n, w) => n + w, 0),
+  );
+  /** A detail column's width, cut at the page's margin. */
+  const detailWidth = (i: number) =>
+    Math.max(0, Math.min(detailWidths[i] ?? 0, width - MARGIN - (detailStarts[i] ?? 0)));
+  const lines: Line[] = rows.flatMap((values, i): Line[] => {
+    const under = detail?.rows[i];
+    return under?.length
+      ? [
+          { kind: 'row', values },
+          { kind: 'detail-header' },
+          ...under.map((v): Line => ({ kind: 'detail', values: v })),
+        ]
+      : [{ kind: 'row', values }];
+  });
+
   const top = height - MARGIN;
   const headerHeight = (groups.length + 1) * ROW;
   const firstTop = title ? top - TITLE - 10 : top;
   const fits = (from: number) => Math.max(1, Math.floor((from - MARGIN - headerHeight) / ROW));
-  const pages: ExportValue[][][] = [];
-  for (let at = 0; at < rows.length || pages.length === 0;) {
+  const pages: Line[][] = [];
+  for (let at = 0; at < lines.length || pages.length === 0;) {
     const count = fits(pages.length ? top : firstTop);
-    pages.push(rows.slice(at, at + count));
-    at += count;
+    // A detail block that goes on from the last page starts with its header again.
+    const page: Line[] = lines[at]?.kind === 'detail' ? [{ kind: 'detail-header' }] : [];
+    const take = Math.max(1, count - page.length);
+    page.push(...lines.slice(at, at + take));
+    pages.push(page);
+    at += take;
   }
 
   const contents: string[] = pages.map((pageRows, p) => {
@@ -211,19 +241,40 @@ export async function toPdf(
     if (title && p === 0)
       textAt(fit(title, width - 2 * MARGIN, true, TITLE), MARGIN, top - TITLE, true, TITLE);
     let y = header(p === 0 ? firstTop : top);
-    for (const values of pageRows) {
+    for (const line of pageRows) {
       y -= ROW;
-      values.forEach((value, i) => {
-        cellText(
-          display(value, text.locale),
-          starts[i] ?? MARGIN,
-          widths[i] ?? 0,
-          y,
-          false,
-          columns[i]?.align ?? 'start',
-        );
-      });
-      rule(y, 0.85, 0.25);
+      if (line.kind === 'row') {
+        line.values.forEach((value, i) => {
+          cellText(
+            display(value, text.locale),
+            starts[i] ?? MARGIN,
+            widths[i] ?? 0,
+            y,
+            false,
+            columns[i]?.align ?? 'start',
+          );
+        });
+        rule(y, 0.85, 0.25);
+      } else if (line.kind === 'detail-header') {
+        detail?.columns.forEach((c, i) => {
+          const x = detailStarts[i] ?? detailStart;
+          const w = detailWidth(i);
+          if (w <= 2 * PAD) return;
+          fill(x, y, w);
+          cellText(c.header, x, w, y, true, c.align);
+        });
+      } else {
+        line.values.forEach((value, i) => {
+          cellText(
+            display(value, text.locale),
+            detailStarts[i] ?? detailStart,
+            detailWidth(i),
+            y,
+            false,
+            detail?.columns[i]?.align ?? 'start',
+          );
+        });
+      }
     }
     const foot = winAnsi(text.footer({ page: p + 1, pages: pages.length }));
     textAt(foot, (width - textWidth(foot, false, FOOTER)) / 2, MARGIN / 2, false, FOOTER);

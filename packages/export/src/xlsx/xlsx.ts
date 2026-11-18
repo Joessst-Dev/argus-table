@@ -139,13 +139,13 @@ function worksheet(sheet: ExportSheet, name: string): { xml: string; filter: str
   const detailAligns = detail?.columns.map((c) => alignIndex[c.align]) ?? [];
   let next = headerRows + 1;
   let outlined = false;
-  rows.forEach((values, index) => {
+  for (const [index, values] of rows.entries()) {
     const r = String(next++);
     out.push(
       `<row r="${r}">${values.map((v, i) => cell(`${columnName(i)}${r}`, v, aligns[i] ?? 0)).join('')}</row>`,
     );
     const lines = detail?.rows[index];
-    if (!detail || !lines?.length) return;
+    if (!detail || !lines?.length) continue;
     outlined = true;
     const d = String(next++);
     out.push(
@@ -157,7 +157,7 @@ function worksheet(sheet: ExportSheet, name: string): { xml: string; filter: str
         `<row r="${n}" outlineLevel="1">${line.map((v, i) => cell(`${columnName(i + 1)}${n}`, v, detailAligns[i] ?? 0)).join('')}</row>`,
       );
     }
-  });
+  }
 
   // Freeze the header rows and the columns pinned to the start.
   const pinned = columns.findIndex((c) => c.pin !== 'start');
