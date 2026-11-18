@@ -952,7 +952,7 @@ export class ArgusTable<T = unknown> extends LitElement {
    * user scrolls, clicks or presses a key.
    */
   scrollToRow(target: RowTarget, options: ScrollToRowOptions = {}): Promise<boolean> {
-    return this.#scroll.toRow(target, options.align ?? 'start');
+    return this.#scroll.toRow(target, options);
   }
 
   /** The rows in the scroller above the body (header, top pinned rows) and below it, in px. */
@@ -973,7 +973,7 @@ export class ArgusTable<T = unknown> extends LitElement {
    * no column or of a hidden one.
    */
   scrollToColumn(id: string, options: ScrollToColumnOptions = {}): Promise<boolean> {
-    return this.#scroll.toColumn(id, options.align ?? 'nearest', this.virtualizeColumns);
+    return this.#scroll.toColumn(id, options, () => this.virtualizeColumns);
   }
 
   /**
