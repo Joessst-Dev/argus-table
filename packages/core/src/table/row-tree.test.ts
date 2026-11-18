@@ -104,9 +104,10 @@ describe('buildRowTree', () => {
     expect(warn).toHaveBeenCalledTimes(1);
     const message = String(warn.mock.calls[0]?.[0]);
     expect(message).toMatch(/^argus-table:/);
-    expect(message).toContain('x');
-    expect(message).toContain('p');
-    expect(message).toContain('self');
+    expect(message).toContain('"x"');
+    expect(message).toContain('"p"');
+    expect(message).toContain('"q"');
+    expect(message).toContain('"self"');
   });
 
   it('warns about nothing for a well-formed tree', () => {
@@ -155,26 +156,74 @@ describe('buildRowTree', () => {
     expect(flat.indexOf('c')).toBeUndefined();
   });
 
+  it('nested rows that lead back to an ancestor end there, with one warning', () => {
+    const a: Nested = { name: 'a' };
+    const b: Nested = { name: 'b', kids: [a] };
+    a.kids = [b];
+    const warn = vi.fn();
+    const tree = buildRowTree([a], { getSubRows }, undefined, warn);
+    expect(names(tree.rows)).toEqual(['a', 'b', 'a']);
+    expect([...tree.parent]).toEqual([-1, 0, 1]);
+    expect([...tree.childCount]).toEqual([1, 1, 0]);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0]?.[0])).toMatch(/^argus-table:.*"0\.0\.0"/);
+  });
+
+  it('the same row under two branches is not a cycle', () => {
+    const shared: Nested = { name: 's', kids: [{ name: 's0' }] };
+    const warn = vi.fn();
+    const tree = buildRowTree(
+      [
+        { name: 'a', kids: [shared] },
+        { name: 'b', kids: [shared] },
+      ],
+      { getSubRows },
+      undefined,
+      warn,
+    );
+    expect(names(tree.rows)).toEqual(['a', 'b', 's', 's0', 's', 's0']);
+    expect([...tree.childCount]).toEqual([1, 1, 1, 0, 1, 0]);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('flat parent ids are compared as strings', () => {
+    // Plain JavaScript can return a number where the types say string.
+    const data = [
+      { id: '1', parent: null },
+      { id: '2', parent: 1 },
+    ];
+    const warn = vi.fn();
+    const tree = buildRowTree(
+      data,
+      { getParentId: (row) => row.parent as unknown as string | null },
+      (row) => row.id,
+      warn,
+    );
+    expect([...tree.parent]).toEqual([-1, 0]);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
   it('deep trees are not limited', () => {
+    const length = 200_000;
     const root: Nested = { name: '0' };
     let node = root;
-    for (let i = 1; i < 10_000; i++) {
+    for (let i = 1; i < length; i++) {
       const child: Nested = { name: String(i) };
       node.kids = [child];
       node = child;
     }
-    const tree = buildRowTree([root], { getSubRows }, undefined);
-    expect(tree.rows).toHaveLength(10_000);
-    expect(tree.depth[9_999]).toBe(9_999);
-    expect(tree.parent[9_999]).toBe(9_998);
+    const tree = buildRowTree([root], { getSubRows }, (row) => row.name);
+    expect(tree.rows).toHaveLength(length);
+    expect(tree.depth[length - 1]).toBe(length - 1);
+    expect(tree.parent[length - 1]).toBe(length - 2);
 
     // The same chain as flat data, children first.
-    const flat: Flat[] = Array.from({ length: 10_000 }, (_, i) => ({
-      id: String(9_999 - i),
-      parent: i === 9_999 ? null : String(9_998 - i),
+    const flat: Flat[] = Array.from({ length }, (_, i) => ({
+      id: String(length - 1 - i),
+      parent: i === length - 1 ? null : String(length - 2 - i),
     }));
     const flatTree = buildRowTree(flat, { getParentId: (row) => row.parent }, (row) => row.id);
-    expect(flatTree.depth[0]).toBe(9_999);
-    expect(flatTree.depth[9_999]).toBe(0);
+    expect(flatTree.depth[0]).toBe(length - 1);
+    expect(flatTree.depth[length - 1]).toBe(0);
   });
 });

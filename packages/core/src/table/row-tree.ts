@@ -57,10 +57,10 @@ export function buildRowTree<TData>(
     if (getParentId) {
       warn('argus-table: getSubRows and getParentId are both set; getSubRows is used.');
     }
-    return nestedTree(data, getSubRows, getRowId);
+    return nestedTree(data, getSubRows, getRowId, warn);
   }
   if (getParentId) return flatTree(data, getParentId, getRowId, warn);
-  // Neither set: every row is top-level.
+  // The model never builds a tree without a source; if it did, every row is top-level.
   return flatTree(data, () => undefined, getRowId, warn);
 }
 
@@ -68,6 +68,7 @@ function nestedTree<TData>(
   data: readonly TData[],
   getSubRows: (row: TData) => readonly TData[] | undefined,
   getRowId: ((row: TData, index: number) => string) | undefined,
+  warn: (message: string) => void,
 ): RowTree<TData> {
   const rows: TData[] = data.slice();
   const ids: string[] = [];
@@ -81,9 +82,23 @@ function nestedTree<TData>(
   const stackRows: TData[] = [];
   const stackParents: number[] = [];
   const stackSiblings: number[] = [];
-  const pushChildren = (row: TData, index: number): void => {
+  // The rows with children above the current one, by depth, so sub-rows that
+  // lead back to an ancestor end there instead of looping forever. Rows without
+  // children never get here, so a flat or shallow tree pays almost nothing.
+  const path: TData[] = [];
+  const onPath = new Set<TData>();
+  const cycled: string[] = [];
+  const pushChildren = (row: TData, index: number, depth: number): void => {
     const kids = getSubRows(row);
-    if (!kids) return;
+    if (!kids || kids.length === 0) return;
+    // Entries at this depth or below belong to branches already walked.
+    while (path.length > depth) onPath.delete(path.pop() as TData);
+    if (onPath.has(row)) {
+      cycled.push(ids[index] ?? '');
+      return;
+    }
+    path.push(row);
+    onPath.add(row);
     counts[index] = kids.length;
     for (let k = kids.length - 1; k >= 0; k--) {
       stackRows.push(kids[k] as TData);
@@ -102,7 +117,7 @@ function nestedTree<TData>(
   // Top-level rows hold the first indexes, so their descendants are numbered
   // after all of them: one walk per top-level row, in order.
   for (let top = 0; top < data.length; top++) {
-    pushChildren(data[top] as TData, top);
+    pushChildren(data[top] as TData, top, 0);
     while (stackRows.length > 0) {
       const row = stackRows.pop() as TData;
       const parent = stackParents.pop() ?? -1;
@@ -110,11 +125,18 @@ function nestedTree<TData>(
       const index = rows.length;
       rows.push(row);
       ids.push(getRowId ? getRowId(row, index) : `${ids[parent] ?? ''}.${String(sibling)}`);
+      const depth = (depths[parent] ?? 0) + 1;
       parents.push(parent);
-      depths.push((depths[parent] ?? 0) + 1);
+      depths.push(depth);
       counts.push(0);
-      pushChildren(row, index);
+      pushChildren(row, index, depth);
     }
+  }
+
+  if (cycled.length > 0) {
+    warn(
+      `argus-table: rows whose sub-rows lead back to an ancestor (${listed(cycled)}) are shown without children.`,
+    );
   }
 
   return makeTree(
@@ -145,12 +167,13 @@ function flatTree<TData>(
   const parent = new Int32Array(n);
   const missing: string[] = [];
   for (let i = 0; i < n; i++) {
-    const parentId = getParentId(data[i] as TData);
+    // Plain JavaScript may return a number, so it's compared as a string.
+    const parentId = getParentId(data[i] as TData) as string | number | null | undefined;
     if (parentId == null) {
       parent[i] = -1;
       continue;
     }
-    const index = byId.get(parentId);
+    const index = byId.get(String(parentId));
     if (index === undefined) missing.push(ids[i] ?? '');
     parent[i] = index ?? -1;
   }
