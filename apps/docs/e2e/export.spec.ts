@@ -48,3 +48,19 @@ for (const flavour of FLAVOURS) {
     await expectAccessible(page, example);
   });
 }
+
+for (const flavour of FLAVOURS) {
+  test(`${flavour}: CSV with each order's lines`, async ({ page }) => {
+    await page.goto('features/export/');
+    const example = await openFlavour(page, 'export/detail', flavour);
+    const shown = lines(
+      await downloadedText(page, example.getByRole('button', { name: 'CSV with lines' })),
+    );
+    expect(shown[0]).toBe('Order,Customer,City,Total,Product,Qty,Price');
+    // o1 has two lines, o2 three: the order's values on each.
+    expect(shown.slice(1, 3).every((line) => line.startsWith('o1,Customer 1,Lisbon,'))).toBe(true);
+    expect(shown[3]?.startsWith('o2,')).toBe(true);
+    expect(shown).toHaveLength(1 + 1000 * 2.5);
+    await expectAccessible(page, example);
+  });
+}

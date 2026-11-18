@@ -43,7 +43,10 @@ interface ExportDetail<T, D = unknown> {
    * A row's detail rows. May return a promise (fetch the lines). Called once per
    * exported body row, never for pinned rows, nor for rows `rowExpandable` rejects.
    */
-  rows(row: T, context: { rowId: string; signal: AbortSignal | undefined }): readonly D[] | Promise<readonly D[]>;
+  rows(
+    row: T,
+    context: { rowId: string; signal: AbortSignal | undefined },
+  ): readonly D[] | Promise<readonly D[]>;
 }
 
 interface ExportDetailColumn<D> {
@@ -51,7 +54,7 @@ interface ExportDetailColumn<D> {
   header: string;
   /** What to write; default: the detail row's property named `id`. */
   value?(item: D): unknown;
-  align?: ColumnAlign;   // default 'start'
+  align?: ColumnAlign; // default 'start'
   /** Width in px, for Excel and PDF; default 120. */
   width?: number;
 }

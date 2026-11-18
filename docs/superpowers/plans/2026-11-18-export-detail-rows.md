@@ -34,19 +34,28 @@
 ### Task 1: The `detail` option, the sheet and collecting
 
 **Files:**
+
 - Create: `packages/export/src/detail.ts`
 - Modify: `packages/export/src/sheet.ts`, `packages/export/src/collect.ts`, `packages/export/src/index.ts`
 - Test: `packages/export/src/detail.node.test.ts` (Node project `writers`: `collectDetails` is DOM-free) and `packages/export/src/plugin.test.ts` (browser project `plugin`)
 
 **Interfaces:**
+
 - Produces (in `collect.ts`, exported from `index.ts` as types):
   ```ts
   export interface ExportDetailColumn<D = unknown> {
-    id: string; header: string; value?(item: D): unknown; align?: ColumnAlign; width?: number;
+    id: string;
+    header: string;
+    value?(item: D): unknown;
+    align?: ColumnAlign;
+    width?: number;
   }
   export interface ExportDetail<T = unknown, D = unknown> {
     columns: readonly ExportDetailColumn<D>[];
-    rows(row: T, context: { rowId: string; signal: AbortSignal | undefined }): readonly D[] | Promise<readonly D[]>;
+    rows(
+      row: T,
+      context: { rowId: string; signal: AbortSignal | undefined },
+    ): readonly D[] | Promise<readonly D[]>;
   }
   // CollectOptions<T> gains:  detail?: ExportDetail<T> | false;
   ```
@@ -64,6 +73,7 @@
   - `'calls rows() for body rows only, not pinned rows or rows rowExpandable rejects'`: with `pinnedRows: { top: [data[0]] }` and `rowExpandable: (r) => r.id !== 'c'`, `exportTable(el, 'csv', { detail })` calls the `rows` spy for `a`, `b`, `d` in that order, first with `{ rowId: 'a', signal: undefined }`.
   - `'detail: false turns the plugin's detail off'`: with `tableExport({ detail })`, `exportTable(el, 'csv', { detail: false })` doesn't call `rows` and equals the CSV of a table without `detail`.
   - `'passes the index as rowId with allRows and no getRowId'`: a `dataSource` table, `allRows: true`, no `getRowId` → `rowId`s `'0'`, `'1'`, ….
+
 - [ ] **Step 2: Run** `pnpm --filter @argus-table/export exec vitest run src/detail.node.test.ts` and `BROWSERS=chromium pnpm --filter @argus-table/export exec vitest run src/plugin.test.ts --project plugin -t "detail rows"`. Expected: FAIL (`collectDetails` and `detail` don't exist).
 - [ ] **Step 3: Implement** `collectDetails` in `detail.ts` (a fixed pool of 6 workers over an index counter, results by index; `signal?.throwIfAborted()` before each call; `await new Promise(r => setTimeout(r, 0))` after every 50th row started), the types in `collect.ts`, and in `collect()` a parallel `items` array pushed alongside `rows` (`undefined` for pinned rows), then `sheet.detail = { columns, rows: await collectDetails(…) }` only when `options.detail` is an object. Values: `toValue(column.value ? column.value(item) : (item as Record<string, unknown>)[column.id])`.
 - [ ] **Step 4: Run** both again (the plugin file in `BROWSERS=all`), then the whole export package. Expected: PASS, existing tests unchanged.
@@ -128,6 +138,7 @@
 ### Task 6: Docs, story, skill, changeset, size
 
 **Files:**
+
 - Modify: `packages/export/README.md` (options table row for `detail`; a "Detail rows" section with the layouts per format), `apps/docs/src/content/docs/features/export.mdx` (a "Detail rows" section with the new example's `FlavourTabs`, saying which release adds it as the page's other new sections do), `apps/docs/e2e/export.spec.ts`, `apps/storybook/stories/export.stories.ts`, `skills/argus-table-integrate/scripts/lib/api.mjs` (`'detail'` in the options list), `skills/argus-table-integrate/references/api.md`, `CLAUDE.md` (the export package paragraph: one sentence on `detail`).
 - Create: `apps/docs/src/examples/export/detail/{html/index.html,html/main.js,react/DetailExport.tsx,vue/DetailExport.vue,angular/detail-export.component.ts}` (orders with lines from `../data.ts`-style data, a CSV and an Excel button exporting with `detail`), `.changeset/export-detail-rows.md` (`'@argus-table/export': minor`, written for users).
 

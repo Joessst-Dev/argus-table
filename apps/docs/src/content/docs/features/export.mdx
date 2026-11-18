@@ -11,6 +11,9 @@ import { ExportButtonsComponent } from '../../../examples/export/basic/angular/e
 import ReactMeta from '../../../examples/export/column-meta/react/ColumnMeta.tsx';
 import VueMeta from '../../../examples/export/column-meta/vue/ColumnMeta.vue';
 import { ColumnMetaComponent } from '../../../examples/export/column-meta/angular/column-meta.component.ts';
+import ReactDetail from '../../../examples/export/detail/react/DetailExport.tsx';
+import VueDetail from '../../../examples/export/detail/vue/DetailExport.vue';
+import { DetailExportComponent } from '../../../examples/export/detail/angular/detail-export.component.ts';
 
 `@argus-table/export` is a plugin: `plugins: [tableExport()]`. `downloadTable(table, 'csv' | 'xlsx' | 'pdf')` saves what the table shows: the columns in their order, the rows sorted and filtered, with the pinned rows and the group headers. `exportTable()` returns the file as a `Blob` instead. Both take the element: through a `ref` in React, a template ref's `element` in Vue, or a view query's `element` in Angular. `rows: 'selected'` exports the selected rows only.
 
@@ -30,4 +33,20 @@ A column's `meta.export` sets how it is exported, next to its definition: `heade
   <ReactMeta slot="react" client:visible />
   <VueMeta slot="vue" client:visible />
   <ColumnMetaComponent slot="angular" client:visible />
+</FlavourTabs>
+
+## Detail rows
+
+An export can carry the rows behind each row, an order's lines say, through the `detail` option: their `columns` (`id`, `header`, and optionally `value`, `align`, `width`) and `rows(row, { rowId, signal })`, which returns a row's detail rows or a promise of them. It's called for every exported row, panel open or not, in order and at most six at a time; rows that `rowExpandable` rejects and pinned rows get none. The export doesn't read the [detail panels](../detail-rows/): it writes the data you give it, with or without `rowDetail`.
+
+- **Excel:** each row's detail rows follow it, one column in, under a header of their own, grouped so Excel's outline buttons collapse them. Such a sheet has no filter buttons.
+- **PDF:** the same, indented.
+- **CSV:** one table: the row's columns, then the detail columns, one line per detail row with the row's values repeated.
+
+With `detail` given to `tableExport()`, the column menu offers the formats twice: Export, without the detail rows, and Export with details. `detail: false` leaves them out of one export.
+
+<FlavourTabs example="export/detail" since="1.4">
+  <ReactDetail slot="react" client:visible />
+  <VueDetail slot="vue" client:visible />
+  <DetailExportComponent slot="angular" client:visible />
 </FlavourTabs>

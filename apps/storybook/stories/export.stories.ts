@@ -3,7 +3,13 @@ import { html } from 'lit';
 import { expect, waitFor } from 'storybook/test';
 import type { ArgusTable, ColumnDef, ColumnGroup } from 'argus-table';
 import 'argus-table';
-import { downloadTable, exportTable, tableExport, type ExportFormat } from '@argus-table/export';
+import {
+  downloadTable,
+  exportTable,
+  tableExport,
+  type ExportDetail,
+  type ExportFormat,
+} from '@argus-table/export';
 import { headerMenu } from '@argus-table/header-menu';
 import { orderColumns, orders, type Order } from './data.js';
 
@@ -145,5 +151,69 @@ export const ColumnMeta: Story = {
       return csv;
     });
     await expect(lines[1]).toMatch(/^o\d+,Customer \d+,\w+,\d+$/);
+  },
+};
+
+interface Line {
+  product: string;
+  qty: number;
+}
+/** An order's lines: one to three, the same every time. */
+const linesOf = (order: Order): Line[] =>
+  Array.from({ length: 1 + (Number(order.id.slice(1)) % 3) }, (_, i) => ({
+    product: `Product ${String.fromCharCode(65 + i)}`,
+    qty: i + 1,
+  }));
+const detail: ExportDetail<Order, Line> = {
+  columns: [
+    { id: 'product', header: 'Product', width: 160 },
+    { id: 'qty', header: 'Qty', align: 'end', width: 60 },
+  ],
+  rows: (order) => linesOf(order),
+};
+const detailPlugins = [
+  tableExport<Order>({ filename: 'orders', title: 'Orders', detail }),
+  headerMenu<Order>(),
+];
+
+/**
+ * `detail` adds the rows behind each row (an order's lines) to every export:
+ * under their row in Excel (one column in, grouped so they collapse) and PDF, and
+ * in CSV one line per detail row with the order repeated. The app supplies them:
+ * `{ columns, rows(row, { rowId, signal }) }`, a promise if they have to be
+ * fetched; the export doesn't read the panels. With `detail` in `tableExport()`,
+ * the column menu offers Export (without the lines) and Export with details.
+ */
+export const WithDetails: Story = {
+  render: () =>
+    html`<argus-table
+      style="block-size: 420px"
+      .columns=${orderColumns}
+      .data=${data}
+      .getRowId=${(row: Order) => row.id}
+      .rowDetail=${({ row }: { row: Order }) =>
+        linesOf(row)
+          .map((line) => `${String(line.qty)} × ${line.product}`)
+          .join(', ')}
+      .plugins=${detailPlugins}
+    ></argus-table>`,
+  play: async ({ canvasElement }) => {
+    const table = await tableIn(canvasElement);
+    const csv = (await (await exportTable(table, 'csv', { bom: false })).text()).split('\r\n');
+    await expect(csv[0]).toBe('Order,Customer,City,Status,Total,Product,Qty');
+    // Order o1 has two lines: one CSV line each, with the order repeated.
+    await expect(csv[1]).toMatch(/^o1,.*,Product A,1$/);
+    await expect(csv[2]).toMatch(/^o1,.*,Product B,2$/);
+    const button = table
+      .querySelector('[slot^="h-"]')
+      ?.querySelector<HTMLButtonElement>('.argus-header-menu-button');
+    button?.click();
+    const menu = await waitFor(() => {
+      const open = table.querySelector<HTMLElement>('.argus-header-menu:popover-open');
+      if (!open) throw new Error('menu not open');
+      return open;
+    });
+    await expect(menu.textContent).toContain('Export with details');
+    menu.hidePopover();
   },
 };

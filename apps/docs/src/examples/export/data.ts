@@ -24,3 +24,22 @@ export const formats = [
   { format: 'xlsx', label: 'Excel' },
   { format: 'pdf', label: 'PDF' },
 ] as const;
+
+/** A line of an order: what a detail panel shows and an export can carry. */
+export interface Line {
+  product: string;
+  quantity: number;
+  price: number;
+}
+
+const products = ['Notebook', 'Pen', 'Stapler', 'Lamp', 'Mug'];
+
+/** An order's lines: one to four, the same every time. */
+export const linesOf = (order: Order): Line[] => {
+  const n = Number(order.id.slice(1));
+  return Array.from({ length: 1 + (n % 4) }, (_, i) => ({
+    product: products[(n + i) % products.length] ?? '',
+    quantity: 1 + ((n + i) % 3),
+    price: 2 + ((n * 3 + i * 5) % 20),
+  }));
+};

@@ -1,5 +1,5 @@
 import type { ColumnAlign, PluginHost, RowSection } from 'argus-table';
-import { collectDetails, type DetailItem } from './detail.js';
+import type { DetailItem } from './detail.js';
 import {
   toValue,
   type ExportColumn,
@@ -206,6 +206,8 @@ export async function collect<T>(
   pinned('bottom');
   const detail = options.detail;
   if (!detail) return { columns, groups, rows };
+  // Loaded on first use, like the Excel and PDF writers: most exports have no detail rows.
+  const { collectDetails } = await import('./detail.js');
   return {
     columns,
     groups,
