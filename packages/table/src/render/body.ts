@@ -2,7 +2,7 @@ import { html, nothing, type TemplateResult } from 'lit';
 import { live } from 'lit/directives/live.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { styleMap } from 'lit/directives/style-map.js';
-import type { RowState, TreeRowInfo } from '@argus-table/core';
+import type { BranchCheck, RowState, TreeRowInfo } from '@argus-table/core';
 import type { RenderedColumn } from '../controllers/column-window.js';
 import type { WindowRow } from '../controllers/virtual-controller.js';
 import { cellParts, cellSlot, cellStyle, detailSlot, type CheckboxHandlers } from './content.js';
@@ -10,7 +10,15 @@ import { cellParts, cellSlot, cellStyle, detailSlot, type CheckboxHandlers } fro
 type Columns<T> = readonly RenderedColumn<T>[];
 
 /** The rows' checkboxes in the selection column: their handlers and accessible name. */
-export type RowCheckboxes = CheckboxHandlers & { label: string };
+export type RowCheckboxes = CheckboxHandlers & {
+  label: string;
+  /**
+   * With branch selection (`selectBranches`), each row's checkbox state by data
+   * index: ticked for `'all'`, part-ticked for `'some'`. Without it, a box is
+   * ticked when its row is selected.
+   */
+  state?: (index: number) => BranchCheck;
+};
 
 /** The chevrons of the toggle column (`rowDetail`): which rows have one, which are open, and their names. */
 export interface RowToggles {
@@ -303,7 +311,8 @@ export function firstDataColumn(
 /**
  * A row's checkbox in the selection column, for a row that can be selected.
  * It isn't focusable: the cell holds focus. `live()` keeps it showing the
- * selection when a controlled host turns a change down.
+ * selection when a controlled host turns a change down. With branch selection
+ * it shows its branch's state, part-ticked (`indeterminate`) for some of it.
  */
 function rowCheckbox(
   index: number,
@@ -311,13 +320,15 @@ function rowCheckbox(
   checkboxes: RowCheckboxes | undefined,
 ) {
   if (selected === undefined || !checkboxes) return nothing;
+  const state = checkboxes.state?.(index);
   return html`<input
     type="checkbox"
     part="selection-checkbox"
     tabindex="-1"
     aria-label=${checkboxes.label}
     data-row=${index}
-    .checked=${live(selected)}
+    .checked=${live(state === undefined ? selected : state === 'all')}
+    .indeterminate=${live(state === 'some')}
     @click=${checkboxes.row}
     @mousedown=${checkboxes.press}
   />`;

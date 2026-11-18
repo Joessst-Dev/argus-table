@@ -536,7 +536,8 @@ export class ArgusTable<T = unknown> extends LitElement {
    * set, a click only fires `argus-selection-change` with the proposed ids.
    * `undefined` hands it back. The table never drops ids on its own: they stay
    * through sorting, a new `data` or reloaded pages. With a `dataSource`,
-   * Ctrl/Cmd+A selects the loaded rows only.
+   * Ctrl/Cmd+A selects the loaded rows only. With `selectBranches` a parent row's
+   * id is in it only while its whole branch is selected (see `selectBranches`).
    */
   @property({ attribute: false })
   get selection(): SelectionState {
@@ -548,16 +549,19 @@ export class ArgusTable<T = unknown> extends LitElement {
 
   /**
    * Selects whole branches of a tree (`getSubRows` or `getParentId`), in `multi`
-   * `selectionMode` only. Selecting a row, by its checkbox or a click, selects it
-   * and its descendants the filters keep, rows under collapsed rows included
-   * (rows a filter hides aren't selected), and deselecting it deselects them. A
-   * row's id is in `selection` exactly when its whole branch is: selecting the
-   * last of a row's children adds the row, deselecting any child removes its
-   * ancestors. A checkbox is ticked when its row's whole branch is selected and
-   * part-ticked when some of it is. Ctrl/Cmd and Shift clicks count each row
-   * clicked as its branch, and Ctrl/Cmd+A or the header checkbox selects every
-   * row the filters keep. A controlled `selection` that breaks these rules shows
-   * as it is until the user changes it.
+   * `selectionMode` only (ignored in `single` mode and without a tree).
+   * Selecting a row, by its checkbox, a click or Space, selects it and its
+   * descendants the filters keep, rows under collapsed rows included (rows a
+   * filter hides aren't selected), and deselecting it deselects them (rows a
+   * filter hides stay as they are). A row's id is in `selection` exactly when
+   * its whole branch is: selecting the last of a row's children adds the row,
+   * deselecting any child removes its ancestors. A checkbox is ticked when its
+   * row's whole branch is selected and part-ticked when some of it is.
+   * Ctrl/Cmd and Shift clicks and Shift+Arrow count each row as its branch, and
+   * Ctrl/Cmd+A or the header checkbox selects every row the filters keep, whole
+   * branches with their collapsed rows; the header checkbox is ticked when all
+   * of those are selected. A controlled `selection` that breaks these rules
+   * shows as it is until the user changes it.
    */
   @property({ type: Boolean, attribute: 'select-branches' })
   selectBranches = false;
@@ -1410,9 +1414,7 @@ export class ArgusTable<T = unknown> extends LitElement {
                   ? loadingState(this.#data.rows, this.#window, model, labels, this.#onRetry)
                   : undefined,
                 this.#select.selectedAt(),
-                this.#selectionColumn
-                  ? { ...this.#select.handlers, label: labels.selectRow }
-                  : undefined,
+                this.#selectionColumn ? this.#select.checkboxes(labels.selectRow) : undefined,
                 auto,
                 this.rowDetail
                   ? rowToggles(model, this.#window, labels, this.#onToggle)
