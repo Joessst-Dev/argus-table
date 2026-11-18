@@ -339,6 +339,21 @@ describe('setState()', () => {
       expect(el.getState().scroll.row).toBe(reached);
     });
 
+    test("the user's own scrolling wins after the table moves", async () => {
+      const el = await fixture({ columns, dataSource: server({ total: false }).source });
+      await el.setState({ scroll: { row: 300, inline: 0 } });
+      const parent = el.parentElement;
+      if (!parent) throw new Error('no parent');
+      el.remove();
+      parent.append(el);
+      await settle(el);
+      el.dispatchEvent(new WheelEvent('wheel', { deltaY: 10, bubbles: true }));
+      const reached = el.getState().scroll.row;
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      await settle(el);
+      expect(el.getState().scroll.row).toBe(reached);
+    });
+
     // #110: a scroll command still pending when the next page arrived finished the
     // scroll toward the restored row (clamped to the rows counted when it started),
     // after the user took over. A slow frame (as under CI load) lets the debounced

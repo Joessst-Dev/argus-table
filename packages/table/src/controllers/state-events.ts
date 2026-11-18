@@ -67,3 +67,22 @@ export class StateEvents {
     }
   }
 }
+
+/**
+ * Applies a restored value (`setState()`) to uncontrolled state without an
+ * event, as a user change would without the event. Returns whether it changed.
+ */
+export function restore<V>(
+  host: ReactiveElement,
+  name: string,
+  state: Controllable<V>,
+  value: V | undefined,
+): boolean {
+  if (value === undefined || state.controlled) return false;
+  // The same value restored again doesn't reload a data source.
+  if (JSON.stringify(value) === JSON.stringify(state.value)) return false;
+  const old = state.value;
+  state.request(structuredClone(value));
+  host.requestUpdate(name, old);
+  return true;
+}
