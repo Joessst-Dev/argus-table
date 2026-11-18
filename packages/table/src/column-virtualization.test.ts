@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, onTestFinished, test } from 'vitest';
 import type { ArgusTable } from './index.js';
 import { LOAD_DEBOUNCE_MS } from './controllers/data-controller.js';
-import { setContentFirstForTests } from './render/cells.js';
+import { contentFirst, setContentFirstForTests } from './render/cells.js';
 import type { ColumnDef, DataSource } from './types.js';
 import {
   fixture,
@@ -340,7 +340,9 @@ describe('virtualizeColumns', () => {
     expect(cellIn(row, 'c0')?.querySelector('[part~="retry"]')).not.toBeNull();
   });
 
-  test.each([false, true])(
+  // Not content last in WebKit: it never renders that way, because there it is
+  // quadratic in the cells added (seconds for this table on a CI runner).
+  test.each([false, true].filter((first) => first || !contentFirst))(
     'cells keep their own content as columns come and go (content first: %s)',
     async (first) => {
       // Content first (WebKit), the light DOM renders before the shadow root when it
@@ -350,7 +352,8 @@ describe('virtualizeColumns', () => {
       onTestFinished(() => {
         setContentFirstForTests(undefined);
       });
-      const el = await fixture({ columns: wide(), data: people(20), virtualizeColumns: true });
+      // Few rows: removing cells is quadratic in WebKit.
+      const el = await fixture({ columns: wide(), data: people(4), virtualizeColumns: true });
       const expectSlotted = () => {
         const cells = rowsInOrder(el).flatMap((row, r) =>
           [...row.querySelectorAll<HTMLElement>('[data-col^="c"]')].map((cell) => {
