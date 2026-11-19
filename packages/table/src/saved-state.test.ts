@@ -83,6 +83,7 @@ const saved: Required<TableState> = {
   columnFilters: { age: { kind: 'number', op: 'ge', value: 10 } },
   selection: ['p12', 'p13'],
   expanded: ['p12'],
+  treeExpanded: ['p12'],
   quickFilter: 'Person 1',
   scroll: { row: 3, inline: 0 },
 };
@@ -100,6 +101,7 @@ describe('getState()', () => {
       columnFilters: {},
       selection: [],
       expanded: [],
+      treeExpanded: [],
       quickFilter: '',
       scroll: { row: 0, inline: 0 },
     });

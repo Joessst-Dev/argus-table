@@ -2,7 +2,7 @@ import { html, nothing, type TemplateResult } from 'lit';
 import { live } from 'lit/directives/live.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { styleMap } from 'lit/directives/style-map.js';
-import type { RowState } from '@argus-table/core';
+import type { BranchCheck, RowState, TreeRowInfo } from '@argus-table/core';
 import type { RenderedColumn } from '../controllers/column-window.js';
 import type { WindowRow } from '../controllers/virtual-controller.js';
 import { cellParts, cellSlot, cellStyle, detailSlot, type CheckboxHandlers } from './content.js';
@@ -10,7 +10,16 @@ import { cellParts, cellSlot, cellStyle, detailSlot, type CheckboxHandlers } fro
 type Columns<T> = readonly RenderedColumn<T>[];
 
 /** The rows' checkboxes in the selection column: their handlers and accessible name. */
-export type RowCheckboxes = CheckboxHandlers & { label: string };
+export type RowCheckboxes = CheckboxHandlers & {
+  label: string;
+  /**
+   * With branch selection (`selectBranches`), each row's checkbox state by data
+   * index: ticked for `'all'`, part-ticked for `'some'`, `disabled` for
+   * `'blocked'` (ticking it could select nothing). Without it, a box is ticked
+   * when its row is selected.
+   */
+  state?: (index: number) => BranchCheck;
+};
 
 /** The chevrons of the toggle column (`rowDetail`): which rows have one, which are open, and their names. */
 export interface RowToggles {
@@ -24,6 +33,18 @@ export interface RowToggles {
   onClick: (event: Event) => void;
   /** The id of the row's rendered panel row, for `aria-controls`; `undefined` while it isn't rendered. */
   controls: (index: number) => string | undefined;
+}
+
+/** The tree column's content and the rows' tree attributes (`getSubRows` or `getParentId`). */
+export interface TreeRows {
+  /** The tree column: the first data column in reading order (`firstDataColumn`). */
+  column: string | undefined;
+  /** Where the row at a data index sits in the tree. */
+  row: (index: number) => TreeRowInfo | undefined;
+  expandLabel: string;
+  collapseLabel: string;
+  /** Click handler of the toggles; the button carries the row's data index in `data-row`. */
+  onClick: (event: Event) => void;
 }
 
 /** The detail panels' rows (`rowDetail`): from their own pool, each a cell spanning every column. */
@@ -85,6 +106,7 @@ export function renderBody<T>(
   toggles?: RowToggles,
   details?: DetailRows,
   edges?: TemplateResult | typeof nothing,
+  tree?: TreeRows,
 ) {
   return html`<div
     part="body"
@@ -106,6 +128,7 @@ export function renderBody<T>(
           checkboxes,
           inset,
           toggles,
+          tree,
         ),
     )}${
       details
@@ -184,6 +207,7 @@ function renderRow<T>(
   checkboxes: RowCheckboxes | undefined,
   inset: boolean,
   toggles: RowToggles | undefined,
+  tree: TreeRows | undefined,
 ) {
   // Positions place the row in the grid; its data index reads its state. An idle
   // pool slot renders the same template, hidden: Lit keeps its DOM, so its cells'
@@ -199,6 +223,7 @@ function renderRow<T>(
   const retry = state === 'error' ? loading?.retry.get(index) : undefined;
   // The Retry button goes in the first data column, after a selection column.
   const retryCol = retry === undefined ? undefined : firstDataColumn(columns);
+  const node = idle || state !== 'loaded' ? undefined : tree?.row(index);
   return html`<div
     part=${idle ? nothing : parts}
     class="row"
@@ -207,6 +232,10 @@ function renderRow<T>(
     aria-rowindex=${idle ? nothing : row.index + firstRowIndex}
     aria-busy=${state === 'loading' ? 'true' : nothing}
     aria-selected=${selected === undefined ? nothing : String(selected)}
+    aria-level=${node ? node.depth + 1 : nothing}
+    aria-expanded=${node?.hasChildren ? String(node.open) : nothing}
+    aria-setsize=${node?.setSize ?? nothing}
+    aria-posinset=${node?.posInSet ?? nothing}
     style=${styleMap(
       inset
         ? {
@@ -229,7 +258,9 @@ function renderRow<T>(
             ? rowCheckbox(index, selected, checkboxes)
             : c.kind === 'expand'
               ? rowToggle(index, open, state === 'loaded' ? toggles : undefined)
-              : placeholder(state, c.id === retryCol ? retry : undefined, index, loading),
+              : node && tree?.column === c.id
+                ? treeToggle(index, node, tree)
+                : placeholder(state, c.id === retryCol ? retry : undefined, index, loading),
         ),
     )}
   </div>`;
@@ -264,11 +295,14 @@ export function renderCell<T>(
 }
 
 /**
- * The id of the leftmost rendered data column (in reading order). Rendered
- * columns are in pool order with `virtualizeColumns`.
+ * The id of the leftmost data column (in reading order) of a list of columns:
+ * the rendered ones, which are in pool order with `virtualizeColumns`, or the
+ * model's.
  */
-function firstDataColumn<T>(columns: Columns<T>): string | undefined {
-  let first: RenderedColumn<T> | undefined;
+export function firstDataColumn(
+  columns: readonly { id: string; kind: string; colIndex: number }[],
+): string | undefined {
+  let first: (typeof columns)[number] | undefined;
   for (const c of columns) {
     if (c.kind === 'data' && (!first || c.colIndex < first.colIndex)) first = c;
   }
@@ -278,7 +312,9 @@ function firstDataColumn<T>(columns: Columns<T>): string | undefined {
 /**
  * A row's checkbox in the selection column, for a row that can be selected.
  * It isn't focusable: the cell holds focus. `live()` keeps it showing the
- * selection when a controlled host turns a change down.
+ * selection when a controlled host turns a change down. With branch selection
+ * it shows its branch's state, part-ticked (`indeterminate`) for some of it,
+ * and `disabled` when ticking it could select nothing.
  */
 function rowCheckbox(
   index: number,
@@ -286,13 +322,16 @@ function rowCheckbox(
   checkboxes: RowCheckboxes | undefined,
 ) {
   if (selected === undefined || !checkboxes) return nothing;
+  const state = checkboxes.state?.(index);
   return html`<input
     type="checkbox"
     part="selection-checkbox"
     tabindex="-1"
     aria-label=${checkboxes.label}
     data-row=${index}
-    .checked=${live(selected)}
+    .checked=${live(state === undefined ? selected : state === 'all')}
+    .indeterminate=${live(state === 'some')}
+    ?disabled=${state === 'blocked'}
     @click=${checkboxes.row}
     @mousedown=${checkboxes.press}
   />`;
@@ -314,6 +353,32 @@ function rowToggle(index: number, open: boolean, toggles: RowToggles | undefined
     data-row=${index}
     @click=${toggles.onClick}
   ></button>`;
+}
+
+/**
+ * The tree column's start in a body row: an indent as deep as the row, then the
+ * row's toggle, or for a row without children a spacer as wide, so content
+ * lines up with its siblings'. The toggle isn't focusable: the cell holds focus.
+ * While a filter keeps the row open (`forced`), the toggle is `aria-disabled`
+ * (still a button with its name, so it stays perceivable) with the part
+ * `tree-toggle-disabled` (`::part()` can't read attributes), and its click does nothing.
+ */
+function treeToggle(index: number, node: TreeRowInfo, tree: TreeRows) {
+  return html`<span class="tree-indent" style=${styleMap({ '--_depth': String(node.depth) })}></span
+    >${
+      node.hasChildren
+        ? html`<button
+            type="button"
+            part=${node.forced ? 'tree-toggle tree-toggle-disabled' : 'tree-toggle'}
+            tabindex="-1"
+            aria-expanded=${String(node.open)}
+            aria-disabled=${node.forced ? 'true' : nothing}
+            aria-label=${node.open ? tree.collapseLabel : tree.expandLabel}
+            data-row=${index}
+            @click=${tree.onClick}
+          ></button>`
+        : html`<span class="tree-spacer"></span>`
+    }`;
 }
 
 /** What an unloaded cell shows: a skeleton bar, or the Retry button in a failed page's first cell. */

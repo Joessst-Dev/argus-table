@@ -9,8 +9,9 @@ import {
   groupCell,
   groupCellOf,
   layoutOf,
+  positionOfIndex,
 } from '../grid.js';
-import { PANEL_COLUMN } from '../render/body.js';
+import { firstDataColumn, PANEL_COLUMN } from '../render/body.js';
 import type { CellContent } from '../types.js';
 import type { ColumnReorder } from './column-reorder.js';
 import type { ColumnResize } from './column-resize.js';
@@ -35,6 +36,8 @@ export class KeyboardRouter<T> {
   readonly #data: DataController<T>;
   /** Opens or closes a body row's panel (a data index). */
   readonly #toggle: (index: number) => void;
+  /** Expands or collapses a tree row (a data index). */
+  readonly #toggleTree: (index: number) => void;
   /** Sorts by a column: asc → desc → unsorted. */
   readonly #sort: (columnId: string) => void;
 
@@ -47,6 +50,7 @@ export class KeyboardRouter<T> {
     plugins: PluginController<T>,
     data: DataController<T>,
     toggle: (index: number) => void,
+    toggleTree: (index: number) => void,
     sort: (columnId: string) => void,
   ) {
     this.#host = host;
@@ -57,14 +61,16 @@ export class KeyboardRouter<T> {
     this.#plugins = plugins;
     this.#data = data;
     this.#toggle = toggle;
+    this.#toggleTree = toggleTree;
     this.#sort = sort;
   }
 
   /**
    * Keys on a focused cell or header. The table's own come first: Shift+Tab out
-   * of the grid, plugins' keys, Alt+Arrow on a header (resize; with Shift, move),
-   * Enter or Space on a sortable header, Enter on a body cell (a click, or Retry
-   * on a failed row). The rest move the active cell (`NavigationController`).
+   * of the grid, plugins' keys, Right and Left in a tree's first data column
+   * (`#treeKey`), Alt+Arrow on a header (resize; with Shift, move), Enter or
+   * Space on a sortable header, Enter on a body cell (a click, or Retry on a
+   * failed row). The rest move the active cell (`NavigationController`).
    * Keys from content inside a cell (an input, a button) are left to that content.
    */
   readonly onKeydown = (event: KeyboardEvent) => {
@@ -133,6 +139,7 @@ export class KeyboardRouter<T> {
     const inHeader = cell.getAttribute('role') === 'columnheader';
     const { key } = event;
     const arrow = key === 'ArrowLeft' || key === 'ArrowRight';
+    if (!inHeader && arrow && this.#treeKey(event, cell, id)) return;
     if (inHeader && arrow && event.altKey) {
       event.preventDefault();
       // Logical: the arrow pointing toward the inline end grows the column, or
@@ -169,6 +176,40 @@ export class KeyboardRouter<T> {
     }
     this.#nav.key(event, cell, id, inHeader, scroller);
   };
+
+  /**
+   * Right or Left (logical, no modifier keys) on a body cell of a tree's first
+   * data column. Toward the inline end: expands a collapsed row with children.
+   * Toward the start: collapses an expanded row, else moves to the parent row's
+   * cell in that column. A row a filter keeps expanded doesn't collapse. `false`
+   * leaves the key to navigation: toward the end on an expanded row or a leaf,
+   * toward the start on a top-level row that can't collapse.
+   */
+  #treeKey(event: KeyboardEvent, cell: HTMLElement, id: string): boolean {
+    if (event.altKey || event.shiftKey || event.ctrlKey || event.metaKey) return false;
+    const model = this.#model();
+    if (!model.tree || id !== firstDataColumn(model.columns)) return false;
+    const at = gridRowOfCell(cell, layoutOf(model));
+    const index = at?.section === 'body' ? dataIndexOf(model, at.index) : undefined;
+    const info = index === undefined ? undefined : model.treeRow(index);
+    if (index === undefined || !info) return false;
+    const towardEnd = (event.key === 'ArrowRight') === (directionOf(this.#host) === 1);
+    if (towardEnd) {
+      if (!info.hasChildren || info.open) return false;
+      event.preventDefault();
+      this.#toggleTree(index);
+      return true;
+    }
+    if (info.open && !info.forced) {
+      event.preventDefault();
+      this.#toggleTree(index);
+      return true;
+    }
+    if (info.parent === undefined) return false;
+    event.preventDefault();
+    this.#nav.moveTo({ section: 'body', index: positionOfIndex(model, info.parent) }, id);
+    return true;
+  }
 
   /**
    * Escape inside a detail panel's content (not on its cell): focus goes back to

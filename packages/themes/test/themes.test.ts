@@ -132,12 +132,14 @@ describe.each(themes)('%s', (file) => {
   it('sets every documented colour token, so the theme is complete', () => {
     const set = new Set(rules.flatMap((r) => r.properties));
     for (const token of tokens) {
-      // Sizes stay per density in the element (and a panel's maximum is the app's), and the add-ons' monospace fonts
-      // fall back to the system's; a theme may leave them alone.
+      // Sizes stay per density in the element (and a panel's maximum and a tree's indent are
+      // the app's), and the add-ons' monospace fonts fall back to the system's; a theme may
+      // leave them alone.
       if (
         token === '--argus-row-height' ||
         token === '--argus-cell-padding-inline' ||
         token === '--argus-cell-padding-block' ||
+        token === '--argus-tree-indent' ||
         token === '--argus-detail-max-height' ||
         token.endsWith('-font')
       ) {

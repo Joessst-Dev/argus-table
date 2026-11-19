@@ -17,8 +17,11 @@ import type {
   FilterValue,
   PinnedRows,
   RowPin,
+  SelectionState,
   SortState,
+  TreeExpandedState,
 } from '../types.js';
+import type { BranchCheck, BranchTree } from '../state/selection.js';
 import type { DisplayRows } from './display-rows.js';
 
 /** Sort direction of a column, or `false` when it isn't sorted. */
@@ -112,6 +115,32 @@ export interface RowView<TData> {
   original: TData;
 }
 
+/** Where a row of the current order sits in a tree of rows (`TableModel.treeRow`). */
+export interface TreeRowInfo {
+  /** `0` for a top-level row, `1` for its children, and so on. */
+  depth: number;
+  /** Has children the filters keep. */
+  hasChildren: boolean;
+  /**
+   * What shows: open when it has children and its id is in `treeExpanded`, or
+   * holds a match while a filter is on (shown open whatever `treeExpanded`
+   * says). Always `false` without children.
+   */
+  open: boolean;
+  /**
+   * Shown open because a filter keeps a match under it (whatever `treeExpanded`
+   * says): its toggle can't change that until the filter clears. Always `false`
+   * without a filter or without children.
+   */
+  forced: boolean;
+  /** The parent's index in the current order; `undefined` for a top-level row. */
+  parent: number | undefined;
+  /** The number of its siblings the filters keep, itself included. */
+  setSize: number;
+  /** Its position among those siblings, 1-based. */
+  posInSet: number;
+}
+
 /**
  * Rows that live outside the model, loaded page by page (`dataSource`). The
  * source sorts them, so the model reads them as they are. `PageCache` implements it.
@@ -144,8 +173,31 @@ export interface TableModelOptions<TData, TContent> {
    * doesn't sort them (the source does).
    */
   remote?: RemoteRows<TData> | undefined;
-  /** Row id function. Default: the row's index in `data`, as a string. */
+  /**
+   * Row id function, given each row with its source index (see `getSubRows`).
+   * Default: the row's index in `data`, as a string; for a nested child, its
+   * parent's id, a dot and its index among its siblings (`'3.0.2'`).
+   */
   getRowId: ((row: TData, index: number) => string) | undefined;
+  /**
+   * Nested data: a row's children. `data` holds the top-level rows, and the rows
+   * form a tree. Rows are then known by their source index: a top-level row's
+   * index in `data`, and from `data.length` on, the nested children in
+   * depth-first order. Wins over `getParentId`. Ignored with `remote`.
+   */
+  getSubRows?: ((row: TData) => readonly TData[] | undefined) | undefined;
+  /**
+   * Flat data: the id of a row's parent (an id `getRowId` gives), or `null` or
+   * `undefined` for a top-level row. `data` holds every row, and the rows form a
+   * tree. Ignored with `remote`.
+   */
+  getParentId?: ((row: TData) => string | null | undefined) | undefined;
+  /**
+   * The ids of the tree's expanded rows: the children of the others aren't in the
+   * current order. While a filter is on, rows holding a match are shown open too.
+   * Its owner is the caller.
+   */
+  treeExpanded?: TreeExpandedState | undefined;
   /** Current sort state; its owner is the caller (see `controllable`). */
   sorting: SortState;
   /** Current resized widths; its owner is the caller. */
@@ -249,6 +301,35 @@ export interface TableModel<TData, TContent> {
   nextExpanded(rowId: string, open: boolean, base?: ExpandedState): ExpandedState | undefined;
   /** The row at an index of the current row model; `undefined` for a remote row not loaded yet. */
   rowAt(index: number): RowView<TData> | undefined;
+  /**
+   * Whether the rows form a tree: `getSubRows` or `getParentId` is set, and the
+   * rows aren't remote. The current order then holds the rows shown: children of
+   * collapsed rows are out of it, like rows the filters drop.
+   */
+  readonly tree: boolean;
+  /** Where the row at an index of the current order sits in the tree; `undefined` without a tree. */
+  treeRow(index: number): TreeRowInfo | undefined;
+  /**
+   * `treeExpanded` after expanding or collapsing a row, starting from `base`
+   * (default: the current `treeExpanded`). `undefined` without a tree, for an
+   * unknown row or one without children (filters not applied), or no change.
+   */
+  nextTreeExpanded(
+    rowId: string,
+    open: boolean,
+    base?: TreeExpandedState,
+  ): TreeExpandedState | undefined;
+  /**
+   * The index in the current order of the row itself when it's shown, else of its
+   * nearest shown ancestor (for a row under a collapsed row or filtered out).
+   * `undefined` without a tree, for an unknown id, or when no ancestor is shown.
+   */
+  shownAncestor(rowId: string): number | undefined;
+  /**
+   * The row object at a source index: `data[index]` without a tree or with flat
+   * data, and nested children from `data.length` on (see `getSubRows`).
+   */
+  sourceRow(index: number): TData | undefined;
   /** The index of a row id in the current row model (after filtering and sorting), or `undefined`. */
   indexOf(rowId: string): number | undefined;
   /**
@@ -256,6 +337,43 @@ export interface TableModel<TData, TContent> {
    * model, or only the loaded ones for remote rows.
    */
   selectableIds(): string[];
+  /**
+   * Select-all with branches: `current` plus every row the filters keep
+   * (collapsed ones included, depth-first), where a parent's id is added only
+   * when its whole branch ends up selected, filters not applied; kept parents
+   * selected against that rule lose their ids. What `withBranches` gives for
+   * every kept row, in one pass over typed arrays. `selected` is `current` as a
+   * set (made here when not given). `current` as it is without a tree.
+   */
+  branchSelectAll(current: readonly string[], selected?: ReadonlySet<string>): SelectionState;
+  /**
+   * The rows the filters keep as a tree of ids (collapsed rows don't matter),
+   * with each row's children in the whole tree, for `withBranches` and
+   * `toggleBranch`; `undefined` without a tree. Kept per filter and sort
+   * result.
+   */
+  branchTree(): BranchTree | undefined;
+  /**
+   * Each row's checkbox state for a selection, by index in the current order:
+   * `'all'` when its id and every kept descendant (under collapsed rows too)
+   * are selected, `'some'` when any of them is; `'blocked'` when ticking it
+   * could select nothing (its id kept out by descendants left unselected, none
+   * of its kept descendants tickable), and blocked rows don't count as
+   * unselected rows of their ancestors' branches. A selection that breaks the
+   * branch rules (a parent without all its children) shows as it is. One pass
+   * per selection `Set` and filter and sort result. Needs a tree: without one,
+   * every row is `'none'`.
+   */
+  branchCheck(selected: ReadonlySet<string>): (index: number) => BranchCheck;
+  /**
+   * The select-all checkbox with branches, for a selection: `'all'` when every
+   * row the filters keep that isn't blocked counts as checked (as
+   * `toggleBranch` decides), `'some'` when any of them is selected, else
+   * `'none'`; `'blocked'` when every row the filters keep is blocked (or there
+   * are none), so select-all could select nothing. Worked out and kept with
+   * `branchCheck`.
+   */
+  branchCheckAll(selected: ReadonlySet<string>): BranchCheck;
   /** The value a column reads from the row at `index`. */
   valueAt(index: number, columnId: string): unknown;
   /** The value a column reads from any row object, as its accessor gets it at `index`. */
@@ -331,8 +449,10 @@ export interface TableModel<TData, TContent> {
     limit?: number,
   ): { values: FilterValue[]; truncated: boolean } | undefined;
   /**
-   * The indexes in `data` of the rows the column filters and the quick filter keep,
-   * ascending (not sorted), leaving out the filters on the `except` columns and their
+   * The source indexes (see `getSubRows`; indexes in `data` without nested rows) of
+   * the rows the column filters and the quick filter keep, with the ancestors of
+   * those in a tree (rows under collapsed rows included), ascending (not sorted),
+   * leaving out the filters on the `except` columns and their
    * text in the quick filter. `undefined` for remote rows. Reads only the core rows
    * and the other columns' accessors, so an accessor of an `except` column can call it
    * while the model filters or sorts.

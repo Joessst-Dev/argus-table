@@ -11,6 +11,8 @@ interface Row {
   price: number;
   qty: number;
   info?: { unit: string };
+  children?: Row[];
+  parent?: string;
 }
 
 const data: Row[] = [
@@ -427,6 +429,107 @@ describe('whole columns', () => {
     el.columnFilters = { ...el.columnFilters, share: { kind: 'number', op: 'ge', value: 0 } };
     await settle(el);
     expect(accessor('share')).toBe(after);
+  });
+
+  /** A parent with two children (quantities 2 and 3), and a leaf. */
+  const nested: Row[] = [
+    {
+      id: 'p',
+      name: 'Parent',
+      price: 1,
+      qty: 1,
+      children: [
+        { id: 'p0', name: 'Child 0', price: 1, qty: 2 },
+        { id: 'p1', name: 'Child 1', price: 1, qty: 3 },
+      ],
+    },
+    { id: 'q', name: 'Other', price: 1, qty: 4 },
+  ];
+  const total: ColumnDef<Row> = { id: 'total', header: 'Total', formula: 'SUM([[qty]])' };
+
+  test('include nested children', async () => {
+    const el = await fixture({
+      data: nested,
+      getSubRows: (r) => r.children,
+      treeExpanded: ['p'],
+      columns: withFormulas(total),
+    });
+    expect(texts(el, 'name')).toEqual(['Parent', 'Child 0', 'Child 1', 'Other']);
+    expect(texts(el, 'total')).toEqual(['10', '10', '10', '10']);
+    // Rows under a collapsed row are data too.
+    el.treeExpanded = [];
+    await settle(el);
+    expect(texts(el, 'total')).toEqual(['10', '10']);
+  });
+
+  test('a new getSubRows recomputes them', async () => {
+    const el = await fixture({
+      data: nested,
+      getSubRows: (r) => r.children,
+      treeExpanded: ['p'],
+      columns: withFormulas(total),
+    });
+    el.getSubRows = (r) => r.children?.slice(0, 1);
+    await settle(el);
+    expect(texts(el, 'name')).toEqual(['Parent', 'Child 0', 'Other']);
+    expect(texts(el, 'total')).toEqual(['7', '7', '7']);
+  });
+
+  test('cover the ancestors a filter keeps for a match', async () => {
+    const el = await fixture({
+      data: nested,
+      getSubRows: (r) => r.children,
+      columns: filterable(total),
+      columnFilters: { name: { kind: 'text', op: 'contains', value: 'Child 1' } },
+    });
+    expect(texts(el, 'name')).toEqual(['Parent', 'Child 1']);
+    // Parent 1 and Child 1 3.
+    expect(texts(el, 'total')).toEqual(['4', '4']);
+  });
+
+  test('keep their accessors when rows expand or collapse', async () => {
+    let seen: readonly ColumnDef<Row, unknown>[] = [];
+    const spy: ArgusPlugin<Row> = {
+      name: 'spy',
+      columns(defs) {
+        seen = defs;
+        return defs;
+      },
+    };
+    const el = await fixture({
+      data: nested,
+      getSubRows: (r) => r.children,
+      columns: withFormulas(total),
+      plugins: [formulas(), spy],
+    });
+    const before = seen.find((d) => d.id === 'total')?.accessor;
+    expect(before).toBeTypeOf('function');
+    el.treeExpanded = ['p'];
+    await settle(el);
+    expect(texts(el, 'name')).toEqual(['Parent', 'Child 0', 'Child 1', 'Other']);
+    expect(seen.find((d) => d.id === 'total')?.accessor).toBe(before);
+  });
+
+  test('a new getParentId recomputes them', async () => {
+    const flat: Row[] = [
+      { id: 'p', name: 'Parent', price: 1, qty: 1 },
+      { id: 'p0', name: 'Child 0', price: 1, qty: 2, parent: 'p' },
+      { id: 'p1', name: 'Child 1', price: 1, qty: 3, parent: 'p' },
+      { id: 'q', name: 'Other', price: 1, qty: 4 },
+    ];
+    const el = await fixture({
+      data: flat,
+      getParentId: (r) => r.parent,
+      columns: filterable(total),
+      columnFilters: { name: { kind: 'text', op: 'contains', value: 'Child' } },
+    });
+    // The parent is kept for its children's match.
+    expect(texts(el, 'name')).toEqual(['Parent', 'Child 0', 'Child 1']);
+    expect(texts(el, 'total')).toEqual(['6', '6', '6']);
+    el.getParentId = () => null;
+    await settle(el);
+    expect(texts(el, 'name')).toEqual(['Child 0', 'Child 1']);
+    expect(texts(el, 'total')).toEqual(['5', '5']);
   });
 
   test('are #N/A with a dataSource, whose rows aren’t all loaded', async () => {

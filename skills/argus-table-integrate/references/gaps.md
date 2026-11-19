@@ -1,6 +1,6 @@
 # Gaps
 
-Features of other tables that argus-table doesn't have. For each: what to tell the user, and what you can offer. Name them before any edit (workflow B2). If a screen depends on one of the hard gaps (row grouping, tree data, range selection), recommend keeping the old table on that screen and migrating the others.
+Features of other tables that argus-table doesn't have. For each: what to tell the user, and what you can offer. Name them before any edit (workflow B2). If a screen depends on one of the hard gaps (row grouping, range selection), recommend keeping the old table on that screen and migrating the others.
 
 ## pagination
 
@@ -17,11 +17,13 @@ No grouping by column values, no group rows, no aggregation, no pivot.
 - **Workarounds:** sort by the group column and render it as the first column; compute group totals and show them in `pinnedRows.bottom` (one total row) or a summary outside the table; for a few groups, one table per group.
 - Keep the old grid when users collapse and expand groups.
 
-## tree-data
+## lazy-trees
 
-No hierarchical rows (sub-rows, `getSubRows`, `treeData`, expand/collapse).
+Tree rows held in memory are supported since 1.4: nested children with `getSubRows`, or flat rows with `getParentId`, expanded with `treeExpanded` (see the library's guide). Trees whose children load from the server when a row is expanded are not, yet: Element Plus `lazy` with `:load`, PrimeNG/PrimeVue lazy tree tables (`onNodeExpand` loading children), AG Grid's server-side tree data (`isServerSideGroup`, `getServerSideGroupKey`), MUI X lazy-loaded tree data (a data source with `getChildrenCount`). With a `dataSource`, `getSubRows` and `getParentId` are ignored (with a console warning) and the rows show flat; children from the server are planned for a later release.
 
-- **Workaround:** flatten the tree with a depth per row, indent the first column's `cell` by depth, and show or hide children by filtering `data` when a toggle button in the cell is clicked (keep the expanded ids in state). Works for small trees; sorting then sorts across levels unless you sort within parents yourself.
+- **Ask first:** how many rows the whole tree has, and whether the server can return it in one request (or could, with a new endpoint). Offer the workaround only when it can.
+- **Workaround:** load the whole tree (every row, or every row with its parent's id) and pass it as `data` with `getSubRows` or `getParentId`. The table virtualizes the shown rows and sorts and filters within the tree itself; what limits this is loading the whole tree in one request.
+- Keep the old table when the tree is too large to load at once.
 
 ## range-selection
 

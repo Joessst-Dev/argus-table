@@ -3,7 +3,15 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { ArgusTable } from './argus-table.js';
 import type { ExpandedChangeDetail } from './types.js';
 import { setMaxElementHeightForTests } from './max-height.js';
-import { fixture, people, scrollTo, settle, shadow, type Person } from './test-utils.js';
+import {
+  chevronPointing,
+  fixture,
+  people,
+  scrollTo,
+  settle,
+  shadow,
+  type Person,
+} from './test-utils.js';
 
 const columns = [
   { id: 'name', header: 'Name', accessor: 'name' },
@@ -130,6 +138,15 @@ describe('detail rows: the toggle column', () => {
     expect(cellClicks).toEqual([]);
     expect(rowClicks).toEqual([]);
     expect(el.selection).toEqual([]);
+  });
+
+  it('points the chevron toward the row end while closed, down while open, in either direction', async () => {
+    for (const dir of ['ltr', 'rtl']) {
+      const el = await detailTable({ dir, expanded: ['p1'] });
+      expect(chevronPointing(toggleOf(rowAt(el, 2)))).toBe('end');
+      expect(chevronPointing(toggleOf(rowAt(el, 3)))).toBe('down');
+      el.remove();
+    }
   });
 
   it('translates the chevron', async () => {

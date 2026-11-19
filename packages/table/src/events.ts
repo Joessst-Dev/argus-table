@@ -12,6 +12,7 @@ import type {
   RowClickDetail,
   SelectionChangeDetail,
   SortingChangeDetail,
+  TreeExpandedChangeDetail,
 } from '@argus-table/core';
 
 // A change of controllable state fires `argus-<property>-change`, with the value
@@ -49,6 +50,9 @@ export const SELECTION_CHANGE = 'argus-selection-change';
 /** `expanded` changed (uncontrolled), or the proposed ids (controlled). */
 export const EXPANDED_CHANGE = 'argus-expanded-change';
 
+/** `treeExpanded` changed (uncontrolled), or the proposed ids (controlled). */
+export const TREE_EXPANDED_CHANGE = 'argus-tree-expanded-change';
+
 /** Fired when a body row was clicked, after `argus-cell-click`. */
 export const ROW_CLICK = 'argus-row-click';
 
@@ -70,6 +74,7 @@ declare global {
     'argus-column-filters-change': CustomEvent<ColumnFiltersChangeDetail>;
     'argus-selection-change': CustomEvent<SelectionChangeDetail>;
     'argus-expanded-change': CustomEvent<ExpandedChangeDetail>;
+    'argus-tree-expanded-change': CustomEvent<TreeExpandedChangeDetail>;
     'argus-row-click': CustomEvent<RowClickDetail<unknown>>;
     'argus-cell-click': CustomEvent<CellClickDetail<unknown>>;
     'argus-load-error': CustomEvent<LoadErrorDetail>;

@@ -23,6 +23,7 @@ import type {
   RowDetailContext,
   SelectionChangeDetail,
   SortingChangeDetail,
+  TreeExpandedChangeDetail,
 } from 'argus-table';
 import type { CellEditDetail } from '../cell-edit-events.js';
 import type { FormulaColumnChangeDetail, FormulaColumnDetail } from '../formula-events.js';
@@ -42,6 +43,8 @@ export type ArgusTableElementProps<T = unknown> = Partial<
     | 'dataSource'
     | 'pinnedRows'
     | 'getRowId'
+    | 'getSubRows'
+    | 'getParentId'
     | 'rowHeight'
     | 'density'
     | 'overscan'
@@ -57,8 +60,10 @@ export type ArgusTableElementProps<T = unknown> = Partial<
     | 'selectionMode'
     | 'selectionCheckboxes'
     | 'selection'
+    | 'selectBranches'
     | 'rowExpandable'
     | 'expanded'
+    | 'treeExpanded'
     | 'plugins'
     | 'labels'
   >
@@ -88,9 +93,11 @@ export interface ArgusTableEventProps<T = unknown> {
   onSelectionChange?: (event: CustomEvent<SelectionChangeDetail>) => void;
   /** `argus-expanded-change`: `expanded` changed: a row's detail panel was opened or closed with its chevron (a click, or Enter or Space on the chevron cell). Only with `rowDetail`. `detail: { expanded, rowId, open }`: `open` is `true` when it was opened. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
   onExpandedChange?: (event: CustomEvent<ExpandedChangeDetail>) => void;
-  /** `argus-cell-click`: A body or pinned-row cell was clicked, or Enter was pressed on it. `detail: { row, rowId, index, columnId, value, pinned? }`; `pinned` is `'top'` or `'bottom'` for a pinned row, and `index` is then its index in its list. Fires before `argus-row-click`. */
+  /** `argus-tree-expanded-change`: `treeExpanded` changed: a row of a tree was expanded or collapsed with its toggle (a click) or with Right or Left on its cell in the tree column; not for a row a filter keeps expanded. Only with `getSubRows` or `getParentId`. `detail: { treeExpanded, rowId, open }`: `open` is `true` when it was expanded. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
+  onTreeExpandedChange?: (event: CustomEvent<TreeExpandedChangeDetail>) => void;
+  /** `argus-cell-click`: A body or pinned-row cell was clicked, or Enter was pressed on it. `detail: { row, rowId, index, columnId, value, pinned?, depth? }`; `pinned` is `'top'` or `'bottom'` for a pinned row, and `index` is then its index in its list. `depth` is a body row's level in a tree (`0` for a top-level row), set only when the rows form one. Fires before `argus-row-click`. */
   onCellClick?: (event: CustomEvent<CellClickDetail<T>>) => void;
-  /** `argus-row-click`: A body or pinned row was clicked, or Enter was pressed on one of its cells. `detail: { row, rowId, index, pinned? }`; for a pinned row, `index` is its index in its list. */
+  /** `argus-row-click`: A body or pinned row was clicked, or Enter was pressed on one of its cells. `detail: { row, rowId, index, pinned?, depth? }`; for a pinned row, `index` is its index in its list. `depth` is a body row's level in a tree (`0` for a top-level row), set only when the rows form one. */
   onRowClick?: (event: CustomEvent<RowClickDetail<T>>) => void;
   /** `argus-range-change`: The rows in view changed (rows rendered ahead of the scroll position not counted). `detail: { first, last }` (row indices in the current order, both inclusive). */
   onRangeChange?: (event: CustomEvent<RangeChangeDetail>) => void;
@@ -102,7 +109,7 @@ export interface ArgusTableEventProps<T = unknown> {
   onFormulaColumnChange?: (event: CustomEvent<FormulaColumnChangeDetail<T>>) => void;
   /** `argus-formula-column-remove`: From `formulas()` (`@argus-table/formulas`): the formula editor proposes removing a formula column. The table doesn't change its columns: set `columns` to `detail.columns` to apply it. `detail: { column, columns }`. */
   onFormulaColumnRemove?: (event: CustomEvent<FormulaColumnDetail<T>>) => void;
-  /** `argus-cell-edit`: From `cellEditing()` (`@argus-table/editing`): an edit was committed with a new value. The table doesn't change its data: apply it yourself, for example with `applyEdit()`. `detail: { row, rowId, index, columnId, value, previous, pinned? }`. */
+  /** `argus-cell-edit`: From `cellEditing()` (`@argus-table/editing`): an edit was committed with a new value. The table doesn't change its data: apply it yourself, for example with `applyEdit()`. `detail: { row, rowId, index, columnId, value, previous, pinned?, depth? }`; `depth` is the row's level in a tree, set only when the rows form one. */
   onCellEdit?: (event: CustomEvent<CellEditDetail<T>>) => void;
 }
 
@@ -134,6 +141,7 @@ export const ArgusTable = withContent(
         onColumnFiltersChange: 'argus-column-filters-change',
         onSelectionChange: 'argus-selection-change',
         onExpandedChange: 'argus-expanded-change',
+        onTreeExpandedChange: 'argus-tree-expanded-change',
         onCellClick: 'argus-cell-click',
         onRowClick: 'argus-row-click',
         onRangeChange: 'argus-range-change',
@@ -155,6 +163,7 @@ export const ArgusTable = withContent(
       'onColumnFiltersChange',
       'onSelectionChange',
       'onExpandedChange',
+      'onTreeExpandedChange',
       'onCellClick',
       'onRowClick',
       'onRangeChange',

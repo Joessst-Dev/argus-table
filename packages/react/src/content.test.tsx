@@ -478,3 +478,48 @@ describe('React content in detail panels', () => {
     expect(el.querySelector('button.counter')).not.toBeNull();
   });
 });
+
+describe('React tree rows', () => {
+  interface Node {
+    id: string;
+    name: string;
+    kids?: Node[];
+  }
+  const nodes: Node[] = [
+    { id: 'a', name: 'A', kids: [{ id: 'a1', name: 'A1' }] },
+    { id: 'b', name: 'B' },
+  ];
+  const nodeColumns: ReactColumnDef<Node>[] = [{ id: 'name', header: 'Name', accessor: 'name' }];
+  const nodeId = (node: Node) => node.id;
+  const kidsOf = (node: Node) => node.kids;
+
+  test('binds treeExpanded two-way', async () => {
+    const seen: (readonly string[])[] = [];
+    function Table() {
+      const [treeExpanded, setTreeExpanded] = useState<readonly string[]>([]);
+      return (
+        <ArgusTable<Node>
+          style={size}
+          columns={nodeColumns}
+          data={nodes}
+          getRowId={nodeId}
+          getSubRows={kidsOf}
+          treeExpanded={treeExpanded}
+          onTreeExpandedChange={(event) => {
+            seen.push(event.detail.treeExpanded);
+            setTreeExpanded(event.detail.treeExpanded);
+          }}
+        />
+      );
+    }
+    const el = await mount(<Table />);
+    expect(el.textContent).not.toContain('A1');
+    act(() => {
+      el.shadowRoot?.querySelector<HTMLButtonElement>('[part~="tree-toggle"]')?.click();
+    });
+    await settle(el);
+    expect(seen).toEqual([['a']]);
+    expect(el.treeExpanded).toEqual(['a']);
+    expect(el.textContent).toContain('A1');
+  });
+});

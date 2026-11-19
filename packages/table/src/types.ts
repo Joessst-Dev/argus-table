@@ -89,4 +89,6 @@ export type {
   TableState,
   TextFilter,
   TextFilterOp,
+  TreeExpandedChangeDetail,
+  TreeExpandedState,
 } from '@argus-table/core';

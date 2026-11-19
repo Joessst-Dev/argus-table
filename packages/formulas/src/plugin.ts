@@ -96,22 +96,23 @@ interface TableState<T> {
   restarting: boolean;
 }
 
-/** What the rows of whole columns depend on: the data, and the rest as JSON. */
+/** What the rows of whole columns depend on: the data and a tree's functions, the rest as JSON. */
 interface RowsKey {
-  data: unknown;
+  data: readonly unknown[];
   rest: string;
 }
 
 /**
- * What the rows of whole columns depend on: the data, the filters (but those on
- * the columns using whole columns, `dependent`), the quick filter and the
- * columns shown (which it searches).
+ * What the rows of whole columns depend on: the data (or data source) and a
+ * tree's `getSubRows` and `getParentId`, the filters (but those on the columns
+ * using whole columns, `dependent`), the quick filter and the columns shown
+ * (which it searches).
  */
 function rowsKey<T>(host: PluginHost<T>, compiled: ReadonlyMap<string, Compiled<T>>): RowsKey {
   const el = host.element;
   const filters = Object.entries(el.columnFilters).filter(([id]) => !compiled.get(id)?.ranges);
   return {
-    data: el.dataSource ?? el.data,
+    data: [el.dataSource ?? el.data, el.getSubRows, el.getParentId],
     rest: JSON.stringify([filters, el.quickFilter, el.columnVisibility]),
   };
 }
@@ -120,12 +121,21 @@ function rowsKey<T>(host: PluginHost<T>, compiled: ReadonlyMap<string, Compiled<
 const RESTARTS = ['dataSource', 'sorting', 'columnFilters', 'quickFilter'];
 
 /** The table's properties the rows of whole columns depend on (see `rowsKey`). */
-const ROW_PROPERTIES = ['data', 'dataSource', 'columnFilters', 'quickFilter', 'columnVisibility'];
+const ROW_PROPERTIES = [
+  'data',
+  'dataSource',
+  'getSubRows',
+  'getParentId',
+  'columnFilters',
+  'quickFilter',
+  'columnVisibility',
+];
 
 const usesRanges = <T>(compiled: ReadonlyMap<string, Compiled<T>>) =>
   [...compiled.values()].some((c) => c.ranges);
 
-const sameKey = (a: RowsKey, b: RowsKey | undefined) => a.data === b?.data && a.rest === b?.rest;
+const sameKey = (a: RowsKey, b: RowsKey | undefined) =>
+  a.rest === b?.rest && a.data.every((item, i) => item === b.data[i]);
 
 const errorContent = (error: FormulaError) =>
   html`<span class="argus-formula-error" title=${error.message}>${error.code}</span>`;

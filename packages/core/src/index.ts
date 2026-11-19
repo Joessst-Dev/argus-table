@@ -38,6 +38,7 @@ export {
   type SortDirection,
   type TableModel,
   type TableModelOptions,
+  type TreeRowInfo,
 } from './table/create-table.js';
 export { RowLayout, type GridRow, type GridSection } from './grid/row-layout.js';
 export { DisplayRows, type DisplayRow } from './table/display-rows.js';
@@ -47,7 +48,11 @@ export {
   sameSelection,
   selectAll,
   selectRange,
+  toggleBranch,
   toggleRow,
+  withBranches,
+  type BranchCheck,
+  type BranchTree,
   type SelectionModifiers,
   type SelectionStep,
   type SelectionTarget,

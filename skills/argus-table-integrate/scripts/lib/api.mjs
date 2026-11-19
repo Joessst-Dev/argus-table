@@ -107,6 +107,8 @@ export const PROPERTIES = {
   dataSource: null,
   pinnedRows: null,
   getRowId: null,
+  getSubRows: null,
+  getParentId: null,
   rowHeight: 'row-height',
   density: 'density',
   overscan: 'overscan',
@@ -122,9 +124,11 @@ export const PROPERTIES = {
   selectionMode: 'selection-mode',
   selectionCheckboxes: 'selection-checkboxes',
   selection: null,
+  selectBranches: 'select-branches',
   rowDetail: null,
   rowExpandable: null,
   expanded: null,
+  treeExpanded: null,
   plugins: null,
   labels: null,
 };
@@ -142,6 +146,7 @@ export const CONTROLLABLES = [
   'columnFilters',
   'selection',
   'expanded',
+  'treeExpanded',
 ];
 
 /** The element's events. */
@@ -155,6 +160,7 @@ export const EVENTS = [
   'argus-column-filters-change',
   'argus-selection-change',
   'argus-expanded-change',
+  'argus-tree-expanded-change',
   'argus-cell-click',
   'argus-row-click',
   'argus-range-change',

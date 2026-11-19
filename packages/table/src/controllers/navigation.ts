@@ -574,8 +574,9 @@ export class NavigationController<T> {
 
   /**
    * Keeps the active cell valid after columns or rows change. In the body: on the
-   * same row id when it still exists (it may have moved), else at the same
-   * index, clamped. A data source row that isn't loaded (yet, or any more) keeps
+   * same row id when it still exists (it may have moved), else (a tree row under a
+   * collapsed row, or filtered out) on its nearest shown ancestor, else at the
+   * same index, clamped. A data source row that isn't loaded (yet, or any more) keeps
    * its id. A pinned row stays at its index, clamped to its list. A row whose
    * section has no rows left gives way to the header, the default. If its row
    * went away while the grid had focus, focus follows to the replacement.
@@ -619,6 +620,10 @@ export class NavigationController<T> {
       // A row not loaded yet keeps its stand-in id, which holds its data index:
       // its position follows panels that appear above it.
       const held = found === undefined ? this.#placeholderIndex(rowId) : undefined;
+      // A tree row out of the shown rows (its parent collapsed, or a filter
+      // dropped it): to its nearest shown ancestor.
+      const ancestor =
+        found === undefined && model.tree ? model.shownAncestor(owner ?? rowId) : undefined;
       if (held !== undefined && held < model.rowCount && model.rowAt(held) === undefined) {
         index = display.positionOf(held);
       } else if (found !== undefined) {
@@ -629,6 +634,10 @@ export class NavigationController<T> {
           rowId = owner;
           moved = true;
         }
+      } else if (ancestor !== undefined) {
+        index = display.positionOf(ancestor);
+        rowId = this.rowId(model, ancestor);
+        moved = true;
       } else if (!unloaded) {
         index = Math.min(index, display.count - 1);
         rowId = index >= 0 ? this.gridRowId(model, { section: 'body', index }) : undefined;

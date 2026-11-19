@@ -491,3 +491,60 @@ describe('Angular content in detail panels', () => {
     expect(el.querySelector('p.detail')?.textContent).toBe('Customer 0');
   });
 });
+
+interface TreeNode {
+  id: string;
+  name: string;
+  kids?: TreeNode[];
+}
+
+@Component({
+  imports: [ARGUS_TABLE],
+  template: `
+    <output class="tree-expanded">{{ treeExpanded().join(',') }}</output>
+    <argus-table
+      style="${SIZE}"
+      [columns]="columns"
+      [data]="nodes"
+      [getRowId]="idOf"
+      [getSubRows]="kidsOf"
+      [(treeExpanded)]="treeExpanded"
+    >
+      <ng-template argusCell="name" [argusCellOf]="nodes" let-row let-depth="depth">
+        <span class="name">{{ row.name }} {{ depth }}</span>
+      </ng-template>
+    </argus-table>
+  `,
+})
+class Tree {
+  readonly nodes: TreeNode[] = [
+    { id: 'a', name: 'A', kids: [{ id: 'a1', name: 'A1' }] },
+    { id: 'b', name: 'B' },
+  ];
+  readonly columns: AngularColumnDef<TreeNode>[] = [
+    { id: 'name', header: 'Name', accessor: 'name' },
+  ];
+  readonly idOf = (node: TreeNode) => node.id;
+  readonly kidsOf = (node: TreeNode) => node.kids;
+  readonly treeExpanded = signal<readonly string[]>([]);
+}
+
+describe('Angular tree rows', () => {
+  test('binds treeExpanded two-way', async () => {
+    const { fixture, el, host } = await mount(Tree);
+    expect(el.textContent).not.toContain('A1');
+    el.shadowRoot?.querySelector<HTMLButtonElement>('[part~="tree-toggle"]')?.click();
+    await settle(fixture, el);
+    expect(host.treeExpanded()).toEqual(['a']);
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('output.tree-expanded')?.textContent,
+    ).toBe('a');
+    expect(el.textContent).toContain('A1');
+    // The cell template gets the row's depth.
+    expect([...el.querySelectorAll('span.name')].map((s) => s.textContent).sort()).toEqual([
+      'A 0',
+      'A1 1',
+      'B 0',
+    ]);
+  });
+});

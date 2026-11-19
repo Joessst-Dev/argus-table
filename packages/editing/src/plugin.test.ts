@@ -17,6 +17,7 @@ interface Row {
   qty: number | null;
   status: string;
   locked?: boolean;
+  children?: Row[];
 }
 
 const rows = (): Row[] => [
@@ -94,7 +95,13 @@ async function fixture(
   el.addEventListener('argus-cell-edit', (event) => {
     const detail = event.detail as CellEditDetail<Row>;
     edits.push(detail);
-    el.data = applyEdit(el.data, detail, el.columns);
+    const { getSubRows } = el;
+    el.data = applyEdit(
+      el.data,
+      detail,
+      el.columns,
+      getSubRows && { getSubRows, setSubRows: (row, children) => ({ ...row, children }) },
+    );
   });
   document.body.append(el);
   await settle(el);
@@ -264,6 +271,40 @@ describe('cellEditing', () => {
     await settle(el);
     expect(editor(el)).toBeNull();
     expect(edits.at(-1)).toMatchObject({ rowId: 'c', value: 'Cy' });
+  });
+
+  test("a double-click on a cell's button is the button's, even on its icon's shadow DOM", async () => {
+    if (!customElements.get('x-edit-icon')) {
+      customElements.define(
+        'x-edit-icon',
+        class extends HTMLElement {
+          constructor() {
+            super();
+            this.attachShadow({ mode: 'open' }).innerHTML =
+              '<span style="display:inline-block;inline-size:16px;block-size:16px"></span>';
+          }
+        },
+      );
+    }
+    const withButton = columns.map((c) =>
+      c.id === 'name'
+        ? {
+            ...c,
+            cell: (row: Row) =>
+              html`<button type="button"><x-edit-icon></x-edit-icon></button> ${row.name}`,
+          }
+        : c,
+    );
+    const { el } = await fixture({}, { columns: withButton });
+    const icon = el.querySelector('x-edit-icon');
+    if (!icon) throw new Error('no icon');
+    await userEvent.dblClick(icon);
+    await settle(el);
+    expect(editor(el)).toBeNull();
+    // The cell's own padding still edits.
+    await userEvent.dblClick(cellOf(el, 0, 'name'), { position: { x: 2, y: 2 } });
+    await settle(el);
+    expect(document.activeElement).toBe(editor(el));
   });
 
   test("Enter on a column that isn't editable is still a click", async () => {
@@ -458,6 +499,113 @@ describe('more editors', () => {
   });
 });
 
+describe('tree rows', () => {
+  /** Ann with two children (Abe, Amy), and Bob. */
+  const tree = (): Row[] => [
+    {
+      id: 'a',
+      name: 'Ann',
+      qty: 3,
+      status: 'open',
+      children: [
+        { id: 'a0', name: 'Abe', qty: 1, status: 'open' },
+        { id: 'a1', name: 'Amy', qty: 2, status: 'done' },
+      ],
+    },
+    { id: 'b', name: 'Bob', qty: 10, status: 'done' },
+  ];
+  /** The columns with the editable name column first: the tree column. */
+  const named = [...columns.slice(1, 2), ...columns.slice(0, 1), ...columns.slice(2)];
+  /** Starts with the first row expanded, leaving `treeExpanded` to the table (uncontrolled). */
+  const treeFixture = async (props: Partial<ArgusTable<Row>> = {}) => {
+    const mounted = await fixture(
+      {},
+      {
+        columns: named,
+        data: tree(),
+        getSubRows: (r: Row) => r.children,
+        treeExpanded: ['a'],
+        ...props,
+      },
+    );
+    mounted.el.treeExpanded = undefined;
+    await settle(mounted.el);
+    return mounted;
+  };
+  /** The names the body shows, in order. */
+  const names = (el: ArgusTable<Row>) =>
+    [...(el.shadowRoot?.querySelectorAll<HTMLElement>('[part~="row"]') ?? [])]
+      .sort(
+        (a, b) => Number(a.getAttribute('aria-rowindex')) - Number(b.getAttribute('aria-rowindex')),
+      )
+      .map((row) => textOf(row.querySelector<HTMLElement>('[data-col="name"]') ?? row));
+
+  test('the edit event carries depth; the edit keeps rows expanded and selected', async () => {
+    // Default ids: '0', '0.0', '0.1', '1'.
+    const { el, edits } = await treeFixture({
+      getRowId: undefined,
+      treeExpanded: ['0'],
+      selectionMode: 'multi',
+      selection: ['0.1'],
+    });
+    expect(names(el)).toEqual(['Ann', 'Abe', 'Amy', 'Bob']);
+    const [ann] = el.data;
+    await focusCell(el, 1, 'qty');
+    await press(el, '{Enter}5{Enter}');
+    expect(edits.at(-1)).toMatchObject({ rowId: '0.0', index: 1, value: 5, depth: 1 });
+    expect(el.data[0]).not.toBe(ann);
+    expect(el.data[0]?.children?.[0]?.qty).toBe(5);
+    expect(textOf(cellOf(el, 1, 'qty'))).toBe('5');
+    expect(names(el)).toEqual(['Ann', 'Abe', 'Amy', 'Bob']);
+    expect(el.selection).toEqual(['0.1']);
+    await focusCell(el, 3, 'qty');
+    await press(el, '{Enter}7{Enter}');
+    expect(edits.at(-1)).toMatchObject({ rowId: '1', value: 7, depth: 0 });
+  });
+
+  test('a double-click on the toggle opens no editor; on the text it does', async () => {
+    const { el } = await treeFixture();
+    const toggle = cellOf(el, 0, 'name').querySelector<HTMLElement>('[part~="tree-toggle"]');
+    if (!toggle) throw new Error('no toggle');
+    const toggled = vi.fn();
+    el.addEventListener('argus-tree-expanded-change', toggled);
+    await userEvent.dblClick(toggle);
+    await settle(el);
+    expect(editor(el)).toBeNull();
+    expect(toggled).toHaveBeenCalledTimes(2);
+    // Two clicks: collapsed, then expanded again.
+    expect(names(el)).toEqual(['Ann', 'Abe', 'Amy', 'Bob']);
+    const text = cellOf(el, 1, 'name').querySelector('slot')?.assignedElements()[0];
+    if (!text) throw new Error('no content');
+    await userEvent.dblClick(text);
+    await settle(el);
+    expect(document.activeElement).toBe(editor(el));
+    expect(editor(el)?.value).toBe('Abe');
+  });
+
+  test('Enter edits a tree cell; arrows stay in the editor; after Escape they are tree keys', async () => {
+    const { el, edits } = await treeFixture();
+    const clicks = vi.fn();
+    el.addEventListener('argus-cell-click', clicks);
+    await focusCell(el, 0, 'name');
+    await press(el, '{Enter}');
+    expect(document.activeElement).toBe(editor(el));
+    expect(clicks).not.toHaveBeenCalled();
+    await press(el, '{ArrowLeft}{ArrowLeft}{ArrowRight}');
+    expect(document.activeElement).toBe(editor(el));
+    // The first row's name cell holds the editor.
+    expect(names(el)).toEqual(['', 'Abe', 'Amy', 'Bob']);
+    expect(el.treeExpanded).toEqual(['a']);
+    await press(el, '{Escape}');
+    expect(edits).toEqual([]);
+    expect(el.shadowRoot?.activeElement).toBe(cellOf(el, 0, 'name'));
+    await press(el, '{ArrowLeft}');
+    expect(names(el)).toEqual(['Ann', 'Bob']);
+    await press(el, '{ArrowRight}');
+    expect(names(el)).toEqual(['Ann', 'Abe', 'Amy', 'Bob']);
+  });
+});
+
 describe('applyEdit', () => {
   /** The first row (the lists here are never empty). */
   const first = <V>(list: readonly V[]): V => {
@@ -515,6 +663,86 @@ describe('applyEdit', () => {
     const framework: ColumnDef<Row, { framework: true }>[] = [{ id: 'name', accessor: 'name' }];
     const next: Row[] = applyEdit(data, untyped, framework);
     expect(next[0]?.name).toBe('Anna');
+  });
+
+  interface Item {
+    id: string;
+    n: number;
+    parent?: string;
+    children?: Item[];
+  }
+  const items: ColumnDef<Item>[] = [{ id: 'n', accessor: 'n' }];
+  const edit = (row: Item, over: Partial<CellEditDetail<Item>> = {}): CellEditDetail<Item> => ({
+    row,
+    rowId: row.id,
+    index: 0,
+    columnId: 'n',
+    value: 9,
+    previous: row.n,
+    ...over,
+  });
+  const nestedItems = (): Item[] => [
+    {
+      id: 'p0',
+      n: 0,
+      children: [
+        { id: 'c00', n: 1 },
+        { id: 'c01', n: 2, children: [{ id: 'g', n: 3 }] },
+      ],
+    },
+    { id: 'p1', n: 4, children: [{ id: 'c10', n: 5 }] },
+  ];
+  const subRows = {
+    getSubRows: (row: Item) => row.children,
+    setSubRows: (row: Item, children: Item[]) => ({ ...row, children }),
+  };
+
+  test('copies along the path to a nested row', () => {
+    const data = nestedItems();
+    const [p0, p1] = data as [Item, Item];
+    const [c00, c01] = p0.children as [Item, Item];
+    const next = applyEdit(data, edit(c01, { depth: 1 }), items, subRows);
+    expect(next).not.toBe(data);
+    expect(next[1]).toBe(p1);
+    expect(next[0]).not.toBe(p0);
+    expect(next[0]?.children?.[0]).toBe(c00);
+    expect(next[0]?.children?.[1]).not.toBe(c01);
+    expect(next[0]?.children?.[1]?.n).toBe(9);
+    // Its own children stay the same objects.
+    expect(next[0]?.children?.[1]?.children).toBe(c01.children);
+    expect(c01.n).toBe(2);
+    expect(p0.children?.[1]).toBe(c01);
+    // Two levels down, and a top-level row.
+    const deep = applyEdit(data, edit(first(c01.children ?? []), { depth: 2 }), items, subRows);
+    expect(deep[0]?.children?.[1]?.children?.[0]?.n).toBe(9);
+    expect(deep[0]?.children?.[0]).toBe(c00);
+    const top = applyEdit(data, edit(p1, { depth: 0 }), items, subRows);
+    expect(top[1]).toEqual({ ...p1, n: 9 });
+    expect(top[0]).toBe(p0);
+  });
+
+  test('a nested edit without the tree argument throws', () => {
+    const data = nestedItems();
+    const child = first(first(data).children ?? []);
+    expect(() => applyEdit(data, edit(child, { depth: 1 }), items)).toThrow(
+      /applyEdit.*fourth argument/,
+    );
+    // A top-level row that isn't in data: a copy, as without a tree.
+    const stranger = { id: 'x', n: 0 };
+    const copy = applyEdit(data, edit(stranger, { depth: 0 }), items);
+    expect(copy).not.toBe(data);
+    expect(copy).toEqual(data);
+    // With the argument, a row nowhere in the tree is no error either.
+    expect(applyEdit(data, edit(stranger, { depth: 1 }), items, subRows)).toEqual(data);
+  });
+
+  test('flat trees need no tree argument', () => {
+    const parent: Item = { id: 'p', n: 0 };
+    const child: Item = { id: 'c', n: 1, parent: 'p' };
+    const data = [parent, child];
+    const next = applyEdit(data, edit(child, { depth: 1, index: 1 }), items);
+    expect(next[0]).toBe(parent);
+    expect(next[1]).toEqual({ id: 'c', n: 9, parent: 'p' });
   });
 
   test('a pinned row or a row not in data leaves the rows as they are', () => {

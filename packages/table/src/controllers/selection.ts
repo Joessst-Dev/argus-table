@@ -6,7 +6,11 @@ import {
   selectAll,
   selectRange,
   SELECTION_COLUMN_ID,
+  toggleBranch,
   toggleRow,
+  withBranches,
+  type BranchTree,
+  type SelectionModifiers,
   type SelectionStep,
   type SelectionTarget,
   type TableModel,
@@ -14,7 +18,7 @@ import {
 import { SELECTION_CHANGE } from '../events.js';
 import { dataIndexOf, gridCell, gridRowOf, layoutOf } from '../grid.js';
 import { fromInteractive } from '../interactive.js';
-import type { SelectedAt } from '../render/body.js';
+import type { RowCheckboxes, SelectedAt } from '../render/body.js';
 import type { CheckboxHandlers } from '../render/content.js';
 import type { CheckAll } from '../render/header.js';
 import type { CellContent, SelectionMode, SelectionState } from '../types.js';
@@ -24,6 +28,7 @@ import type { StateEvents } from './state-events.js';
 interface SelectionHost extends ReactiveElement {
   selectionMode: SelectionMode;
   selectionCheckboxes: boolean;
+  selectBranches: boolean;
 }
 
 /**
@@ -35,6 +40,11 @@ interface SelectionHost extends ReactiveElement {
  *
  * Only loaded body rows are selectable: not pinned rows, not skeletons. Ids are
  * never pruned.
+ *
+ * With branches (`selectBranches` on a tree in `multi` mode) each row clicked,
+ * toggled or in a range counts as its branch (core's `withBranches` and
+ * `toggleBranch`), select-all covers rows under collapsed rows, and the row
+ * checkboxes show their branch's state.
  */
 export class SelectionController<T> {
   /** The `selection` property. */
@@ -74,6 +84,25 @@ export class SelectionController<T> {
     return this.#host.selectionCheckboxes && this.mode !== 'none';
   }
 
+  /** Whether rows select as whole branches: `selectBranches` on a tree, in `multi` mode. */
+  #branches(): boolean {
+    return this.#host.selectBranches && this.mode === 'multi' && this.#model().tree;
+  }
+
+  /**
+   * Whether ticking a row could select nothing (core's `'blocked'`): with
+   * branches, its id kept out by rows a filter hides, and nothing under it to
+   * tick. Its checkbox is disabled, and clicks and Space on it do nothing.
+   */
+  #blocked(index: number): boolean {
+    return this.#branches() && this.#model().branchCheck(this.#selected())(index) === 'blocked';
+  }
+
+  /** The kept rows as a tree of ids, with branches; else `undefined`. */
+  #tree(): BranchTree | undefined {
+    return this.#branches() ? this.#model().branchTree() : undefined;
+  }
+
   /** A restored selection: a Shift range starts over from it. */
   restored(): void {
     this.#anchor = undefined;
@@ -88,6 +117,16 @@ export class SelectionController<T> {
       const id = model.rowAt(index)?.id;
       return id === undefined ? undefined : ids.has(id);
     };
+  }
+
+  /**
+   * The rows' checkboxes: handlers, name, and with branches each row's state
+   * (one pass over the rows per selection and kept rows' tree).
+   */
+  checkboxes(label: string): RowCheckboxes {
+    return this.#branches()
+      ? { ...this.handlers, label, state: this.#model().branchCheck(this.#selected()) }
+      : { ...this.handlers, label };
   }
 
   /** The select-all checkbox, in the checkbox column of a `multi` table. */
@@ -113,10 +152,13 @@ export class SelectionController<T> {
     this.#click(target, event, inCheckboxCell || event.ctrlKey || event.metaKey);
   }
 
-  /** Space on a body row: toggles it. */
+  /** Space on a body row: toggles it (with branches, its branch). */
   toggle(index: number): void {
     const id = this.#model().rowAt(index)?.id;
-    if (id !== undefined) this.#request(toggleRow(this.state.value, this.mode, id));
+    if (id === undefined || this.#blocked(index)) return;
+    const tree = this.#tree();
+    if (tree) this.#request(this.#toggleBranch(id, tree));
+    else this.#request(toggleRow(this.state.value, this.mode, id));
   }
 
   /**
@@ -130,13 +172,28 @@ export class SelectionController<T> {
       this.#anchorAt() ?? (fromId === undefined ? undefined : { id: fromId, index: from });
     if (!anchor) return;
     const idAt = (index: number) => model.rowAt(index)?.id;
-    this.#request({ selection: selectRange([], anchor.index, to, idAt, false), anchor: anchor.id });
+    const selection = selectRange([], anchor.index, to, idAt, false);
+    const tree = this.#tree();
+    this.#request({
+      selection: tree ? withBranches([], selection, tree) : selection,
+      anchor: anchor.id,
+    });
   }
 
-  /** Selects every selectable row, keeping the others (with a `dataSource`: the loaded ones). */
+  /**
+   * Selects every selectable row, keeping the others (with a `dataSource`: the
+   * loaded ones; with branches, every row the filters keep, and the parents'
+   * ids where their whole branch is selected).
+   */
   selectAll(): void {
+    const model = this.#model();
+    const current = this.state.value;
+    // Every row the filters keep is blocked: nothing to tick.
+    if (this.#branches() && this.#checkAllState() === 'blocked') return;
     this.#request({
-      selection: selectAll(this.state.value, this.#model().selectableIds()),
+      selection: this.#branches()
+        ? model.branchSelectAll(current, this.#selected())
+        : selectAll(current, model.selectableIds()),
       anchor: this.#anchor,
     });
   }
@@ -191,9 +248,17 @@ export class SelectionController<T> {
     }
   };
 
-  /** Selects for a click on a row, through `clickSelection`. */
+  /** Selects for a click on a row, through `clickSelection` (with branches, `#clickBranch`). */
   #click(target: SelectionTarget, event: MouseEvent, toggle: boolean): void {
     const model = this.#model();
+    const tree = this.#tree();
+    if (tree) {
+      // On a blocked row, only a range does something: a click would select
+      // nothing, or (plain) clear the rest.
+      if (!(event.shiftKey && this.#anchorAt()) && this.#blocked(target.index)) return;
+      this.#request(this.#clickBranch(target, { toggle, range: event.shiftKey }, tree));
+      return;
+    }
     this.#request(
       clickSelection(
         this.state.value,
@@ -204,6 +269,40 @@ export class SelectionController<T> {
         (index) => model.rowAt(index)?.id,
       ),
     );
+  }
+
+  /**
+   * A click with branches, as `clickSelection` with each row counted as its
+   * branch: a plain click selects the row's branch only, Ctrl/Cmd toggles it,
+   * Shift selects the branches of the rows from the anchor, and Ctrl+Shift
+   * adds them to the selection.
+   */
+  #clickBranch(
+    target: SelectionTarget,
+    modifiers: SelectionModifiers,
+    tree: BranchTree,
+  ): SelectionStep {
+    const anchor = this.#anchorAt();
+    if (modifiers.range && anchor) {
+      const model = this.#model();
+      const ids = selectRange([], anchor.index, target.index, (i) => model.rowAt(i)?.id, false);
+      const current = modifiers.toggle ? this.state.value : [];
+      return { selection: withBranches(current, ids, tree), anchor: anchor.id };
+    }
+    if (modifiers.toggle) return this.#toggleBranch(target.id, tree);
+    return { selection: withBranches([], [target.id], tree), anchor: target.id };
+  }
+
+  /**
+   * Toggles a row's branch: deselects it when its checkbox shows all of it
+   * selected, which `toggleBranch` reads from the branch alone, not from a
+   * pass over every row.
+   */
+  #toggleBranch(id: string, tree: BranchTree): SelectionStep {
+    return {
+      selection: toggleBranch(this.state.value, id, tree, this.#selected()),
+      anchor: id,
+    };
   }
 
   /**
@@ -225,13 +324,16 @@ export class SelectionController<T> {
   }
 
   /**
-   * Whether all, some or none of the selectable rows are selected. With `data`
-   * it's worked out once per selection and row order (data, sort, filters), not
-   * on scroll; with a `dataSource` every time, over the loaded rows, which
-   * eviction keeps few.
+   * Whether all, some or none of the selectable rows are selected (with
+   * branches, whether every row the filters keep counts as checked: core's
+   * `branchCheckAll`, kept per selection and kept rows' tree, so expanding a
+   * row doesn't count again). With `data` it's worked out once per selection
+   * and row order (data, sort, filters, expanded rows), not on scroll; with a
+   * `dataSource` every time, over the loaded rows, which eviction keeps few.
    */
   #checkAllState(): CheckAll['state'] {
     const model = this.#model();
+    if (this.#branches()) return model.branchCheckAll(this.#selected());
     const count = (): CheckAll['state'] => {
       const ids = model.selectableIds();
       const selected = this.#selected();

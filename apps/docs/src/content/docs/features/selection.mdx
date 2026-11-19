@@ -5,6 +5,7 @@ since: '0.3'
 ---
 
 import FlavourTabs from '../../../components/FlavourTabs.astro';
+import Since from '../../../components/Since.astro';
 import ReactMulti from '../../../examples/selection/multi/react/MultiSelection.tsx';
 import VueMulti from '../../../examples/selection/multi/vue/MultiSelection.vue';
 import { MultiSelectionComponent } from '../../../examples/selection/multi/angular/multi-selection.component.ts';
@@ -57,3 +58,5 @@ Set `selection` and the table is controlled: every change fires `argus-selection
 </FlavourTabs>
 
 With a [`dataSource`](../infinite-loading/), only loaded rows can be selected: skeleton rows can't, and Ctrl+A selects the rows loaded so far. `selection` keeps its ids while pages are evicted and loaded again.
+
+In a [tree of rows](../tree-rows/#selecting-branches), `selectBranches` makes ticking a row tick its whole branch, with part-ticked checkboxes on rows whose branch is partly selected <Since since="1.4" />.

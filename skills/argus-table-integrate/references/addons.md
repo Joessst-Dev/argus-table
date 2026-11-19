@@ -44,7 +44,7 @@ const blob = await exportTable(tableElement, 'csv'); // to upload instead
 
 ## Cell editing: `@argus-table/editing`
 
-`cellEditing({ enterMoves?, typeToEdit?, labels? })` edits the cells of columns with `meta.edit`. The table never changes `data`: a commit fires `argus-cell-edit` (`onCellEdit`, `@cell-edit`, `(cellEdit)`) with `{ row, rowId, index, columnId, value, previous, pinned? }`, and the app applies it, often with `applyEdit(data, detail, columns)`:
+`cellEditing({ enterMoves?, typeToEdit?, labels? })` edits the cells of columns with `meta.edit`. The table never changes `data`: a commit fires `argus-cell-edit` (`onCellEdit`, `@cell-edit`, `(cellEdit)`) with `{ row, rowId, index, columnId, value, previous, pinned?, depth? }`, and the app applies it, often with `applyEdit(data, detail, columns)`:
 
 ```ts
 import { applyEdit, cellEditing } from '@argus-table/editing';
@@ -70,6 +70,7 @@ table.addEventListener('argus-cell-edit', (e) => {
 - `meta.edit`: `true`, or `{ editor, options, editable(row), parse, validate, set }`. `editor` is `'text'`, `'number'`, `'date'`, `'select'`, `'checkbox'` or a function returning content (a custom editor, framework components included); by default the column's `filter` kind picks it.
 - Keys: Enter, F2, typing, Delete or a double-click edit; Enter commits and moves down, Tab moves to the next editable column, Escape cancels. `enterMoves: false` and `typeToEdit: false` give data-grid behaviour.
 - `applyEdit` needs an accessor path, or `meta.edit.set(row, value)` for a function accessor. With a `dataSource`, save the edit on the server and call `refresh()`. Pinned rows are the app's own objects.
+- Tree rows: with `getParentId` every row is in `data`, so nothing changes. Nested children (`getSubRows`) need a fourth argument that rebuilds the path to the edited row: `applyEdit(data, e.detail, columns, { getSubRows, setSubRows: (row, children) => ({ ...row, children }) })`; without it, editing a nested child throws. Since 1.4.
 - There is no row editing mode, fill handle, paste or undo: name those as gaps if the old table used them.
 
 ## Formula columns: `@argus-table/formulas`

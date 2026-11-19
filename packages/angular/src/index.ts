@@ -80,6 +80,8 @@ export type {
   DateFilter,
   ExpandedChangeDetail,
   ExpandedState,
+  TreeExpandedChangeDetail,
+  TreeExpandedState,
   Density,
   FilterKind,
   FilterValue,

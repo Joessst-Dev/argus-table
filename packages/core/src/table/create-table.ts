@@ -10,7 +10,11 @@ import { resolveColumns, type ResolvedColumn } from '../columns/resolve-columns.
 import { distinctValues, rowPredicate } from '../filters/filter.js';
 import { buildAllViews, buildViews, hiddenIn, pinIn, sizingOf } from './column-views.js';
 import { RowPipeline } from './row-pipeline.js';
+import type { RowTree } from './row-tree.js';
+import { keepWithAncestors, type TreeLayout } from './tree-order.js';
+import type { BranchCheck, BranchTree } from '../state/selection.js';
 import type {
+  CellContext,
   ColumnDef,
   ColumnOrderState,
   ColumnPin,
@@ -20,6 +24,18 @@ import type {
 import type { ColumnView, TableModel, TableModelOptions } from './model-types.js';
 
 export * from './model-types.js';
+
+/**
+ * `branchCheck`'s marks of a subtree: some row the user can tick is selected
+ * (`PICKED`) or isn't (`MISSED`), some row can be ticked (`LIVE`), some row is
+ * blocked (`DEAD`: ticking it could select nothing), some row that can be
+ * ticked doesn't count as checked (`UNMET`).
+ */
+const PICKED = 1;
+const MISSED = 2;
+const LIVE = 4;
+const DEAD = 8;
+const UNMET = 16;
 
 /**
  * Ids of the columns kept from `before` whose accessor changed: a new function,
@@ -115,6 +131,112 @@ export function createTableModel<TData, TContent>(
   const pinned = (side: RowPin): readonly TData[] => options.pinnedRows?.[side] ?? [];
 
   let allViews: ColumnView<TData, TContent>[] | undefined;
+
+  // Branch selection, kept per tree layout (a filter or sort result).
+  let branches: { layout: TreeLayout; tree: BranchTree } | undefined;
+  let checks:
+    | {
+        layout: TreeLayout | undefined;
+        selected: ReadonlySet<string>;
+        check: (index: number) => BranchCheck;
+        all: BranchCheck;
+      }
+    | undefined;
+  // Every row's children in the whole tree (filters not applied), by source
+  // index: `kids[start[i]]` up to `kids[start[i + 1]]`. Built per tree, the
+  // first time a filter hides some row's children.
+  let family: { tree: RowTree<TData>; start: Int32Array; kids: Int32Array } | undefined;
+  const familyOf = (tree: RowTree<TData>) => {
+    if (family?.tree !== tree) {
+      const { parent, childCount } = tree;
+      const n = parent.length;
+      const start = new Int32Array(n + 1);
+      for (let i = 0; i < n; i++) start[i + 1] = (start[i] ?? 0) + (childCount[i] ?? 0);
+      const kids = new Int32Array(start[n] ?? 0);
+      const fill = start.slice(0, n);
+      for (let i = 0; i < n; i++) {
+        const up = parent[i] ?? -1;
+        if (up !== -1) kids[(fill[up] = (fill[up] ?? 0) + 1) - 1] = i;
+      }
+      family = { tree, start, kids };
+    }
+    return family;
+  };
+  // A row's children in the whole tree, when the filters hide some.
+  const fullKids = (tree: RowTree<TData>, layout: TreeLayout, row: number) => {
+    if ((layout.keptChildren[row] ?? 0) === (tree.childCount[row] ?? 0)) return undefined;
+    const { start, kids } = familyOf(tree);
+    return kids.subarray(start[row] ?? 0, start[row + 1] ?? 0);
+  };
+  // Whether a row has a child the filters hide that isn't selected.
+  const missesHidden = (
+    tree: RowTree<TData>,
+    layout: TreeLayout,
+    row: number,
+    selected: ReadonlySet<string>,
+  ) =>
+    fullKids(tree, layout, row)?.some(
+      (kid) => (layout.posInSet[kid] ?? 0) === 0 && !selected.has(tree.ids[kid] ?? ''),
+    ) ?? false;
+
+  /**
+   * Each kept row's checkbox for a selection, and the select-all checkbox's,
+   * in one pass over the kept rows, preorder backwards (every row comes after
+   * its descendants). Kept per selection `Set` and layout.
+   *
+   * A row is blocked when ticking it could select nothing: its id isn't
+   * selected, a descendant left unselected keeps it out (one the filters hide,
+   * or a blocked one), and none of its kept descendants can be ticked. Blocked
+   * rows count for nothing else: not as unselected rows of their ancestors'
+   * branches, not for the select-all checkbox.
+   */
+  const checksFor = (selected: ReadonlySet<string>) => {
+    const steps = pipeline.treeSteps();
+    const layout = steps?.layout;
+    if (checks?.selected === selected && checks.layout === layout) return checks;
+    let check: (index: number) => BranchCheck = () => 'none';
+    let all: BranchCheck = 'none';
+    // Without a selection, only a filter can block rows.
+    if (steps && (selected.size > 0 || steps.layout.order.length < steps.tree.ids.length)) {
+      const { tree } = steps;
+      const { parent, ids } = tree;
+      const { order } = steps.layout;
+      const marks = new Uint8Array(parent.length);
+      for (let k = order.length - 1; k >= 0; k--) {
+        const row = order[k] ?? 0;
+        // Its kept descendants' marks, before its own joins them.
+        const below = marks[row] ?? 0;
+        const own = selected.has(ids[row] ?? '');
+        // Its own id kept out by a descendant left unselected.
+        const out = () =>
+          below & (MISSED | DEAD) || missesHidden(tree, steps.layout, row, selected);
+        let mark = below;
+        if (!own && !(below & LIVE) && out()) mark |= DEAD;
+        else {
+          mark |= LIVE | (own ? PICKED : MISSED);
+          // Checked (as `toggleBranch` decides): every row below that can be
+          // ticked is, and its own id selected, or kept out with something
+          // below to tick.
+          if (below & UNMET || !(own || (below & LIVE && out()))) mark |= UNMET;
+        }
+        marks[row] = mark;
+        const up = parent[row] ?? -1;
+        if (up !== -1) marks[up] = (marks[up] ?? 0) | mark;
+      }
+      // The top-level kept rows' marks hold every row's.
+      let top = 0;
+      for (const row of steps.layout.children(-1)) top |= marks[row] ?? 0;
+      check = (index) => {
+        const row = rows()[index];
+        const mark = row === undefined ? 0 : (marks[row] ?? 0);
+        if (row !== undefined && !(mark & LIVE)) return 'blocked';
+        return mark & PICKED ? (mark & MISSED ? 'some' : 'all') : 'none';
+      };
+      all = !(top & LIVE) ? 'blocked' : top & UNMET ? (top & PICKED ? 'some' : 'none') : 'all';
+    }
+    checks = { layout, selected, check, all };
+    return checks;
+  };
 
   return {
     update(next) {
@@ -217,7 +339,57 @@ export function createTableModel<TData, TContent>(
       }
       const row = rows()[index];
       if (row === undefined) return undefined;
-      return { id: pipeline.rowId(row), index, original: options.data[row] as TData };
+      return { id: pipeline.rowId(row), index, original: pipeline.source()[row] as TData };
+    },
+
+    get tree() {
+      return pipeline.tree() !== undefined;
+    },
+
+    treeRow(index) {
+      const steps = pipeline.treeSteps();
+      const row = steps && rows()[index];
+      if (!steps || row === undefined) return undefined;
+      const { tree, layout } = steps;
+      const up = tree.parent[row] ?? -1;
+      const hasChildren = (layout.keptChildren[row] ?? 0) > 0;
+      // A shown row's parent is shown too (kept and open).
+      const parent = up === -1 ? -1 : pipeline.orderIndexOf(up);
+      return {
+        depth: tree.depth[row] ?? 0,
+        hasChildren,
+        open: hasChildren && pipeline.treeOpen(row),
+        forced: hasChildren && steps.holdsMatch?.[row] === 1,
+        parent: parent === -1 ? undefined : parent,
+        setSize: up === -1 ? steps.roots : (layout.keptChildren[up] ?? 0),
+        posInSet: layout.posInSet[row] ?? 0,
+      };
+    },
+
+    nextTreeExpanded(rowId, open, base = options.treeExpanded ?? []) {
+      const tree = pipeline.tree();
+      const row = tree?.indexOf(rowId);
+      // Filters aren't applied: a controlled host's ids are never refused for one.
+      if (!tree || row === undefined || (tree.childCount[row] ?? 0) === 0) return undefined;
+      const has = base.includes(rowId);
+      if (has === open) return undefined;
+      return open ? [...base, rowId] : base.filter((id) => id !== rowId);
+    },
+
+    shownAncestor(rowId) {
+      const tree = pipeline.tree();
+      let row = tree?.indexOf(rowId);
+      if (!tree || row === undefined) return undefined;
+      while (row !== -1) {
+        const index = pipeline.orderIndexOf(row);
+        if (index !== -1) return index;
+        row = tree.parent[row] ?? -1;
+      }
+      return undefined;
+    },
+
+    sourceRow(index) {
+      return pipeline.source()[index];
     },
 
     indexOf(rowId) {
@@ -245,6 +417,77 @@ export function createTableModel<TData, TContent>(
       return rows().map((r) => pipeline.rowId(r));
     },
 
+    branchSelectAll(current, selected = new Set(current)) {
+      const steps = pipeline.treeSteps();
+      if (!steps) return [...current];
+      const { tree, layout } = steps;
+      const { parent, ids } = tree;
+      const { order } = layout;
+      // Per kept row, 1 when its branch can't end up whole: a descendant the
+      // filters hide isn't selected. Preorder backwards, children first.
+      const broken = new Uint8Array(parent.length);
+      const drop = new Set<string>();
+      for (let k = order.length - 1; k >= 0; k--) {
+        const row = order[k] ?? 0;
+        if (!broken[row] && missesHidden(tree, layout, row, selected)) broken[row] = 1;
+        if (!broken[row]) continue;
+        const up = parent[row] ?? -1;
+        if (up !== -1) broken[up] = 1;
+        // Selected against the rules: normalized, as `withBranches` does.
+        const id = ids[row] ?? '';
+        if (selected.has(id)) drop.add(id);
+      }
+      const all = drop.size === 0 ? [...current] : current.filter((id) => !drop.has(id));
+      for (const row of order) {
+        const id = ids[row] ?? '';
+        if (!broken[row] && !selected.has(id)) all.push(id);
+      }
+      return all;
+    },
+
+    branchTree() {
+      const steps = pipeline.treeSteps();
+      if (!steps) return undefined;
+      const { tree, layout } = steps;
+      if (branches?.layout === layout) return branches.tree;
+      const idsOf = (kids: Int32Array): string[] => {
+        const out = new Array<string>(kids.length);
+        for (let k = 0; k < kids.length; k++) out[k] = tree.ids[kids[k] ?? 0] ?? '';
+        return out;
+      };
+      const children = (id: string): string[] => {
+        const row = tree.indexOf(id);
+        // Rows the filters drop have no kept children.
+        if (row === undefined || (layout.keptChildren[row] ?? 0) === 0) return [];
+        return idsOf(layout.children(row));
+      };
+      const branchTree: BranchTree = {
+        children,
+        allChildren(id) {
+          const row = tree.indexOf(id);
+          const kids = row === undefined ? undefined : fullKids(tree, layout, row);
+          return kids ? idsOf(kids) : children(id);
+        },
+        parent(id) {
+          const row = tree.indexOf(id);
+          // Only kept rows have a position among their siblings.
+          if (row === undefined || (layout.posInSet[row] ?? 0) === 0) return undefined;
+          const up = tree.parent[row] ?? -1;
+          return up === -1 ? undefined : tree.ids[up];
+        },
+      };
+      branches = { layout, tree: branchTree };
+      return branchTree;
+    },
+
+    branchCheck(selected) {
+      return checksFor(selected).check;
+    },
+
+    branchCheckAll(selected) {
+      return checksFor(selected).all;
+    },
+
     valueAt(index, columnId) {
       if (options.remote) {
         const entry = options.remote.entryAt(index);
@@ -253,7 +496,7 @@ export function createTableModel<TData, TContent>(
       const row = rows()[index];
       return row === undefined
         ? undefined
-        : byId.get(columnId)?.getValue(options.data[row] as TData, row);
+        : byId.get(columnId)?.getValue(pipeline.source()[row] as TData, row);
     },
 
     readValue(row, columnId, index) {
@@ -276,14 +519,18 @@ export function createTableModel<TData, TContent>(
       const row = rows()[index];
       const column = byId.get(columnId);
       if (row === undefined || !column) return undefined;
-      const original = options.data[row] as TData;
-      return {
+      const tree = pipeline.tree();
+      const original = (tree ? tree.rows : options.data)[row] as TData;
+      const context: CellContext<TData> = {
         row: original,
         rowId: pipeline.rowId(row),
         index,
         columnId,
         value: column.getValue(original, row),
       };
+      // No `depth` key without a tree: contexts stay as they were.
+      if (tree) context.depth = tree.depth[row] ?? 0;
+      return context;
     },
 
     nextSorting(columnId) {
@@ -346,12 +593,15 @@ export function createTableModel<TData, TContent>(
       if (!column) return undefined;
       if (column.filterOptions) return { values: [...column.filterOptions], truncated: false };
       if (options.remote) return undefined;
-      return distinctValues(options.data, column, predicateFor(new Set([columnId])), limit);
+      // A tree's child rows offer their values too.
+      return distinctValues(pipeline.source(), column, predicateFor(new Set([columnId])), limit);
     },
 
     indexesPassing(except) {
       if (options.remote) return undefined;
       const keep = predicateFor(new Set(except), true);
+      const tree = pipeline.tree();
+      if (tree) return keepWithAncestors(tree, keep).rows;
       const kept: number[] = [];
       const { data } = options;
       for (let i = 0; i < data.length; i++) {

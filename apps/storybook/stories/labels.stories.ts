@@ -24,6 +24,8 @@ const tableLabels = {
   selectAllRows: 'Alle Zeilen auswählen',
   expandRow: 'Details anzeigen',
   collapseRow: 'Details ausblenden',
+  expandTreeRow: 'Zeile aufklappen',
+  collapseTreeRow: 'Zeile zuklappen',
   resizeColumn: 'Spaltenbreite ändern',
   resizeGroup: 'Gruppenbreite ändern',
   filtered: 'Gefiltert',

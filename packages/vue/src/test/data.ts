@@ -4,6 +4,10 @@ export interface Order {
   id: string;
   customer: string;
   total: number;
+  /** A parent order's id, for the tree type checks. */
+  parentId?: string | null;
+  /** Child orders, for the tree type checks. */
+  children?: Order[];
 }
 
 export const orders: Order[] = Array.from({ length: 50 }, (_, i) => ({

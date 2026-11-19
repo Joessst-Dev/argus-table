@@ -186,10 +186,12 @@ export interface PluginHost<T = unknown> {
     limit?: number,
   ): { values: FilterValue[]; truncated: boolean } | undefined;
   /**
-   * The indexes in `data` of the rows the column filters and the quick filter
-   * keep, ascending (not in the sorted order), leaving out the filters on the
-   * `except` columns and their text in the quick filter: for values computed over
-   * the rows shown, such as a share of a total. `undefined` with a `dataSource`.
+   * The source indexes (see `sourceRow()`) of the rows the column filters and
+   * the quick filter keep, ascending (not in the sorted order), leaving out the
+   * filters on the `except` columns and their text in the quick filter: for
+   * values computed over the rows shown, such as a share of a total. In a tree,
+   * the ancestors kept for a match and the rows under collapsed rows are among
+   * them. `undefined` with a `dataSource`.
    * A column's `accessor` may call it while the table filters or sorts, as long as
    * that column is one of `except` (the table doesn't read it for this list).
    */
@@ -228,9 +230,25 @@ export interface PluginHost<T = unknown> {
   value(index: number, columnId: string, section?: RowSection): unknown;
   /**
    * The value a column reads from a row object the plugin has, such as a row
-   * it fetched from the `dataSource` itself; `index` is what the `accessor` gets.
+   * it fetched from the `dataSource` itself; `index` is what the `accessor` gets
+   * (a source index for a row of `data`, see `sourceRow()`).
    */
   readValue(row: T, columnId: string, index: number): unknown;
+  /**
+   * The level in a tree (`getSubRows` or `getParentId`) of the row at `index` in
+   * a section (default the body, in the current order): `0` for a top-level row,
+   * `1` for its children, and so on. `0` without a tree, for pinned rows, and
+   * past the end.
+   */
+  rowDepth(index: number, section?: RowSection): number;
+  /**
+   * The row object at a source index: the index the row's `getRowId` and
+   * `accessor` get. That is its index in `data`, except for the nested children
+   * of a tree (`getSubRows`), which aren't in `data` and get indexes from
+   * `data.length` on, in depth-first order. `undefined` past the last row and
+   * with a `dataSource`.
+   */
+  sourceRow(index: number): T | undefined;
   /**
    * The group header rows over the shown columns, top row first, each cell a
    * group or a filler; empty without column groups.

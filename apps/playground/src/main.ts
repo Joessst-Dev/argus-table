@@ -41,6 +41,11 @@ import { installBenchHooks } from './bench-hooks.js';
 // over Status, Amount and Date, and Extra over the fN columns: three header rows.
 // detail=<n> adds detail panels (rowDetail: a small form and five rows of a nested
 // table) and opens every nth row's (expanded); detail alone, or detail=0, opens none.
+// tree=<n> makes the rows a tree through getParentId (tree alone: tree=10): every nth
+// row is a top-level row and the n - 1 rows after it its children, except that every
+// 10th child (the 1st, 11th, 21st, …) is the parent of the 3 rows after it, so the
+// tree is three levels deep. Every row starts collapsed; treeopen expands every row
+// with children. treeExpanded follows argus-tree-expanded-change.
 const params = new URLSearchParams(location.search);
 // A switch, not a lookup table: the query value never picks a function to call.
 switch (params.get('theme')) {
@@ -276,6 +281,26 @@ if (params.has('detail')) {
     });
   }
 }
+if (params.has('tree')) {
+  const size = Math.max(2, Number(params.get('tree')) || 10);
+  table.getParentId = (p) => {
+    const parent = treeParent(p.index, size);
+    return parent === undefined ? null : `r${String(parent)}`;
+  };
+  // The first data column holds the indent and the toggle: room for three levels.
+  table.columns = columns.map((c) => (c.id === 'index' ? { ...c, width: 150 } : c));
+  const open = new Set<number>();
+  if (params.has('treeopen')) {
+    for (let i = 0; i < people.length; i++) {
+      const parent = treeParent(i, size);
+      if (parent !== undefined) open.add(parent);
+    }
+  }
+  table.treeExpanded = [...open].map((i) => `r${String(i)}`);
+  table.addEventListener('argus-tree-expanded-change', (event) => {
+    table.treeExpanded = event.detail.treeExpanded;
+  });
+}
 if (params.has('bench')) installBenchHooks(table, { dataMs });
 else document.body.append(table);
 
@@ -302,6 +327,19 @@ function linesOf(person: Person) {
     lines.set(person.id, list);
   }
   return list;
+}
+
+/**
+ * The index of a row's parent in `tree=<size>` (see the parameters above), or
+ * `undefined` for a top-level row. Each row comes right after its previous sibling's
+ * last descendant, so the data is in the tree's order (what the bench hooks expect).
+ */
+function treeParent(index: number, size: number): number | undefined {
+  const offset = index % size;
+  if (offset === 0) return undefined;
+  // 0 for the 1st, 11th, … child; 1 to 3 for the three rows under it.
+  const step = (offset - 1) % 10;
+  return step >= 1 && step <= 3 ? index - step : index - offset;
 }
 
 /** A summary row shaped like a person: the amounts added up, divided by `divisor`. */

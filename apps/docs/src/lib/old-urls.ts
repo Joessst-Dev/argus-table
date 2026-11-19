@@ -33,6 +33,7 @@ export const STORYBOOK_PAGES: Readonly<Record<string, string>> = {
   'features-saved-state': 'features/saved-state/',
   'features-scrolling': 'features/scrolling/',
   'features-sorting': 'features/sorting/',
+  'features-tree-rows': 'features/tree-rows/',
   'add-ons-editing': 'features/editing/',
   'add-ons-export': 'features/export/',
   'add-ons-formulas': 'features/formulas/',

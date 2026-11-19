@@ -190,13 +190,17 @@ export const baseStyles = css`
       margin: 0;
       cursor: pointer;
     }
+    [part~='selection-checkbox']:disabled {
+      cursor: default;
+    }
     /* The toggle column of detail panels: a chevron, centred. */
     [part~='cell-expand'],
     [part~='header-cell-expand'] {
       justify-content: center;
       padding-inline: 0;
     }
-    [part~='expand-toggle'] {
+    /* The detail panels' toggle and a tree row's: the same chevron button. */
+    :is([part~='expand-toggle'], [part~='tree-toggle']) {
       display: grid;
       place-items: center;
       inline-size: 1.75em;
@@ -210,17 +214,59 @@ export const baseStyles = css`
       font: inherit;
       cursor: pointer;
     }
-    /* Pointing toward the inline end while closed (mirrored in RTL), down while open. */
-    [part~='expand-toggle']::before {
+    /*
+     * Pointing toward the inline end while closed (mirrored in RTL: scaleX(-1) is
+     * applied last, so the closed chevron points left), down while open.
+     */
+    :is([part~='expand-toggle'], [part~='tree-toggle'])::before {
       content: '';
       inline-size: 0.4em;
       block-size: 0.4em;
       border-right: 0.12em solid currentColor;
       border-bottom: 0.12em solid currentColor;
-      transform: translateX(calc(-0.1em * var(--_dir, 1))) rotate(calc(-45deg * var(--_dir, 1)));
+      transform: scaleX(var(--_dir, 1)) translateX(-0.1em) rotate(-45deg);
     }
-    [part~='expand-toggle'][aria-expanded='true']::before {
+    :is([part~='expand-toggle'], [part~='tree-toggle'])[aria-expanded='true']::before {
       transform: translateY(-0.1em) rotate(45deg);
+    }
+    /*
+     * The tree column: an indent per level, then the toggle, or a spacer as wide on
+     * rows without children. The toggle takes one line's height in the layout, so
+     * it doesn't make a row taller (rowHeight: 'auto') and centres on the first line.
+     */
+    .tree-indent {
+      flex: none;
+      inline-size: calc(var(--argus-tree-indent, 1.25rem) * var(--_depth, 0));
+    }
+    [part~='tree-toggle'],
+    .tree-spacer {
+      flex: none;
+      inline-size: 1.75em;
+      margin-inline-end: 0.25em;
+    }
+    [part~='tree-toggle'] {
+      margin-block: calc((1lh - 1.75em) / 2);
+    }
+    /*
+     * Centred or end-aligned content: the indent and toggle stay at the start, so
+     * toggles line up per depth, and the content is centred in (or put at the end
+     * of) the space after them: the two auto margins share the free space.
+     */
+    :is([data-align='center'], [data-align='end']) > :is([part~='tree-toggle'], .tree-spacer) {
+      margin-inline-end: auto;
+    }
+    :is([data-align='center'], [data-align='end'])
+      > :is([part~='tree-toggle'], .tree-spacer)
+      ~ slot::slotted(*) {
+      margin-inline-start: 0.25em;
+    }
+    [data-align='center'] > :is([part~='tree-toggle'], .tree-spacer) ~ slot::slotted(*) {
+      margin-inline-end: auto;
+    }
+    /* A row a filter keeps expanded: its toggle does nothing until the filter clears. */
+    [part~='tree-toggle-disabled'] {
+      opacity: 0.4;
+      cursor: default;
     }
     [part~='header-cell'] {
       background: var(--argus-header-bg, light-dark(#f9fafb, #111827));

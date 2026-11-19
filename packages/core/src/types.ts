@@ -33,10 +33,11 @@ export type ColumnWidth = number | 'auto' | { flex: number };
 
 /** What a `cell` function receives besides the row itself. */
 export interface CellContext<TData> {
-  /** The row object from `data` (or from `pinnedRows`). */
+  /** The row object: from `data`, a nested child of a tree (`getSubRows`), or from `pinnedRows`. */
   row: TData;
   /**
-   * The id from `getRowId`, or the row's index as a string. A pinned row without
+   * The id from `getRowId`, or the default id (see `getRowId`: the row's index as
+   * a string, `'3.0'` for a nested child of a tree). A pinned row without
    * `getRowId` gets `'top-0'`, `'bottom-0'` and so on.
    */
   rowId: string;
@@ -48,6 +49,12 @@ export interface CellContext<TData> {
   value: unknown;
   /** Set for a row from `pinnedRows`: the side it is pinned to. */
   pinned?: RowPin;
+  /**
+   * The row's level in a tree of rows (`getSubRows` or `getParentId`): `0` for a
+   * top-level row, `1` for its children, and so on. Set for body rows only, and
+   * only when the rows form a tree.
+   */
+  depth?: number;
 }
 
 /**
@@ -113,8 +120,10 @@ export interface ColumnDef<TData, TContent = unknown> {
   header?: TContent | ((context: HeaderContext) => TContent);
   /**
    * How to read the cell value: a property path such as `'customer.name'`, or a
-   * function of the row. Without an accessor the value is `undefined`; the column
-   * then needs a `cell` function to show anything.
+   * function of the row and its index (in `data`, or among all `dataSource` rows;
+   * a nested child of a tree, `getSubRows`, gets an index from `data.length` on,
+   * in depth-first order). Without an accessor the value is `undefined`; the
+   * column then needs a `cell` function to show anything.
    */
   accessor?: string | ((row: TData, index: number) => unknown);
   /**
@@ -331,21 +340,31 @@ export type ColumnFilterState = Record<string, ColumnFilter>;
  */
 export type SelectionMode = 'none' | 'single' | 'multi';
 
-/** The selected rows, as row ids (from `getRowId`, or the row's index as a string). */
+/** The selected rows, as row ids (from `getRowId`, or the default ids: see `getRowId`). */
 export type SelectionState = readonly string[];
 
-/** The rows whose detail panel is open, as row ids (from `getRowId`, or the row's index as a string). */
+/** The rows whose detail panel is open, as row ids (from `getRowId`, or the default ids: see `getRowId`). */
 export type ExpandedState = readonly string[];
 
 /** What `rowDetail` receives for the row whose panel it renders. */
 export interface RowDetailContext<TData> {
-  /** The row object from `data` (or loaded from the `dataSource`). */
+  /** The row object: from `data`, a nested child of a tree (`getSubRows`), or loaded from the `dataSource`. */
   row: TData;
-  /** The id from `getRowId`, or the row's index as a string. */
+  /** The id from `getRowId`, or the default id (see `getRowId`: the row's index as a string, `'3.0'` for a nested child). */
   rowId: string;
   /** Index of the row in the current (filtered and sorted) row order. Panels don't count. */
   index: number;
+  /** The row's level in a tree of rows, `0` for a top-level row; set only when the rows form a tree. */
+  depth?: number;
 }
+
+/**
+ * The rows of a tree that are expanded (their children shown), as row ids: from
+ * `getRowId`, else the default ids. Those are a row's index in `data`, except for
+ * the children in nested data (`getSubRows`), whose id is the parent's id, a dot
+ * and the index among its siblings (`'3.0'`, `'3.0.2'`).
+ */
+export type TreeExpandedState = readonly string[];
 
 /**
  * Where the body is scrolled: the row at the top, as an index in the current row
@@ -402,6 +421,8 @@ export interface TableState {
   columnFilters?: ColumnFilterState;
   selection?: SelectionState;
   expanded?: ExpandedState;
+  /** The expanded rows of a tree (`getSubRows` or `getParentId`). */
+  treeExpanded?: TreeExpandedState;
   quickFilter?: string;
   scroll?: ScrollState;
 }
@@ -413,6 +434,16 @@ export interface ExpandedChangeDetail {
   /** The row whose panel was opened or closed. */
   rowId: string;
   /** `true` when it was opened. */
+  open: boolean;
+}
+
+/** `detail` of `argus-tree-expanded-change`. */
+export interface TreeExpandedChangeDetail {
+  /** The expanded rows: the new ones, or the proposed ones when `treeExpanded` is controlled. */
+  treeExpanded: TreeExpandedState;
+  /** The row that was expanded or collapsed. */
+  rowId: string;
+  /** `true` when it was expanded. */
   open: boolean;
 }
 
@@ -497,6 +528,8 @@ export interface RowClickDetail<TData> {
   index: number;
   /** Set when the row is from `pinnedRows`: the side it is pinned to. */
   pinned?: RowPin;
+  /** The row's level in a tree of rows, `0` for a top-level row; set for body rows when the rows form a tree. */
+  depth?: number;
 }
 
 /** `detail` of `argus-cell-click`. */
@@ -509,6 +542,8 @@ export interface CellClickDetail<TData> {
   value: unknown;
   /** Set when the row is from `pinnedRows`: the side it is pinned to. */
   pinned?: RowPin;
+  /** The row's level in a tree of rows, `0` for a top-level row; set for body rows when the rows form a tree. */
+  depth?: number;
 }
 
 /**

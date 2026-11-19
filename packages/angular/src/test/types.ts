@@ -67,16 +67,25 @@ import { orders, type Order } from './data.js';
         let-row
         let-value="value"
         let-id="rowId"
+        let-depth="depth"
       >
-        {{ row.total.toFixed(2) }} {{ value }} {{ id.length }}
+        {{ row.total.toFixed(2) }} {{ value }} {{ id.length }} {{ depth?.toFixed() }}
       </ng-template>
       <ng-template argusHeader="total" let-column>{{ column.toUpperCase() }}</ng-template>
       <!-- With argusDetailOf, the panel's row has the row type. -->
-      <ng-template argusDetail [argusDetailOf]="orders" let-row let-index="index">
-        {{ row.total.toFixed(2) }} {{ index.toFixed() }}
+      <ng-template argusDetail [argusDetailOf]="orders" let-row let-index="index" let-depth="depth">
+        {{ row.total.toFixed(2) }} {{ index.toFixed() }} {{ depth?.toFixed() }}
       </ng-template>
     </argus-table>
     <argus-table [data]="orders" [plugins]="plugins" />
+    <argus-table
+      [data]="orders"
+      [getParentId]="parentOf"
+      [getSubRows]="childrenOf"
+      selectBranches
+      [(treeExpanded)]="treeOpen"
+      (argus-tree-expanded-change)="takeIds($event.detail.treeExpanded)"
+    />
   `,
 })
 export class TypesComponent {
@@ -90,6 +99,9 @@ export class TypesComponent {
   readonly selected = signal<string[]>([]);
   readonly rows = signal<Order[] | null>(null);
   readonly total = (o: Order) => o.total;
+  readonly parentOf = (o: Order) => o.parentId;
+  readonly childrenOf = (o: Order) => o.children;
+  readonly treeOpen = signal<readonly string[]>([]);
   readonly plugins: ArgusPlugin<Order>[] = [
     { name: 'totals', columns: (defs) => [...defs, { id: 'x2', accessor: (o) => o.total * 2 }] },
   ];

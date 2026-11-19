@@ -168,7 +168,7 @@ describe('compileColumns with whole columns', () => {
   ];
   /** A source over `items` keeping `keep`, recording what it was asked. */
   const source = (keep: readonly number[], asked: string[][] = []): RowSource<Item> => ({
-    data: () => items,
+    row: (index) => items[index],
     indexes: (except) => {
       asked.push([...except]);
       return keep;
@@ -220,7 +220,7 @@ describe('compileColumns with whole columns', () => {
     const none = compileColumns(columns, {
       functions,
       parse: parseOrError,
-      rows: { data: () => items, indexes: () => undefined },
+      rows: { row: (index) => items[index], indexes: () => undefined },
     });
     expect(values(none, 'share')).toEqual(['#N/A', '#N/A', '#N/A', '#N/A']);
     const cycle = compileColumns([...columns, { id: 'loop', formula: 'SUM([[loop]])' }], {
