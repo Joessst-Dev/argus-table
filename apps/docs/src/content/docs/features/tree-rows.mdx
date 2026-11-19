@@ -28,7 +28,7 @@ The table has no "expand all" button of its own: set `treeExpanded` to the ids y
 
 Without `getRowId`, a top-level row's id is its index in `data`, as in any table, and a child's id is its parent's id, a dot and its index among its siblings: `'0.1'` is the second child of the first row, and `'0.1.2'` the third child of that. These ids are positions: a row added or removed above a row changes its id, and `treeExpanded` and `selection` then name another row. Give `getRowId` when `data` can change, so expanded and selected rows follow their row; its ids are used throughout. Functions that are given a row's index, `getRowId(row, index)` and a column's `accessor(row, index)`, get a child's index counted from `data.length` on, in depth-first order.
 
-Every other index counts the rows shown, in their current order: `scrollToRow(index)`, the click events' `index` and `argus-range-change`. Children of a collapsed row aren't shown, so expanding a row moves the indexes of the rows below it, as a filter does. Cell functions, `rowDetail` and `argus-cell-click` get the row's level as `depth`: `0` for a top-level row, `1` for its children, and so on. It's set only when the rows form a tree.
+Every other index counts the rows shown, in their current order: `scrollToRow(index)`, the click events' `index` and `argus-range-change`. Children of a collapsed row aren't shown, so expanding a row moves the indexes of the rows below it, as a filter does. Cell functions, `rowDetail`, `argus-cell-click` and `argus-row-click` get the row's level as `depth`: `0` for a top-level row, `1` for its children, and so on. It's set only when the rows form a tree.
 
 ## Flat data
 

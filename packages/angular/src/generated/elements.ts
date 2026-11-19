@@ -272,7 +272,7 @@ export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
   /** `argus-cell-click`: A body or pinned-row cell was clicked, or Enter was pressed on it. `detail: { row, rowId, index, columnId, value, pinned?, depth? }`; `pinned` is `'top'` or `'bottom'` for a pinned row, and `index` is then its index in its list. `depth` is a body row's level in a tree (`0` for a top-level row), set only when the rows form one. Fires before `argus-row-click`. */
   @Output() readonly cellClick = new EventEmitter<CustomEvent<CellClickDetail<T>>>();
 
-  /** `argus-row-click`: A body or pinned row was clicked, or Enter was pressed on one of its cells. `detail: { row, rowId, index, pinned? }`; for a pinned row, `index` is its index in its list. */
+  /** `argus-row-click`: A body or pinned row was clicked, or Enter was pressed on one of its cells. `detail: { row, rowId, index, pinned?, depth? }`; for a pinned row, `index` is its index in its list. `depth` is a body row's level in a tree (`0` for a top-level row), set only when the rows form one. */
   @Output() readonly rowClick = new EventEmitter<CustomEvent<RowClickDetail<T>>>();
 
   /** `argus-range-change`: The rows in view changed (rows rendered ahead of the scroll position not counted). `detail: { first, last }` (row indices in the current order, both inclusive). */

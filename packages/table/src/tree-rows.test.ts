@@ -8,6 +8,7 @@ import type {
   CellClickDetail,
   ColumnDef,
   PluginHost,
+  RowClickDetail,
   RowDetailContext,
   TreeExpandedChangeDetail,
 } from './index.js';
@@ -185,6 +186,33 @@ describe('tree rows: contexts', () => {
     rowOf(el, 'P1').querySelector<HTMLElement>('[part~="cell"]')?.click();
     expect(seen[2]?.rowId).toBe('1');
     expect(seen[2] && 'depth' in seen[2]).toBe(false);
+  });
+
+  test('row clicks carry depth', async () => {
+    const el = await treeTable({
+      treeExpanded: ['0'],
+      pinnedRows: { top: [{ name: 'Pinned' }] },
+    });
+    const seen: RowClickDetail<unknown>[] = [];
+    el.addEventListener('argus-row-click', (e) => {
+      seen.push(e.detail);
+    });
+    rowOf(el, 'C0.1').querySelector<HTMLElement>('[part~="cell"]')?.click();
+    rowOf(el, 'P1').querySelector<HTMLElement>('[part~="cell"]')?.click();
+    expect(seen.map((d) => [d.rowId, d.depth])).toEqual([
+      ['0.1', 1],
+      ['1', 0],
+    ]);
+    // Pinned rows aren't in the tree.
+    shadow(el).querySelector<HTMLElement>('[part~="row-pinned"] [part~="cell"]')?.click();
+    expect(seen[2]?.pinned).toBe('top');
+    expect(seen[2] && 'depth' in seen[2]).toBe(false);
+
+    el.getSubRows = undefined;
+    await settle(el);
+    rowOf(el, 'P1').querySelector<HTMLElement>('[part~="cell"]')?.click();
+    expect(seen[3]?.rowId).toBe('1');
+    expect(seen[3] && 'depth' in seen[3]).toBe(false);
   });
 
   test('rowDetail gets depth', async () => {

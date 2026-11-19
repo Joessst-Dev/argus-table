@@ -4,7 +4,7 @@ import { CELL_CLICK, fire, ROW_CLICK } from './events.js';
 import { dataIndexOf, gridCell, gridRowOf, gridRowOfCell, layoutOf } from './grid.js';
 import type { CellTarget } from './plugins.js';
 import { PANEL_COLUMN } from './render/body.js';
-import type { CellClickDetail, CellContent } from './types.js';
+import type { CellContent, RowClickDetail } from './types.js';
 
 const TREE_TOGGLE = '[part~="tree-toggle"]';
 
@@ -38,20 +38,18 @@ export function activate<T>(
       if (index === undefined) return;
       const row = model.rowAt(index);
       if (!row) return;
+      const detail: RowClickDetail<T> = { row: row.original, rowId: row.id, index };
+      // No `depth` key without a tree: details stay as they were.
+      const depth = model.treeRow(index)?.depth;
+      if (depth !== undefined) detail.depth = depth;
       if (columnId !== undefined) {
-        const detail: CellClickDetail<T> = {
-          row: row.original,
-          rowId: row.id,
-          index,
+        fire(element, CELL_CLICK, {
+          ...detail,
           columnId,
           value: model.valueAt(index, columnId),
-        };
-        // No `depth` key without a tree: details stay as they were.
-        const depth = model.treeRow(index)?.depth;
-        if (depth !== undefined) detail.depth = depth;
-        fire(element, CELL_CLICK, detail);
+        });
       }
-      fire(element, ROW_CLICK, { row: row.original, rowId: row.id, index });
+      fire(element, ROW_CLICK, detail);
       return;
     }
     const pinned = at.section;

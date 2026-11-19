@@ -528,6 +528,8 @@ export interface RowClickDetail<TData> {
   index: number;
   /** Set when the row is from `pinnedRows`: the side it is pinned to. */
   pinned?: RowPin;
+  /** The row's level in a tree of rows, `0` for a top-level row; set for body rows when the rows form a tree. */
+  depth?: number;
 }
 
 /** `detail` of `argus-cell-click`. */

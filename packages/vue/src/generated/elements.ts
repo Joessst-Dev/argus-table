@@ -113,7 +113,7 @@ export interface ArgusTableEventProps<T = unknown> {
   'onUpdate:treeExpanded'?: (value: ArgusTableElement<T>['treeExpanded']) => void;
   /** `argus-cell-click`: A body or pinned-row cell was clicked, or Enter was pressed on it. `detail: { row, rowId, index, columnId, value, pinned?, depth? }`; `pinned` is `'top'` or `'bottom'` for a pinned row, and `index` is then its index in its list. `depth` is a body row's level in a tree (`0` for a top-level row), set only when the rows form one. Fires before `argus-row-click`. */
   'onCell-click'?: (event: CustomEvent<CellClickDetail<T>>) => void;
-  /** `argus-row-click`: A body or pinned row was clicked, or Enter was pressed on one of its cells. `detail: { row, rowId, index, pinned? }`; for a pinned row, `index` is its index in its list. */
+  /** `argus-row-click`: A body or pinned row was clicked, or Enter was pressed on one of its cells. `detail: { row, rowId, index, pinned?, depth? }`; for a pinned row, `index` is its index in its list. `depth` is a body row's level in a tree (`0` for a top-level row), set only when the rows form one. */
   'onRow-click'?: (event: CustomEvent<RowClickDetail<T>>) => void;
   /** `argus-range-change`: The rows in view changed (rows rendered ahead of the scroll position not counted). `detail: { first, last }` (row indices in the current order, both inclusive). */
   'onRange-change'?: (event: CustomEvent<RangeChangeDetail>) => void;
