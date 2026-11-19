@@ -277,8 +277,11 @@ export function toggleBranch(
     const own = has(row);
     const kids = tree.children(row);
     const live = kids.some((kid) => !blocked.has(kid));
-    const out = kids.some((kid) => gap.has(kid)) || !tree.allChildren(row).every(has);
-    if (!own) gap.add(row);
+    const below = kids.some((kid) => gap.has(kid));
+    const out = below || !tree.allChildren(row).every(has);
+    // At any depth, as `branchCheck`'s marks: a selected row over an
+    // unselected one (a value set against the rules) has a gap too.
+    if (!own || below) gap.add(row);
     if (!own && !live && out) blocked.add(row);
     else if (kids.some((kid) => unmet.has(kid)) || !(own || (live && out))) unmet.add(row);
   }

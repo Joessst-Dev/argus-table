@@ -2186,6 +2186,35 @@ describe('branch selection under a filter: whole branches only', () => {
     expect(toggleBranch([], '0', tree)).toEqual(['0.0.0']);
   });
 
+  it('the header and a click agree on a controlled value with a gap two levels down', () => {
+    // G{P{C{L, H}}}, a filter keeping L; P selected against the rules (C isn't).
+    interface Named {
+      name: string;
+      kids?: Named[];
+    }
+    const m = createTableModel<Named, string>({
+      columns: [{ id: 'name', accessor: 'name' }],
+      getRowId: undefined,
+      sorting: [],
+      columnSizing: {},
+      data: [
+        {
+          name: 'G',
+          kids: [{ name: 'P', kids: [{ name: 'C', kids: [{ name: 'L' }, { name: 'H' }] }] }],
+        },
+      ],
+      getSubRows: (row) => row.kids,
+      treeExpanded: ['0', '0.0', '0.0.0'],
+      columnFilters: { name: { kind: 'set', values: ['L'] } },
+    });
+    const tree = m.branchTree();
+    if (!tree) throw new Error('no tree');
+    const selection = ['0.0', '0.0.0.0'];
+    // C's id is kept out by H, so G's is too: G counts as checked.
+    expect(m.branchCheckAll(new Set(selection))).toBe('all');
+    expect(toggleBranch(selection, '0', tree)).toEqual([]);
+  });
+
   it('no click is dead, and a parent is selected only with its whole branch, over random trees and filters', () => {
     interface Flat {
       id: string;
