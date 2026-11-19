@@ -409,6 +409,50 @@ describe('RemoteTree', () => {
     expect(after.entryAt(30)?.id).toBe('27');
   });
 
+  it('keepCounts counts every row shown under a parent, nested open rows too', () => {
+    const { cache, tree } = setup();
+    tree.setExpanded(['1', '1.0']);
+    answer(tree, '1', children('1', 2, 1));
+    answer(tree, '1.0', children('1.0', 2));
+    // 0, 1, 1.0, 1.0.0, 1.0.1, 1.1, 2
+    expect(tree.entryAt(6)?.id).toBe('2');
+    expect(tree.counts()).toEqual(
+      new Map<string, KeptCount>([
+        ['1', { index: 1, count: 4 }],
+        ['1.0', { count: 2 }],
+      ]),
+    );
+
+    const next = new PageCache<Row>({ pageSize: 4, rowCount: cache.rowCount });
+    const after = new RemoteTree(next, { hasChildren, keepCounts: tree.counts() });
+    after.setExpanded(['1', '1.0']);
+    load(next, 0, 4);
+    // Four loading rows under 1 until it answers, then its children and two under 1.0.
+    expect(after.entryAt(6)?.id).toBe('2');
+    after.beginChildren('1');
+    after.resolveChildren('1', children('1', 2, 1));
+    expect(after.wanted()).toEqual(['1.0']);
+    expect(after.stateAt(3)).toBe('loading');
+    expect(after.entryAt(5)?.id).toBe('1.1');
+    expect(after.entryAt(6)?.id).toBe('2');
+  });
+
+  it('a request failing after its parent collapsed is forgotten, not shown', () => {
+    const { cache, tree } = setup();
+    tree.setExpanded(['1']);
+    tree.beginChildren('1');
+    tree.setExpanded([]);
+    expect(tree.failChildren('1')).toBe(false);
+    expect(tree.childState('1')).toBeUndefined();
+    tree.setExpanded(['1']);
+    expect(tree.wanted()).toEqual(['1']);
+    expect(tree.hasWanted()).toBe(true);
+    tree.beginChildren('1');
+    expect(tree.hasWanted()).toBe(false);
+    expect(tree.failChildren('1')).toBe(true);
+    expect(tree.rowCount).toBe(cache.rowCount + 1);
+  });
+
   it('keepCounts without an index waits for the parent’s row', () => {
     const next = new PageCache<Row>({ pageSize: 4 });
     const after = new RemoteTree(next, {
@@ -480,6 +524,21 @@ describe('RemoteTree', () => {
     expect(tree.indexOf('1.0')).toBe(2);
     expect(tree.entryAt(2)?.id).toBe('1.0');
     expect(tree.wanted()).toEqual([]);
+  });
+
+  it('shownIndexOf finds an open row whose page was evicted', () => {
+    const cache = new PageCache<Row>({ pageSize: 4 });
+    for (let page = 0; page < 20; page++) load(cache, page, 4);
+    const tree = new RemoteTree(cache, { hasChildren });
+    tree.setExpanded(['1', '5']);
+    answer(tree, '1', children('1', 3));
+    cache.evictOutside(60, 64);
+    expect(tree.indexOf('1')).toBeUndefined();
+    expect(tree.shownIndexOf('1')).toBe(1);
+    expect(tree.shownIndexOf('1.0')).toBe(2);
+    // Not open, or never seen: not found.
+    expect(tree.shownIndexOf('2')).toBeUndefined();
+    expect(tree.shownIndexOf('nope')).toBeUndefined();
   });
 
   it('drops an evicted open row when another row loads at its index', () => {

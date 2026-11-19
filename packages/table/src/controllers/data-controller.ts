@@ -18,6 +18,9 @@ export const DEFAULT_PAGE_SIZE = 100;
 /** Quiet time after the last range change before pages load, so fast scrolling loads only where it stops. */
 export const LOAD_DEBOUNCE_MS = 50;
 
+/** `getChildren` calls in flight at most; the others start as these settle. */
+export const MAX_CHILD_REQUESTS = 6;
+
 export interface DataConfig<T> {
   source: DataSource<T> | undefined;
   sorting: SortState;
@@ -45,7 +48,8 @@ interface Carry {
  * the cache, whose indexes are shown indexes (top-level rows and the loaded
  * children of open ones). Pages are requested for the top-level rows the shown
  * range covers, and the children of open, loaded rows with one `getChildren`
- * call per parent, aborted on a reset or disconnect (not on collapse).
+ * call per parent (at most `MAX_CHILD_REQUESTS` at a time), aborted on a reset
+ * or disconnect (not on collapse).
  */
 export class DataController<T> implements ReactiveController {
   readonly #host: ReactiveControllerHost;
@@ -169,7 +173,7 @@ export class DataController<T> implements ReactiveController {
     } else if (
       this.#timer !== undefined ||
       (cache.missingPages(range.start, range.end).length === 0 &&
-        (!tree || tree.wanted().length === 0))
+        (!tree || !tree.hasWanted() || this.#childRequests.size >= MAX_CHILD_REQUESTS))
     ) {
       return;
     }
@@ -269,7 +273,16 @@ export class DataController<T> implements ReactiveController {
     cache.evictOutside(range.start, range.end);
     for (const page of cache.missingPages(range.start, range.end)) this.#fetch(cache, page);
     const tree = this.#tree;
-    if (tree) for (const parentId of tree.wanted()) this.#fetchChildren(tree, parentId);
+    if (tree) this.#startChildren(tree);
+  }
+
+  /** Requests the children `wanted()` lists, up to `MAX_CHILD_REQUESTS` in flight. */
+  #startChildren(tree: RemoteTree<T>): void {
+    if (this.#childRequests.size >= MAX_CHILD_REQUESTS || !tree.hasWanted()) return;
+    for (const parentId of tree.wanted()) {
+      if (this.#childRequests.size >= MAX_CHILD_REQUESTS) break;
+      this.#fetchChildren(tree, parentId);
+    }
   }
 
   #fetch(cache: PageCache<T>, page: number): void {
@@ -336,15 +349,19 @@ export class DataController<T> implements ReactiveController {
         }
         this.#childRequests.delete(parentId);
         tree.resolveChildren(parentId, rows as T[]);
+        this.#startChildren(tree);
         this.#host.requestUpdate();
       },
       (error) => {
         if (!current()) return;
         this.#childRequests.delete(parentId);
-        tree.failChildren(parentId);
-        // The parent's shown index: the error row is right below it.
-        const start = tree.indexOf(parentId) ?? -1;
-        this.#errors.push({ error, start, end: start + 1, parentId });
+        // Not reported for a row collapsed meanwhile: its next expand loads again.
+        if (tree.failChildren(parentId)) {
+          // The parent's shown index (the error row is right below it), `-1` when it isn't shown.
+          const start = tree.shownIndexOf(parentId) ?? -1;
+          this.#errors.push({ error, start, end: start + 1, parentId });
+        }
+        this.#startChildren(tree);
         this.#host.requestUpdate();
       },
     );

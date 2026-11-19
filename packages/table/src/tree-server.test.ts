@@ -337,6 +337,154 @@ describe('tree rows from a data source', () => {
     ]);
   });
 
+  test('refresh() with an open row above the view keeps the rows in view in place', async () => {
+    const { source, calls, childCalls } = server(1000, { kids: 5 });
+    const el = await loaded(source, calls);
+    await toggle(el, 'Person 1');
+    await answer(el, childCalls);
+    await scrollTo(el, 40 * 30);
+    await load(el);
+    await answer(el, calls.slice(1));
+    const scroller = shadow(el).querySelector<HTMLElement>('[part~="table"]');
+    const top = scroller?.scrollTop;
+    /** The first row fully below the header. */
+    const firstVisible = () => {
+      const edge = (scroller?.getBoundingClientRect().top ?? 0) + 40 - 1;
+      return rowsInOrder(el).find((r) => r.getBoundingClientRect().top >= edge);
+    };
+    const before = firstVisible();
+    const index = before?.getAttribute('aria-rowindex');
+    expect(rowText(before as Element)[0]).toMatch(/^Person 2\d$/);
+    const name = rowText(before as Element)[0];
+
+    const sent = calls.length;
+    await el.refresh();
+    await load(el);
+    await answer(el, calls.slice(sent));
+    expect(scroller?.scrollTop).toBe(top);
+    expect(firstVisible()?.getAttribute('aria-rowindex')).toBe(index);
+    expect(rowText(firstVisible() as Element)[0]).toBe(name);
+    // Row 1's children load again, its five rows kept meanwhile.
+    expect(childCalls).toHaveLength(2);
+    await answer(el, childCalls.slice(1));
+    expect(scroller?.scrollTop).toBe(top);
+    expect(rowText(firstVisible() as Element)[0]).toBe(name);
+  });
+
+  test('refresh() keeps the rows under nested open rows', async () => {
+    const { source, calls, childCalls } = server(100, { depth: 2, kids: 2 });
+    const el = await loaded(source, calls);
+    await toggle(el, 'Person 1');
+    await answer(el, childCalls);
+    await toggle(el, 'Person 1.0');
+    await answer(el, childCalls.slice(1));
+    expect(rowOf(el, 'Person 2').getAttribute('aria-rowindex')).toBe('8');
+
+    await el.refresh();
+    await load(el);
+    await answer(el, calls.slice(-1));
+    // Four rows under Person 1 (its two children, and two under Person 1.0) until it answers.
+    expect(names(el, 7)).toEqual(['Person 0', 'Person 1', '…', '…', '…', '…', 'Person 2']);
+    expect(rowOf(el, 'Person 2').getAttribute('aria-rowindex')).toBe('8');
+    expect(childCalls.map((c) => c.request.parentId)).toEqual(['1', '1.0', '1']);
+
+    await answer(el, childCalls.slice(2));
+    expect(names(el, 7)).toEqual([
+      'Person 0',
+      'Person 1',
+      'Person 1.0',
+      '…',
+      '…',
+      'Person 1.1',
+      'Person 2',
+    ]);
+    expect(childCalls.map((c) => c.request.parentId)).toEqual(['1', '1.0', '1', '1.0']);
+    await answer(el, childCalls.slice(3));
+    expect(names(el, 7)).toEqual([
+      'Person 0',
+      'Person 1',
+      'Person 1.0',
+      'Person 1.0.0',
+      'Person 1.0.1',
+      'Person 1.1',
+      'Person 2',
+    ]);
+  });
+
+  test('a child request failing under a row whose page was evicted reports the row’s index', async () => {
+    const { source, calls, childCalls } = server(1000);
+    const el = await loaded(source, calls);
+    const errors = events<LoadErrorDetail>(el, 'argus-load-error');
+    await toggle(el, 'Person 1');
+    await scrollTo(el, 40 * 600);
+    await load(el);
+    const failure = new Error('offline');
+    childCalls[0]?.reject(failure);
+    await Promise.resolve();
+    await settle(el);
+    expect(errors).toEqual([{ error: failure, start: 1, end: 2, parentId: '1' }]);
+  });
+
+  test('a request failing after its row collapsed is not an error; the next expand asks again', async () => {
+    const { source, calls, childCalls } = server(100);
+    const el = await loaded(source, calls);
+    const errors = events<LoadErrorDetail>(el, 'argus-load-error');
+    await toggle(el, 'Person 1');
+    await toggle(el, 'Person 1');
+    childCalls[0]?.reject(new Error('offline'));
+    await Promise.resolve();
+    await load(el);
+    expect(errors).toEqual([]);
+    expect(childCalls).toHaveLength(1);
+
+    await toggle(el, 'Person 1');
+    expect(childCalls).toHaveLength(2);
+    expect(names(el, 3)).toEqual(['Person 0', 'Person 1', '…']);
+    await answer(el, childCalls.slice(1));
+    expect(names(el, 3)).toEqual(['Person 0', 'Person 1', 'Person 1.0']);
+    expect(shadow(el).querySelector('[part~="retry"]')).toBeNull();
+  });
+
+  test('focus on a loading child row stays there: its stand-in id isn’t a row’s id', async () => {
+    const { source, calls } = server(100);
+    const el = await loaded(source, calls);
+    // A loading row at index 1; row "1" (default id) is loaded at index 2.
+    await toggle(el, 'Person 0');
+    const loading = rowsInOrder(el)[1];
+    expect(loading?.getAttribute('aria-busy')).toBe('true');
+    loading?.querySelector<HTMLElement>('[data-col="age"]')?.focus();
+    await settle(el);
+    el.requestUpdate();
+    await settle(el);
+    const active = shadow(el).activeElement as HTMLElement | null;
+    expect(active?.parentElement?.getAttribute('aria-rowindex')).toBe('3');
+    expect(active?.parentElement?.getAttribute('aria-busy')).toBe('true');
+  });
+
+  test('at most 6 child requests at a time; every open row is asked once', async () => {
+    const { source, calls, childCalls } = server(100);
+    const open = Array.from({ length: 20 }, (_, i) => String(i));
+    const el = await loaded(source, calls, { treeExpanded: open });
+    expect(childCalls).toHaveLength(6);
+
+    // A sort: every open row loads its children again, once its row is loaded.
+    shadow(el).querySelector<HTMLElement>('[data-sort-col="name"]')?.click();
+    await load(el);
+    expect(childCalls.every((c) => c.request.signal.aborted)).toBe(true);
+    const start = childCalls.length;
+    await answer(el, calls.slice(-1));
+    expect(childCalls.length - start).toBe(6);
+    for (let done = 0; done < childCalls.length - start; done++) {
+      childCalls[start + done]?.resolve();
+      await Promise.resolve();
+      await load(el);
+      expect(childCalls.length - start - (done + 1)).toBeLessThanOrEqual(6);
+    }
+    const asked = childCalls.slice(start).map((c) => c.request.parentId);
+    expect(asked).toHaveLength(20);
+    expect(new Set(asked)).toEqual(new Set(open));
+  });
+
   test('getRows still pages top-level rows', async () => {
     const { source, calls, childCalls } = server(1000, { kids: 50 });
     const el = await loaded(source, calls);

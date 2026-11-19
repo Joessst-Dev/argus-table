@@ -645,10 +645,12 @@ export interface DataSource<TData> {
   /**
    * Loads all children of a row, sorted and filtered like the rows. Called when
    * a row with `hasChildren` is expanded (or loads while expanded) and its
-   * children aren't loaded: once per row until a reset or a Retry, not again on
-   * a collapse and expand. Until it resolves, a loading row shows under the row;
-   * reject (or throw) to show a row with a Retry button instead, and fire
-   * `argus-load-error` with the row's `parentId`. A child's id is
+   * children aren't loaded: they load once and stay (collapsing keeps them)
+   * until a reset. At most 6 calls are in flight; the others start as those
+   * settle. Until it resolves, a loading row shows under the row; reject (or
+   * throw) to show a row with a Retry button instead and fire `argus-load-error`
+   * with the row's `parentId` (not for a row collapsed meanwhile). A failed load
+   * is tried again on Retry or on the row's next expand. A child's id is
    * `getRowId(row, index)` with its index among its siblings, else the parent's
    * id, a dot and that index (`'3.0'`, `'3.0.2'`); ids must be unique across
    * levels. The rows form a tree only with `hasChildren` set too.
@@ -664,7 +666,7 @@ export interface LoadErrorDetail {
   error: unknown;
   /**
    * Index of the first row, inclusive. For children, the parent's index among the
-   * rows shown (`-1` if it isn't shown, its own parent collapsed).
+   * rows shown, `-1` if it isn't shown (an ancestor collapsed).
    */
   start: number;
   /** Index after the last row, exclusive. For children, the parent's index plus one. */

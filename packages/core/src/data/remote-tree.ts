@@ -5,7 +5,7 @@ import type { CachedRow, PageCache, RowState } from './page-cache.js';
 /** Where a parent's children are: loaded, in flight, or their request failed. */
 export type ChildState = 'loaded' | 'loading' | 'error';
 
-/** A parent's shown child count, kept from one tree to the next (`RemoteTree.counts()`). */
+/** The rows shown under a parent, kept from one tree to the next (`RemoteTree.counts()`). */
 export interface KeptCount {
   /**
    * The parent's top-level index, for a top-level parent: it counts as open there
@@ -13,7 +13,7 @@ export interface KeptCount {
    * there. Without it, the count applies once the parent's row is loaded.
    */
   index?: number | undefined;
-  /** Rows shown under the parent. */
+  /** Rows shown under the parent: its children and their shown descendants. */
   count: number;
 }
 
@@ -326,6 +326,23 @@ export class RemoteTree<TData> implements RemoteRows<TData> {
     return [...this.#ensure().wanted];
   }
 
+  /** Whether `wanted()` lists anything, without copying it. */
+  hasWanted(): boolean {
+    return this.#ensure().wanted.length > 0;
+  }
+
+  /**
+   * The shown index of a row, loaded or not: `indexOf`, or for an open top-level
+   * row whose page was evicted (shown as a skeleton), its index from when it was
+   * loaded. `undefined` when it isn't shown.
+   */
+  shownIndexOf(rowId: string): number | undefined {
+    const index = this.indexOf(rowId);
+    if (index !== undefined || this.#known.has(rowId)) return index;
+    const top = this.#topIndex(rowId);
+    return top === undefined ? undefined : this.#positionOfTop(top);
+  }
+
   /** The state of a parent's children, or `undefined` when they haven't been requested. */
   childState(parentId: string): ChildState | undefined {
     return this.#children.get(parentId)?.state;
@@ -367,13 +384,20 @@ export class RemoteTree<TData> implements RemoteRows<TData> {
     return true;
   }
 
-  /** Marks in-flight children as failed: one error row shows under the parent. */
-  failChildren(parentId: string): void {
+  /**
+   * Marks in-flight children as failed: one error row shows under the parent.
+   * When the parent was collapsed meanwhile, forgets the request instead, so the
+   * next expand loads again. Returns whether the error shows (to report it).
+   */
+  failChildren(parentId: string): boolean {
     const record = this.#children.get(parentId);
-    if (record?.state !== 'loading') return;
-    this.#children.set(parentId, { state: 'error', entries: record.entries });
+    if (record?.state !== 'loading') return false;
     this.#kept.delete(parentId);
+    const shown = this.#expanded.has(parentId);
+    if (shown) this.#children.set(parentId, { state: 'error', entries: record.entries });
+    else this.#children.delete(parentId);
     this.#changed(parentId);
+    return shown;
   }
 
   /** Lets failed children be requested again (`wanted()`). */
@@ -391,21 +415,26 @@ export class RemoteTree<TData> implements RemoteRows<TData> {
   }
 
   /**
-   * The number of rows shown under each shown open parent, with the top-level
-   * index of top-level parents, for the next tree after `refresh()` (`keepCounts`).
+   * The number of rows shown under each shown open parent (its children and
+   * theirs, all of its shown subtree), with the top-level index of top-level
+   * parents, for the next tree after `refresh()` (`keepCounts`).
    */
   counts(): ReadonlyMap<string, KeptCount> {
+    const index = this.#ensure();
     const counts = new Map<string, KeptCount>();
     for (const id of this.#expanded) {
       const known = this.#known.get(id);
       if (known) {
-        if (known.has && this.indexOf(id) !== undefined) {
-          counts.set(id, { count: this.#shownChildren(id) });
-        }
+        const count = known.has ? this.#shownUnder(index, id) : undefined;
+        if (count !== undefined) counts.set(id, { count });
         continue;
       }
-      const index = this.#topIndex(id);
-      if (index !== undefined) counts.set(id, { index, count: this.#shownChildren(id) });
+      const top = this.#topIndex(id);
+      if (top === undefined) continue;
+      const m = index.byId.get(id);
+      const count =
+        m === undefined ? this.#shownChildren(id) : (index.subtrees[m]?.nodes.length ?? 0);
+      counts.set(id, { index: top, count });
     }
     return counts;
   }
@@ -416,6 +445,19 @@ export class RemoteTree<TData> implements RemoteRows<TData> {
     if (known) return known.entry.row;
     const top = this.cache.indexOf(parentId);
     return top === undefined ? undefined : this.cache.entryAt(top)?.row;
+  }
+
+  /** Rows shown under a shown child row (its open subtree); `undefined` when it isn't shown. */
+  #shownUnder(index: OpenIndex<TData>, id: string): number | undefined {
+    const where = this.#where.get(id);
+    const m = where === undefined ? undefined : index.byId.get(where.root);
+    const nodes = m === undefined ? undefined : index.subtrees[m]?.nodes;
+    const node = where === undefined ? undefined : nodes?.[where.local];
+    if (!nodes || !where || node?.entry?.id !== id) return undefined;
+    if (!node.open) return 0;
+    let end = where.local + 1;
+    while (end < nodes.length && (nodes[end]?.depth ?? 0) > node.depth) end++;
+    return end - where.local - 1;
   }
 
   /** `true` when a parent's children are loaded and there are none. */
