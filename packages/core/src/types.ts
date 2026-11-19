@@ -643,13 +643,15 @@ export interface DataSource<TData> {
    */
   hasChildren?(row: TData): boolean;
   /**
-   * Loads all children of a row, sorted and filtered like the rows. Called once
-   * when a row with `hasChildren` is expanded and its children aren't loaded.
-   * Until it resolves, a loading row shows under the row; reject (or throw) to
-   * show a row with a Retry button instead. A child's id is `getRowId(row, index)`
-   * with its index among its siblings, else the parent's id, a dot and that
-   * index (`'3.0'`, `'3.0.2'`); ids must be unique across levels. The rows form a
-   * tree only with `hasChildren` set too.
+   * Loads all children of a row, sorted and filtered like the rows. Called when
+   * a row with `hasChildren` is expanded (or loads while expanded) and its
+   * children aren't loaded: once per row until a reset or a Retry, not again on
+   * a collapse and expand. Until it resolves, a loading row shows under the row;
+   * reject (or throw) to show a row with a Retry button instead, and fire
+   * `argus-load-error` with the row's `parentId`. A child's id is
+   * `getRowId(row, index)` with its index among its siblings, else the parent's
+   * id, a dot and that index (`'3.0'`, `'3.0.2'`); ids must be unique across
+   * levels. The rows form a tree only with `hasChildren` set too.
    */
   getChildren?(request: ChildrenRequest<TData>): Promise<ChildrenResponse<TData>>;
 }
@@ -660,7 +662,10 @@ export interface DataSource<TData> {
  */
 export interface LoadErrorDetail {
   error: unknown;
-  /** Index of the first row, inclusive. For children, the parent's index. */
+  /**
+   * Index of the first row, inclusive. For children, the parent's index among the
+   * rows shown (`-1` if it isn't shown, its own parent collapsed).
+   */
   start: number;
   /** Index after the last row, exclusive. For children, the parent's index plus one. */
   end: number;

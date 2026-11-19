@@ -16,9 +16,9 @@ export interface TableLabels {
   expandRow: string;
   /** Accessible name of a row's chevron while its detail panel is open (`rowDetail`). Default: `Hide details`. */
   collapseRow: string;
-  /** Accessible name of a collapsed tree row's toggle (`getSubRows` or `getParentId`). Default: `Expand row`. */
+  /** Accessible name of a collapsed tree row's toggle (`getSubRows`, `getParentId`, or a `dataSource` with `getChildren`). Default: `Expand row`. */
   expandTreeRow: string;
-  /** Accessible name of an expanded tree row's toggle (`getSubRows` or `getParentId`). Default: `Collapse row`. */
+  /** Accessible name of an expanded tree row's toggle (`getSubRows`, `getParentId`, or a `dataSource` with `getChildren`). Default: `Collapse row`. */
   collapseTreeRow: string;
   /** Accessible name of a column's resize handle. Default: `Resize column`. */
   resizeColumn: string;
@@ -26,13 +26,18 @@ export interface TableLabels {
   resizeGroup: string;
   /** Description of a filtered column's header (`aria-description`). Default: `Filtered`. */
   filtered: string;
-  /** Text of the button in a row whose `dataSource` page failed. Default: `Retry`. */
+  /** Text of the button in a row whose `dataSource` page, or child rows, failed to load. Default: `Retry`. */
   retry: string;
   /**
    * Accessible name of the Retry button: the rows of the failed page, counted from 1,
    * `last` included. Default: `Retry loading rows 51 to 100`.
    */
   retryRows: (rows: { first: number; last: number }) => string;
+  /**
+   * Accessible name of the Retry button in the row under a tree row whose children
+   * failed to load (`dataSource` with `getChildren`). Default: `Retry loading child rows`.
+   */
+  retryChildren: string;
   /** Announced when a filter or `quickFilter` changes the rows. Default: `1 row`, `42 rows`. */
   rowCount: (rows: { count: number }) => string;
   /**
@@ -62,6 +67,7 @@ const DEFAULT_LABELS: TableLabels = {
   filtered: 'Filtered',
   retry: 'Retry',
   retryRows: ({ first, last }) => `Retry loading rows ${String(first)} to ${String(last)}`,
+  retryChildren: 'Retry loading child rows',
   rowCount: ({ count }) => (count === 1 ? '1 row' : `${String(count)} rows`),
   columnMoved: ({ column, position, total }) =>
     `${column} moved to column ${String(position)} of ${String(total)}`,

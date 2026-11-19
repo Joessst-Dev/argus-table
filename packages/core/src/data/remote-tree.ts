@@ -32,6 +32,12 @@ export interface RemoteTreeOptions<TData> {
    * an `index` counts as open at that index before its page loads.
    */
   keepCounts?: ReadonlyMap<string, KeptCount> | undefined;
+  /**
+   * Where to report a row id used by more than one row (once per tree). Default:
+   * `console.warn`. A caller that makes a new tree on every reset can pass one
+   * that warns once over all of them.
+   */
+  warn?: ((message: string) => void) | undefined;
 }
 
 /** A parent's children: their state and, once loaded, the rows. */
@@ -111,6 +117,7 @@ export class RemoteTree<TData> implements RemoteRows<TData> {
   readonly #getRowId: ((row: TData, index: number) => string) | undefined;
   /** Kept counts of parents whose children haven't settled since. */
   readonly #kept: Map<string, KeptCount>;
+  readonly #warn: (message: string) => void;
   #warned = false;
   /** The last expanded top-level rows found, in `#expanded` order, and those sorted. */
   #found: { top: number; id: string }[] = [];
@@ -133,6 +140,11 @@ export class RemoteTree<TData> implements RemoteRows<TData> {
     this.cache = cache;
     this.#hasChildren = options.hasChildren;
     this.#getRowId = options.getRowId;
+    this.#warn =
+      options.warn ??
+      ((message) => {
+        console.warn(message);
+      });
     this.#kept = new Map(options.keepCounts);
     for (const [id, kept] of this.#kept) {
       if (kept.index !== undefined && Number.isInteger(kept.index) && kept.index >= 0) {
@@ -343,7 +355,7 @@ export class RemoteTree<TData> implements RemoteRows<TData> {
       const other = this.#known.get(entry.id);
       if (!this.#warned && (this.cache.indexOf(entry.id) !== undefined || other)) {
         this.#warned = true;
-        console.warn(
+        this.#warn(
           `argus-table: row id "${entry.id}" is used by more than one row; ids must be unique across levels of a tree.`,
         );
       }

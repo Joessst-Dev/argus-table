@@ -235,6 +235,20 @@ describe('RemoteTree', () => {
     expect(warn).toHaveBeenCalledTimes(1);
   });
 
+  it('warns through the warn option when given', () => {
+    const console_ = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const warn = vi.fn();
+    const cache = new PageCache<Row>({ pageSize: 4, getRowId: (row) => row.id });
+    load(cache, 0, 4);
+    const tree = new RemoteTree(cache, { hasChildren, getRowId: (row) => row.id, warn });
+    tree.setExpanded(['r0', 'r1']);
+    answer(tree, 'r0', [{ id: 'r2', kids: 0 }]);
+    answer(tree, 'r1', [{ id: 'r3', kids: 0 }]);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]?.[0]).toMatch(/"r2"/);
+    expect(console_).not.toHaveBeenCalled();
+  });
+
   it('warns when another parent’s child has the id', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const { tree } = setup();

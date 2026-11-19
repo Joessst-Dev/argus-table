@@ -84,9 +84,14 @@ export class SelectionController<T> {
     return this.#host.selectionCheckboxes && this.mode !== 'none';
   }
 
-  /** Whether rows select as whole branches: `selectBranches` on a tree, in `multi` mode. */
+  /**
+   * Whether rows select as whole branches: `selectBranches` on a tree, in `multi`
+   * mode. Not yet for a tree from a `dataSource` (no `branchTree()`).
+   */
   #branches(): boolean {
-    return this.#host.selectBranches && this.mode === 'multi' && this.#model().tree;
+    if (!this.#host.selectBranches || this.mode !== 'multi') return false;
+    const model = this.#model();
+    return model.tree && model.branchTree() !== undefined;
   }
 
   /**

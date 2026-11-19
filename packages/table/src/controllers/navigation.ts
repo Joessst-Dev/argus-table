@@ -28,6 +28,7 @@ import type { VirtualController } from './virtual-controller.js';
 interface NavigationHost extends ReactiveElement {
   rowHeight?: number | 'auto';
   getRowId?: unknown;
+  dataSource?: unknown;
 }
 
 /** Sizes the table measures, for paging and revealing a row. */
@@ -486,17 +487,25 @@ export class NavigationController<T> {
     ) {
       return active.rowId;
     }
-    return this.#placeholderId(index);
+    return this.#placeholderId(model, index);
   }
 
-  /** The id of an unloaded row: its index, or a reserved string if `getRowId` makes the ids. */
-  #placeholderId(index: number): string {
-    return this.#host.getRowId ? `\u0000${String(index)}` : String(index);
+  /**
+   * Whether stand-in ids are reserved strings: when `getRowId` makes the ids, or
+   * the rows are a tree from a `dataSource` (an index there isn't a row's default id).
+   */
+  #reserved(model: TableModel<T, CellContent>): boolean {
+    return Boolean(this.#host.getRowId) || (this.#host.dataSource !== undefined && model.tree);
+  }
+
+  /** The id of an unloaded row: its index, or a reserved string (`#reserved`). */
+  #placeholderId(model: TableModel<T, CellContent>, index: number): string {
+    return this.#reserved(model) ? `\u0000${String(index)}` : String(index);
   }
 
   /** The data index a stand-in id from `#placeholderId` holds, or `undefined` for another id. */
-  #placeholderIndex(id: string): number | undefined {
-    const digits = this.#host.getRowId ? (id.startsWith('\u0000') ? id.slice(1) : '') : id;
+  #placeholderIndex(model: TableModel<T, CellContent>, id: string): number | undefined {
+    const digits = this.#reserved(model) ? (id.startsWith('\u0000') ? id.slice(1) : '') : id;
     return /^\d+$/.test(digits) ? Number(digits) : undefined;
   }
 
@@ -619,7 +628,7 @@ export class NavigationController<T> {
       const unloaded = data !== undefined && model.rowAt(data) === undefined;
       // A row not loaded yet keeps its stand-in id, which holds its data index:
       // its position follows panels that appear above it.
-      const held = found === undefined ? this.#placeholderIndex(rowId) : undefined;
+      const held = found === undefined ? this.#placeholderIndex(model, rowId) : undefined;
       // A tree row out of the shown rows (its parent collapsed, or a filter
       // dropped it): to its nearest shown ancestor.
       const ancestor =

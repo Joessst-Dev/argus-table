@@ -68,7 +68,7 @@ export class ScrollTarget<T> {
     const align = options.align ?? 'start';
     const count = model.rowCount;
     this.#target =
-      this.#data.rows?.totalKnown === false && index >= count
+      this.#data.cache?.totalKnown === false && index >= count
         ? { row: index, count, align }
         : undefined;
     this.#scrollRowTo(index, align);
@@ -117,7 +117,7 @@ export class ScrollTarget<T> {
     // A data source counts one page past its loaded rows until it knows the
     // total: scroll on as the count grows.
     const count = model.rowCount;
-    if (this.#data.rows?.totalKnown === false && scroll.row >= count) {
+    if (this.#data.cache?.totalKnown === false && scroll.row >= count) {
       this.#target = { row: scroll.row, count, align: 'start' };
     }
     const scroller = this.#scroller();
@@ -138,7 +138,7 @@ export class ScrollTarget<T> {
     if (!target || target.count === count) return;
     target.count = count;
     this.#scrollRowTo(target.row, target.align);
-    if (target.row < count || this.#data.rows?.totalKnown !== false) this.#target = undefined;
+    if (target.row < count || this.#data.cache?.totalKnown !== false) this.#target = undefined;
   }
 
   /** Scrolls row `index` to `align` in the body. Returns whether it moved. */
