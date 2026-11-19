@@ -6,6 +6,8 @@ import {
   ArgusTable,
   type ArgusPlugin,
   type ArgusTableElement,
+  type ChildrenRequest,
+  type ChildrenResponse,
   type ColumnDef,
   type ReactColumnDef,
   type RowClickDetail,
@@ -121,6 +123,34 @@ export const wrongJsxRow = (
 
 export const jsxColumn = (
   <ArgusColumn<Order> columnId="total" header={<b>Total</b>} cell={(o) => <b>{o.total}</b>} />
+);
+
+// A tree from a `dataSource`: `hasChildren` and `getChildren` get the row type.
+const loadChildren = (request: ChildrenRequest<Order>): Promise<ChildrenResponse<Order>> =>
+  Promise.resolve({ rows: orders.filter((o) => o.id.startsWith(`${request.parentId}.`)) });
+export const remoteTree = (
+  <ArgusTable
+    columns={columns}
+    dataSource={{
+      getRows: () => Promise.resolve({ rows: orders }),
+      hasChildren: (o) => o.total > 0,
+      getChildren: (request) => {
+        const parent: Order = request.parent;
+        return parent.total > 0 ? loadChildren(request) : Promise.resolve({ rows: [] });
+      },
+    }}
+    onLoadError={(e) => e.detail.parentId?.length}
+  />
+);
+
+export const wrongChildren = (
+  <ArgusTable<Order>
+    dataSource={{
+      getRows: () => Promise.resolve({ rows: orders }),
+      // @ts-expect-error: an Order has no `name`.
+      getChildren: ({ parent }) => Promise.resolve({ rows: parent.name ? orders : [] }),
+    }}
+  />
 );
 
 const noop = () => undefined;

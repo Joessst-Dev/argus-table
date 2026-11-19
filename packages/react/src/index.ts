@@ -27,6 +27,8 @@ export type {
   CellContent,
   CellContext,
   CellTarget,
+  ChildrenRequest,
+  ChildrenResponse,
   ColumnAlign,
   ColumnDef,
   ColumnFilter,

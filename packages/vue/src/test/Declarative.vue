@@ -82,6 +82,24 @@ defineExpose({ sorting, clicked, table, refresh });
     <ArgusTable :data="orders" :get-sub-rows="(o) => o.children" />
     <!-- @vue-expect-error the row is an Order, which has no `kids` -->
     <ArgusTable :data="orders" :get-sub-rows="(o) => o.kids" />
+    <!-- A tree from a data source: `getChildren` gets the row type. -->
+    <ArgusTable
+      :data-source="{
+        getRows: async () => ({ rows: orders }),
+        hasChildren: (o: Order) => o.total > 0,
+        getChildren: async ({ parent }) => ({ rows: parent.children ?? [] }),
+      }"
+      @load-error="(e) => e.detail.parentId?.length"
+      @row-click="(e) => e.detail.row.total.toFixed()"
+    />
+    <!-- @vue-expect-error the row is an Order, which has no `kids` -->
+    <ArgusTable
+      :data-source="{
+        getRows: async () => ({ rows: orders }),
+        hasChildren: (o: Order) => o.total > 0,
+        getChildren: async ({ parent }) => ({ rows: parent.kids }),
+      }"
+    />
     <ArgusTable :data="orders" :row-detail="({ row }) => row.total.toFixed()" />
     <!-- @vue-expect-error the row is an Order, which has no `name` -->
     <ArgusTable :data="orders" :row-detail="({ row }) => row.name" />

@@ -216,12 +216,16 @@ describe('api.mjs', () => {
     }
   });
 
-  it('lists the ColumnDef and ColumnGroup fields', () => {
+  it('lists the ColumnDef, ColumnGroup and DataSource fields', () => {
     const types = text('packages/core/src/types.ts');
     assert.deepEqual(sorted(api.COLUMN_FIELDS), sorted(interfaceMembers(types, 'ColumnDef')));
     assert.deepEqual(
       sorted(api.COLUMN_GROUP_FIELDS),
       sorted(interfaceMembers(types, 'ColumnGroup')),
+    );
+    assert.deepEqual(
+      sorted(api.DATA_SOURCE_MEMBERS),
+      sorted(interfaceMembers(types, 'DataSource')),
     );
     for (const old of Object.keys(api.COLUMN_FIELD_RENAMES))
       assert.ok(!api.COLUMN_FIELDS.includes(old), `${old} is a real field`);
@@ -321,6 +325,8 @@ describe('libraries.mjs', () => {
           assert.ok(p in api.PROPERTIES, `${where}: property ${p}`);
         for (const c of f.argus.column ?? [])
           assert.ok(api.COLUMN_FIELDS.includes(c), `${where}: column field ${c}`);
+        for (const d of f.argus.dataSource ?? [])
+          assert.ok(api.DATA_SOURCE_MEMBERS.includes(d), `${where}: dataSource member ${d}`);
         for (const e of f.argus.events ?? [])
           assert.ok([...api.EVENTS, ...api.ADDON_EVENTS].includes(e), `${where}: event ${e}`);
         for (const m of f.argus.methods ?? [])

@@ -56,6 +56,44 @@ export const ordersSource: DataSource<Order> = {
 - Selection: only loaded rows can be selected; Ctrl/Cmd+A selects the rows loaded so far. A "select all N rows on the server" is the app's to model (a flag next to `selection`).
 - `width: 'auto'` measures the first page that loads.
 
+## Children loaded on expand
+
+Since 1.4. A tree whose children come from the server as rows expand (lazy trees: Element Plus `lazy` + `load`, PrimeNG/PrimeVue `onNodeExpand`, AG Grid server-side tree data, MUI X `getChildrenCount`) is a `dataSource` with `hasChildren` and `getChildren`. `getRows` returns the top-level rows; `getChildren` returns all of one row's children.
+
+```ts
+// query(): the URL parameters, built as in the first example.
+export const foldersSource: DataSource<Folder> = {
+  async getRows({ start, end, sorting, filters, quickFilter, signal }) {
+    const res = await fetch(
+      `/api/folders?${query({ start, end, sorting, filters, quickFilter })}`,
+      {
+        signal,
+      },
+    );
+    if (!res.ok) throw new Error(`HTTP ${String(res.status)}`);
+    const body = (await res.json()) as { items: Folder[]; total: number };
+    return { rows: body.items, total: body.total };
+  },
+  hasChildren: (folder) => folder.hasChildren,
+  async getChildren({ parentId, sorting, filters, quickFilter, signal }) {
+    const res = await fetch(
+      `/api/folders/${parentId}/children?${query({ sorting, filters, quickFilter })}`,
+      { signal },
+    );
+    if (!res.ok) throw new Error(`HTTP ${String(res.status)}`);
+    return { rows: (await res.json()) as Folder[] };
+  },
+};
+```
+
+- **`hasChildren`** is called for every loaded row: read a field (`hasChildren`, `leaf === false`, a child count above 0), never fetch.
+- **`getChildren`** gets the row (`parent`), its id (`parentId`), the sort, filters and quick filter, and a `signal`. Sort the children like the rows and return those that match a filter or hold a match. There is no `start`/`end`: a row's children come in one response, so an API that pages children needs all pages fetched here.
+- **`getRowId`** with the server's ids, unique across levels; `parentId` is the parent's id from it.
+- **`treeExpanded`** (two-way, `argus-tree-expanded-change`) holds the expanded ids, as for tree rows in `data`; a filter doesn't expand rows.
+- Children are cached until the sort, filters, quick filter, source or `getRowId` change, or `refresh()`; collapsing keeps them. A failed `getChildren` shows a Retry row and fires `argus-load-error` with `parentId`.
+
+The rest (ids, indexes, `depth`, selection, export): [api.md](api.md#children-from-the-server).
+
 ## From paginated tables
 
 Paginated grids (MUI `paginationMode="server"`, AG Grid `pagination`, TanStack `manualPagination`, PrimeNG `lazy`, Vuetify `v-data-table-server`, Ant Design `onChange` with `pagination`) usually call the API with a page and a page size. Keep the API; change the caller:

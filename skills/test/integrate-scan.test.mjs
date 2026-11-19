@@ -202,7 +202,7 @@ describe('scan.mjs', () => {
     assert.equal(feature(orders, 'tree'), undefined);
   });
 
-  it('reads PrimeNG tree tables under every tag spelling, lazy ones as a gap', async () => {
+  it('reads PrimeNG tree tables under every tag spelling, lazy ones too', async () => {
     const report = await scan(
       project('angular-material-primeng', {
         'src/app/files/files.component.html': [
@@ -216,9 +216,9 @@ describe('scan.mjs', () => {
     );
     const files = report.usages.filter((u) => u.file === 'src/app/files/files.component.html');
     assert.deepEqual(
-      files.map((u) => [u.line, feature(u, 'tree')?.fit, feature(u, 'lazy-tree')?.gap]),
+      files.map((u) => [u.line, feature(u, 'tree')?.fit, feature(u, 'lazy-tree')?.fit]),
       [
-        [1, 'maps', 'lazy-trees'],
+        [1, 'maps', 'maps'],
         [4, 'maps', undefined],
       ],
     );
