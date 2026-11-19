@@ -127,9 +127,12 @@ export interface BranchTree {
 
 /**
  * A row's checkbox with branches: `'all'` when the row and every kept
- * descendant are selected, `'some'` when any of them is, else `'none'`.
+ * descendant are selected, `'some'` when any of them is, else `'none'`;
+ * `'blocked'` when ticking it could select nothing (its id is kept out by
+ * descendants left unselected, and none of its kept descendants can be
+ * ticked: a parent the filters keep without its children, for one).
  */
-export type BranchCheck = 'all' | 'some' | 'none';
+export type BranchCheck = 'all' | 'some' | 'none' | 'blocked';
 
 /**
  * `current` plus each of `ids` with all its kept descendants, where a parent's
@@ -237,12 +240,13 @@ export function withBranches(
  * A click on a row's checkbox with branches. When the row counts as checked,
  * deselects it, its kept descendants and its ancestors, since a parent stays
  * selected only with its whole branch; otherwise selects the branch
- * (`withBranches`). Checked: every kept descendant is selected, and the row's
- * own id too, unless descendants the filters hide keep it out (a parent whose
- * shown rows are all selected under a filter: its checkbox is part-ticked, and
- * a click unticks it). Descendants the filters hide are left as they are.
- * O(branch) beyond `selected`, which is `current` as a set (made here when not
- * given).
+ * (`withBranches`). Checked: every kept descendant that isn't blocked (see
+ * `BranchCheck`) is selected, and the row's own id too, unless descendants
+ * left unselected keep it out (a parent whose shown rows are all selected
+ * under a filter: its checkbox is part-ticked, and a click unticks it). A
+ * blocked row itself is never checked, and ticking it selects nothing.
+ * Descendants the filters hide are left as they are. O(branch) beyond
+ * `selected`, which is `current` as a set (made here when not given).
  */
 export function toggleBranch(
   current: readonly string[],
@@ -250,23 +254,39 @@ export function toggleBranch(
   tree: BranchTree,
   selected: ReadonlySet<string> = new Set(current),
 ): SelectionState {
-  const drop = new Set([id]);
-  const stack = [...tree.children(id)];
+  const has = (row: string) => selected.has(row);
+  // The kept branch, preorder; then from the bottom up, each row unselected
+  // but blocked, or the first unselected one that isn't: not checked.
+  const order: string[] = [];
+  const seen = new Set<string>();
+  const stack = [id];
   while (stack.length > 0) {
     const row = stack.pop() ?? '';
-    // A kept descendant isn't selected: select the branch instead.
-    if (!selected.has(row)) return withBranches(current, [id], tree);
-    if (drop.has(row)) continue;
-    drop.add(row);
+    if (seen.has(row)) continue;
+    seen.add(row);
+    order.push(row);
     for (const child of tree.children(row)) stack.push(child);
   }
-  // Without its own id, checked only when hidden children keep it out.
+  const blocked = new Set<string>();
+  for (let k = order.length - 1; k > 0; k--) {
+    const row = order[k] ?? '';
+    if (has(row)) continue;
+    const kids = tree.children(row);
+    if (
+      kids.length > 0 ? kids.every((kid) => blocked.has(kid)) : !tree.allChildren(row).every(has)
+    ) {
+      blocked.add(row);
+    } else return withBranches(current, [id], tree);
+  }
+  // Without its own id, checked only with a kept descendant to tick and its
+  // id kept out by descendants left unselected.
   if (
-    !selected.has(id) &&
-    (drop.size === 1 || tree.allChildren(id).every((child) => selected.has(child)))
+    !has(id) &&
+    (order.length - blocked.size === 1 || (blocked.size === 0 && tree.allChildren(id).every(has)))
   ) {
     return withBranches(current, [id], tree);
   }
+  const drop = new Set(order);
   for (let up = tree.parent(id); up !== undefined && !drop.has(up); up = tree.parent(up)) {
     drop.add(up);
   }

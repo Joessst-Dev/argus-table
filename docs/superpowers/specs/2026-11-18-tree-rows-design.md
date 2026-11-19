@@ -157,7 +157,7 @@ With `virtualizeColumns`, the tree column is kept rendered while it holds the ac
 > - The checkbox is ticked when the row's id and every kept descendant are selected, part-ticked when some are (as before; a parent kept out by hidden rows shows part-ticked).
 > - Select-all selects every kept row by the same rule; the header checkbox is ticked when every kept row counts as checked.
 >
-> Without a filter nothing changes. Edge: a parent the filter keeps without any of its children (it matches, they don't) can't be ticked while the filter is on, since its id needs the hidden children.
+> Without a filter nothing changes. Edge: a parent the filter keeps without any of its children (it matches, they don't) can't be ticked while the filter is on, since its id needs the hidden children. Decided in review too: such a row (and one with only such rows under it) is _blocked_: its checkbox renders `disabled` (part `selection-checkbox`, so `::part(selection-checkbox):disabled` styles it), clicks and Space on it don't change the selection, and it doesn't count for its ancestors' checked state or the header checkbox, so select-all under that filter can still show ticked.
 
 ### Everything else that touches rows
 

@@ -14,8 +14,9 @@ export type RowCheckboxes = CheckboxHandlers & {
   label: string;
   /**
    * With branch selection (`selectBranches`), each row's checkbox state by data
-   * index: ticked for `'all'`, part-ticked for `'some'`. Without it, a box is
-   * ticked when its row is selected.
+   * index: ticked for `'all'`, part-ticked for `'some'`, `disabled` for
+   * `'blocked'` (ticking it could select nothing). Without it, a box is ticked
+   * when its row is selected.
    */
   state?: (index: number) => BranchCheck;
 };
@@ -312,7 +313,8 @@ export function firstDataColumn(
  * A row's checkbox in the selection column, for a row that can be selected.
  * It isn't focusable: the cell holds focus. `live()` keeps it showing the
  * selection when a controlled host turns a change down. With branch selection
- * it shows its branch's state, part-ticked (`indeterminate`) for some of it.
+ * it shows its branch's state, part-ticked (`indeterminate`) for some of it,
+ * and `disabled` when ticking it could select nothing.
  */
 function rowCheckbox(
   index: number,
@@ -329,6 +331,7 @@ function rowCheckbox(
     data-row=${index}
     .checked=${live(state === undefined ? selected : state === 'all')}
     .indeterminate=${live(state === 'some')}
+    ?disabled=${state === 'blocked'}
     @click=${checkboxes.row}
     @mousedown=${checkboxes.press}
   />`;

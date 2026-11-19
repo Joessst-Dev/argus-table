@@ -89,6 +89,15 @@ export class SelectionController<T> {
     return this.#host.selectBranches && this.mode === 'multi' && this.#model().tree;
   }
 
+  /**
+   * Whether ticking a row could select nothing (core's `'blocked'`): with
+   * branches, its id kept out by rows a filter hides, and nothing under it to
+   * tick. Its checkbox is disabled, and clicks and Space on it do nothing.
+   */
+  #blocked(index: number): boolean {
+    return this.#branches() && this.#model().branchCheck(this.#selected())(index) === 'blocked';
+  }
+
   /** The kept rows as a tree of ids, with branches; else `undefined`. */
   #tree(): BranchTree | undefined {
     return this.#branches() ? this.#model().branchTree() : undefined;
@@ -146,7 +155,7 @@ export class SelectionController<T> {
   /** Space on a body row: toggles it (with branches, its branch). */
   toggle(index: number): void {
     const id = this.#model().rowAt(index)?.id;
-    if (id === undefined) return;
+    if (id === undefined || this.#blocked(index)) return;
     const tree = this.#tree();
     if (tree) this.#request(this.#toggleBranch(id, tree));
     else this.#request(toggleRow(this.state.value, this.mode, id));
@@ -242,6 +251,9 @@ export class SelectionController<T> {
     const model = this.#model();
     const tree = this.#tree();
     if (tree) {
+      // On a blocked row, only a range does something: a click would select
+      // nothing, or (plain) clear the rest.
+      if (!(event.shiftKey && this.#anchorAt()) && this.#blocked(target.index)) return;
       this.#request(this.#clickBranch(target, { toggle, range: event.shiftKey }, tree));
       return;
     }

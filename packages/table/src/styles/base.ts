@@ -190,6 +190,9 @@ export const baseStyles = css`
       margin: 0;
       cursor: pointer;
     }
+    [part~='selection-checkbox']:disabled {
+      cursor: default;
+    }
     /* The toggle column of detail panels: a chevron, centred. */
     [part~='cell-expand'],
     [part~='header-cell-expand'] {

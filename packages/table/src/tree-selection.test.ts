@@ -218,6 +218,48 @@ describe('tree rows: branch selection', () => {
     expect(sorted(el.selection)).toEqual(['0.0', '0.2']);
   });
 
+  test('a row the filter keeps without its children has a disabled checkbox', async () => {
+    // 'P1' matches P1 alone: its id needs C1.0 to C1.2, which the filter hides.
+    const el = await treeTable();
+    await tick(el, 'P2');
+    el.quickFilter = 'P1';
+    await settle(el);
+    const seen = changes(el);
+    expect(checkbox(el, 'P1').disabled).toBe(true);
+    expect(checkbox(el, 'P1').getAttribute('part')).toBe('selection-checkbox');
+    // Space, a plain click, Ctrl+click and a click beside the checkbox do nothing.
+    await press(el, cellOf(el, 'P1'), ' ');
+    await click(el, 'P1');
+    await click(el, 'P1', { ctrlKey: true });
+    cellOf(el, 'P1', SELECT).click();
+    await settle(el);
+    expect(seen).toEqual([]);
+    expect(sorted(el.selection)).toEqual(['2', '2.0', '2.1', '2.2']);
+    // Cleared, the filter makes it tickable again.
+    el.quickFilter = '';
+    await settle(el);
+    expect(checkbox(el, 'P1').disabled).toBe(false);
+    await tick(el, 'P1');
+    expect(sorted(el.selection)).toEqual(['1', '1.0', '1.1', '1.2', '2', '2.0', '2.1', '2.2']);
+  });
+
+  test('select-all leaves blocked rows out, and the header checkbox can be ticked', async () => {
+    const el = await treeTable({
+      columnFilters: { name: { kind: 'set', values: ['P1', 'C0.1'] } },
+    });
+    expect(checkbox(el, 'P1').disabled).toBe(true);
+    expect(checkbox(el, 'P0').disabled).toBe(false);
+    await press(el, cellOf(el, 'P0'), 'a', { ctrlKey: true });
+    expect(el.selection).toEqual(['0.1']);
+    expect(checkAll(el)).toMatchObject({ checked: true, indeterminate: false });
+    checkAll(el)?.click();
+    await settle(el);
+    expect(el.selection).toEqual([]);
+    checkAll(el)?.click();
+    await settle(el);
+    expect(el.selection).toEqual(['0.1']);
+  });
+
   test('select-all covers whole branches', async () => {
     const el = await treeTable();
     await press(el, cellOf(el, 'P1'), 'a', { ctrlKey: true });

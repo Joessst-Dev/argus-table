@@ -356,7 +356,10 @@ export interface TableModel<TData, TContent> {
   /**
    * Each row's checkbox state for a selection, by index in the current order:
    * `'all'` when its id and every kept descendant (under collapsed rows too)
-   * are selected, `'some'` when any of them is. A selection that breaks the
+   * are selected, `'some'` when any of them is; `'blocked'` when ticking it
+   * could select nothing (its id kept out by descendants left unselected, none
+   * of its kept descendants tickable), and blocked rows don't count as
+   * unselected rows of their ancestors' branches. A selection that breaks the
    * branch rules (a parent without all its children) shows as it is. One pass
    * per selection `Set` and filter and sort result. Needs a tree: without one,
    * every row is `'none'`.
@@ -364,12 +367,13 @@ export interface TableModel<TData, TContent> {
   branchCheck(selected: ReadonlySet<string>): (index: number) => BranchCheck;
   /**
    * The select-all checkbox with branches, for a selection: `'all'` when every
-   * row the filters keep counts as checked (as `toggleBranch` decides: its kept
-   * descendants selected, and its own id unless descendants the filters hide
-   * keep it out), `'some'` when any of them is selected, else `'none'`. Worked
-   * out and kept with `branchCheck`.
+   * row the filters keep that isn't blocked counts as checked (as
+   * `toggleBranch` decides: its kept descendants selected, blocked ones aside,
+   * and its own id unless descendants left unselected keep it out), `'some'`
+   * when any of them is selected, else `'none'`. Worked out and kept with
+   * `branchCheck`.
    */
-  branchCheckAll(selected: ReadonlySet<string>): BranchCheck;
+  branchCheckAll(selected: ReadonlySet<string>): Exclude<BranchCheck, 'blocked'>;
   /** The value a column reads from the row at `index`. */
   valueAt(index: number, columnId: string): unknown;
   /** The value a column reads from any row object, as its accessor gets it at `index`. */

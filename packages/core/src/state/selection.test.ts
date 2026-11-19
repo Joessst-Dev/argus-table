@@ -305,6 +305,22 @@ describe('toggleBranch', () => {
     const tree = branchTree({ A: ['A1', 'A2'] }, ['A1', 'A2']);
     expect(toggleBranch([], 'A', tree)).toEqual([]);
   });
+
+  it('blocked descendants count for nothing but keep their ancestors out', () => {
+    // G{P{P1, P2}, Q}, with P kept and its children hidden: P is blocked.
+    const tree = branchTree({ G: ['P', 'Q'], P: ['P1', 'P2'] }, ['P1', 'P2']);
+    expect(toggleBranch([], 'G', tree)).toEqual(['Q']);
+    // Q is all there is to tick: G counts as checked, and unticks.
+    expect(toggleBranch(['Q'], 'G', tree)).toEqual([]);
+    expect(toggleBranch(['Q'], 'P', tree)).toEqual(['Q']);
+    // With P's children selected, P isn't blocked: G isn't checked.
+    expect(
+      sameSelection(toggleBranch(['Q', 'P1', 'P2'], 'G', tree), ['Q', 'P1', 'P2', 'P', 'G']),
+    ).toBe(true);
+    // Only blocked rows under G: G is blocked too.
+    const only = branchTree({ G: ['P'], P: ['P1'] }, ['P1']);
+    expect(toggleBranch([], 'G', only)).toEqual([]);
+  });
 });
 
 /** A deterministic random number generator (mulberry32). */

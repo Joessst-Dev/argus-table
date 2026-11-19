@@ -1974,7 +1974,7 @@ describe('branch selection under a filter: whole branches only', () => {
     name: `P${String(p)}`,
     kids: [0, 1, 2].map((c) => ({ name: `C${String(p)}.${String(c)}` })),
   }));
-  const tmodel = (quickFilter?: string) =>
+  const tmodel = (quickFilter?: string, names?: string[]) =>
     createTableModel<Node, string>({
       columns: [{ id: 'name', accessor: 'name' }],
       data,
@@ -1984,6 +1984,7 @@ describe('branch selection under a filter: whole branches only', () => {
       getSubRows: (row) => row.kids,
       treeExpanded: ['0', '1', '2'],
       quickFilter,
+      columnFilters: names ? { name: { kind: 'set', values: names } } : undefined,
     });
   const states = (m: ReturnType<typeof tmodel>, selected: readonly string[]) => {
     const check = m.branchCheck(new Set(selected));
@@ -2047,13 +2048,71 @@ describe('branch selection under a filter: whole branches only', () => {
     expect(both.branchCheckAll(new Set(['0.1', '2.1']))).toBe('some');
   });
 
-  it('a parent the filter keeps without its children is never checked', () => {
+  it('a parent the filter keeps without its children is blocked', () => {
     // 'P1' matches P1 alone.
     const m = tmodel('P1');
+    expect(states(m, [])).toEqual({ '1': 'blocked' });
     expect(tick(m, [], '1')).toEqual([]);
     expect(selectAll(m, [])).toEqual([]);
     expect(m.branchCheckAll(new Set())).toBe('none');
-    expect(m.branchCheckAll(new Set(['1.0', '1.1', '1.2']))).toBe('none');
+    // With its hidden children selected, ticking it adds its id: not blocked.
+    expect(states(m, ['1.0', '1.1', '1.2'])).toEqual({ '1': 'none' });
+    expect(tick(m, ['1.0', '1.1', '1.2'], '1')).toEqual(['1.0', '1.1', '1.2', '1']);
+    // Cleared, the filter leaves nothing blocked.
+    m.update({ quickFilter: undefined });
+    expect(Object.values(states(m, [])).every((state) => state === 'none')).toBe(true);
+  });
+
+  it('blocked rows are left out of the select-all state', () => {
+    // P1 matches without its children; C0.1 matches under P0.
+    const m = tmodel(undefined, ['P1', 'C0.1']);
+    expect(states(m, [])).toEqual({ '0': 'none', '0.1': 'none', '1': 'blocked' });
+    const all = selectAll(m, []);
+    expect(all).toEqual(['0.1']);
+    expect(m.branchCheckAll(new Set(all))).toBe('all');
+    expect(states(m, all)).toEqual({ '0': 'some', '0.1': 'all', '1': 'blocked' });
+  });
+
+  it('a row with only blocked rows under it is blocked, and they keep its parent out', () => {
+    // G{P{P1, P2}, Q}: a filter keeping P without its children.
+    interface Named {
+      name: string;
+      kids?: Named[];
+    }
+    const nested: Named[] = [
+      {
+        name: 'G',
+        kids: [{ name: 'P', kids: [{ name: 'P1' }, { name: 'P2' }] }, { name: 'Q' }],
+      },
+      { name: 'H', kids: [{ name: 'P', kids: [{ name: 'X' }] }] },
+    ];
+    const m = createTableModel<Named, string>({
+      columns: [{ id: 'name', accessor: 'name' }],
+      data: nested,
+      getRowId: undefined,
+      sorting: [],
+      columnSizing: {},
+      getSubRows: (row) => row.kids,
+      treeExpanded: ['0', '0.0', '1'],
+      columnFilters: { name: { kind: 'set', values: ['P', 'Q'] } },
+    });
+    const tree = m.branchTree();
+    if (!tree) throw new Error('no tree');
+    const check = m.branchCheck(new Set());
+    const at: Record<string, string> = {};
+    for (let i = 0; i < m.rowCount; i++) at[m.rowAt(i)?.id ?? ''] = check(i);
+    expect(at).toEqual({
+      '0': 'none',
+      '0.0': 'blocked',
+      '0.1': 'none',
+      '1': 'blocked',
+      '1.0': 'blocked',
+    });
+    // Ticking G selects Q; G then counts as checked (P keeps its id out) and unticks.
+    expect(toggleBranch([], '0', tree)).toEqual(['0.1']);
+    expect(toggleBranch(['0.1'], '0', tree)).toEqual([]);
+    expect(toggleBranch([], '1', tree)).toEqual([]);
+    expect(m.branchCheckAll(new Set(['0.1']))).toBe('all');
   });
 
   it('without a filter nothing changes', () => {
@@ -2132,20 +2191,50 @@ describe('branch selection under a filter: whole branches only', () => {
       expect([...m.branchSelectAll(current)].sort()).toEqual(
         [...withBranches(current, kept, tree)].sort(),
       );
-      // R3 per kept row, by brute force.
+      // Blocked rows and R3 per kept row, by brute force.
       const keptDescendants = (id: string): string[] =>
         tree.children(id).flatMap((child) => [child, ...keptDescendants(child)]);
-      const checked = (id: string) =>
-        keptDescendants(id).every((d) => selected.has(d)) &&
-        (selected.has(id) ||
-          (tree.children(id).length > 0 && tree.allChildren(id).some((c) => !selected.has(c))));
+      const blocked = (id: string): boolean => {
+        if (selected.has(id)) return false;
+        const kids = tree.children(id);
+        return kids.length > 0
+          ? kids.every(blocked)
+          : tree.allChildren(id).some((c) => !selected.has(c));
+      };
+      const checked = (id: string) => {
+        const below = keptDescendants(id);
+        const live = below.filter((d) => !blocked(d));
+        return (
+          live.every((d) => selected.has(d)) &&
+          (selected.has(id) ||
+            (live.length > 0 &&
+              (below.some(blocked) || tree.allChildren(id).some((c) => !selected.has(c)))))
+        );
+      };
+      const tickable = kept.filter((id) => !blocked(id));
       const expected =
-        kept.length > 0 && kept.every(checked)
+        tickable.length > 0 && tickable.every(checked)
           ? 'all'
           : kept.some((id) => selected.has(id))
             ? 'some'
             : 'none';
       expect(m.branchCheckAll(selected)).toBe(expected);
+      const check = m.branchCheck(selected);
+      for (let i = 0; i < kept.length; i++) {
+        const id = kept[i] ?? '';
+        expect(check(i) === 'blocked').toBe(blocked(id));
+        // A click unticks a checked row, else ticks its branch.
+        const after = toggleBranch(current, id, tree);
+        if (checked(id)) {
+          expect(after).not.toContain(id);
+          for (const d of keptDescendants(id)) expect(after).not.toContain(d);
+        } else {
+          expect(after).toEqual(withBranches(current, [id], tree));
+        }
+        // Ticking a blocked row selects nothing (it may normalize a value set
+        // against the rules).
+        if (blocked(id)) for (const row of after) expect(current).toContain(row);
+      }
     }
   });
 });

@@ -181,7 +181,7 @@ function attachGridInternals(host: HTMLElement): ElementInternals {
  * @csspart row-selected - Body rows whose id is in `selection`.
  * @csspart cell-selection - Added to `cell` in the checkbox column (`selectionCheckboxes`), pinned rows included.
  * @csspart header-cell-selection - Added to `header-cell` on the checkbox column's header.
- * @csspart selection-checkbox - The checkboxes of the checkbox column: one per selectable row, and the select-all one in the header (`multi` mode).
+ * @csspart selection-checkbox - The checkboxes of the checkbox column: one per selectable row, and the select-all one in the header (`multi` mode). With `selectBranches`, a row's is `disabled` while ticking it could select nothing (`::part(selection-checkbox):disabled`).
  * @csspart row-detail - The row of a detail panel (`rowDetail`), under the row it belongs to. Also has no `row` part.
  * @csspart detail - A detail panel's one cell: it spans the visible width (it stays in place when the table scrolls sideways), is as tall as its content up to `--argus-detail-max-height`, and scrolls past that.
  * @csspart row-expanded - Added to `row` on a body row whose detail panel is open (`rowDetail`).
@@ -566,8 +566,12 @@ export class ArgusTable<T = unknown> extends LitElement {
    * clicks and Shift+Arrow count each row as its branch, and Ctrl/Cmd+A or the
    * header checkbox selects every row the filters keep, collapsed ones included,
    * by the same rules; the header checkbox is ticked when every one of those is
-   * selected or has its shown descendants all selected. A controlled `selection`
-   * that breaks these rules shows as it is until the user changes it.
+   * selected or has its shown descendants all selected. A row the filters keep
+   * while hiding all its children (it matches, they don't), or with only such
+   * rows under it, can't be selected while its id needs them: its checkbox is
+   * `disabled`, clicks and Space on it select nothing, and select-all and the
+   * header checkbox leave it out. A controlled `selection` that breaks these
+   * rules shows as it is until the user changes it.
    */
   @property({ type: Boolean, attribute: 'select-branches' })
   selectBranches = false;
