@@ -1,6 +1,7 @@
-import type { RemoteRows, TreeRowInfo } from '../table/model-types.js';
+import type { RemoteForest, RemoteRows, TreeRowInfo } from '../table/model-types.js';
 import type { TreeExpandedState } from '../types.js';
 import type { CachedRow, PageCache, RowState } from './page-cache.js';
+import { layoutTree } from '../table/tree-order.js';
 
 /** Where a parent's children are: loaded, in flight, or their request failed. */
 export type ChildState = 'loaded' | 'loading' | 'error';
@@ -135,6 +136,10 @@ export class RemoteTree<TData> implements RemoteRows<TData> {
   #built = -1;
   #index: OpenIndex<TData> = { tops: [], subtrees: [], before: [0], byId: new Map(), wanted: [] };
   #order: object = Object.freeze({});
+  /** The loaded rows as a forest, and the version it was built for. */
+  #forest: { version: number; forest: RemoteForest } | undefined;
+  /** Parents whose children arrived since `takeResolved()`. */
+  #resolved: string[] = [];
 
   constructor(cache: PageCache<TData>, options: RemoteTreeOptions<TData>) {
     this.cache = cache;
@@ -389,8 +394,84 @@ export class RemoteTree<TData> implements RemoteRows<TData> {
     }
     this.#children.set(parentId, { state: 'loaded', entries });
     this.#kept.delete(parentId);
+    this.#resolved.push(parentId);
     this.#changed(parentId);
     return true;
+  }
+
+  /** The parents whose children arrived since the last call, in the order they did. */
+  takeResolved(): string[] {
+    const resolved = this.#resolved;
+    this.#resolved = [];
+    return resolved;
+  }
+
+  /**
+   * The loaded rows as a forest, for branch selection: the loaded top-level
+   * rows (and open ones whose page was evicted, with their children) in order,
+   * each followed by its loaded descendants depth first, collapsed or not. A
+   * row whose children aren't loaded is a leaf. Every row is kept (the server
+   * filters), so `childCount` is `keptChildren`. Built once per `version`,
+   * O(loaded rows); its rows are its `order`'s positions.
+   */
+  forest(): RemoteForest {
+    const version = this.version;
+    if (this.#forest?.version === version) return this.#forest.forest;
+    const cache = this.cache;
+    // Top-level parents with loaded children whose page was evicted, by index.
+    const evicted: { top: number; id: string }[] = [];
+    for (const [id, record] of this.#children) {
+      if (record.state !== 'loaded' || this.#known.has(id) || cache.indexOf(id) !== undefined) {
+        continue;
+      }
+      const top = this.#topIndex(id);
+      if (top !== undefined) evicted.push({ top, id });
+    }
+    evicted.sort((a, b) => a.top - b.top);
+    const roots: string[] = [];
+    let e = 0;
+    for (const id of cache.loadedIds()) {
+      const top = cache.indexOf(id) ?? 0;
+      for (; e < evicted.length && (evicted[e]?.top ?? 0) < top; e++)
+        roots.push(evicted[e]?.id ?? '');
+      roots.push(id);
+    }
+    for (; e < evicted.length; e++) roots.push(evicted[e]?.id ?? '');
+
+    // Depth first, each row numbered as it's reached, so its rows are already
+    // in layout order: the layout is that of a tree sorted that way.
+    const ids: string[] = [];
+    const rows = new Map<string, number>();
+    const parent: number[] = [];
+    const stack: { id: string; up: number }[] = [];
+    for (let k = roots.length - 1; k >= 0; k--) stack.push({ id: roots[k] ?? '', up: -1 });
+    for (let item = stack.pop(); item; item = stack.pop()) {
+      // An id used twice (warned about when its children arrived) is placed once.
+      if (rows.has(item.id)) continue;
+      rows.set(item.id, ids.length);
+      parent.push(item.up);
+      const record = this.#children.get(item.id);
+      const entries = record?.state === 'loaded' ? record.entries : [];
+      for (let k = entries.length - 1; k >= 0; k--) {
+        stack.push({ id: entries[k]?.id ?? '', up: ids.length });
+      }
+      ids.push(item.id);
+    }
+    const tree = { ids, rows: ids, parent: Int32Array.from(parent) };
+    const layout = layoutTree(
+      tree,
+      ids.map((_, row) => row),
+    );
+    const forest: RemoteForest = {
+      tree: { ...tree, childCount: layout.keptChildren, indexOf: (id) => rows.get(id) },
+      layout,
+      at: (index) => {
+        const id = this.entryAt(index)?.id;
+        return id === undefined ? undefined : rows.get(id);
+      },
+    };
+    this.#forest = { version, forest };
+    return forest;
   }
 
   /**

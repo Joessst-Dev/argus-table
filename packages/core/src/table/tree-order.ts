@@ -76,6 +76,23 @@ export interface TreeLayout {
 }
 
 /**
+ * A tree's rows and their layout, as branch selection reads them: a
+ * `RowTree` with the filters' `TreeLayout`, or a remote tree's loaded rows
+ * (`RemoteTree.forest()`, where every row is kept). Rows are indexes into `ids`.
+ */
+export interface TreeForest {
+  readonly tree: {
+    readonly ids: readonly string[];
+    /** Each row's parent, `-1` for a top-level row. */
+    readonly parent: Int32Array;
+    /** Each row's children in the whole tree. */
+    readonly childCount: Int32Array;
+    indexOf(id: string): number | undefined;
+  };
+  readonly layout: TreeLayout;
+}
+
+/**
  * Lays out `sorted`, the kept rows in sort order (or in source order when
  * nothing sorts), so each row comes right before its kept descendants and
  * siblings keep their order in `sorted`. Sorting all kept rows at once and
@@ -83,7 +100,10 @@ export interface TreeLayout {
  * one sort function per column. Every parent of a row in `sorted` must be in
  * it too, as `keepWithAncestors` ensures.
  */
-export function layoutTree<TData>(tree: RowTree<TData>, sorted: readonly number[]): TreeLayout {
+export function layoutTree(
+  tree: Pick<RowTree<unknown>, 'parent' | 'rows'>,
+  sorted: readonly number[],
+): TreeLayout {
   const { parent } = tree;
   const n = tree.rows.length;
   const total = sorted.length;

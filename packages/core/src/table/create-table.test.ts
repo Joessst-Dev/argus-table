@@ -1946,14 +1946,71 @@ describe('remote tree rows', () => {
     expect(m.display.open).toEqual([2]);
   });
 
-  it('gives the no-tree answers for branch selection (for now)', () => {
+  it('selects branches over the loaded rows', () => {
     const { remote, m } = setup();
     open(remote, '1', [b1, b2]);
-    expect(m.branchTree()).toBeUndefined();
-    expect(m.branchCheck(new Set(['1']))(1)).toBe('none');
-    expect(m.branchCheckAll(new Set(['1']))).toBe('none');
-    expect(m.branchSelectAll(['1'])).toEqual(['1']);
+    const tree = m.branchTree();
+    if (!tree) throw new Error('no branch tree');
+    expect(tree.children('1')).toEqual(['1.0', '1.1']);
+    // The server filters: every loaded child counts.
+    expect(tree.allChildren('1')).toEqual(['1.0', '1.1']);
+    expect(tree.parent('1.1')).toBe('1');
+    expect(tree.parent('1')).toBeUndefined();
+    // Ticking a loaded parent selects it and its loaded children.
+    expect(sameSelection(toggleBranch([], '1', tree), ['1', '1.0', '1.1'])).toBe(true);
+    expect(toggleBranch(['1', '1.0', '1.1'], '1.0', tree)).toEqual(['1.1']);
+    // Ticking the last child adds the parent.
+    expect(withBranches(['1.0'], ['1.1'], tree)).toEqual(['1.0', '1.1', '1']);
     expect(m.selectableIds()).toEqual(['0', '1', '1.0', '1.1', '2', '3']);
+  });
+
+  it('shows part-ticked parents and the header state over the loaded rows', () => {
+    const { remote, m } = setup();
+    open(remote, '1', [b1, b2]);
+    const some = new Set(['1.0']);
+    expect([0, 1, 2, 3, 4].map(m.branchCheck(some))).toEqual([
+      'none',
+      'some',
+      'all',
+      'none',
+      'none',
+    ]);
+    // The loading row isn't loaded: nothing to show.
+    expect(m.branchCheck(some)(6)).toBe('none');
+    expect(m.branchCheckAll(some)).toBe('some');
+    expect(m.branchCheckAll(new Set())).toBe('none');
+    const every = new Set(['0', '1', '1.0', '1.1', '2', '3']);
+    expect(m.branchCheckAll(every)).toBe('all');
+    expect(m.branchCheck(every)(1)).toBe('all');
+  });
+
+  it('a row whose children aren’t loaded ticks as a leaf; nothing is blocked', () => {
+    const { remote, m } = setup();
+    // '0' has children on the server, none loaded.
+    const tree = m.branchTree();
+    if (!tree) throw new Error('no branch tree');
+    expect(tree.children('0')).toEqual([]);
+    expect(toggleBranch([], '0', tree)).toEqual(['0']);
+    expect(m.branchCheck(new Set(['0']))(0)).toBe('all');
+    // Its children arrive: the tree has them, and the old one is replaced.
+    open(remote, '0', [b1, b2]);
+    expect(m.branchTree()).not.toBe(tree);
+    expect(m.branchTree()?.children('0')).toEqual(['0.0', '0.1']);
+    expect(m.branchCheck(new Set(['0']))(0)).toBe('some');
+    expect([0, 1, 2, 3, 4, 5].map(m.branchCheck(new Set()))).not.toContain('blocked');
+  });
+
+  it('select-all covers loaded children of collapsed rows', () => {
+    const { remote, m } = setup();
+    open(remote, '1', [b1, b2]);
+    remote.setExpanded([]);
+    expect(m.selectableIds()).toEqual(['0', '1', '2', '3']);
+    expect(m.branchSelectAll([])).toEqual(['0', '1', '1.0', '1.1', '2', '3']);
+    expect(m.branchSelectAll(['9'])).toEqual(['9', '0', '1', '1.0', '1.1', '2', '3']);
+    const all = new Set(m.branchSelectAll([]));
+    expect(m.branchCheckAll(all)).toBe('all');
+    expect(m.branchCheck(all)(1)).toBe('all');
+    expect(m.branchCheckAll(new Set(['0', '1', '2', '3']))).toBe('some');
   });
 
   it('ignores getSubRows with a remote tree, with the warning', () => {

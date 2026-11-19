@@ -1,5 +1,6 @@
 import type { HeaderGroupCell } from '../columns/column-groups.js';
 import type { OrderUnit, SiblingUnit } from '../columns/column-order.js';
+import type { TreeForest } from './tree-order.js';
 import type {
   CellContext,
   ColumnAlign,
@@ -184,6 +185,21 @@ export interface RemoteRows<TData> {
    * nearest shown ancestor; `undefined` for an unknown id.
    */
   shownAncestor?(rowId: string): number | undefined;
+  /**
+   * For rows that form a tree: the loaded rows as a forest, for branch
+   * selection (`RemoteTree.forest()`).
+   */
+  forest?(): RemoteForest;
+}
+
+/**
+ * A remote tree's loaded rows (top-level rows and loaded children, collapsed
+ * or not) for branch selection: every row is kept, and a row whose children
+ * aren't loaded is a leaf.
+ */
+export interface RemoteForest extends TreeForest {
+  /** The forest row of the loaded row at a shown index; `undefined` for rows not loaded. */
+  readonly at: (index: number) => number | undefined;
 }
 
 export interface TableModelOptions<TData, TContent> {
@@ -384,15 +400,18 @@ export interface TableModel<TData, TContent> {
    * when its whole branch ends up selected, filters not applied; kept parents
    * selected against that rule lose their ids. What `withBranches` gives for
    * every kept row, in one pass over typed arrays. `selected` is `current` as a
-   * set (made here when not given). `current` as it is without a tree and
-   * for remote rows.
+   * set (made here when not given). `current` as it is without a tree. For a
+   * remote tree, its loaded rows (`RemoteRows.forest`): top-level rows and
+   * loaded children, collapsed or not.
    */
   branchSelectAll(current: readonly string[], selected?: ReadonlySet<string>): SelectionState;
   /**
    * The rows the filters keep as a tree of ids (collapsed rows don't matter),
    * with each row's children in the whole tree, for `withBranches` and
    * `toggleBranch`; `undefined` without a tree. Kept per filter and sort
-   * result. `undefined` for remote rows.
+   * result. For a remote tree, its loaded rows (a row whose children aren't
+   * loaded is a leaf), kept per version; `children` is `allChildren` there,
+   * since the server filters.
    */
   branchTree(): BranchTree | undefined;
   /**
@@ -403,8 +422,9 @@ export interface TableModel<TData, TContent> {
    * of its kept descendants tickable), and blocked rows don't count as
    * unselected rows of their ancestors' branches. A selection that breaks the
    * branch rules (a parent without all its children) shows as it is. One pass
-   * per selection `Set` and filter and sort result. Needs a tree: without one,
-   * and for remote rows, every row is `'none'`.
+   * per selection `Set` and filter and sort result (for a remote tree, its
+   * loaded rows; nothing is blocked there). Needs a tree: without one every
+   * row is `'none'`.
    */
   branchCheck(selected: ReadonlySet<string>): (index: number) => BranchCheck;
   /**

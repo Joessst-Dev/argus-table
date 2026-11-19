@@ -10,8 +10,7 @@ import { resolveColumns, type ResolvedColumn } from '../columns/resolve-columns.
 import { distinctValues, rowPredicate } from '../filters/filter.js';
 import { buildAllViews, buildViews, hiddenIn, pinIn, sizingOf } from './column-views.js';
 import { RowPipeline } from './row-pipeline.js';
-import type { RowTree } from './row-tree.js';
-import { keepWithAncestors, type TreeLayout } from './tree-order.js';
+import { keepWithAncestors, type TreeForest, type TreeLayout } from './tree-order.js';
 import type { BranchCheck, BranchTree } from '../state/selection.js';
 import type {
   CellContext,
@@ -134,6 +133,14 @@ export function createTableModel<TData, TContent>(
 
   let allViews: ColumnView<TData, TContent>[] | undefined;
 
+  // The rows branch selection runs on: a tree's kept rows, or a remote tree's
+  // loaded ones (kept per version), and the forest row at a shown index.
+  const forestOf = (): TreeForest | undefined => remoteTree()?.forest?.() ?? pipeline.treeSteps();
+  const forestRow = (index: number): number | undefined => {
+    const remote = remoteTree()?.forest?.();
+    return remote ? remote.at(index) : rows()[index];
+  };
+
   // Branch selection, kept per tree layout (a filter or sort result).
   let branches: { layout: TreeLayout; tree: BranchTree } | undefined;
   let checks:
@@ -147,8 +154,8 @@ export function createTableModel<TData, TContent>(
   // Every row's children in the whole tree (filters not applied), by source
   // index: `kids[start[i]]` up to `kids[start[i + 1]]`. Built per tree, the
   // first time a filter hides some row's children.
-  let family: { tree: RowTree<TData>; start: Int32Array; kids: Int32Array } | undefined;
-  const familyOf = (tree: RowTree<TData>) => {
+  let family: { tree: TreeForest['tree']; start: Int32Array; kids: Int32Array } | undefined;
+  const familyOf = (tree: TreeForest['tree']) => {
     if (family?.tree !== tree) {
       const { parent, childCount } = tree;
       const n = parent.length;
@@ -165,14 +172,14 @@ export function createTableModel<TData, TContent>(
     return family;
   };
   // A row's children in the whole tree, when the filters hide some.
-  const fullKids = (tree: RowTree<TData>, layout: TreeLayout, row: number) => {
+  const fullKids = (tree: TreeForest['tree'], layout: TreeLayout, row: number) => {
     if ((layout.keptChildren[row] ?? 0) === (tree.childCount[row] ?? 0)) return undefined;
     const { start, kids } = familyOf(tree);
     return kids.subarray(start[row] ?? 0, start[row + 1] ?? 0);
   };
   // Whether a row has a child the filters hide that isn't selected.
   const missesHidden = (
-    tree: RowTree<TData>,
+    tree: TreeForest['tree'],
     layout: TreeLayout,
     row: number,
     selected: ReadonlySet<string>,
@@ -193,7 +200,7 @@ export function createTableModel<TData, TContent>(
    * branches, not for the select-all checkbox.
    */
   const checksFor = (selected: ReadonlySet<string>) => {
-    const steps = pipeline.treeSteps();
+    const steps = forestOf();
     const layout = steps?.layout;
     if (checks?.selected === selected && checks.layout === layout) return checks;
     let check: (index: number) => BranchCheck = () => 'none';
@@ -229,7 +236,7 @@ export function createTableModel<TData, TContent>(
       let top = 0;
       for (const row of steps.layout.children(-1)) top |= marks[row] ?? 0;
       check = (index) => {
-        const row = rows()[index];
+        const row = forestRow(index);
         const mark = row === undefined ? 0 : (marks[row] ?? 0);
         if (row !== undefined && !(mark & LIVE)) return 'blocked';
         return mark & PICKED ? (mark & MISSED ? 'some' : 'all') : 'none';
@@ -431,7 +438,7 @@ export function createTableModel<TData, TContent>(
     },
 
     branchSelectAll(current, selected = new Set(current)) {
-      const steps = pipeline.treeSteps();
+      const steps = forestOf();
       if (!steps) return [...current];
       const { tree, layout } = steps;
       const { parent, ids } = tree;
@@ -459,7 +466,7 @@ export function createTableModel<TData, TContent>(
     },
 
     branchTree() {
-      const steps = pipeline.treeSteps();
+      const steps = forestOf();
       if (!steps) return undefined;
       const { tree, layout } = steps;
       if (branches?.layout === layout) return branches.tree;

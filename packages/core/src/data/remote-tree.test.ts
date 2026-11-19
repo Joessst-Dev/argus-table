@@ -577,6 +577,107 @@ describe('RemoteTree', () => {
     expect(tree.entryAt(2)?.id).toBe('r1.0');
   });
 
+  /** The forest's rows as `id(parent)` depth first, and its top-level rows. */
+  const forestOf = (tree: RemoteTree<Row>) => {
+    const { tree: rows, layout } = tree.forest();
+    const name = (row: number) => rows.ids[row] ?? '?';
+    return {
+      rows: Array.from(layout.order, (row) => {
+        const up = rows.parent[row] ?? -1;
+        return up === -1 ? name(row) : `${name(row)}(${name(up)})`;
+      }),
+      roots: Array.from(layout.children(-1), name),
+    };
+  };
+
+  it('forest lists the loaded rows depth first, children of collapsed rows too', () => {
+    const { tree } = setup();
+    tree.setExpanded(['1', '1.0']);
+    answer(tree, '1', children('1', 2, 1));
+    answer(tree, '1.0', children('1.0', 1));
+    tree.setExpanded([]);
+    expect(forestOf(tree)).toEqual({
+      rows: ['0', '1', '1.0(1)', '1.0.0(1.0)', '1.1(1)', '2', '3'],
+      roots: ['0', '1', '2', '3'],
+    });
+    const { tree: rows, layout } = tree.forest();
+    const row = (id: string) => rows.indexOf(id) ?? -1;
+    expect(Array.from(layout.children(row('1')), (r) => rows.ids[r])).toEqual(['1.0', '1.1']);
+    expect(rows.childCount[row('1')]).toBe(2);
+    expect(layout.keptChildren).toBe(rows.childCount);
+    expect(layout.posInSet[row('1.1')]).toBe(2);
+    expect(layout.posInSet[row('2')]).toBe(3);
+    // Children not loaded: a leaf.
+    expect(rows.childCount[row('0')]).toBe(0);
+    expect(rows.indexOf('4')).toBeUndefined();
+  });
+
+  it('forest maps shown indexes to its rows', () => {
+    const { tree } = setup();
+    tree.setExpanded(['1']);
+    const forest = tree.forest();
+    // The loading row under '1' isn't a forest row.
+    expect(forest.at(2)).toBeUndefined();
+    answer(tree, '1', children('1', 2));
+    const after = tree.forest();
+    expect(after).not.toBe(forest);
+    expect(after.tree.ids[after.at(2) ?? -1]).toBe('1.0');
+    expect(after.tree.ids[after.at(4) ?? -1]).toBe('2');
+    expect(after.at(9)).toBeUndefined();
+  });
+
+  it('forest is built once per version', () => {
+    const { cache, tree } = setup();
+    const forest = tree.forest();
+    expect(tree.forest()).toBe(forest);
+    load(cache, 1, 4);
+    const paged = tree.forest();
+    expect(paged).not.toBe(forest);
+    expect(paged.tree.ids).toEqual(['0', '1', '2', '3', '4', '5', '6', '7']);
+    expect(tree.forest()).toBe(paged);
+  });
+
+  it('forest keeps an open row whose page was evicted, with its children', () => {
+    const cache = new PageCache<Row>({ pageSize: 4 });
+    for (let page = 0; page < 20; page++) load(cache, page, 4);
+    const tree = new RemoteTree(cache, { hasChildren });
+    tree.setExpanded(['1', '62']);
+    answer(tree, '1', children('1', 2));
+    answer(tree, '62', children('62', 1));
+    cache.evictOutside(60, 64);
+    expect(cache.indexOf('1')).toBeUndefined();
+    const { rows, roots } = forestOf(tree);
+    expect(roots).toEqual(['1', ...cache.loadedIds()]);
+    expect(rows.slice(0, 4)).toEqual(['1', '1.0(1)', '1.1(1)', roots[1]]);
+    expect(rows.slice(rows.indexOf('62'), rows.indexOf('62') + 3)).toEqual([
+      '62',
+      '62.0(62)',
+      '63',
+    ]);
+  });
+
+  it('forest places an id used twice once', () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { cache } = setup();
+    const twice = new RemoteTree(cache, { hasChildren, getRowId: (row) => row.id });
+    twice.setExpanded(['1']);
+    answer(twice, '1', [{ id: '2', kids: 0 }, ...children('1', 1)]);
+    expect(forestOf(twice).rows).toEqual(['0', '1', '2(1)', '1/0(1)', '3']);
+  });
+
+  it('takeResolved lists the parents whose children arrived, once', () => {
+    const { tree } = setup();
+    tree.setExpanded(['1', '2']);
+    answer(tree, '1', children('1', 2));
+    tree.beginChildren('2');
+    tree.failChildren('2');
+    expect(tree.takeResolved()).toEqual(['1']);
+    expect(tree.takeResolved()).toEqual([]);
+    tree.retryChildren('2');
+    answer(tree, '2', children('2', 1));
+    expect(tree.takeResolved()).toEqual(['2']);
+  });
+
   it('stays logarithmic', { timeout: 30_000 }, () => {
     const cache = new PageCache<Row>({ pageSize: 1000 });
     for (let page = 0; page < 100; page++) load(cache, page, 1000, 100_000);

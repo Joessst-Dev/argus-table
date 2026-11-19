@@ -85,13 +85,11 @@ export class SelectionController<T> {
   }
 
   /**
-   * Whether rows select as whole branches: `selectBranches` on a tree, in `multi`
-   * mode. Not yet for a tree from a `dataSource` (no `branchTree()`).
+   * Whether rows select as whole branches: `selectBranches` on a tree (from a
+   * `dataSource` too: over its loaded rows), in `multi` mode.
    */
   #branches(): boolean {
-    if (!this.#host.selectBranches || this.mode !== 'multi') return false;
-    const model = this.#model();
-    return model.tree && model.branchTree() !== undefined;
+    return this.#host.selectBranches && this.mode === 'multi' && this.#model().tree;
   }
 
   /**
@@ -106,6 +104,21 @@ export class SelectionController<T> {
   /** The kept rows as a tree of ids, with branches; else `undefined`. */
   #tree(): BranchTree | undefined {
     return this.#branches() ? this.#model().branchTree() : undefined;
+  }
+
+  /**
+   * Children that arrived from a `dataSource` under `parents`: with branches,
+   * those under a selected parent (its branch was whole: the user ticked it)
+   * join the selection, through the normal change event.
+   */
+  arrived(parents: readonly string[]): void {
+    const tree = parents.length > 0 ? this.#tree() : undefined;
+    if (!tree) return;
+    const selected = this.#selected();
+    const ids = parents.filter((id) => selected.has(id)).flatMap((id) => tree.children(id));
+    if (ids.length > 0) {
+      this.#request({ selection: withBranches(this.state.value, ids, tree), anchor: this.#anchor });
+    }
   }
 
   /** A restored selection: a Shift range starts over from it. */

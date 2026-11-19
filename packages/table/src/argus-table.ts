@@ -1293,6 +1293,9 @@ export class ArgusTable<T = unknown> extends LitElement {
       selectionColumn,
       stretch: this.#stretch,
     });
+    // Children loaded under a branch-selected row join the selection.
+    const arrived = this.#data.tree?.takeResolved();
+    if (arrived) this.#select.arrived(arrived);
     const model = this.#table.model;
     this.#nav.reconcile(model);
     // -1 tells assistive tech the total is unknown (a data source still growing).

@@ -577,24 +577,160 @@ describe('tree rows from a data source', () => {
     await answer(el, childCalls.slice(1));
     expect(names(el, 3)).toEqual(['Person 0', 'Person 1', 'Person 1.0']);
   });
+});
 
-  test('branch selection waits for remote trees: a ticked row selects only itself', async () => {
-    const { source, calls, childCalls } = server(100);
-    const el = await loaded(source, calls, {
-      selectionMode: 'multi',
-      selectionCheckboxes: true,
-      selectBranches: true,
-    });
-    await toggle(el, 'Person 1');
-    await answer(el, childCalls);
-    const box = rowOf(el, 'Person 1').querySelector<HTMLInputElement>(
+describe('tree rows from a data source: branch selection', () => {
+  const branches = {
+    selectionMode: 'multi',
+    selectionCheckboxes: true,
+    selectBranches: true,
+  } as const;
+
+  function checkbox(el: HTMLElement, name: string): HTMLInputElement {
+    const box = rowOf(el, name).querySelector<HTMLInputElement>(
       '[data-col="--argus-selection"] input',
     );
-    box?.dispatchEvent(
-      new MouseEvent('click', { bubbles: true, composed: true, cancelable: true }),
-    );
+    if (!box) throw new Error(`no checkbox in ${name}`);
+    return box;
+  }
+
+  const checkAll = (el: HTMLElement) => {
+    const box = shadow(el).querySelector<HTMLInputElement>('[part~="header-cell-selection"] input');
+    if (!box) throw new Error('no select-all checkbox');
+    return box;
+  };
+
+  /** Clicks a checkbox and waits for the update. */
+  async function tick(el: ArgusTable<Person>, box: HTMLInputElement) {
+    box.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true, cancelable: true }));
     await settle(el);
+  }
+
+  const sorted = (ids: readonly string[]) => [...ids].sort();
+  /** The ids of the first page's top-level rows. */
+  const firstPage = Array.from({ length: 20 }, (_, i) => String(i));
+
+  test('ticking a loaded parent selects it and its loaded children', async () => {
+    const { source, calls, childCalls } = server(100);
+    const el = await loaded(source, calls, branches);
+    await toggle(el, 'Person 1');
+    await answer(el, childCalls);
+    const seen = events<{ selection: string[] }>(el, 'argus-selection-change');
+
+    await tick(el, checkbox(el, 'Person 1'));
+    expect(sorted(el.selection)).toEqual(['1', '1.0', '1.1', '1.2']);
+    expect(seen).toHaveLength(1);
+    expect(checkbox(el, 'Person 1')).toMatchObject({ checked: true, indeterminate: false });
+    expect(checkbox(el, 'Person 1.1')).toMatchObject({ checked: true, indeterminate: false });
+    expect(checkAll(el)).toMatchObject({ checked: false, indeterminate: true });
+
+    // Unticking a child: the parent is part-ticked and its id goes.
+    await tick(el, checkbox(el, 'Person 1.1'));
+    expect(sorted(el.selection)).toEqual(['1.0', '1.2']);
+    expect(checkbox(el, 'Person 1')).toMatchObject({ checked: false, indeterminate: true });
+    // Ticking it again completes the branch.
+    await tick(el, checkbox(el, 'Person 1.1'));
+    expect(sorted(el.selection)).toEqual(['1', '1.0', '1.1', '1.2']);
+    expect(seen).toHaveLength(3);
+  });
+
+  test('a parent with unloaded children ticks as a leaf; its children join when they arrive', async () => {
+    const { source, calls, childCalls } = server(100);
+    const el = await loaded(source, calls, branches);
+    const seen = events<{ selection: string[] }>(el, 'argus-selection-change');
+    await tick(el, checkbox(el, 'Person 1'));
     expect(el.selection).toEqual(['1']);
+    expect(checkbox(el, 'Person 1')).toMatchObject({ checked: true, indeterminate: false });
+
+    await toggle(el, 'Person 1');
+    expect(seen).toHaveLength(1);
+    await answer(el, childCalls);
+    expect(sorted(el.selection)).toEqual(['1', '1.0', '1.1', '1.2']);
+    // One event for the arrival, after the update that shows the children.
+    expect(seen).toHaveLength(2);
+    expect(sorted(seen[1]?.selection ?? [])).toEqual(['1', '1.0', '1.1', '1.2']);
+    expect(checkbox(el, 'Person 1.2')).toMatchObject({ checked: true });
+    expect(checkbox(el, 'Person 1')).toMatchObject({ checked: true, indeterminate: false });
+
+    // Children of a row that isn't selected stay out.
+    await toggle(el, 'Person 2');
+    await answer(el, childCalls.slice(-1));
+    expect(seen).toHaveLength(2);
+    expect(checkbox(el, 'Person 2.0')).toMatchObject({ checked: false });
+  });
+
+  test('controlled: children arriving under a ticked parent are proposed, not applied', async () => {
+    const { source, calls, childCalls } = server(100);
+    const el = await loaded(source, calls, { ...branches, selection: ['1'] });
+    const seen = events<{ selection: string[] }>(el, 'argus-selection-change');
+    await toggle(el, 'Person 1');
+    await answer(el, childCalls);
+    expect(seen).toHaveLength(1);
+    expect(sorted(seen[0]?.selection ?? [])).toEqual(['1', '1.0', '1.1', '1.2']);
+    expect(el.selection).toEqual(['1']);
+    // Shown as it is: the parent's id without its children.
+    expect(checkbox(el, 'Person 1')).toMatchObject({ checked: false, indeterminate: true });
+    expect(checkbox(el, 'Person 1.0')).toMatchObject({ checked: false });
+    await settle(el);
+    expect(seen).toHaveLength(1);
+  });
+
+  test('select-all covers the loaded rows, children of collapsed rows too', async () => {
+    const { source, calls, childCalls } = server(100);
+    const el = await loaded(source, calls, branches);
+    await toggle(el, 'Person 1');
+    await answer(el, childCalls);
+    await toggle(el, 'Person 1');
+    expect(checkAll(el)).toMatchObject({ checked: false, indeterminate: false });
+
+    await tick(el, checkAll(el));
+    expect(sorted(el.selection)).toEqual(sorted([...firstPage, '1.0', '1.1', '1.2']));
+    expect(checkAll(el)).toMatchObject({ checked: true, indeterminate: false });
+    await tick(el, checkAll(el));
+    expect(el.selection).toEqual([]);
+  });
+
+  test('a sort reloads children under a selected parent: they join again, no duplicates', async () => {
+    const { source, calls, childCalls } = server(100);
+    const el = await loaded(source, calls, branches);
+    await toggle(el, 'Person 1');
+    await answer(el, childCalls);
+    await tick(el, checkbox(el, 'Person 1'));
+    const seen = events<{ selection: string[] }>(el, 'argus-selection-change');
+
+    el.sorting = [{ id: 'name', desc: false }];
+    await load(el);
+    await answer(el, calls.slice(-1));
+    expect(childCalls).toHaveLength(2);
+    // The three it had again, and a new one: the new one joins, once.
+    childCalls[1]?.resolve(4);
+    await Promise.resolve();
+    await load(el);
+    expect(sorted(el.selection)).toEqual(['1', '1.0', '1.1', '1.2', '1.3']);
+    expect(seen).toHaveLength(1);
+    expect(checkbox(el, 'Person 1.3')).toMatchObject({ checked: true });
+  });
+
+  test('without selectBranches nothing changes', async () => {
+    const { source, calls, childCalls } = server(100);
+    const el = await loaded(source, calls, { ...branches, selectBranches: false });
+    await toggle(el, 'Person 1');
+    await answer(el, childCalls);
+    await tick(el, checkbox(el, 'Person 1'));
+    expect(el.selection).toEqual(['1']);
+    expect(checkbox(el, 'Person 1')).toMatchObject({ checked: true, indeterminate: false });
+
+    // Children arriving under a selected row stay out.
+    await toggle(el, 'Person 1');
+    await tick(el, checkbox(el, 'Person 2'));
+    await toggle(el, 'Person 2');
+    await answer(el, childCalls.slice(-1));
+    expect(sorted(el.selection)).toEqual(['1', '2']);
+
+    // Select-all: the loaded rows shown.
+    await toggle(el, 'Person 2');
+    await tick(el, checkAll(el));
+    expect(sorted(el.selection)).toEqual(sorted(firstPage));
   });
 });
 
