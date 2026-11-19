@@ -240,12 +240,13 @@ export function withBranches(
  * A click on a row's checkbox with branches. When the row counts as checked,
  * deselects it, its kept descendants and its ancestors, since a parent stays
  * selected only with its whole branch; otherwise selects the branch
- * (`withBranches`). Checked: every kept descendant that isn't blocked (see
- * `BranchCheck`) is selected, and the row's own id too, unless descendants
- * left unselected keep it out (a parent whose shown rows are all selected
- * under a filter: its checkbox is part-ticked, and a click unticks it). A
- * blocked row itself is never checked, and ticking it selects nothing.
- * Descendants the filters hide are left as they are. O(branch) beyond
+ * (`withBranches`). Checked, from the bottom up: every kept descendant that
+ * can be ticked (isn't blocked, see `BranchCheck`) is checked, and the row's
+ * own id is selected, or is kept out by a descendant left unselected while
+ * something below can be ticked (a parent whose shown rows are all selected
+ * under a filter, at any depth: its checkbox is part-ticked, and a click
+ * unticks it). A blocked row itself is never checked, and ticking it selects
+ * nothing. Descendants the filters hide are left as they are. O(branch) beyond
  * `selected`, which is `current` as a set (made here when not given).
  */
 export function toggleBranch(
@@ -255,8 +256,7 @@ export function toggleBranch(
   selected: ReadonlySet<string> = new Set(current),
 ): SelectionState {
   const has = (row: string) => selected.has(row);
-  // The kept branch, preorder; then from the bottom up, each row unselected
-  // but blocked, or the first unselected one that isn't: not checked.
+  // The kept branch, preorder.
   const order: string[] = [];
   const seen = new Set<string>();
   const stack = [id];
@@ -267,25 +267,22 @@ export function toggleBranch(
     order.push(row);
     for (const child of tree.children(row)) stack.push(child);
   }
+  // From the bottom up: rows blocked, rows not checked, and rows with
+  // something unselected in their branch (themselves included).
   const blocked = new Set<string>();
-  for (let k = order.length - 1; k > 0; k--) {
+  const unmet = new Set<string>();
+  const gap = new Set<string>();
+  for (let k = order.length - 1; k >= 0; k--) {
     const row = order[k] ?? '';
-    if (has(row)) continue;
+    const own = has(row);
     const kids = tree.children(row);
-    if (
-      kids.length > 0 ? kids.every((kid) => blocked.has(kid)) : !tree.allChildren(row).every(has)
-    ) {
-      blocked.add(row);
-    } else return withBranches(current, [id], tree);
+    const live = kids.some((kid) => !blocked.has(kid));
+    const out = kids.some((kid) => gap.has(kid)) || !tree.allChildren(row).every(has);
+    if (!own) gap.add(row);
+    if (!own && !live && out) blocked.add(row);
+    else if (kids.some((kid) => unmet.has(kid)) || !(own || (live && out))) unmet.add(row);
   }
-  // Without its own id, checked only with a kept descendant to tick and its
-  // id kept out by descendants left unselected.
-  if (
-    !has(id) &&
-    (order.length - blocked.size === 1 || (blocked.size === 0 && tree.allChildren(id).every(has)))
-  ) {
-    return withBranches(current, [id], tree);
-  }
+  if (blocked.has(id) || unmet.has(id)) return withBranches(current, [id], tree);
   const drop = new Set(order);
   for (let up = tree.parent(id); up !== undefined && !drop.has(up); up = tree.parent(up)) {
     drop.add(up);

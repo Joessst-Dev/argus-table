@@ -560,18 +560,21 @@ export class ArgusTable<T = unknown> extends LitElement {
    * its shown descendants selected, not its own id (so an app acting on
    * `selection` never reaches rows nobody selected). A checkbox is ticked when
    * its row's id and every descendant the filters keep are selected, and
-   * part-ticked when some of them are. Selecting a row again when it's ticked,
-   * or its shown descendants are all selected, deselects it, those descendants
-   * and its ancestors (rows a filter hides stay as they are). Ctrl/Cmd and Shift
-   * clicks and Shift+Arrow count each row as its branch, and Ctrl/Cmd+A or the
-   * header checkbox selects every row the filters keep, collapsed ones included,
-   * by the same rules; the header checkbox is ticked when every one of those is
-   * selected or has its shown descendants all selected. A row the filters keep
-   * while hiding all its children (it matches, they don't), or with only such
-   * rows under it, can't be selected while its id needs them: its checkbox is
-   * `disabled`, clicks and Space on it select nothing, and select-all and the
-   * header checkbox leave it out. A controlled `selection` that breaks these
-   * rules shows as it is until the user changes it.
+   * part-ticked when some of them are. Selecting a row again when it counts as
+   * checked deselects it, its shown descendants and its ancestors (rows a filter
+   * hides stay as they are): it counts as checked when it's ticked, or when
+   * everything that can be selected under it is, at any depth, while hidden
+   * rows keep its id out. Ctrl/Cmd and Shift clicks and Shift+Arrow count each
+   * row as its branch, and Ctrl/Cmd+A or the header checkbox selects every row
+   * the filters keep, collapsed ones included, by the same rules; the header
+   * checkbox is ticked when every one of those counts as checked. A row the
+   * filters keep while hiding all its children (it matches, they don't), or
+   * with only such rows under it, can't be selected while its id needs them:
+   * its checkbox is `disabled`, clicks and Space on it select nothing (a Shift
+   * click elsewhere in its row still selects a range), and select-all and the
+   * header checkbox leave it out; with only such rows, the header checkbox is
+   * disabled too. A controlled `selection` that breaks these rules shows as it
+   * is until the user changes it.
    */
   @property({ type: Boolean, attribute: 'select-branches' })
   selectBranches = false;

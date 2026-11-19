@@ -368,12 +368,12 @@ export interface TableModel<TData, TContent> {
   /**
    * The select-all checkbox with branches, for a selection: `'all'` when every
    * row the filters keep that isn't blocked counts as checked (as
-   * `toggleBranch` decides: its kept descendants selected, blocked ones aside,
-   * and its own id unless descendants left unselected keep it out), `'some'`
-   * when any of them is selected, else `'none'`. Worked out and kept with
+   * `toggleBranch` decides), `'some'` when any of them is selected, else
+   * `'none'`; `'blocked'` when every row the filters keep is blocked (or there
+   * are none), so select-all could select nothing. Worked out and kept with
    * `branchCheck`.
    */
-  branchCheckAll(selected: ReadonlySet<string>): Exclude<BranchCheck, 'blocked'>;
+  branchCheckAll(selected: ReadonlySet<string>): BranchCheck;
   /** The value a column reads from the row at `index`. */
   valueAt(index: number, columnId: string): unknown;
   /** The value a column reads from any row object, as its accessor gets it at `index`. */

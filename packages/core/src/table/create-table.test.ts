@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { toggleBranch, withBranches } from '../state/selection.js';
+import { sameSelection, toggleBranch, withBranches } from '../state/selection.js';
 import type { ColumnDef } from '../types.js';
 import {
   createTableModel,
@@ -2054,7 +2054,9 @@ describe('branch selection under a filter: whole branches only', () => {
     expect(states(m, [])).toEqual({ '1': 'blocked' });
     expect(tick(m, [], '1')).toEqual([]);
     expect(selectAll(m, [])).toEqual([]);
-    expect(m.branchCheckAll(new Set())).toBe('none');
+    // Nothing to tick: select-all is blocked too.
+    expect(m.branchCheckAll(new Set())).toBe('blocked');
+    expect(m.branchCheckAll(new Set(['1.0', '1.1', '1.2']))).toBe('none');
     // With its hidden children selected, ticking it adds its id: not blocked.
     expect(states(m, ['1.0', '1.1', '1.2'])).toEqual({ '1': 'none' });
     expect(tick(m, ['1.0', '1.1', '1.2'], '1')).toEqual(['1.0', '1.1', '1.2', '1']);
@@ -2154,10 +2156,39 @@ describe('branch selection under a filter: whole branches only', () => {
     expect(took).toBeLessThan(1000);
   });
 
-  it('branchSelectAll and branchCheckAll agree with the rules over random trees and filters', () => {
+  it('a grandparent whose shown rows are all selected unticks (no dead click three levels deep)', () => {
+    // Root{Folder{report, other}}, a filter keeping `report`.
+    interface Named {
+      name: string;
+      kids?: Named[];
+    }
+    const m = createTableModel<Named, string>({
+      columns: [{ id: 'name', accessor: 'name' }],
+      getRowId: undefined,
+      sorting: [],
+      columnSizing: {},
+      data: [
+        { name: 'Root', kids: [{ name: 'Folder', kids: [{ name: 'report' }, { name: 'other' }] }] },
+      ],
+      getSubRows: (row) => row.kids,
+      treeExpanded: ['0', '0.0'],
+      columnFilters: { name: { kind: 'set', values: ['report'] } },
+    });
+    const tree = m.branchTree();
+    if (!tree) throw new Error('no tree');
+    const ticked = toggleBranch([], '0', tree);
+    expect(ticked).toEqual(['0.0.0']);
+    const check = m.branchCheck(new Set(ticked));
+    expect([check(0), check(1), check(2)]).toEqual(['some', 'some', 'all']);
+    expect(m.branchCheckAll(new Set(ticked))).toBe('all');
+    expect(toggleBranch(ticked, '0', tree)).toEqual([]);
+    expect(toggleBranch(ticked, '0.0', tree)).toEqual([]);
+    expect(toggleBranch([], '0', tree)).toEqual(['0.0.0']);
+  });
+
+  it('no click is dead, and a parent is selected only with its whole branch, over random trees and filters', () => {
     interface Flat {
       id: string;
-      name: string;
       parent: string | null;
     }
     let seed = 7;
@@ -2165,76 +2196,85 @@ describe('branch selection under a filter: whole branches only', () => {
       seed = (seed * 1103515245 + 12345) % 2147483648;
       return seed / 2147483648;
     };
+    let deepest = 0;
     for (let round = 0; round < 150; round++) {
-      const count = 1 + Math.floor(next() * 25);
+      // Up to 30 rows, most under one of the last few: deep chains.
+      const count = 1 + Math.floor(next() * 30);
       const rows: Flat[] = Array.from({ length: count }, (_, i) => ({
         id: `r${String(i)}`,
-        name: 'abc'.charAt(Math.floor(next() * 3)),
-        parent: i > 0 && next() < 0.75 ? `r${String(Math.floor(next() * i))}` : null,
+        parent:
+          i > 0 && next() < 0.85 ? `r${String(Math.max(0, i - 1 - Math.floor(next() * 3)))}` : null,
       }));
+      const kids = new Map<string, string[]>();
+      for (const row of rows) {
+        if (row.parent !== null) kids.set(row.parent, [...(kids.get(row.parent) ?? []), row.id]);
+      }
+      const descendants = (id: string): string[] =>
+        (kids.get(id) ?? []).flatMap((kid) => [kid, ...descendants(kid)]);
+      const depthOf = (id: string): number => {
+        const up = rows.find((row) => row.id === id)?.parent;
+        return up ? 1 + depthOf(up) : 0;
+      };
+      deepest = Math.max(deepest, ...rows.map((row) => depthOf(row.id)));
+      const filter = () =>
+        next() < 0.75
+          ? {
+              id: {
+                kind: 'set' as const,
+                values: rows.filter(() => next() < 0.35).map((r) => r.id),
+              },
+            }
+          : undefined;
       const m = createTableModel<Flat, string>({
-        columns: [{ id: 'name', accessor: 'name' }],
+        columns: [{ id: 'id', accessor: 'id' }],
         data: rows,
         getRowId: (row) => row.id,
         getParentId: (row) => row.parent,
         sorting: [],
         columnSizing: {},
         treeExpanded: rows.map((row) => row.id),
-        quickFilter: next() < 0.7 ? 'abc'.charAt(Math.floor(next() * 3)) : undefined,
+        columnFilters: filter(),
       });
-      const tree = m.branchTree();
-      if (!tree) throw new Error('no tree');
-      const kept: string[] = [];
-      for (let i = 0; i < m.rowCount; i++) kept.push(m.rowAt(i)?.id ?? '');
-      const current = rows.filter(() => next() < 0.3).map((row) => row.id);
-      const selected = new Set(current);
-      expect([...m.branchSelectAll(current)].sort()).toEqual(
-        [...withBranches(current, kept, tree)].sort(),
-      );
-      // Blocked rows and R3 per kept row, by brute force.
-      const keptDescendants = (id: string): string[] =>
-        tree.children(id).flatMap((child) => [child, ...keptDescendants(child)]);
-      const blocked = (id: string): boolean => {
-        if (selected.has(id)) return false;
-        const kids = tree.children(id);
-        return kids.length > 0
-          ? kids.every(blocked)
-          : tree.allChildren(id).some((c) => !selected.has(c));
-      };
-      const checked = (id: string) => {
-        const below = keptDescendants(id);
-        const live = below.filter((d) => !blocked(d));
-        return (
-          live.every((d) => selected.has(d)) &&
-          (selected.has(id) ||
-            (live.length > 0 &&
-              (below.some(blocked) || tree.allChildren(id).some((c) => !selected.has(c)))))
+      let selection: readonly string[] = [];
+      for (let step = 0; step < 25; step++) {
+        if (next() < 0.2) m.update({ columnFilters: filter() });
+        const tree = m.branchTree();
+        if (!tree) throw new Error('no tree');
+        const kept: string[] = [];
+        for (let i = 0; i < m.rowCount; i++) kept.push(m.rowAt(i)?.id ?? '');
+        const selected = new Set(selection);
+        const where = `round ${String(round)} step ${String(step)}`;
+        // Select-all is withBranches over every kept row.
+        expect([...m.branchSelectAll(selection)].sort(), where).toEqual(
+          [...withBranches(selection, kept, tree)].sort(),
         );
-      };
-      const tickable = kept.filter((id) => !blocked(id));
-      const expected =
-        tickable.length > 0 && tickable.every(checked)
-          ? 'all'
-          : kept.some((id) => selected.has(id))
-            ? 'some'
-            : 'none';
-      expect(m.branchCheckAll(selected)).toBe(expected);
-      const check = m.branchCheck(selected);
-      for (let i = 0; i < kept.length; i++) {
-        const id = kept[i] ?? '';
-        expect(check(i) === 'blocked').toBe(blocked(id));
-        // A click unticks a checked row, else ticks its branch.
-        const after = toggleBranch(current, id, tree);
-        if (checked(id)) {
-          expect(after).not.toContain(id);
-          for (const d of keptDescendants(id)) expect(after).not.toContain(d);
-        } else {
-          expect(after).toEqual(withBranches(current, [id], tree));
+        const check = m.branchCheck(selected);
+        const tickable = kept.filter((_, i) => check(i) !== 'blocked');
+        // Every row that isn't blocked changes the selection when clicked; a
+        // blocked one could select nothing.
+        for (const id of kept) {
+          const after = toggleBranch(selection, id, tree);
+          if (tickable.includes(id))
+            expect(sameSelection(after, selection), `${where} ${id}`).toBe(false);
+          else for (const row of after) expect(selection, `${where} ${id}`).toContain(row);
         }
-        // Ticking a blocked row selects nothing (it may normalize a value set
-        // against the rules).
-        if (blocked(id)) for (const row of after) expect(current).toContain(row);
+        // The header changes the selection unless nothing can be ticked.
+        const all = m.branchCheckAll(selected);
+        expect(all === 'blocked', where).toBe(tickable.length === 0);
+        if (all !== 'blocked') {
+          const after = all === 'all' ? [] : m.branchSelectAll(selection);
+          expect(sameSelection(after, selection), `${where} header`).toBe(false);
+        }
+        // A step: a click on a kept row, or the header.
+        const id = kept[Math.floor(next() * kept.length)];
+        if (next() < 0.8 && id !== undefined) selection = toggleBranch(selection, id, tree);
+        else if (all !== 'blocked') selection = all === 'all' ? [] : m.branchSelectAll(selection);
+        const has = new Set(selection);
+        for (const row of selection) {
+          for (const d of descendants(row)) expect(has.has(d), `${where} R1 ${row}`).toBe(true);
+        }
       }
     }
+    expect(deepest).toBeGreaterThanOrEqual(3);
   });
 });

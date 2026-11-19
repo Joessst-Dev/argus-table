@@ -28,12 +28,14 @@ export * from './model-types.js';
 /**
  * `branchCheck`'s marks of a subtree: some row the user can tick is selected
  * (`PICKED`) or isn't (`MISSED`), some row can be ticked (`LIVE`), some row is
- * blocked (`DEAD`: ticking it could select nothing).
+ * blocked (`DEAD`: ticking it could select nothing), some row that can be
+ * ticked doesn't count as checked (`UNMET`).
  */
 const PICKED = 1;
 const MISSED = 2;
 const LIVE = 4;
 const DEAD = 8;
+const UNMET = 16;
 
 /**
  * Ids of the columns kept from `before` whose accessor changed: a new function,
@@ -137,7 +139,7 @@ export function createTableModel<TData, TContent>(
         layout: TreeLayout | undefined;
         selected: ReadonlySet<string>;
         check: (index: number) => BranchCheck;
-        all: Exclude<BranchCheck, 'blocked'>;
+        all: BranchCheck;
       }
     | undefined;
   // Every row's children in the whole tree (filters not applied), by source
@@ -193,47 +195,44 @@ export function createTableModel<TData, TContent>(
     const layout = steps?.layout;
     if (checks?.selected === selected && checks.layout === layout) return checks;
     let check: (index: number) => BranchCheck = () => 'none';
-    let all: Exclude<BranchCheck, 'blocked'> = 'none';
+    let all: BranchCheck = 'none';
     // Without a selection, only a filter can block rows.
     if (steps && (selected.size > 0 || steps.layout.order.length < steps.tree.ids.length)) {
       const { tree } = steps;
       const { parent, ids } = tree;
       const { order } = steps.layout;
       const marks = new Uint8Array(parent.length);
-      // Whether every row that can be ticked counts as checked (as
-      // `toggleBranch` decides), whether there is one, and whether any is selected.
-      let every = true;
-      let live = false;
-      let picked = false;
       for (let k = order.length - 1; k >= 0; k--) {
         const row = order[k] ?? 0;
         // Its kept descendants' marks, before its own joins them.
         const below = marks[row] ?? 0;
         const own = selected.has(ids[row] ?? '');
         // Its own id kept out by a descendant left unselected.
-        const out = () => below & DEAD || missesHidden(tree, steps.layout, row, selected);
-        let mark: number;
-        if (!own && !(below & LIVE) && out()) {
-          mark = below | DEAD;
-        } else {
-          live = true;
-          picked ||= own;
-          if (every && (own ? below & MISSED : !(below & LIVE) || below & MISSED || !out())) {
-            every = false;
-          }
-          mark = below | LIVE | (own ? PICKED : MISSED);
+        const out = () =>
+          below & (MISSED | DEAD) || missesHidden(tree, steps.layout, row, selected);
+        let mark = below;
+        if (!own && !(below & LIVE) && out()) mark |= DEAD;
+        else {
+          mark |= LIVE | (own ? PICKED : MISSED);
+          // Checked (as `toggleBranch` decides): every row below that can be
+          // ticked is, and its own id selected, or kept out with something
+          // below to tick.
+          if (below & UNMET || !(own || (below & LIVE && out()))) mark |= UNMET;
         }
         marks[row] = mark;
         const up = parent[row] ?? -1;
         if (up !== -1) marks[up] = (marks[up] ?? 0) | mark;
       }
+      // The top-level kept rows' marks hold every row's.
+      let top = 0;
+      for (const row of steps.layout.children(-1)) top |= marks[row] ?? 0;
       check = (index) => {
         const row = rows()[index];
         const mark = row === undefined ? 0 : (marks[row] ?? 0);
         if (row !== undefined && !(mark & LIVE)) return 'blocked';
         return mark & PICKED ? (mark & MISSED ? 'some' : 'all') : 'none';
       };
-      all = live && every ? 'all' : picked ? 'some' : 'none';
+      all = !(top & LIVE) ? 'blocked' : top & UNMET ? (top & PICKED ? 'some' : 'none') : 'all';
     }
     checks = { layout, selected, check, all };
     return checks;

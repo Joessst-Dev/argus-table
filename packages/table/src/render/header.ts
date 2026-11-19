@@ -50,10 +50,11 @@ export interface HeaderHandlers {
 /**
  * The select-all checkbox in the selection column's header, with
  * `selectionMode` `'multi'`: checked when every selectable row is, mixed when
- * some are.
+ * some are; disabled (`'blocked'`, with branch selection) when there is no
+ * row to tick.
  */
 export interface CheckAll {
-  state: 'all' | 'some' | 'none';
+  state: 'all' | 'some' | 'none' | 'blocked';
   handlers: CheckboxHandlers;
 }
 
@@ -229,6 +230,7 @@ function selectAllCheckbox(checkAll: CheckAll | undefined, label: string) {
     aria-label=${label}
     .checked=${live(checkAll.state === 'all')}
     .indeterminate=${live(checkAll.state === 'some')}
+    ?disabled=${checkAll.state === 'blocked'}
     @click=${checkAll.handlers.all}
     @mousedown=${checkAll.handlers.press}
   />`;

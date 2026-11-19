@@ -306,6 +306,15 @@ describe('toggleBranch', () => {
     expect(toggleBranch([], 'A', tree)).toEqual([]);
   });
 
+  it('a grandparent counts as checked through a level kept out by hidden rows', () => {
+    // Root{Folder{report, other}}, other hidden.
+    const tree = branchTree({ Root: ['Folder'], Folder: ['report', 'other'] }, ['other']);
+    expect(toggleBranch([], 'Root', tree)).toEqual(['report']);
+    expect(toggleBranch(['report'], 'Root', tree)).toEqual([]);
+    expect(toggleBranch(['report'], 'Folder', tree)).toEqual([]);
+    expect(toggleBranch(['report'], 'report', tree)).toEqual([]);
+  });
+
   it('blocked descendants count for nothing but keep their ancestors out', () => {
     // G{P{P1, P2}, Q}, with P kept and its children hidden: P is blocked.
     const tree = branchTree({ G: ['P', 'Q'], P: ['P1', 'P2'] }, ['P1', 'P2']);

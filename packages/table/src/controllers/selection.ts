@@ -188,6 +188,8 @@ export class SelectionController<T> {
   selectAll(): void {
     const model = this.#model();
     const current = this.state.value;
+    // Every row the filters keep is blocked: nothing to tick.
+    if (this.#branches() && this.#checkAllState() === 'blocked') return;
     this.#request({
       selection: this.#branches()
         ? model.branchSelectAll(current, this.#selected())

@@ -260,6 +260,48 @@ describe('tree rows: branch selection', () => {
     expect(el.selection).toEqual(['0.1']);
   });
 
+  test('three levels deep under a filter, a click and the header untick and tick again', async () => {
+    const el = await fixture<Item>({
+      columns,
+      data: [
+        { name: 'Root', kids: [{ name: 'Folder', kids: [{ name: 'report' }, { name: 'other' }] }] },
+      ],
+      getSubRows: (r) => r.kids,
+      selectionMode: 'multi',
+      selectionCheckboxes: true,
+      selectBranches: true,
+      columnFilters: { name: { kind: 'set', values: ['report'] } },
+    });
+    const seen = changes(el);
+    await tick(el, 'Root');
+    expect(el.selection).toEqual(['0.0.0']);
+    expect(checkbox(el, 'Root')).toMatchObject({ checked: false, indeterminate: true });
+    expect(checkbox(el, 'Folder')).toMatchObject({ checked: false, indeterminate: true });
+    expect(checkAll(el)).toMatchObject({ checked: true, indeterminate: false });
+    await tick(el, 'Root');
+    expect(el.selection).toEqual([]);
+    await press(el, cellOf(el, 'Folder'), ' ');
+    expect(el.selection).toEqual(['0.0.0']);
+    checkAll(el)?.click();
+    await settle(el);
+    expect(el.selection).toEqual([]);
+    await press(el, cellOf(el, 'Root'), 'a', { ctrlKey: true });
+    expect(el.selection).toEqual(['0.0.0']);
+    expect(seen).toEqual([['0.0.0'], [], ['0.0.0'], [], ['0.0.0']]);
+  });
+
+  test('the header checkbox is disabled when every row the filter keeps is blocked', async () => {
+    const el = await treeTable({ quickFilter: 'P1' });
+    const seen = changes(el);
+    expect(checkAll(el)?.disabled).toBe(true);
+    expect(checkAll(el)?.getAttribute('part')).toBe('selection-checkbox');
+    await press(el, cellOf(el, 'P1'), 'a', { ctrlKey: true });
+    expect(seen).toEqual([]);
+    el.quickFilter = '';
+    await settle(el);
+    expect(checkAll(el)?.disabled).toBe(false);
+  });
+
   test('select-all covers whole branches', async () => {
     const el = await treeTable();
     await press(el, cellOf(el, 'P1'), 'a', { ctrlKey: true });
