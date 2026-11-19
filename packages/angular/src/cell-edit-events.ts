@@ -25,8 +25,9 @@ export interface CellEditDetail<T = unknown> {
   /** Set for a row from `pinnedRows`: its side. */
   pinned?: RowPin;
   /**
-   * The row's level in a tree (`getSubRows` or `getParentId`): `0` for a
-   * top-level row, `1` for its children, and so on. Set for body rows of a
+   * The row's level in a tree (`getSubRows`, `getParentId`, or a `dataSource`
+   * with `hasChildren` and `getChildren`): `0` for a top-level row, `1` for its
+   * children, and so on. Set for body rows of a
    * table with a tree; `applyEdit()` needs its `tree` argument for nested
    * children (`getSubRows`) above `0`.
    */

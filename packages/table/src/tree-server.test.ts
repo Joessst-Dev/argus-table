@@ -2,7 +2,7 @@ import { html } from 'lit';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
 import type { ArgusTable } from './argus-table.js';
-import { LOAD_DEBOUNCE_MS } from './controllers/data-controller.js';
+import { DataController, LOAD_DEBOUNCE_MS } from './controllers/data-controller.js';
 import type {
   ArgusPlugin,
   CellClickDetail,
@@ -527,6 +527,24 @@ describe('tree rows from a data source', () => {
     await settle(el);
     // Top-level rows 20–39 are shown rows 70–89: Person 0's 50 children come first.
     expect(errors).toEqual([{ error: failure, start: 70, end: 90 }]);
+    // The Retry button counts them too, in the page's first row shown.
+    const retry = shadow(el).querySelector('[part~="retry"]');
+    expect(retry?.getAttribute('aria-label')).toBe('Retry loading rows 71 to 90');
+    expect(retry?.closest('[role="row"]')?.getAttribute('aria-rowindex')).toBe(String(70 + 2));
+  });
+
+  test('a data table’s treeExpanded leaves the data source alone', async () => {
+    const configure = vi.spyOn(DataController.prototype, 'configure');
+    const el = await fixture({
+      columns,
+      data: people(3),
+      getSubRows: (row: Person) => (row.id === 'p1' ? childrenOf(row, 2) : undefined),
+    });
+    configure.mockClear();
+    el.treeExpanded = ['1'];
+    await settle(el);
+    expect(names(el, 4)).toEqual(['Person 0', 'Person 1', 'Person 1.0', 'Person 1.1']);
+    expect(configure).not.toHaveBeenCalled();
   });
 
   test('children of children load on expand', async () => {
@@ -824,6 +842,19 @@ describe('tree rows from a data source: branch selection', () => {
     expect(el.selection).toEqual(['2']);
   });
 
+  test('filters that keep every row and a blank quick filter don’t count as a server filter', async () => {
+    const { source, calls } = server(100);
+    const el = await loaded(source, calls, {
+      ...branches,
+      columns: columns.map((c) => (c.id === 'name' ? { ...c, filter: 'text' as const } : c)),
+      columnFilters: { name: { kind: 'text', op: 'contains', value: '' } },
+      quickFilter: '  ',
+    });
+    expect(checkbox(el, 'Person 2').disabled).toBe(false);
+    await tick(el, checkbox(el, 'Person 2'));
+    expect(el.selection).toEqual(['2']);
+  });
+
   test('without selectBranches nothing changes', async () => {
     const { source, calls, childCalls } = server(100);
     const el = await loaded(source, calls, { ...branches, selectBranches: false });
@@ -1100,6 +1131,30 @@ describe('tree rows from a data source: rendering, keys and state', () => {
     await answer(el, childCalls);
     expect(rowOf(el, 'Person 30').getAttribute('aria-rowindex')).toBe(String(33 + 2));
     expect(focused(el)).toBe(cellOf(el, 'Person 30', 'age'));
+  });
+
+  test('focus on a row still loading doesn’t pull the view back as rows load above it', async () => {
+    const { source, calls, childCalls } = server(100);
+    const el = await loaded(source, calls);
+    // Person 1's children are in flight: one loading row under it.
+    await toggle(el, 'Person 1');
+    await scrollTo(el, 22 * 40);
+    await load(el);
+    // Top-level row 29, its page not answered: shown index 30.
+    const cell = rowAt(el, 30).querySelector<HTMLElement>('[data-col="age"]');
+    expect(rowAt(el, 30).getAttribute('aria-busy')).toBe('true');
+    cell?.focus();
+    await settle(el);
+    await scrollTo(el, 0);
+    await load(el);
+
+    // Three children replace the loading row: row 29 moves down by two, out of view.
+    await answer(el, childCalls);
+    expect(names(el, 3)).toEqual(['Person 0', 'Person 1', 'Person 1.0']);
+    expect(scroller(el).scrollTop).toBe(0);
+    expect(rowAt(el, 32).getAttribute('aria-busy')).toBe('true');
+    expect(focused(el)).toBe(cell);
+    expect(rowAt(el, 32).contains(cell ?? null)).toBe(true);
   });
 
   test('focus on a loading child row moves to the child once loaded, or to the parent', async () => {

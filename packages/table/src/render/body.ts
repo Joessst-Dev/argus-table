@@ -35,7 +35,10 @@ export interface RowToggles {
   controls: (index: number) => string | undefined;
 }
 
-/** The tree column's content and the rows' tree attributes (`getSubRows` or `getParentId`). */
+/**
+ * The tree column's content and the rows' tree attributes (`getSubRows`,
+ * `getParentId`, or a `dataSource` with `hasChildren` and `getChildren`).
+ */
 export interface TreeRows {
   /** The tree column: the first data column in reading order (`firstDataColumn`). */
   column: string | undefined;

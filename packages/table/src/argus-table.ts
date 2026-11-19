@@ -188,7 +188,7 @@ function attachGridInternals(host: HTMLElement): ElementInternals {
  * @csspart cell-expand - Added to `cell` in the toggle column of detail panels (`rowDetail`), pinned rows included.
  * @csspart header-cell-expand - Added to `header-cell` on the toggle column's header: an empty cell (`role="gridcell"`, as an empty column header has no name to read).
  * @csspart expand-toggle - The chevron button that opens and closes a row's detail panel. It is drawn with borders in `currentColor` (`::before`) and has `aria-expanded`.
- * @csspart tree-toggle - The button that expands and collapses a tree row (`getSubRows` or `getParentId`), in the first data column after the row's indent; only rows with children have one. It is drawn with borders in `currentColor` (`::before`) and has `aria-expanded`. While a filter keeps its row expanded (the row holds a match), it has `aria-disabled="true"` and `tree-toggle-disabled`, is dimmed, and does nothing.
+ * @csspart tree-toggle - The button that expands and collapses a tree row (`getSubRows`, `getParentId`, or a `dataSource` with `hasChildren` and `getChildren`), in the first data column after the row's indent; only rows with children have one. It is drawn with borders in `currentColor` (`::before`) and has `aria-expanded`. While a filter keeps its row expanded (the row holds a match), it has `aria-disabled="true"` and `tree-toggle-disabled`, is dimmed, and does nothing.
  * @csspart tree-toggle-disabled - Added to `tree-toggle` while a filter keeps the row open for its matches; the toggle does nothing until the filter clears.
  * @csspart row-pinned - Every row from `pinnedRows`, on either side. Also has `row`, but no `row-even`/`row-odd`.
  * @csspart row-pinned-top - The rows pinned below the header.
@@ -224,7 +224,7 @@ function attachGridInternals(host: HTMLElement): ElementInternals {
  * @cssprop [--argus-row-hover-bg] - Background of the hovered row. Default: no change.
  * @cssprop [--argus-row-pinned-bg=var(--argus-bg)] - Background of the pinned rows, pinned columns included.
  * @cssprop [--argus-skeleton-bg] - Colour of the skeleton bars in rows still loading. Default: the text colour at low opacity.
- * @cssprop [--argus-tree-indent=1.25rem] - The indent per level of a tree row (`getSubRows` or `getParentId`), before the toggle in the first data column.
+ * @cssprop [--argus-tree-indent=1.25rem] - The indent per level of a tree row (`getSubRows`, `getParentId`, or a `dataSource` with `hasChildren` and `getChildren`), before the toggle in the first data column.
  * @cssprop [--argus-detail-max-height=400px] - The tallest a detail panel (`rowDetail`) is; its content scrolls past it. Style the panel itself (background, padding) through the `detail` part.
  * @cssprop [--argus-row-selected-bg] - Background of selected rows, pinned columns included. Default: the system highlight colour, mixed into `--argus-bg`. It wins over `--argus-row-hover-bg`.
  */
@@ -310,9 +310,10 @@ export class ArgusTable<T = unknown> extends LitElement {
 
   /**
    * Returns a stable id for a row, given the row and its index: in `data`, among
-   * all `dataSource` rows, or for a nested child of a tree (`getSubRows`) its
-   * index from `data.length` on, in depth-first order. Default: the index as a
-   * string; a nested child's is its parent's id, a dot and its index among its
+   * all `dataSource` rows (a child from `getChildren`: among its siblings), or
+   * for a nested child of a tree (`getSubRows`) its index from `data.length` on,
+   * in depth-first order. Default: the index as a string; a nested child's, or a
+   * `dataSource` child's, is its parent's id, a dot and its index among its
    * siblings (`'3.0'`, `'3.0.2'`).
    */
   @property({ attribute: false })
@@ -561,7 +562,8 @@ export class ArgusTable<T = unknown> extends LitElement {
   }
 
   /**
-   * Selects whole branches of a tree (`getSubRows` or `getParentId`), in `multi`
+   * Selects whole branches of a tree (`getSubRows`, `getParentId`, or a
+   * `dataSource` with `hasChildren` and `getChildren`), in `multi`
    * `selectionMode` only (ignored in `single` mode and without a tree).
    * Selecting a row, by its checkbox, a click or Space, selects it and its
    * descendants the filters keep, rows under collapsed rows included; rows a
@@ -1216,7 +1218,8 @@ export class ArgusTable<T = unknown> extends LitElement {
       changed.has('sorting') ||
       changed.has('getRowId') ||
       filtersChanged;
-    if (sourceChanged || changed.has('treeExpanded')) {
+    // Expanded rows matter to a data source's tree only.
+    if (sourceChanged || (changed.has('treeExpanded') && this.dataSource)) {
       this.#data.configure({
         source: this.dataSource,
         sorting: this.#sorting.value,

@@ -42,10 +42,13 @@ export function loadingState<T>(
     const first = firstByPage.get(page);
     if (first === undefined || index < first) firstByPage.set(page, index);
   }
+  // In a tree, shown rows (as `argus-load-error` and `aria-rowindex` count them):
+  // open rows above push the page down.
+  const shown = (at: number) => (tree ? (tree.positionOfTop(at) ?? tree.rowCount) : at);
   for (const [page, index] of firstByPage) {
     const start = page * cache.pageSize;
     const end = Math.min(start + cache.pageSize, cache.rowCount);
-    retry.set(index, labels.retryRows({ first: start + 1, last: end }));
+    retry.set(index, labels.retryRows({ first: shown(start) + 1, last: shown(end) }));
   }
   return {
     stateAt: (index) => rows.stateAt(index),

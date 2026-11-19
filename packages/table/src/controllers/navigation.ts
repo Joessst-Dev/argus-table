@@ -690,7 +690,9 @@ export class NavigationController<T> {
         if (loaded !== undefined || !held.same) {
           rowId = loaded ?? this.#placeholderId(model, held.index);
         }
-        if (!held.same || index !== prev.index) moved = true;
+        // Rendered rows follow ids: under the same id the focused cell stays
+        // (and isn't scrolled back into view); another id renders another row.
+        if (!held.same || rowId !== prev.rowId) moved = true;
       } else if (
         held !== undefined &&
         held.index < model.rowCount &&

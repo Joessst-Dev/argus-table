@@ -30,7 +30,8 @@ export interface TableLabels {
   retry: string;
   /**
    * Accessible name of the Retry button: the rows of the failed page, counted from 1,
-   * `last` included. Default: `Retry loading rows 51 to 100`.
+   * `last` included, as rows are shown (in a tree, the children of expanded rows
+   * above count). Default: `Retry loading rows 51 to 100`.
    */
   retryRows: (rows: { first: number; last: number }) => string;
   /**

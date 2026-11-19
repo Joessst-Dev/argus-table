@@ -5,6 +5,7 @@ import {
   compileFilter,
   dayOf,
   distinctValues,
+  filtersRows,
   isEmptyValue,
   rowPredicate,
   setValueOf,
@@ -246,6 +247,19 @@ describe('rowPredicate', () => {
       'Ben',
       'Dan',
     ]);
+  });
+});
+
+describe('filtersRows', () => {
+  it('counts filters that drop rows and quick filter words', () => {
+    expect(filtersRows({}, '')).toBe(false);
+    expect(filtersRows(undefined, '  ')).toBe(false);
+    expect(filtersRows({ name: { kind: 'text', op: 'contains', value: '' } }, '')).toBe(false);
+    expect(filtersRows({ age: { kind: 'number', op: 'between' } }, ' ')).toBe(false);
+    expect(filtersRows({ name: { kind: 'text', op: 'contains', value: 'a' } }, '')).toBe(true);
+    expect(filtersRows({ name: { kind: 'text', op: 'empty' } }, '')).toBe(true);
+    expect(filtersRows({ city: { kind: 'set', values: [] } }, '')).toBe(true);
+    expect(filtersRows({}, ' x ')).toBe(true);
   });
 });
 

@@ -1,5 +1,6 @@
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
 import {
+  filtersRows,
   PageCache,
   RemoteTree,
   type ChildrenRequest,
@@ -245,7 +246,7 @@ export class DataController<T> implements ReactiveController {
             getRowId,
             keepCounts: carry?.counts,
             warn: this.#warn,
-            filtered: Object.keys(filters).length > 0 || quickFilter.trim() !== '',
+            filtered: filtersRows(filters, quickFilter),
           })
         : undefined;
   }

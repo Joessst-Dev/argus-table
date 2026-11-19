@@ -50,9 +50,10 @@ export interface CellContext<TData> {
   /** Set for a row from `pinnedRows`: the side it is pinned to. */
   pinned?: RowPin;
   /**
-   * The row's level in a tree of rows (`getSubRows` or `getParentId`): `0` for a
-   * top-level row, `1` for its children, and so on. Set for body rows only, and
-   * only when the rows form a tree.
+   * The row's level in a tree of rows (`getSubRows`, `getParentId`, or a
+   * `dataSource` with `hasChildren` and `getChildren`): `0` for a top-level row,
+   * `1` for its children, and so on. Set for body rows only, and only when the
+   * rows form a tree.
    */
   depth?: number;
 }
@@ -360,9 +361,10 @@ export interface RowDetailContext<TData> {
 
 /**
  * The rows of a tree that are expanded (their children shown), as row ids: from
- * `getRowId`, else the default ids. Those are a row's index in `data`, except for
- * the children in nested data (`getSubRows`), whose id is the parent's id, a dot
- * and the index among its siblings (`'3.0'`, `'3.0.2'`).
+ * `getRowId`, else the default ids. Those are a row's index in `data` (or among
+ * a `dataSource`'s top-level rows), except for the children in nested data
+ * (`getSubRows`) and those from a `dataSource`'s `getChildren`, whose id is the
+ * parent's id, a dot and the index among its siblings (`'3.0'`, `'3.0.2'`).
  */
 export type TreeExpandedState = readonly string[];
 
@@ -421,7 +423,7 @@ export interface TableState {
   columnFilters?: ColumnFilterState;
   selection?: SelectionState;
   expanded?: ExpandedState;
-  /** The expanded rows of a tree (`getSubRows` or `getParentId`). */
+  /** The expanded rows of a tree (`getSubRows`, `getParentId`, or a `dataSource` with `hasChildren` and `getChildren`). */
   treeExpanded?: TreeExpandedState;
   quickFilter?: string;
   scroll?: ScrollState;
