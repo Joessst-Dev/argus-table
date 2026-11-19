@@ -222,7 +222,8 @@ export const BranchSelection: Story = {
 /**
  * A filter keeps the rows that match with their ancestors, so a match always
  * shows in its place. The ancestors show expanded, whatever `treeExpanded`
- * says, and their toggles are disabled until the filter clears.
+ * says, and their toggles are disabled (`aria-disabled`, part
+ * `tree-toggle-disabled`) until the filter clears.
  */
 export const Filtered: Story = {
   render: () =>
@@ -241,6 +242,12 @@ export const Filtered: Story = {
     await expect(textAt(table, 3, 'name')).toBe('lib');
     await expect(rowAt(table, 2).getAttribute('aria-expanded')).toBe('true');
     await expect(toggleAt(table, 3).getAttribute('aria-disabled')).toBe('true');
+    await expect(toggleAt(table, 3).getAttribute('part')).toBe('tree-toggle tree-toggle-disabled');
+    // A disabled toggle does nothing: lib stays open, treeExpanded stays empty.
+    await userEvent.click(toggleAt(table, 3));
+    await table.updateComplete;
     await expect(table.treeExpanded).toEqual([]);
+    await expect(rowAt(table, 3).getAttribute('aria-expanded')).toBe('true');
+    await expect(textAt(table, 4, 'name')).toBe('format.ts');
   },
 };

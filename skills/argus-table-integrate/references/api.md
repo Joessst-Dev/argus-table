@@ -132,7 +132,7 @@ table.treeExpanded = ['a', 'a/2']; // optional; two-way, like expanded
 ```
 
 - The first shown data column holds the indent (`--argus-tree-indent` per level) and, on rows with children, the toggle (part `tree-toggle`, labels `expandTreeRow` / `collapseTreeRow`). Right expands a row, Left collapses it or moves to its parent. The host's role is `treegrid`.
-- Children sort among their siblings. A filter keeps the matching rows with their ancestors, shown expanded while it's on, without changing `treeExpanded`.
+- Children sort among their siblings. A filter keeps the matching rows with their ancestors, shown expanded while it's on (their toggles disabled, part `tree-toggle-disabled`), without changing `treeExpanded`.
 - Default ids: the index in `data` at the top level, the parent's id, a dot and the index among siblings below (`'3.0'`, `'3.0.2'`). With flat data, give `getRowId`: `getParentId` returns those ids.
 - `cell` contexts, `argus-cell-click`, `argus-cell-edit` and `rowDetail` get `depth` (`0` at the top level), only when the rows form a tree. Indexes in events and `scrollToRow()` count the rows shown; `scrollToRow({ id })` resolves `false` for a row under a collapsed one.
 - `selectBranches` (in `multi` mode): a row's checkbox selects its branch, and a parent's id is in `selection` exactly when its whole branch is.

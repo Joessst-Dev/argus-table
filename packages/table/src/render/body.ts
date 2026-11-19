@@ -357,7 +357,8 @@ function rowToggle(index: number, open: boolean, toggles: RowToggles | undefined
  * row's toggle, or for a row without children a spacer as wide, so content
  * lines up with its siblings'. The toggle isn't focusable: the cell holds focus.
  * While a filter keeps the row open (`forced`), the toggle is `aria-disabled`
- * (still a button with its name, so it stays perceivable) and its click does nothing.
+ * (still a button with its name, so it stays perceivable) with the part
+ * `tree-toggle-disabled` (`::part()` can't read attributes), and its click does nothing.
  */
 function treeToggle(index: number, node: TreeRowInfo, tree: TreeRows) {
   return html`<span class="tree-indent" style=${styleMap({ '--_depth': String(node.depth) })}></span
@@ -365,7 +366,7 @@ function treeToggle(index: number, node: TreeRowInfo, tree: TreeRows) {
       node.hasChildren
         ? html`<button
             type="button"
-            part="tree-toggle"
+            part=${node.forced ? 'tree-toggle tree-toggle-disabled' : 'tree-toggle'}
             tabindex="-1"
             aria-expanded=${String(node.open)}
             aria-disabled=${node.forced ? 'true' : nothing}

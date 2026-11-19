@@ -12,9 +12,9 @@ import ReactOrgChart from '../../../examples/tree-rows/org-chart/react/OrgChart.
 import VueOrgChart from '../../../examples/tree-rows/org-chart/vue/OrgChart.vue';
 import { OrgChartComponent } from '../../../examples/tree-rows/org-chart/angular/org-chart.component.ts';
 
-Rows can have child rows: a folder and its files, a manager and their team, a category and its products. Give the table `getSubRows`, a function that returns a row's children (or `undefined` for a row without any), and `data` holds the top-level rows. A row with children gets a toggle in the first data column, and each level is indented under its parent. Child rows are rows like any other: they have cells in every column, and they sort, filter, select, edit and fire click events.
+Rows can have child rows: a folder and its files, a manager and their team, a category and its products. Give the table `getSubRows`, a function that returns a row's children (or `undefined` for a row without any), and `data` holds the top-level rows. A row with children gets a toggle in the first data column, and each level is indented under its parent. Child rows are rows like any other: they have cells in every column, and they sort, filter, select, edit and fire click events. Define `getSubRows` once (at module scope, `useCallback`, a class field), and `getParentId` and `getRowId` the same way: a new function on every render builds and sorts the tree again.
 
-Which rows are expanded is `treeExpanded`, a list of row ids. It binds two-way like `selection`, and `argus-tree-expanded-change` reports each change with `{ treeExpanded, rowId, open }`. Here the app owns it, and its buttons expand and collapse every folder. Sort by Name or Size: each folder's entries are sorted among themselves and stay under it.
+Which rows are expanded is `treeExpanded`, a list of row ids, and `argus-tree-expanded-change` reports each change with `{ treeExpanded, rowId, open }`. Leave it unset and the table keeps it: toggles and keys expand and collapse rows, and nothing starts open. Set it and the table is controlled: a toggle or a key only proposes the new ids in the event, and your code applies them. It binds two-way like `selection`. Here the app owns it, starting with src open, and its buttons expand and collapse every folder. Sort by Name or Size: each folder's entries are sorted among themselves and stay under it.
 
 <FlavourTabs example="tree-rows/file-tree">
   <ReactFileTree slot="react" client:visible />
@@ -26,13 +26,13 @@ The table has no "expand all" button of its own: set `treeExpanded` to the ids y
 
 ## Row ids and indexes
 
-Without `getRowId`, a top-level row's id is its index in `data`, as in any table, and a child's id is its parent's id, a dot and its index among its siblings: `'0.1'` is the second child of the first row, and `'0.1.2'` the third child of that. With `getRowId`, its ids are used throughout. Functions that are given a row's index, `getRowId(row, index)` and a column's `accessor(row, index)`, get a child's index counted from `data.length` on, in depth-first order.
+Without `getRowId`, a top-level row's id is its index in `data`, as in any table, and a child's id is its parent's id, a dot and its index among its siblings: `'0.1'` is the second child of the first row, and `'0.1.2'` the third child of that. These ids are positions: a row added or removed above a row changes its id, and `treeExpanded` and `selection` then name another row. Give `getRowId` when `data` can change, so expanded and selected rows follow their row; its ids are used throughout. Functions that are given a row's index, `getRowId(row, index)` and a column's `accessor(row, index)`, get a child's index counted from `data.length` on, in depth-first order.
 
-Every other index counts the rows shown, in their current order: `scrollToRow(index)`, the click events' `index` and `argus-range-change`. Children of a collapsed row aren't shown, so expanding a row moves the indexes of the rows below it, as a filter does. Cell functions, `rowDetail` and the click events get the row's level as `depth`: `0` for a top-level row, `1` for its children, and so on.
+Every other index counts the rows shown, in their current order: `scrollToRow(index)`, the click events' `index` and `argus-range-change`. Children of a collapsed row aren't shown, so expanding a row moves the indexes of the rows below it, as a filter does. Cell functions, `rowDetail` and `argus-cell-click` get the row's level as `depth`: `0` for a top-level row, `1` for its children, and so on. It's set only when the rows form a tree.
 
 ## Flat data
 
-When every row is in one list and names its parent, give the table `getParentId` instead: it returns the id of a row's parent (an id `getRowId` gives), or `null` for a top-level row. `data` holds every row, and each keeps its index in `data`. A row whose parent isn't found shows as a top-level row, with a warning in the console.
+When every row is in one list and names its parent, give the table `getParentId` instead: it returns the id of a row's parent (an id `getRowId` gives), or `null` for a top-level row. Without `getRowId` the ids are indexes, so it returns the parent's index in `data` as a string. `data` holds every row, and each keeps its index in `data`. A row whose parent isn't found, or that is part of a cycle, shows as a top-level row, with a warning in the console. When both `getSubRows` and `getParentId` are set, `getSubRows` wins, with a warning too.
 
 This org chart is flat data. Tick a manager and everyone under them is ticked too; search for "designer" and the designers show in their place, under their managers.
 
@@ -58,7 +58,7 @@ Screen readers hear each row's level, whether it's expanded, and its place among
 
 ## Styling
 
-The toggle is the `tree-toggle` part, drawn in the text colour (`currentColor`), and `--argus-tree-indent` (`1.25rem`) is the indent per level:
+The toggle is the `tree-toggle` part, drawn in the text colour (`currentColor`), and `--argus-tree-indent` (`1.25rem`) is the indent per level. While a filter keeps a row open, its toggle also has the `tree-toggle-disabled` part, dimmed by default:
 
 ```css
 argus-table {
@@ -66,6 +66,9 @@ argus-table {
 }
 argus-table::part(tree-toggle) {
   color: var(--accent);
+}
+argus-table::part(tree-toggle-disabled) {
+  opacity: 0.6;
 }
 ```
 

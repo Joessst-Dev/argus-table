@@ -282,7 +282,7 @@ export const baseStyles = css`
       transform: translateY(-0.1em) rotate(45deg);
     }
     /* A row a filter keeps expanded: its toggle does nothing until the filter clears. */
-    [part~='tree-toggle'][aria-disabled='true'] {
+    [part~='tree-toggle-disabled'] {
       opacity: 0.4;
       cursor: default;
     }

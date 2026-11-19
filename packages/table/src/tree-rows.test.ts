@@ -453,6 +453,7 @@ describe('tree rows: the tree column', () => {
     expect(names(el)).toEqual(['P0', 'C0.1']);
     const toggle = toggleOf(el, 'P0');
     expect(toggle.getAttribute('aria-disabled')).toBe('true');
+    expect(toggle.getAttribute('part')).toBe('tree-toggle tree-toggle-disabled');
     // Still a button with its name, on an expanded row.
     expect(toggle.hasAttribute('disabled')).toBe(false);
     expect(toggle.getAttribute('aria-label')).toBe('Collapse row');
@@ -477,6 +478,7 @@ describe('tree rows: the tree column', () => {
     expect(names(el)).toEqual(['P0', 'C0.0', 'C0.1', 'C0.2', 'P1', 'P2']);
     expect(toggleOf(el, 'P0').hasAttribute('aria-disabled')).toBe(false);
     expect(toggleOf(el, 'P1').hasAttribute('aria-disabled')).toBe(false);
+    expect(toggleOf(el, 'P0').getAttribute('part')).toBe('tree-toggle');
     toggleOf(el, 'P0').click();
     await settle(el);
     expect(seen).toEqual([{ treeExpanded: [], rowId: '0', open: false }]);

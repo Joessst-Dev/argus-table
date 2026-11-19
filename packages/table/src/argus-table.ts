@@ -188,7 +188,8 @@ function attachGridInternals(host: HTMLElement): ElementInternals {
  * @csspart cell-expand - Added to `cell` in the toggle column of detail panels (`rowDetail`), pinned rows included.
  * @csspart header-cell-expand - Added to `header-cell` on the toggle column's header: an empty cell (`role="gridcell"`, as an empty column header has no name to read).
  * @csspart expand-toggle - The chevron button that opens and closes a row's detail panel. It is drawn with borders in `currentColor` (`::before`) and has `aria-expanded`.
- * @csspart tree-toggle - The button that expands and collapses a tree row (`getSubRows` or `getParentId`), in the first data column after the row's indent; only rows with children have one. It is drawn with borders in `currentColor` (`::before`) and has `aria-expanded`. While a filter keeps its row expanded (the row holds a match), it has `aria-disabled="true"`, is dimmed, and does nothing.
+ * @csspart tree-toggle - The button that expands and collapses a tree row (`getSubRows` or `getParentId`), in the first data column after the row's indent; only rows with children have one. It is drawn with borders in `currentColor` (`::before`) and has `aria-expanded`. While a filter keeps its row expanded (the row holds a match), it has `aria-disabled="true"` and `tree-toggle-disabled`, is dimmed, and does nothing.
+ * @csspart tree-toggle-disabled - Added to `tree-toggle` while a filter keeps the row open for its matches; the toggle does nothing until the filter clears.
  * @csspart row-pinned - Every row from `pinnedRows`, on either side. Also has `row`, but no `row-even`/`row-odd`.
  * @csspart row-pinned-top - The rows pinned below the header.
  * @csspart row-pinned-bottom - The rows pinned to the bottom.
