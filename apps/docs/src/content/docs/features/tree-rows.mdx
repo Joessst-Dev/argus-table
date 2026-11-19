@@ -1,0 +1,95 @@
+---
+title: Tree rows
+description: Rows with child rows, such as a file tree or an org chart, that people expand and collapse.
+since: '1.4'
+---
+
+import FlavourTabs from '../../../components/FlavourTabs.astro';
+import ReactFileTree from '../../../examples/tree-rows/file-tree/react/FileTree.tsx';
+import VueFileTree from '../../../examples/tree-rows/file-tree/vue/FileTree.vue';
+import { FileTreeComponent } from '../../../examples/tree-rows/file-tree/angular/file-tree.component.ts';
+import ReactOrgChart from '../../../examples/tree-rows/org-chart/react/OrgChart.tsx';
+import VueOrgChart from '../../../examples/tree-rows/org-chart/vue/OrgChart.vue';
+import { OrgChartComponent } from '../../../examples/tree-rows/org-chart/angular/org-chart.component.ts';
+
+Rows can have child rows: a folder and its files, a manager and their team, a category and its products. Give the table `getSubRows`, a function that returns a row's children (or `undefined` for a row without any), and `data` holds the top-level rows. A row with children gets a toggle in the first data column, and each level is indented under its parent. Child rows are rows like any other: they have cells in every column, and they sort, filter, select, edit and fire click events.
+
+Which rows are expanded is `treeExpanded`, a list of row ids. It binds two-way like `selection`, and `argus-tree-expanded-change` reports each change with `{ treeExpanded, rowId, open }`. Here the app owns it, and its buttons expand and collapse every folder. Sort by Name or Size: each folder's entries are sorted among themselves and stay under it.
+
+<FlavourTabs example="tree-rows/file-tree">
+  <ReactFileTree slot="react" client:visible />
+  <VueFileTree slot="vue" client:visible />
+  <FileTreeComponent slot="angular" client:visible />
+</FlavourTabs>
+
+The table has no "expand all" button of its own: set `treeExpanded` to the ids you want open, as the example's buttons do. `getState()` saves it with the rest of the [saved state](../saved-state/), and `setState()` restores it before the scroll position.
+
+## Row ids and indexes
+
+Without `getRowId`, a top-level row's id is its index in `data`, as in any table, and a child's id is its parent's id, a dot and its index among its siblings: `'0.1'` is the second child of the first row, and `'0.1.2'` the third child of that. With `getRowId`, its ids are used throughout. Functions that are given a row's index, `getRowId(row, index)` and a column's `accessor(row, index)`, get a child's index counted from `data.length` on, in depth-first order.
+
+Every other index counts the rows shown, in their current order: `scrollToRow(index)`, the click events' `index` and `argus-range-change`. Children of a collapsed row aren't shown, so expanding a row moves the indexes of the rows below it, as a filter does. Cell functions, `rowDetail` and the click events get the row's level as `depth`: `0` for a top-level row, `1` for its children, and so on.
+
+## Flat data
+
+When every row is in one list and names its parent, give the table `getParentId` instead: it returns the id of a row's parent (an id `getRowId` gives), or `null` for a top-level row. `data` holds every row, and each keeps its index in `data`. A row whose parent isn't found shows as a top-level row, with a warning in the console.
+
+This org chart is flat data. Tick a manager and everyone under them is ticked too; search for "designer" and the designers show in their place, under their managers.
+
+<FlavourTabs example="tree-rows/org-chart">
+  <ReactOrgChart slot="react" client:visible />
+  <VueOrgChart slot="vue" client:visible />
+  <OrgChartComponent slot="angular" client:visible />
+</FlavourTabs>
+
+## Filtering
+
+A filter or the quick filter keeps the rows that match and their ancestors, so a match always shows in its place in the tree. The ancestors show expanded, whatever `treeExpanded` says, and their toggles are disabled until the filter clears; `treeExpanded` itself doesn't change, so clearing the filter brings back the rows people had open. Children of a match aren't kept unless they match too. A row whose children are all filtered out shows no toggle while the filter is on.
+
+## Selecting branches
+
+[Selection](../selection/) works on child rows as on any row: ticking a parent selects the parent only, and select-all selects the rows shown. With `selectBranches` (in `selectionMode: 'multi'`), ticking a row selects its whole branch: the row and every row under it that the filters keep, collapsed or not. A row's id is in `selection` only while its whole branch is selected, so ticking the last child of a row adds the row too, and unticking any child takes out its ancestors. A row with part of its branch selected shows a part-ticked checkbox. Select-all, by the header checkbox or Ctrl+A (Cmd+A on macOS), selects every row the filters keep.
+
+## Keys
+
+The rows follow the WAI-ARIA treegrid pattern, with the table's [keyboard](../keyboard/) as before. On a cell of the first data column, ArrowRight expands a collapsed row, and ArrowLeft collapses an expanded one. On a collapsed row, a row without children or a row a filter keeps open, ArrowLeft goes to the parent row. Otherwise (ArrowRight on an expanded row or a row without children, ArrowLeft on a top-level row it can't collapse) the arrows move between cells as usual. In a right-to-left table the two arrows swap. Enter keeps its meaning: it fires `argus-cell-click`, as on any cell. A click on a toggle only expands or collapses its row: it fires no click events and selects nothing.
+
+Screen readers hear each row's level, whether it's expanded, and its place among its siblings.
+
+## Styling
+
+The toggle is the `tree-toggle` part, drawn in the text colour (`currentColor`), and `--argus-tree-indent` (`1.25rem`) is the indent per level:
+
+```css
+argus-table {
+  --argus-tree-indent: 1.5rem;
+}
+argus-table::part(tree-toggle) {
+  color: var(--accent);
+}
+```
+
+The toggle's accessible names, "Expand row" and "Collapse row", are the `expandTreeRow` and `collapseTreeRow` [labels](../labels/).
+
+## Editing nested rows
+
+With the [editing add-on](../editing/), `argus-cell-edit` carries the edited row's `depth`. A tree from `getParentId` has every row in `data`, so `applyEdit(data, detail, columns)` works as in any table. Nested children (`getSubRows`) aren't in `data`: give `applyEdit` a fourth argument with your `getSubRows` and a `setSubRows(row, children)` that returns a copy of the row with those children. It copies the rows on the path to the edited one and keeps the ids, so expanded and selected rows stay as they were.
+
+```ts
+table.addEventListener('argus-cell-edit', (event) => {
+  table.data = applyEdit(table.data, event.detail, table.columns, {
+    getSubRows: (entry) => entry.children,
+    setSubRows: (entry, children) => ({ ...entry, children }),
+  });
+});
+```
+
+A formula's whole column (`[[size]]`, [formulas add-on](../formulas/)) holds every row the filters keep, child rows included, collapsed or not.
+
+## Limits
+
+- The first data column holds the toggle and the indent; there's no option to choose another one yet.
+- Trees need every row in memory: with a [`dataSource`](../infinite-loading/), `getSubRows` and `getParentId` are ignored, with a warning in the console.
+- `scrollToRow({ id })` doesn't open a row's ancestors: for a row under a collapsed row it does nothing. Expand the ancestors through `treeExpanded` first.
+- The [export add-on](../export/) exports the rows shown, without their levels.
+- `pinnedRows` have no tree.
