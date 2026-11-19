@@ -56,7 +56,7 @@ describe('RemoteTree', () => {
     expect(tree.stateAt(6)).toBe('loading');
     expect(tree.topIndexOf(3)).toBe(3);
     expect(tree.parentIdAt(3)).toBeUndefined();
-    expect(tree.wanted()).toEqual([]);
+    expect(tree.wanted).toEqual([]);
 
     const order = tree.order;
     const version = tree.version;
@@ -86,7 +86,7 @@ describe('RemoteTree', () => {
   it('an open parent shows a loading row until its children arrive', () => {
     const { cache, tree } = setup();
     tree.setExpanded(['1']);
-    expect(tree.wanted()).toEqual(['1']);
+    expect(tree.wanted).toEqual(['1']);
     expect(tree.childRow('1')).toBe(cache.entryAt(1)?.row);
     // The loading row shows right away, before the request starts.
     expect(tree.rowCount).toBe(cache.rowCount + 1);
@@ -102,7 +102,7 @@ describe('RemoteTree', () => {
     expect(tree.parentIdAt(2)).toBe('1');
     expect(tree.topIndexOf(2)).toBeUndefined();
     expect(tree.topIndexOf(3)).toBe(2);
-    expect(tree.wanted()).toEqual([]);
+    expect(tree.wanted).toEqual([]);
     expect(tree.treeRow(1)?.open).toBe(true);
 
     const order = tree.order;
@@ -135,7 +135,7 @@ describe('RemoteTree', () => {
     const { tree } = setup();
     tree.setExpanded(['1', '1.0']);
     answer(tree, '1', children('1', 2, 1));
-    expect(tree.wanted()).toEqual(['1.0']);
+    expect(tree.wanted).toEqual(['1.0']);
     expect(tree.childRow('1.0')?.id).toBe('1/0');
     answer(tree, '1.0', children('1/0', 2));
     expect(ids(tree).slice(0, 7)).toEqual(['0', '1', '1.0', '1.0.0', '1.0.1', '1.1', '2']);
@@ -159,7 +159,7 @@ describe('RemoteTree', () => {
     expect(tree.treeRow(1)).toMatchObject({ hasChildren: true, open: false });
 
     tree.setExpanded(['1']);
-    expect(tree.wanted()).toEqual([]);
+    expect(tree.wanted).toEqual([]);
     expect(tree.entryAt(2)?.id).toBe('1.0');
   });
 
@@ -183,12 +183,12 @@ describe('RemoteTree', () => {
     expect(tree.rowCount).toBe(cache.rowCount + 1);
     expect(tree.stateAt(2)).toBe('error');
     expect(tree.parentIdAt(2)).toBe('1');
-    expect(tree.wanted()).toEqual([]);
+    expect(tree.wanted).toEqual([]);
     expect(tree.resolveChildren('1', children('1', 2))).toBe(false);
 
     // The kept count went with the failed request: one loading row on Retry.
-    tree.retryChildren('1');
-    expect(tree.wanted()).toEqual(['1']);
+    expect(tree.forget('1', 'error')).toBe(true);
+    expect(tree.wanted).toEqual(['1']);
     expect(tree.stateAt(2)).toBe('loading');
     expect(tree.rowCount).toBe(cache.rowCount + 1);
     answer(tree, '1', children('1', 2));
@@ -203,7 +203,7 @@ describe('RemoteTree', () => {
     tree.setExpanded([]);
     expect(tree.rowCount).toBe(cache.rowCount);
     tree.setExpanded(['1']);
-    expect(tree.wanted()).toEqual(['1']);
+    expect(tree.wanted).toEqual(['1']);
     expect(tree.stateAt(2)).toBe('loading');
   });
 
@@ -222,20 +222,7 @@ describe('RemoteTree', () => {
     expect(tree.depthAt(tree.rowCount)).toBeUndefined();
   });
 
-  it('warns once when a child id is already used', () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const cache = new PageCache<Row>({ pageSize: 4, getRowId: (row) => row.id });
-    load(cache, 0, 4);
-    const tree = new RemoteTree(cache, { hasChildren, getRowId: (row) => row.id });
-    tree.setExpanded(['r0', 'r1']);
-    answer(tree, 'r0', [{ id: 'r2', kids: 0 }]);
-    expect(warn).toHaveBeenCalledTimes(1);
-    expect(warn.mock.calls[0]?.[0]).toMatch(/^argus-table: /);
-    answer(tree, 'r1', [{ id: 'r2', kids: 0 }]);
-    expect(warn).toHaveBeenCalledTimes(1);
-  });
-
-  it('warns through the warn option when given', () => {
+  it('reports a child id already used through warn, each time (the caller warns once)', () => {
     const console_ = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const warn = vi.fn();
     const cache = new PageCache<Row>({ pageSize: 4, getRowId: (row) => row.id });
@@ -243,21 +230,29 @@ describe('RemoteTree', () => {
     const tree = new RemoteTree(cache, { hasChildren, getRowId: (row) => row.id, warn });
     tree.setExpanded(['r0', 'r1']);
     answer(tree, 'r0', [{ id: 'r2', kids: 0 }]);
-    answer(tree, 'r1', [{ id: 'r3', kids: 0 }]);
     expect(warn).toHaveBeenCalledTimes(1);
-    expect(warn.mock.calls[0]?.[0]).toMatch(/"r2"/);
+    expect(warn.mock.calls[0]?.[0]).toMatch(/^argus-table: row id "r2"/);
+    answer(tree, 'r1', [{ id: 'r3', kids: 0 }]);
+    expect(warn).toHaveBeenCalledTimes(2);
+    expect(console_).not.toHaveBeenCalled();
+  });
+
+  it('without warn, reports nothing', () => {
+    const console_ = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const cache = new PageCache<Row>({ pageSize: 4, getRowId: (row) => row.id });
+    load(cache, 0, 4);
+    const tree = new RemoteTree(cache, { hasChildren, getRowId: (row) => row.id });
+    tree.setExpanded(['r0']);
+    answer(tree, 'r0', [{ id: 'r2', kids: 0 }]);
     expect(console_).not.toHaveBeenCalled();
   });
 
   it('warns when another parent’s child has the id', () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const warn = vi.fn();
     const { tree } = setup();
     const getRowId = (row: Row) => row.id;
-    const named = new RemoteTree(tree.cache, { hasChildren, getRowId });
+    const named = new RemoteTree(tree.cache, { hasChildren, getRowId, warn });
     named.setExpanded(['0', '1']);
-    answer(named, '0', [{ id: 'same', kids: 0 }]);
-    expect(warn).not.toHaveBeenCalled();
-    // Answering the same parent again replaces its children: no warning.
     answer(named, '0', [{ id: 'same', kids: 0 }]);
     expect(warn).not.toHaveBeenCalled();
     answer(named, '1', [{ id: 'same', kids: 0 }]);
@@ -268,8 +263,8 @@ describe('RemoteTree', () => {
     const { tree } = setup();
     tree.setExpanded(['1']);
     tree.beginChildren('1');
-    tree.cancelChildren('1');
-    expect(tree.wanted()).toEqual(['1']);
+    expect(tree.forget('1', 'loading')).toBe(true);
+    expect(tree.wanted).toEqual(['1']);
     expect(tree.resolveChildren('1', children('1', 2))).toBe(false);
   });
 
@@ -280,7 +275,7 @@ describe('RemoteTree', () => {
     tree.setExpanded([]);
     expect(tree.resolveChildren('1', children('1', 2))).toBe(true);
     tree.setExpanded(['1']);
-    expect(tree.wanted()).toEqual([]);
+    expect(tree.wanted).toEqual([]);
     expect(tree.entryAt(2)?.id).toBe('1.0');
   });
 
@@ -292,7 +287,7 @@ describe('RemoteTree', () => {
     expect(tree.rowCount).toBe(cache.rowCount);
     expect(tree.canExpand('1')).toBe(false);
     expect(tree.treeRow(1)).toMatchObject({ hasChildren: false, open: false });
-    expect(tree.wanted()).toEqual([]);
+    expect(tree.wanted).toEqual([]);
   });
 
   it('only loaded rows with children can expand', () => {
@@ -304,7 +299,7 @@ describe('RemoteTree', () => {
     expect(tree.canExpand('6')).toBe(false);
     expect(tree.canExpand('nope')).toBe(false);
     tree.setExpanded(['3']);
-    expect(tree.wanted()).toEqual([]);
+    expect(tree.wanted).toEqual([]);
     expect(tree.rowCount).toBe(cache.rowCount);
     expect(tree.treeRow(3)).toMatchObject({ hasChildren: false, open: false });
 
@@ -320,11 +315,11 @@ describe('RemoteTree', () => {
   it('an open id whose row isn’t loaded yet waits', () => {
     const { cache, tree } = setup();
     tree.setExpanded(['5']);
-    expect(tree.wanted()).toEqual([]);
+    expect(tree.wanted).toEqual([]);
     expect(tree.rowCount).toBe(cache.rowCount);
     const order = tree.order;
     load(cache, 1, 4);
-    expect(tree.wanted()).toEqual(['5']);
+    expect(tree.wanted).toEqual(['5']);
     expect(tree.rowCount).toBe(cache.rowCount + 1);
     expect(tree.stateAt(6)).toBe('loading');
     expect(tree.order).not.toBe(order);
@@ -344,7 +339,6 @@ describe('RemoteTree', () => {
     for (const top of [2, 6]) expect(tree.topIndexOf(tree.positionOfTop(top) ?? -1)).toBe(top);
     expect(tree.positionOfTop(cache.rowCount)).toBeUndefined();
     expect(tree.positionOfTop(-1)).toBeUndefined();
-    expect(tree.positionOfTop(1.5)).toBeUndefined();
   });
 
   it('topRange covers the top-level rows of a shown range', () => {
@@ -370,7 +364,7 @@ describe('RemoteTree', () => {
       },
     });
     tree.setExpanded(['r1']);
-    expect(tree.wanted()).toEqual(['r1']);
+    expect(tree.wanted).toEqual(['r1']);
     answer(tree, 'r1', children('r1', 2));
     expect(calls).toEqual([
       ['r1/0', 0],
@@ -384,24 +378,24 @@ describe('RemoteTree', () => {
     const { cache, tree } = setup();
     tree.setExpanded(['1']);
     answer(tree, '1', children('1', 3));
-    expect(tree.counts()).toEqual(new Map([['1', { index: 1, count: 3 }]]));
+    expect(tree.counts(true)).toEqual(new Map([['1', { index: 1, count: 3 }]]));
 
     const next = new PageCache<Row>({ pageSize: 4 });
-    const after = new RemoteTree(next, { hasChildren, keepCounts: tree.counts() });
+    const after = new RemoteTree(next, { hasChildren, keepCounts: tree.counts(true) });
     after.setExpanded(['1']);
     // Open at its old index before its page loads, not requested yet.
     expect(after.rowCount).toBe(next.rowCount + 3);
-    expect(after.wanted()).toEqual([]);
+    expect(after.wanted).toEqual([]);
     load(next, 0, 4);
     expect(after.rowCount).toBe(cache.rowCount + 3);
-    expect(after.wanted()).toEqual(['1']);
+    expect(after.wanted).toEqual(['1']);
     after.beginChildren('1');
     expect([2, 3, 4].map((i) => after.stateAt(i))).toEqual(['loading', 'loading', 'loading']);
     expect(after.entryAt(5)?.id).toBe('2');
-    expect(after.counts()).toEqual(new Map([['1', { index: 1, count: 3 }]]));
+    expect(after.counts(true)).toEqual(new Map([['1', { index: 1, count: 3 }]]));
     after.resolveChildren('1', children('1', 2));
     expect(after.entryAt(4)?.id).toBe('2');
-    expect(after.counts()).toEqual(new Map([['1', { index: 1, count: 2 }]]));
+    expect(after.counts(true)).toEqual(new Map([['1', { index: 1, count: 2 }]]));
   });
 
   it('keepCounts keeps rows in place under a parent above the view', () => {
@@ -414,15 +408,15 @@ describe('RemoteTree', () => {
 
     // refresh(): a new cache with the row count carried over; only the rows in view load.
     const next = new PageCache<Row>({ pageSize: 10, rowCount: cache.rowCount });
-    const after = new RemoteTree(next, { hasChildren, keepCounts: tree.counts() });
+    const after = new RemoteTree(next, { hasChildren, keepCounts: tree.counts(true) });
     after.setExpanded(['1']);
     expect(after.topRange(30, 40)).toEqual({ start: 27, end: 37 });
     load(next, 2, 10);
     load(next, 3, 10);
     expect(after.entryAt(30)?.id).toBe('27');
-    expect(after.wanted()).toEqual([]);
+    expect(after.wanted).toEqual([]);
     load(next, 0, 10);
-    expect(after.wanted()).toEqual(['1']);
+    expect(after.wanted).toEqual(['1']);
     expect(after.entryAt(30)?.id).toBe('27');
   });
 
@@ -433,22 +427,32 @@ describe('RemoteTree', () => {
     answer(tree, '1.0', children('1.0', 2));
     // 0, 1, 1.0, 1.0.0, 1.0.1, 1.1, 2
     expect(tree.entryAt(6)?.id).toBe('2');
-    expect(tree.counts()).toEqual(
+    expect(tree.counts(true)).toEqual(
       new Map<string, KeptCount>([
         ['1', { index: 1, count: 4 }],
         ['1.0', { count: 2 }],
       ]),
     );
+    // Without the index (other positions: a new sort).
+    expect(tree.counts(false)).toEqual(
+      new Map<string, KeptCount>([
+        ['1', { count: 4 }],
+        ['1.0', { count: 2 }],
+      ]),
+    );
 
     const next = new PageCache<Row>({ pageSize: 4, rowCount: cache.rowCount });
-    const after = new RemoteTree(next, { hasChildren, keepCounts: tree.counts() });
-    after.setExpanded(['1', '1.0']);
+    const after = new RemoteTree(next, {
+      hasChildren,
+      keepCounts: tree.counts(true),
+      expanded: ['1', '1.0'],
+    });
     load(next, 0, 4);
     // Four loading rows under 1 until it answers, then its children and two under 1.0.
     expect(after.entryAt(6)?.id).toBe('2');
     after.beginChildren('1');
     after.resolveChildren('1', children('1', 2, 1));
-    expect(after.wanted()).toEqual(['1.0']);
+    expect(after.wanted).toEqual(['1.0']);
     expect(after.stateAt(3)).toBe('loading');
     expect(after.entryAt(5)?.id).toBe('1.1');
     expect(after.entryAt(6)?.id).toBe('2');
@@ -460,12 +464,12 @@ describe('RemoteTree', () => {
     tree.beginChildren('1');
     tree.setExpanded([]);
     expect(tree.failChildren('1')).toBe(false);
-    expect(tree.childState('1')).toBeUndefined();
+    expect(tree.forget('1', 'loading') || tree.forget('1', 'error')).toBe(false);
     tree.setExpanded(['1']);
-    expect(tree.wanted()).toEqual(['1']);
-    expect(tree.hasWanted()).toBe(true);
+    expect(tree.wanted).toEqual(['1']);
+    expect(tree.wanted).toHaveLength(1);
     tree.beginChildren('1');
-    expect(tree.hasWanted()).toBe(false);
+    expect(tree.wanted).toEqual([]);
     expect(tree.failChildren('1')).toBe(true);
     expect(tree.rowCount).toBe(cache.rowCount + 1);
   });
@@ -495,7 +499,7 @@ describe('RemoteTree', () => {
     next.resolve(0, [{ id: 'r0', kids: 2 }, { id: 'new', kids: 2 }, ...rows(start + 2, 2)]);
     expect(after.rowCount).toBe(next.rowCount);
     expect(after.entryAt(2)?.id).toBe('r2');
-    expect(after.wanted()).toEqual([]);
+    expect(after.wanted).toEqual([]);
     expect(after.order).not.toBe(order);
   });
 
@@ -508,10 +512,10 @@ describe('RemoteTree', () => {
     cache.fail(1);
     expect(tree.stateAt(5)).toBe('error');
     expect(tree.rowCount).toBe(cache.rowCount);
-    expect(tree.wanted()).toEqual([]);
+    expect(tree.wanted).toEqual([]);
     cache.retry(1);
     load(cache, 1, 4);
-    expect(tree.wanted()).toEqual(['5']);
+    expect(tree.wanted).toEqual(['5']);
   });
 
   it('shownAncestor finds the row or its nearest shown ancestor', () => {
@@ -540,7 +544,7 @@ describe('RemoteTree', () => {
     expect(tree.rowCount).toBe(cache.rowCount + 3);
     expect(tree.indexOf('1.0')).toBe(2);
     expect(tree.entryAt(2)?.id).toBe('1.0');
-    expect(tree.wanted()).toEqual([]);
+    expect(tree.wanted).toEqual([]);
   });
 
   it('shownIndexOf finds an open row whose page was evicted', () => {

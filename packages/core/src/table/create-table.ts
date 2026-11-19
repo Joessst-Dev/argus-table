@@ -385,19 +385,17 @@ export function createTableModel<TData, TContent>(
     },
 
     nextTreeExpanded(rowId, open, base = options.treeExpanded ?? []) {
+      let ok: boolean;
       if (options.remote) {
-        const remote = remoteTree();
-        if (!remote || base.includes(rowId) === open) return undefined;
         // Closing needs no loaded row: an open id may be under a page not loaded.
-        if (!open) return base.filter((id) => id !== rowId);
-        return remote.canExpand?.(rowId) ? [...base, rowId] : undefined;
+        ok = remoteTree() !== undefined && (!open || options.remote.canExpand?.(rowId) === true);
+      } else {
+        const tree = pipeline.tree();
+        const row = tree?.indexOf(rowId);
+        // Filters aren't applied: a controlled host's ids are never refused for one.
+        ok = row !== undefined && (tree?.childCount[row] ?? 0) > 0;
       }
-      const tree = pipeline.tree();
-      const row = tree?.indexOf(rowId);
-      // Filters aren't applied: a controlled host's ids are never refused for one.
-      if (!tree || row === undefined || (tree.childCount[row] ?? 0) === 0) return undefined;
-      const has = base.includes(rowId);
-      if (has === open) return undefined;
+      if (!ok || base.includes(rowId) === open) return undefined;
       return open ? [...base, rowId] : base.filter((id) => id !== rowId);
     },
 
@@ -544,7 +542,7 @@ export function createTableModel<TData, TContent>(
         // No `depth` key without a tree, as for `data`.
         const remote = remoteTree();
         if (remote) {
-          context.depth = remote.depthAt?.(index) ?? remote.treeRow?.(index)?.depth ?? 0;
+          context.depth = remote.depthAt?.(index) ?? 0;
         }
         return context;
       }

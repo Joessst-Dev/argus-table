@@ -66,6 +66,8 @@ export class DataController<T> implements ReactiveController {
   #cache: PageCache<T> | undefined;
   /** The rows as a tree, while the source has `hasChildren` and `getChildren`. */
   #tree: RemoteTree<T> | undefined;
+  /** The source's `getChildren`, bound, while there is a tree. */
+  #getChildren: DataSource<T>['getChildren'];
   readonly #requests = new Map<number, AbortController>();
   /** In-flight `getChildren` calls, by parent id. */
   readonly #childRequests = new Map<string, AbortController>();
@@ -134,11 +136,10 @@ export class DataController<T> implements ReactiveController {
       this.#reset({ rowCount: undefined, totalKnown: false });
     } else if (next.sorting !== prev.sorting || next.getRowId !== prev.getRowId) {
       // Other positions: open rows keep their counts once their rows load again.
-      const counts = this.#tree?.counts();
       this.#reset({
         rowCount: this.#cache.rowCount,
         totalKnown: this.#cache.totalKnown,
-        counts: counts && new Map([...counts].map(([id, { count }]) => [id, { count }])),
+        counts: this.#tree?.counts(false),
       });
     }
     this.#tree?.setExpanded(next.treeExpanded);
@@ -153,9 +154,8 @@ export class DataController<T> implements ReactiveController {
     this.#reset({
       rowCount: this.#cache.rowCount,
       totalKnown: false,
-      counts: this.#tree?.counts(),
+      counts: this.#tree?.counts(true),
     });
-    this.#tree?.setExpanded(this.#config.treeExpanded);
     this.#host.requestUpdate();
   }
 
@@ -182,7 +182,7 @@ export class DataController<T> implements ReactiveController {
     } else if (
       this.#timer !== undefined ||
       (cache.missingPages(range.start, range.end).length === 0 &&
-        (!tree || !tree.hasWanted() || this.#childRequests.size >= MAX_CHILD_REQUESTS))
+        (!tree || tree.wanted.length === 0 || this.#childRequests.size >= MAX_CHILD_REQUESTS))
     ) {
       return;
     }
@@ -203,8 +203,7 @@ export class DataController<T> implements ReactiveController {
     const top = tree ? tree.topIndexOf(index) : index;
     if (top === undefined) {
       const parentId = tree?.parentIdAt(index);
-      if (parentId === undefined || tree?.childState(parentId) !== 'error') return;
-      tree.retryChildren(parentId);
+      if (parentId === undefined || !tree?.forget(parentId, 'error')) return;
     } else {
       const page = cache.pageOf(top);
       if (!cache.isFailed(page)) return;
@@ -227,7 +226,7 @@ export class DataController<T> implements ReactiveController {
     this.#abortAll();
     this.#range = undefined;
     this.#errors = [];
-    const { source, getRowId } = this.#config;
+    const { source, getRowId, filters, quickFilter, treeExpanded } = this.#config;
     this.#cache =
       source && carry
         ? new PageCache<T>({
@@ -238,15 +237,16 @@ export class DataController<T> implements ReactiveController {
           })
         : undefined;
     const hasChildren = source?.hasChildren?.bind(source);
-    const { filters, quickFilter } = this.#config;
+    this.#getChildren = source?.getChildren?.bind(source);
     this.#tree =
-      this.#cache && hasChildren && source?.getChildren
+      this.#cache && hasChildren && this.#getChildren
         ? new RemoteTree<T>(this.#cache, {
             hasChildren,
             getRowId,
             keepCounts: carry?.counts,
             warn: this.#warn,
             filtered: filtersRows(filters, quickFilter),
+            expanded: treeExpanded,
           })
         : undefined;
   }
@@ -265,7 +265,7 @@ export class DataController<T> implements ReactiveController {
     this.#requests.clear();
     for (const [parentId, controller] of this.#childRequests) {
       controller.abort();
-      this.#tree?.cancelChildren(parentId);
+      this.#tree?.forget(parentId, 'loading');
     }
     this.#childRequests.clear();
   }
@@ -287,10 +287,10 @@ export class DataController<T> implements ReactiveController {
     if (tree) this.#startChildren(tree);
   }
 
-  /** Requests the children `wanted()` lists, up to `MAX_CHILD_REQUESTS` in flight. */
+  /** Requests the children `wanted` lists, up to `MAX_CHILD_REQUESTS` in flight. */
   #startChildren(tree: RemoteTree<T>): void {
-    if (this.#childRequests.size >= MAX_CHILD_REQUESTS || !tree.hasWanted()) return;
-    for (const parentId of tree.wanted()) {
+    // `wanted` is a new array once a request starts: this one stays as it is.
+    for (const parentId of tree.wanted) {
       if (this.#childRequests.size >= MAX_CHILD_REQUESTS) break;
       this.#fetchChildren(tree, parentId);
     }
@@ -336,17 +336,15 @@ export class DataController<T> implements ReactiveController {
     );
   }
 
-  /** Loads the children of an open, loaded row with one `getChildren` call. */
+  /** Loads the children of an open, loaded row (one `wanted` lists) with one `getChildren` call. */
   #fetchChildren(tree: RemoteTree<T>, parentId: string): void {
-    const source = this.#config.source;
-    const parent = tree.childRow(parentId);
-    if (!source || parent === undefined) return;
     tree.beginChildren(parentId);
     const controller = new AbortController();
     this.#childRequests.set(parentId, controller);
     const current = () => !controller.signal.aborted && tree === this.#tree;
     const request: ChildrenRequest<T> = {
-      parent,
+      // Loaded: `wanted` lists loaded rows only.
+      parent: tree.childRow(parentId) as T,
       parentId,
       sorting: this.#config.sorting,
       filters: this.#config.filters,
@@ -354,7 +352,7 @@ export class DataController<T> implements ReactiveController {
       signal: controller.signal,
     };
     settle(
-      () => source.getChildren?.(request) ?? Promise.resolve({ rows: [] }),
+      () => this.#getChildren?.(request),
       (response) => {
         if (!current()) return;
         const { rows } = (response ?? {}) as { rows?: unknown };
@@ -389,7 +387,7 @@ export class DataController<T> implements ReactiveController {
  * with (or what `done` threw) to `failed`.
  */
 function settle(
-  call: () => Promise<unknown>,
+  call: () => unknown,
   done: (response: unknown) => void,
   failed: (error: unknown) => void,
 ): void {

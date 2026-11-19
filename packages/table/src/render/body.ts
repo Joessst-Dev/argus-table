@@ -274,7 +274,12 @@ function renderRow<T>(
                   ? treeToggle(index, node, tree)
                   : treeIndent(
                       depth,
-                      placeholder(state, c.id === retryCol ? retry : undefined, index, loading),
+                      html`<span class="tree-spacer"></span>${placeholder(
+                          state,
+                          c.id === retryCol ? retry : undefined,
+                          index,
+                          loading,
+                        )}`,
                     )
                 : placeholder(state, c.id === retryCol ? retry : undefined, index, loading),
         ),
@@ -380,31 +385,31 @@ function rowToggle(index: number, open: boolean, toggles: RowToggles | undefined
  * `tree-toggle-disabled` (`::part()` can't read attributes), and its click does nothing.
  */
 function treeToggle(index: number, node: TreeRowInfo, tree: TreeRows) {
-  return html`<span class="tree-indent" style=${styleMap({ '--_depth': String(node.depth) })}></span
-    >${
-      node.hasChildren
-        ? html`<button
-            type="button"
-            part=${node.forced ? 'tree-toggle tree-toggle-disabled' : 'tree-toggle'}
-            tabindex="-1"
-            aria-expanded=${String(node.open)}
-            aria-disabled=${node.forced ? 'true' : nothing}
-            aria-label=${node.open ? tree.collapseLabel : tree.expandLabel}
-            data-row=${index}
-            @click=${tree.onClick}
-          ></button>`
-        : html`<span class="tree-spacer"></span>`
-    }`;
+  return treeIndent(
+    node.depth,
+    node.hasChildren
+      ? html`<button
+          type="button"
+          part=${node.forced ? 'tree-toggle tree-toggle-disabled' : 'tree-toggle'}
+          tabindex="-1"
+          aria-expanded=${String(node.open)}
+          aria-disabled=${node.forced ? 'true' : nothing}
+          aria-label=${node.open ? tree.collapseLabel : tree.expandLabel}
+          data-row=${index}
+          @click=${tree.onClick}
+        ></button>`
+      : html`<span class="tree-spacer"></span>`,
+  );
 }
 
 /**
- * The tree column's start in a row not loaded: the indent of its depth and a
- * spacer as wide as a toggle, so its bar (or Retry button) starts where its
- * content will.
+ * An indent as deep as the row, then `content`: the toggle or a spacer as wide
+ * (`treeToggle`), or in a row not loaded a spacer and its bar (or Retry button),
+ * so that starts where its content will.
  */
 function treeIndent(depth: number, content: unknown) {
   return html`<span class="tree-indent" style=${styleMap({ '--_depth': String(depth) })}></span
-    ><span class="tree-spacer"></span>${content}`;
+    >${content}`;
 }
 
 /** What an unloaded cell shows: a skeleton bar, or the Retry button in a failed page's first cell. */
