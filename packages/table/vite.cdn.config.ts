@@ -22,9 +22,9 @@ export default defineConfig({
     rolldownOptions: {
       // Library mode minifies ES output only partly: it keeps the /* @__PURE__ */
       // annotations a downstream bundler needs to tree-shake. This file is the
-      // end of the line (nobody bundles it again), so minify it fully: about
-      // 5 kB less gzipped.
-      output: { minify: true },
+      // end of the line (nobody bundles it again), so minify it fully (about
+      // 5 kB less gzipped) and drop those annotations.
+      output: { minify: true, comments: { annotation: false } },
     },
   },
 });

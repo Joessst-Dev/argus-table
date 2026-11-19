@@ -196,7 +196,8 @@ export const baseStyles = css`
       justify-content: center;
       padding-inline: 0;
     }
-    [part~='expand-toggle'] {
+    /* The detail panels' toggle and a tree row's: the same chevron button. */
+    :is([part~='expand-toggle'], [part~='tree-toggle']) {
       display: grid;
       place-items: center;
       inline-size: 1.75em;
@@ -214,7 +215,7 @@ export const baseStyles = css`
      * Pointing toward the inline end while closed (mirrored in RTL: scaleX(-1) is
      * applied last, so the closed chevron points left), down while open.
      */
-    [part~='expand-toggle']::before {
+    :is([part~='expand-toggle'], [part~='tree-toggle'])::before {
       content: '';
       inline-size: 0.4em;
       block-size: 0.4em;
@@ -222,7 +223,7 @@ export const baseStyles = css`
       border-bottom: 0.12em solid currentColor;
       transform: scaleX(var(--_dir, 1)) translateX(-0.1em) rotate(-45deg);
     }
-    [part~='expand-toggle'][aria-expanded='true']::before {
+    :is([part~='expand-toggle'], [part~='tree-toggle'])[aria-expanded='true']::before {
       transform: translateY(-0.1em) rotate(45deg);
     }
     /*
@@ -241,17 +242,7 @@ export const baseStyles = css`
       margin-inline-end: 0.25em;
     }
     [part~='tree-toggle'] {
-      display: grid;
-      place-items: center;
-      block-size: 1.75em;
       margin-block: calc((1lh - 1.75em) / 2);
-      padding: 0;
-      border: none;
-      border-radius: 4px;
-      background: none;
-      color: inherit;
-      font: inherit;
-      cursor: pointer;
     }
     /*
      * Centred or end-aligned content: the indent and toggle stay at the start, so
@@ -268,18 +259,6 @@ export const baseStyles = css`
     }
     [data-align='center'] > :is([part~='tree-toggle'], .tree-spacer) ~ slot::slotted(*) {
       margin-inline-end: auto;
-    }
-    /* Pointing toward the inline end while collapsed (mirrored in RTL), down while expanded. */
-    [part~='tree-toggle']::before {
-      content: '';
-      inline-size: 0.4em;
-      block-size: 0.4em;
-      border-right: 0.12em solid currentColor;
-      border-bottom: 0.12em solid currentColor;
-      transform: scaleX(var(--_dir, 1)) translateX(-0.1em) rotate(-45deg);
-    }
-    [part~='tree-toggle'][aria-expanded='true']::before {
-      transform: translateY(-0.1em) rotate(45deg);
     }
     /* A row a filter keeps expanded: its toggle does nothing until the filter clears. */
     [part~='tree-toggle-disabled'] {

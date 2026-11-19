@@ -1,6 +1,6 @@
 /** Where a tree's rows come from: nested children, or parent ids on flat data. */
 export interface TreeSource<TData> {
-  /** A row's children, nested in it. Wins over `getParentId` when both are set. */
+  /** A row's children, nested in it. Wins over `getParentId` when both are set (the model warns). */
   getSubRows?: ((row: TData) => readonly TData[] | undefined) | undefined;
   /** The id of a row's parent in flat data; `null` or `undefined` for a top-level row. */
   getParentId?: ((row: TData) => string | null | undefined) | undefined;
@@ -31,10 +31,8 @@ export interface RowTree<TData> {
 const LISTED = 5;
 
 const listed = (ids: readonly string[]): string =>
-  ids
-    .slice(0, LISTED)
-    .map((id) => JSON.stringify(id))
-    .join(', ') + (ids.length > LISTED ? ` and ${String(ids.length - LISTED)} more` : '');
+  ids.slice(0, LISTED).join(', ') +
+  (ids.length > LISTED ? ` and ${String(ids.length - LISTED)} more` : '');
 
 /**
  * Builds the tree of `data` in O(n), with loops rather than recursion so a deep
@@ -53,15 +51,10 @@ export function buildRowTree<TData>(
   warn: (message: string) => void = console.warn,
 ): RowTree<TData> {
   const { getSubRows, getParentId } = source;
-  if (getSubRows) {
-    if (getParentId) {
-      warn('argus-table: getSubRows and getParentId are both set; getSubRows is used.');
-    }
-    return nestedTree(data, getSubRows, getRowId, warn);
-  }
-  if (getParentId) return flatTree(data, getParentId, getRowId, warn);
-  // The model never builds a tree without a source; if it did, every row is top-level.
-  return flatTree(data, () => undefined, getRowId, warn);
+  // Without either function (the model never builds that) every row is top-level.
+  return getSubRows
+    ? nestedTree(data, getSubRows, getRowId, warn)
+    : flatTree(data, getParentId ?? (() => undefined), getRowId, warn);
 }
 
 function nestedTree<TData>(

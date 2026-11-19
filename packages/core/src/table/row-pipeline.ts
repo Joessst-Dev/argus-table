@@ -78,8 +78,9 @@ export class RowPipeline<TData, TContent> {
   #shown:
     { steps: TreeSteps<TData>; expanded: ReadonlySet<string>; rows: readonly number[] } | undefined;
   // Each source row's index in the shown order (-1 when not shown), built lazily per order.
-  #position: { rows: readonly number[]; at: Int32Array } | undefined;
+  #orderIndex: { rows: readonly number[]; at: Int32Array } | undefined;
   #warnedBoth = false;
+  #warnedRemote = false;
 
   constructor(
     options: () => TableModelOptions<TData, TContent>,
@@ -96,10 +97,21 @@ export class RowPipeline<TData, TContent> {
   /**
    * The rows' tree, built once per `data`, `getSubRows`, `getParentId` and
    * `getRowId`; `undefined` (nothing allocated) when the rows don't form one.
+   * Trees with a data source come later (children loaded per row): until then
+   * the tree functions are ignored with remote rows, with one warning.
    */
   tree(): RowTree<TData> | undefined {
     const { data, getSubRows, getParentId, getRowId, remote } = this.#options();
-    if (remote || (!getSubRows && !getParentId)) return undefined;
+    if (!getSubRows && !getParentId) return undefined;
+    if (remote) {
+      if (!this.#warnedRemote) {
+        this.#warnedRemote = true;
+        console.warn(
+          'argus-table: getSubRows and getParentId are ignored with a dataSource; its rows are shown flat.',
+        );
+      }
+      return undefined;
+    }
     const prev = this.#tree;
     if (
       prev?.data === data &&
@@ -113,9 +125,7 @@ export class RowPipeline<TData, TContent> {
       this.#warnedBoth = true;
       console.warn('argus-table: getSubRows and getParentId are both set; getSubRows is used.');
     }
-    // Only one source, so the warning above is the only one about it.
-    const source = getSubRows ? { getSubRows } : { getParentId };
-    const tree = buildRowTree(data, source, getRowId);
+    const tree = buildRowTree(data, { getSubRows, getParentId }, getRowId);
     this.#tree = { data, sub: getSubRows, parent: getParentId, getRowId, tree };
     return tree;
   }
@@ -178,12 +188,6 @@ export class RowPipeline<TData, TContent> {
     return this.#expandedSet.set;
   }
 
-  /** Whether a row's id (a source index) is in `treeExpanded`. */
-  treeExpanded(row: number): boolean {
-    const tree = this.tree();
-    return tree !== undefined && this.#expanded().has(tree.ids[row] ?? '');
-  }
-
   /** Whether a row (a source index) with kept children is shown open. */
   #isOpen(steps: TreeSteps<TData>, expanded: ReadonlySet<string>, row: number): boolean {
     return expanded.has(steps.tree.ids[row] ?? '') || steps.holdsMatch?.[row] === 1;
@@ -206,14 +210,14 @@ export class RowPipeline<TData, TContent> {
   }
 
   /** The index in the current order of a row (a source index), or -1 when it isn't shown. */
-  positionOf(row: number): number {
+  orderIndexOf(row: number): number {
     const current = this.rows();
-    if (this.#position?.rows !== current) {
+    if (this.#orderIndex?.rows !== current) {
       const at = new Int32Array(this.source().length).fill(-1);
       for (let k = 0; k < current.length; k++) at[current[k] ?? 0] = k;
-      this.#position = { rows: current, at };
+      this.#orderIndex = { rows: current, at };
     }
-    return this.#position.at[row] ?? -1;
+    return this.#orderIndex.at[row] ?? -1;
   }
 
   #allRows(): readonly number[] {
@@ -262,14 +266,16 @@ export class RowPipeline<TData, TContent> {
     return result;
   }
 
-  /** The id of the row at a data index. */
+  /** The id of the row at a data index (a source index with a tree). */
   rowId(dataIndex: number): string {
     const tree = this.tree();
-    if (tree) return tree.ids[dataIndex] ?? '';
-    const options = this.#options();
-    return options.getRowId
-      ? options.getRowId(options.data[dataIndex] as TData, dataIndex)
-      : String(dataIndex);
+    return tree ? (tree.ids[dataIndex] ?? '') : this.#flatId(dataIndex);
+  }
+
+  /** The id of the row at a data index when there is no tree. */
+  #flatId(dataIndex: number): string {
+    const { data, getRowId } = this.#options();
+    return getRowId ? getRowId(data[dataIndex] as TData, dataIndex) : String(dataIndex);
   }
 
   /** The row object at an index of the current order; `undefined` for a remote row not loaded. */
@@ -289,14 +295,14 @@ export class RowPipeline<TData, TContent> {
     if (tree) {
       const row = tree.indexOf(rowId);
       if (row === undefined) return undefined;
-      const position = this.positionOf(row);
-      return position === -1 ? undefined : position;
+      const index = this.orderIndexOf(row);
+      return index === -1 ? undefined : index;
     }
     const current = this.rows();
     if (this.#indexById?.rows !== current) {
       this.#indexById = {
         rows: current,
-        map: new Map(current.map((r, i) => [this.rowId(r), i])),
+        map: new Map(current.map((r, i) => [this.#flatId(r), i])),
       };
     }
     return this.#indexById.map.get(rowId);

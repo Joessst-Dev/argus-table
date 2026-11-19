@@ -217,22 +217,25 @@ export function withBranches(
 }
 
 /**
- * A click on a row's checkbox with branches. `checked` (the checkbox shows
- * `'all'`): deselects the row, its kept descendants and its ancestors, since a
- * parent stays selected only with its whole branch. Otherwise selects the
- * branch (`withBranches`). Descendants the filters drop are left as they are.
+ * A click on a row's checkbox with branches. When its checkbox shows `'all'`
+ * (the row and every kept descendant are in `selected`): deselects the row,
+ * its kept descendants and its ancestors, since a parent stays selected only
+ * with its whole branch. Otherwise selects the branch (`withBranches`).
+ * Descendants the filters drop are left as they are. O(branch) beyond
+ * `selected`, which is `current` as a set (made here when not given).
  */
 export function toggleBranch(
   current: readonly string[],
   id: string,
-  checked: boolean,
   tree: BranchTree,
+  selected: ReadonlySet<string> = new Set(current),
 ): SelectionState {
-  if (!checked) return withBranches(current, [id], tree);
   const drop = new Set<string>();
   const stack = [id];
   while (stack.length > 0) {
     const row = stack.pop() ?? '';
+    // Not all selected: select the branch instead.
+    if (!selected.has(row)) return withBranches(current, [id], tree);
     if (drop.has(row)) continue;
     drop.add(row);
     for (const child of tree.children(row)) stack.push(child);

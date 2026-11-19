@@ -15,8 +15,10 @@ import type { CellEditDetail } from './types.js';
  * `setSubRows(row, children)` that returns a copy of `row` with those children.
  * The row is then found by identity among the children too, and the rows on
  * the path to it are copied; every other row stays the same object. The
- * children mustn't form a cycle (a row among its own descendants). Without
- * `tree`, the edit of a nested child (`detail.depth` above `0`) throws.
+ * children mustn't form a cycle (a row among its own descendants). The search
+ * recurses once per level, so a tree thousands of levels deep can overflow the
+ * stack (a `RangeError`). Without `tree`, the edit of a nested child
+ * (`detail.depth` above `0`) throws.
  *
  * ```ts
  * table.addEventListener('argus-cell-edit', (e) => {

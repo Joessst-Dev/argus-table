@@ -1496,7 +1496,6 @@ describe('tree rows', () => {
       hasChildren: true,
       open: true,
       forced: true,
-      expanded: false,
       parent: undefined,
       setSize: 1,
       posInSet: 1,
@@ -1506,7 +1505,6 @@ describe('tree rows', () => {
       hasChildren: false,
       open: false,
       forced: false,
-      expanded: false,
       parent: 0,
       setSize: 1,
       posInSet: 1,
@@ -1524,7 +1522,6 @@ describe('tree rows', () => {
       hasChildren: true,
       open: true,
       forced: false,
-      expanded: true,
       parent: undefined,
       setSize: 2,
       posInSet: 1,
@@ -1534,7 +1531,6 @@ describe('tree rows', () => {
       hasChildren: false,
       open: false,
       forced: false,
-      expanded: false,
       parent: 0,
       setSize: 2,
       posInSet: 2,
@@ -1544,7 +1540,6 @@ describe('tree rows', () => {
       hasChildren: true,
       open: false,
       forced: false,
-      expanded: false,
       parent: undefined,
       setSize: 2,
       posInSet: 2,
@@ -1722,14 +1717,14 @@ describe('tree rows', () => {
       columnFilters: { name: { kind: 'text', op: 'equals', value: 'A1' } },
     });
     expect(tids(m)).toEqual(['0', '0.0']);
-    expect(m.treeRow(0)).toMatchObject({ open: true, expanded: false });
+    expect(m.treeRow(0)).toMatchObject({ open: true });
     const next = m.nextTreeExpanded('0', true);
     expect(next).toEqual(['0']);
     m.update({ treeExpanded: next });
-    expect(m.treeRow(0)).toMatchObject({ open: true, expanded: true });
+    expect(m.treeRow(0)).toMatchObject({ open: true });
     m.update({ columnFilters: {} });
     expect(tids(m)).toEqual(['0', '0.0', '0.1', '1']);
-    expect(m.treeRow(0)).toMatchObject({ open: true, expanded: true });
+    expect(m.treeRow(0)).toMatchObject({ open: true });
   });
 
   it('shows the ancestors of a deep match open, and collapses them once the filter clears', () => {
@@ -1744,13 +1739,13 @@ describe('tree rows', () => {
       columnFilters: { name: { kind: 'text', op: 'equals', value: 'A1y' } },
     });
     expect(tids(m)).toEqual(['0', '0.0', '0.0.1']);
-    expect(m.treeRow(0)).toMatchObject({ open: true, expanded: false, setSize: 1 });
-    expect(m.treeRow(1)).toMatchObject({ depth: 1, open: true, expanded: false, parent: 0 });
+    expect(m.treeRow(0)).toMatchObject({ open: true, setSize: 1 });
+    expect(m.treeRow(1)).toMatchObject({ depth: 1, open: true, parent: 0 });
     expect(m.treeRow(2)).toMatchObject({ depth: 2, hasChildren: false, parent: 1, setSize: 1 });
     expect(treeExpanded).toEqual([]);
     m.update({ columnFilters: {} });
     expect(tids(m)).toEqual(['0', '1']);
-    expect(m.treeRow(0)).toMatchObject({ open: false, expanded: false });
+    expect(m.treeRow(0)).toMatchObject({ open: false });
   });
 
   it('marks the rows a filter keeps open as forced', () => {
@@ -1934,10 +1929,10 @@ describe('tree branch selection', () => {
     expect(m.branchCheck(new Set(['A1']))).not.toBe(sorted);
   });
 
-  it('branchCheck without a tree reads the selection', () => {
+  it('branchCheck needs a tree: without one every row is none', () => {
     const m = bmodel({ getSubRows: undefined });
     const check = m.branchCheck(new Set(['B']));
-    expect([check(0), check(1), check(2)]).toEqual(['none', 'all', 'none']);
+    expect([check(0), check(1), check(2)]).toEqual(['none', 'none', 'none']);
   });
 
   it('branchCheck at a million rows is one linear pass', () => {

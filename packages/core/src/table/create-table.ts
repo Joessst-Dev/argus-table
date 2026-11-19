@@ -24,6 +24,10 @@ import type { ColumnView, TableModel, TableModelOptions } from './model-types.js
 
 export * from './model-types.js';
 
+/** `branchCheck`'s marks: some row of a subtree is selected, some row isn't. */
+const PICKED = 1;
+const MISSED = 2;
+
 /**
  * Ids of the columns kept from `before` whose accessor changed: a new function,
  * or a different path. A new column has nothing cached and isn't listed.
@@ -115,25 +119,12 @@ export function createTableModel<TData, TContent>(
     () => valueVersion,
   );
   const rows = () => pipeline.rows();
-  // Trees with a data source come later (children loaded per row): until then the
-  // tree functions are ignored with remote rows, with one warning per model.
-  let warnedRemoteTree = false;
-  const checkRemoteTree = () => {
-    if (warnedRemoteTree || !options.remote || !(options.getSubRows || options.getParentId)) return;
-    warnedRemoteTree = true;
-    console.warn(
-      'argus-table: getSubRows and getParentId are ignored with a dataSource; its rows are shown flat.',
-    );
-  };
-  checkRemoteTree();
   const pinned = (side: RowPin): readonly TData[] => options.pinnedRows?.[side] ?? [];
 
   let allViews: ColumnView<TData, TContent>[] | undefined;
 
   // Branch selection, kept per tree layout (a filter or sort result).
   let branches: { layout: TreeLayout; tree: BranchTree } | undefined;
-  // Each kept row's number of kept rows in its subtree, itself included.
-  let subtree: { layout: TreeLayout; size: Int32Array } | undefined;
   let checks:
     | {
         layout: TreeLayout | undefined;
@@ -141,21 +132,6 @@ export function createTableModel<TData, TContent>(
         check: (index: number) => BranchCheck;
       }
     | undefined;
-  const subtreeSizes = (layout: TreeLayout, parent: Int32Array): Int32Array => {
-    if (subtree?.layout === layout) return subtree.size;
-    const size = new Int32Array(parent.length);
-    // Preorder backwards: every row comes after its descendants.
-    const { order } = layout;
-    for (let k = order.length - 1; k >= 0; k--) {
-      const row = order[k] ?? 0;
-      const own = (size[row] ?? 0) + 1;
-      size[row] = own;
-      const up = parent[row] ?? -1;
-      if (up !== -1) size[up] = (size[up] ?? 0) + own;
-    }
-    subtree = { layout, size };
-    return size;
-  };
 
   return {
     update(next) {
@@ -202,7 +178,6 @@ export function createTableModel<TData, TContent>(
       if (refilter) predicate = predicateFor();
       // Columns that now read differently: filter and sort again.
       if (reread.length && !options.remote) valueVersion++;
-      checkRemoteTree();
     },
 
     get columns() {
@@ -274,13 +249,12 @@ export function createTableModel<TData, TContent>(
       const up = tree.parent[row] ?? -1;
       const hasChildren = (layout.keptChildren[row] ?? 0) > 0;
       // A shown row's parent is shown too (kept and open).
-      const parent = up === -1 ? -1 : pipeline.positionOf(up);
+      const parent = up === -1 ? -1 : pipeline.orderIndexOf(up);
       return {
         depth: tree.depth[row] ?? 0,
         hasChildren,
         open: hasChildren && pipeline.treeOpen(row),
         forced: hasChildren && steps.holdsMatch?.[row] === 1,
-        expanded: pipeline.treeExpanded(row),
         parent: parent === -1 ? undefined : parent,
         setSize: up === -1 ? steps.roots : (layout.keptChildren[up] ?? 0),
         posInSet: layout.posInSet[row] ?? 0,
@@ -302,8 +276,8 @@ export function createTableModel<TData, TContent>(
       let row = tree?.indexOf(rowId);
       if (!tree || row === undefined) return undefined;
       while (row !== -1) {
-        const position = pipeline.positionOf(row);
-        if (position !== -1) return position;
+        const index = pipeline.orderIndexOf(row);
+        if (index !== -1) return index;
         row = tree.parent[row] ?? -1;
       }
       return undefined;
@@ -378,38 +352,26 @@ export function createTableModel<TData, TContent>(
       const layout = steps?.layout;
       if (checks?.selected === selected && checks.layout === layout) return checks.check;
       let check: (index: number) => BranchCheck;
-      if (!steps) {
-        check = (index) => {
-          let id: string | undefined;
-          if (options.remote) id = options.remote.entryAt(index)?.id;
-          else {
-            const row = rows()[index];
-            id = row === undefined ? undefined : pipeline.rowId(row);
-          }
-          return id !== undefined && selected.has(id) ? 'all' : 'none';
-        };
-      } else if (selected.size === 0) {
+      if (!steps || selected.size === 0) {
         check = () => 'none';
       } else {
-        const { tree } = steps;
-        const { parent, ids } = tree;
+        const { parent, ids } = steps.tree;
         const { order } = steps.layout;
-        const size = subtreeSizes(steps.layout, parent);
-        // Selected rows per subtree, counted in one pass like the sizes.
-        const picked = new Int32Array(parent.length);
+        // Per kept row, what its subtree holds: `PICKED` when any of it is
+        // selected, `MISSED` when any of it isn't. One pass, preorder backwards
+        // (every row comes after its descendants).
+        const marks = new Uint8Array(parent.length);
         for (let k = order.length - 1; k >= 0; k--) {
           const row = order[k] ?? 0;
-          let own = picked[row] ?? 0;
-          if (selected.has(ids[row] ?? '')) picked[row] = ++own;
+          const mark = (marks[row] ?? 0) | (selected.has(ids[row] ?? '') ? PICKED : MISSED);
+          marks[row] = mark;
           const up = parent[row] ?? -1;
-          if (up !== -1 && own > 0) picked[up] = (picked[up] ?? 0) + own;
+          if (up !== -1) marks[up] = (marks[up] ?? 0) | mark;
         }
         check = (index) => {
           const row = rows()[index];
-          if (row === undefined) return 'none';
-          const count = picked[row] ?? 0;
-          if (count === 0) return 'none';
-          return count === (size[row] ?? 0) ? 'all' : 'some';
+          const mark = row === undefined ? 0 : (marks[row] ?? 0);
+          return mark === PICKED ? 'all' : mark & PICKED ? 'some' : 'none';
         };
       }
       checks = { layout, selected, check };

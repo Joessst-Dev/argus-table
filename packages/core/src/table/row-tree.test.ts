@@ -104,10 +104,8 @@ describe('buildRowTree', () => {
     expect(warn).toHaveBeenCalledTimes(1);
     const message = String(warn.mock.calls[0]?.[0]);
     expect(message).toMatch(/^argus-table:/);
-    expect(message).toContain('"x"');
-    expect(message).toContain('"p"');
-    expect(message).toContain('"q"');
-    expect(message).toContain('"self"');
+    expect(message).toContain('(x)');
+    expect(message).toContain('(p, q, self)');
   });
 
   it('warns about nothing for a well-formed tree', () => {
@@ -122,14 +120,13 @@ describe('buildRowTree', () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
-  it('getSubRows wins over getParentId, with one warning', () => {
+  it('getSubRows wins over getParentId (the model warns about both)', () => {
     const warn = vi.fn();
     const getParentId = vi.fn(() => '0');
     const tree = buildRowTree(nested(), { getSubRows, getParentId }, undefined, warn);
     expect(names(tree.rows)).toEqual(['a', 'b', 'a0', 'a00', 'a1']);
     expect(getParentId).not.toHaveBeenCalled();
-    expect(warn).toHaveBeenCalledTimes(1);
-    expect(String(warn.mock.calls[0]?.[0])).toMatch(/^argus-table:.*getSubRows/);
+    expect(warn).not.toHaveBeenCalled();
   });
 
   it('empty or missing sub-rows are leaves', () => {
@@ -166,7 +163,7 @@ describe('buildRowTree', () => {
     expect([...tree.parent]).toEqual([-1, 0, 1]);
     expect([...tree.childCount]).toEqual([1, 1, 0]);
     expect(warn).toHaveBeenCalledTimes(1);
-    expect(String(warn.mock.calls[0]?.[0])).toMatch(/^argus-table:.*"0\.0\.0"/);
+    expect(String(warn.mock.calls[0]?.[0])).toMatch(/^argus-table:.*\(0\.0\.0\)/);
   });
 
   it('the same row under two branches is not a cycle', () => {

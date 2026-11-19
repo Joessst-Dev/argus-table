@@ -207,30 +207,32 @@ describe('withBranches', () => {
     expect(withBranches([], ['0'], chain)).toHaveLength(depth);
     // The deepest row completes every ancestor on its way up.
     expect(withBranches([], [String(depth - 1)], chain)).toHaveLength(depth);
-    expect(toggleBranch([], String(depth - 1), false, chain)).toHaveLength(depth);
-    expect(toggleBranch(['0', '1', '7'], String(depth - 1), true, chain)).toEqual([]);
+    expect(toggleBranch([], String(depth - 1), chain)).toHaveLength(depth);
+    expect(toggleBranch(['0', '1', '7', String(depth - 1)], String(depth - 1), chain)).toEqual([]);
     expect(performance.now() - start).toBeLessThan(1000);
   });
 });
 
 describe('toggleBranch', () => {
   it('toggleBranch deselects a branch and its ancestors', () => {
-    expect(toggleBranch(['A', 'A1', 'A2'], 'A1', true, ab)).toEqual(['A2']);
-    expect(toggleBranch(['B1', 'A', 'A1', 'A2'], 'A', true, ab)).toEqual(['B1']);
+    expect(toggleBranch(['A', 'A1', 'A2'], 'A1', ab)).toEqual(['A2']);
+    expect(toggleBranch(['B1', 'A', 'A1', 'A2'], 'A', ab)).toEqual(['B1']);
   });
 
   it('selects the branch when it is not all selected', () => {
-    expect(sameSelection(toggleBranch(['A1'], 'A', false, ab), ['A1', 'A', 'A2'])).toBe(true);
+    expect(sameSelection(toggleBranch(['A1'], 'A', ab), ['A1', 'A', 'A2'])).toBe(true);
+    // Selected itself, but not with its whole branch.
+    expect(sameSelection(toggleBranch(['A', 'A1'], 'A', ab), ['A', 'A1', 'A2'])).toBe(true);
   });
 
   it('toggles a leaf, completing or clearing its parent', () => {
-    expect(sameSelection(toggleBranch(['B1'], 'A1', false, ab), ['B1', 'A1'])).toBe(true);
-    expect(sameSelection(toggleBranch([], 'B1', false, ab), ['B1', 'B'])).toBe(true);
-    expect(toggleBranch(['B', 'B1', 'A1'], 'B1', true, ab)).toEqual(['A1']);
+    expect(sameSelection(toggleBranch(['B1'], 'A1', ab), ['B1', 'A1'])).toBe(true);
+    expect(sameSelection(toggleBranch([], 'B1', ab), ['B1', 'B'])).toBe(true);
+    expect(toggleBranch(['B', 'B1', 'A1'], 'B1', ab)).toEqual(['A1']);
   });
 
   it('leaves descendants the filters hide selected', () => {
     const filtered = branchTree({ A: ['A1'] });
-    expect(toggleBranch(['A', 'A1', 'A2'], 'A', true, filtered)).toEqual(['A2']);
+    expect(toggleBranch(['A', 'A1', 'A2'], 'A', filtered)).toEqual(['A2']);
   });
 });

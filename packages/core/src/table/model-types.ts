@@ -121,9 +121,9 @@ export interface TreeRowInfo {
   /** Has children the filters keep. */
   hasChildren: boolean;
   /**
-   * What shows: open when it has children and is `expanded`, or holds a match while
-   * a filter is on (shown open whatever `treeExpanded` says). Always `false`
-   * without children.
+   * What shows: open when it has children and its id is in `treeExpanded`, or
+   * holds a match while a filter is on (shown open whatever `treeExpanded`
+   * says). Always `false` without children.
    */
   open: boolean;
   /**
@@ -132,12 +132,6 @@ export interface TreeRowInfo {
    * without a filter or without children.
    */
   forced: boolean;
-  /**
-   * The row's id is in `treeExpanded`. A toggle flips this (`nextTreeExpanded(id,
-   * !expanded)`), so every toggle can be undone; while a filter forces the row
-   * open, the change shows once the filter clears.
-   */
-  expanded: boolean;
   /** The parent's index in the current order; `undefined` for a top-level row. */
   parent: number | undefined;
   /** The number of its siblings the filters keep, itself included. */
@@ -354,8 +348,8 @@ export interface TableModel<TData, TContent> {
    * `'all'` when its id and every kept descendant (under collapsed rows too)
    * are selected, `'some'` when any of them is. A selection that breaks the
    * branch rules (a parent without all its children) shows as it is. One pass
-   * per selection `Set` and filter and sort result; without a tree, `'all'` or
-   * `'none'` from the row's own id.
+   * per selection `Set` and filter and sort result. Needs a tree: without one,
+   * every row is `'none'`.
    */
   branchCheck(selected: ReadonlySet<string>): (index: number) => BranchCheck;
   /** The value a column reads from the row at `index`. */

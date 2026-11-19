@@ -276,19 +276,14 @@ export class SelectionController<T> {
 
   /**
    * Toggles a row's branch: deselects it when its checkbox shows all of it
-   * selected (the row and every kept descendant), which is read from the
-   * branch alone, not from a pass over every row.
+   * selected, which `toggleBranch` reads from the branch alone, not from a
+   * pass over every row.
    */
   #toggleBranch(id: string, tree: BranchTree): SelectionStep {
-    const selected = this.#selected();
-    let checked = true;
-    const stack = [id];
-    while (checked && stack.length > 0) {
-      const row = stack.pop() ?? '';
-      if (!selected.has(row)) checked = false;
-      else for (const child of tree.children(row)) stack.push(child);
-    }
-    return { selection: toggleBranch(this.state.value, id, checked, tree), anchor: id };
+    return {
+      selection: toggleBranch(this.state.value, id, tree, this.#selected()),
+      anchor: id,
+    };
   }
 
   /**
