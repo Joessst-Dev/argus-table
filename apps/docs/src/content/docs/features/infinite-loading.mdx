@@ -5,6 +5,7 @@ since: '0.2'
 ---
 
 import FlavourTabs from '../../../components/FlavourTabs.astro';
+import Since from '../../../components/Since.astro';
 import ReactKnown from '../../../examples/infinite-loading/known-total/react/KnownTotal.tsx';
 import VueKnown from '../../../examples/infinite-loading/known-total/vue/KnownTotal.vue';
 import { KnownTotalComponent } from '../../../examples/infinite-loading/known-total/angular/known-total.component.ts';
@@ -24,6 +25,8 @@ Create the source once. A new source object starts again from an empty cache, so
   <VueKnown slot="vue" client:visible />
   <KnownTotalComponent slot="angular" client:visible />
 </FlavourTabs>
+
+The rows can form a tree whose children load as rows expand, through the source's `hasChildren` and `getChildren`: see [children from the server](../tree-rows/#children-from-the-server) <Since since="1.4" />.
 
 ## Without a total
 
