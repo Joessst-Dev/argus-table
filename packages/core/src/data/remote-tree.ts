@@ -5,6 +5,18 @@ import type { CachedRow, PageCache, RowState } from './page-cache.js';
 /** Where a parent's children are: loaded, in flight, or their request failed. */
 export type ChildState = 'loaded' | 'loading' | 'error';
 
+/** A parent's shown child count, kept from one tree to the next (`RemoteTree.counts()`). */
+export interface KeptCount {
+  /**
+   * The parent's top-level index, for a top-level parent: it counts as open there
+   * (with `count` loading rows) until its page loads, unless another row loads
+   * there. Without it, the count applies once the parent's row is loaded.
+   */
+  index?: number | undefined;
+  /** Rows shown under the parent. */
+  count: number;
+}
+
 export interface RemoteTreeOptions<TData> {
   /** Whether a row has children to load (`DataSource.hasChildren`). */
   hasChildren: (row: TData) => boolean;
@@ -16,9 +28,10 @@ export interface RemoteTreeOptions<TData> {
   /**
    * Child counts from a previous tree (`counts()`, kept over a `refresh()` or a
    * new sort): an open parent shows that many loading rows until its children
-   * arrive, so the rows below it stay in place.
+   * arrive (or fail), so the rows below it stay in place. A top-level parent with
+   * an `index` counts as open at that index before its page loads.
    */
-  keepCounts?: ReadonlyMap<string, number> | undefined;
+  keepCounts?: ReadonlyMap<string, KeptCount> | undefined;
 }
 
 /** A parent's children: their state and, once loaded, the rows. */
@@ -71,7 +84,8 @@ interface OpenIndex<TData> {
 /** A top-level row seen loaded: where it was, so it stays open while its page is evicted. */
 interface Seen<TData> {
   index: number;
-  row: TData;
+  /** `undefined` for a parent kept from a previous tree (`KeptCount.index`) whose row hasn't loaded. */
+  row: TData | undefined;
   has: boolean;
 }
 
@@ -83,16 +97,24 @@ interface Seen<TData> {
  *
  * Indexes are shown indexes: top-level rows and the shown descendants of open
  * ones. Lookups are binary searches over the open top-level rows (k of them),
- * O(log k); the index of open rows is rebuilt when expansion, children or the
- * cache change (O(e log k) for e expanded ids), and a top-level row's flattened
- * descendants only when something under it changes. An open parent whose
- * children are loading or failed shows placeholder rows (no entry) under it.
+ * O(log k). The index of open rows is rebuilt when expansion, children or the
+ * cache change: O(e) for e expanded ids, plus O(e log e) to sort them when the
+ * open top-level rows change; a top-level row's flattened descendants are
+ * rebuilt only when something under it changes. An open parent whose children
+ * are loading or failed shows placeholder rows (no entry) under it.
+ *
+ * Child ids must be unique across levels (a warning once otherwise).
  */
 export class RemoteTree<TData> implements RemoteRows<TData> {
   readonly cache: PageCache<TData>;
   readonly #hasChildren: (row: TData) => boolean;
   readonly #getRowId: ((row: TData, index: number) => string) | undefined;
-  readonly #keepCounts: ReadonlyMap<string, number> | undefined;
+  /** Kept counts of parents whose children haven't settled since. */
+  readonly #kept: Map<string, KeptCount>;
+  #warned = false;
+  /** The last expanded top-level rows found, in `#expanded` order, and those sorted. */
+  #found: { top: number; id: string }[] = [];
+  #sorted: { top: number; id: string }[] = [];
   #expanded = new Set<string>();
   readonly #children = new Map<string, Children<TData>>();
   readonly #known = new Map<string, Known<TData>>();
@@ -111,7 +133,12 @@ export class RemoteTree<TData> implements RemoteRows<TData> {
     this.cache = cache;
     this.#hasChildren = options.hasChildren;
     this.#getRowId = options.getRowId;
-    this.#keepCounts = options.keepCounts;
+    this.#kept = new Map(options.keepCounts);
+    for (const [id, kept] of this.#kept) {
+      if (kept.index !== undefined && Number.isInteger(kept.index) && kept.index >= 0) {
+        this.#seen.set(id, { index: kept.index, row: undefined, has: true });
+      }
+    }
   }
 
   /** Shown rows: the top-level rows, loaded or not, and the shown descendants of open ones. */
@@ -210,6 +237,15 @@ export class RemoteTree<TData> implements RemoteRows<TData> {
     };
   }
 
+  /**
+   * The depth of the row at a shown index: `0` for top-level rows (loaded or not),
+   * the parent's depth plus one for children and placeholders; `undefined` out of range.
+   */
+  depthAt(index: number): number | undefined {
+    if (this.#topAt(index) !== -1) return 0;
+    return this.#nodeAt(index)?.depth;
+  }
+
   /** Whether a row can open: loaded, `hasChildren`, and not known to have no children. */
   canExpand(rowId: string): boolean {
     if (this.#empty(rowId)) return false;
@@ -260,7 +296,15 @@ export class RemoteTree<TData> implements RemoteRows<TData> {
     const old = this.#expanded;
     if (next.size === old.size && [...next].every((id) => old.has(id))) return;
     for (const id of next) if (!old.has(id)) this.#expansionChanged(id);
-    for (const id of old) if (!next.has(id)) this.#expansionChanged(id);
+    for (const id of old) {
+      if (next.has(id)) continue;
+      this.#expansionChanged(id);
+      // Failed children load again on the next expand, like a failed page scrolled back to.
+      if (this.#children.get(id)?.state === 'error') {
+        this.#children.delete(id);
+        this.#dirty.add(this.#rootOf(id));
+      }
+    }
     this.#expanded = next;
     this.#version++;
   }
@@ -282,7 +326,10 @@ export class RemoteTree<TData> implements RemoteRows<TData> {
     this.#changed(parentId);
   }
 
-  /** Stores a parent's children. Ignored (`false`) unless they are in flight. */
+  /**
+   * Stores a parent's children. Ignored (`false`) unless they are in flight. There
+   * is no request token: the caller ignores answers to requests it aborted.
+   */
   resolveChildren(parentId: string, rows: readonly TData[]): boolean {
     const record = this.#children.get(parentId);
     if (record?.state !== 'loading') return false;
@@ -293,9 +340,17 @@ export class RemoteTree<TData> implements RemoteRows<TData> {
       row,
     }));
     for (const entry of entries) {
+      const other = this.#known.get(entry.id);
+      if (!this.#warned && (this.cache.indexOf(entry.id) !== undefined || other)) {
+        this.#warned = true;
+        console.warn(
+          `argus-table: row id "${entry.id}" is used by more than one row; ids must be unique across levels of a tree.`,
+        );
+      }
       this.#known.set(entry.id, { entry, parentId, has: this.#hasChildren(entry.row) });
     }
     this.#children.set(parentId, { state: 'loaded', entries });
+    this.#kept.delete(parentId);
     this.#changed(parentId);
     return true;
   }
@@ -305,6 +360,7 @@ export class RemoteTree<TData> implements RemoteRows<TData> {
     const record = this.#children.get(parentId);
     if (record?.state !== 'loading') return;
     this.#children.set(parentId, { state: 'error', entries: record.entries });
+    this.#kept.delete(parentId);
     this.#changed(parentId);
   }
 
@@ -322,15 +378,22 @@ export class RemoteTree<TData> implements RemoteRows<TData> {
     this.#changed(parentId);
   }
 
-  /** The number of rows shown under each shown open parent, for the next tree after `refresh()` (`keepCounts`). */
-  counts(): ReadonlyMap<string, number> {
-    const counts = new Map<string, number>();
+  /**
+   * The number of rows shown under each shown open parent, with the top-level
+   * index of top-level parents, for the next tree after `refresh()` (`keepCounts`).
+   */
+  counts(): ReadonlyMap<string, KeptCount> {
+    const counts = new Map<string, KeptCount>();
     for (const id of this.#expanded) {
       const known = this.#known.get(id);
-      const shown = known
-        ? known.has && this.indexOf(id) !== undefined
-        : this.#topIndex(id) !== undefined;
-      if (shown) counts.set(id, this.#shownChildren(id));
+      if (known) {
+        if (known.has && this.indexOf(id) !== undefined) {
+          counts.set(id, { count: this.#shownChildren(id) });
+        }
+        continue;
+      }
+      const index = this.#topIndex(id);
+      if (index !== undefined) counts.set(id, { index, count: this.#shownChildren(id) });
     }
     return counts;
   }
@@ -354,11 +417,13 @@ export class RemoteTree<TData> implements RemoteRows<TData> {
     const record = this.#children.get(parentId);
     if (record?.state === 'loaded') return record.entries.length;
     if (record?.state === 'error') return 1;
-    return Math.max(0, Math.floor(this.#keepCounts?.get(parentId) ?? 1));
+    return Math.max(0, Math.floor(this.#kept.get(parentId)?.count ?? 1));
   }
 
   #changed(parentId: string): void {
-    this.#dirty.add(this.#rootOf(parentId));
+    const root = this.#rootOf(parentId);
+    this.#dirty.add(root);
+    this.#see(root);
     this.#version++;
   }
 
@@ -366,6 +431,12 @@ export class RemoteTree<TData> implements RemoteRows<TData> {
     // A top-level row's own expansion changes only the index, not its subtree.
     const root = this.#rootOf(id);
     if (root !== id) this.#dirty.add(root);
+    this.#see(root);
+  }
+
+  /** Notes where a loaded top-level row is now, so it stays open if its page is evicted before the next read. */
+  #see(id: string): void {
+    if (this.cache.indexOf(id) !== undefined) this.#topIndex(id);
   }
 
   /** The top-level id above a row (itself for a top-level or unknown id). */
@@ -417,7 +488,18 @@ export class RemoteTree<TData> implements RemoteRows<TData> {
       const top = this.#topIndex(id);
       if (top !== undefined) found.push({ top, id });
     }
-    found.sort((a, b) => a.top - b.top);
+    // Sorted again only when the open top-level rows change (not on most page loads).
+    const last = this.#found;
+    const unchanged =
+      last.length === found.length &&
+      found.every((item, i) => {
+        const before = last[i];
+        return item.id === before?.id && item.top === before.top;
+      });
+    if (!unchanged) {
+      this.#found = found;
+      this.#sorted = [...found].sort((a, b) => a.top - b.top);
+    }
 
     const index: OpenIndex<TData> = {
       tops: [],
@@ -427,7 +509,7 @@ export class RemoteTree<TData> implements RemoteRows<TData> {
       wanted: [],
     };
     let total = 0;
-    for (const { top, id } of found) {
+    for (const { top, id } of this.#sorted) {
       const subtree = this.#subtree(id);
       for (const parentId of subtree.wanted) {
         // The top-level row itself needs to be loaded to be requested.

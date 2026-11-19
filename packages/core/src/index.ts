@@ -76,4 +76,9 @@ export {
   type PageCacheOptions,
   type RowState,
 } from './data/page-cache.js';
-export { RemoteTree, type ChildState, type RemoteTreeOptions } from './data/remote-tree.js';
+export {
+  RemoteTree,
+  type ChildState,
+  type KeptCount,
+  type RemoteTreeOptions,
+} from './data/remote-tree.js';

@@ -602,7 +602,11 @@ export interface ChildrenRequest<TData> {
   filters: ColumnFilterState;
   /** The `quickFilter` text to match in any column. `''` when unset. */
   quickFilter: string;
-  /** Aborted when the children are no longer needed: the source was reset (a new sort, filter or `refresh()`). */
+  /**
+   * Aborted when the children are no longer needed: the source was reset (a new
+   * sort, filters, quick filter, `getRowId` or `refresh()`) or the table left the
+   * page. Not on collapse: children that arrive after it are kept.
+   */
   signal: AbortSignal;
 }
 
@@ -617,8 +621,11 @@ export interface ChildrenResponse<TData> {
  *
  * With `hasChildren` and `getChildren` the rows form a tree: `getRows` returns the
  * top-level rows, and a row's children load with one `getChildren` call when it is
- * expanded (`treeExpanded`), at every level. Children are kept until the sort,
- * the filters or the source change, or `refresh()`; collapsing keeps them.
+ * expanded (`treeExpanded`), at every level. Children are kept until the
+ * source, the sort, the filters, the quick filter or `getRowId` change, or
+ * `refresh()`; collapsing keeps them. After such a reset, the children of
+ * expanded rows load again once their rows are loaded. Row ids must be unique
+ * across levels: a child's id can't be a top-level row's or another child's.
  */
 export interface DataSource<TData> {
   /**
@@ -641,7 +648,8 @@ export interface DataSource<TData> {
    * Until it resolves, a loading row shows under the row; reject (or throw) to
    * show a row with a Retry button instead. A child's id is `getRowId(row, index)`
    * with its index among its siblings, else the parent's id, a dot and that
-   * index (`'3.0'`, `'3.0.2'`). The rows form a tree only with `hasChildren` set too.
+   * index (`'3.0'`, `'3.0.2'`); ids must be unique across levels. The rows form a
+   * tree only with `hasChildren` set too.
    */
   getChildren?(request: ChildrenRequest<TData>): Promise<ChildrenResponse<TData>>;
 }
