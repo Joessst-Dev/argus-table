@@ -330,6 +330,23 @@ describe('RemoteTree', () => {
     expect(tree.order).not.toBe(order);
   });
 
+  it('positionOfTop finds a top-level row’s shown index, loaded or not', () => {
+    const { cache, tree } = setup();
+    tree.setExpanded(['1']);
+    expect(tree.positionOfTop(0)).toBe(0);
+    expect(tree.positionOfTop(1)).toBe(1);
+    // One loading row under row 1.
+    expect(tree.positionOfTop(2)).toBe(3);
+    expect(tree.positionOfTop(6)).toBe(7);
+    answer(tree, '1', children('1', 3));
+    expect(tree.positionOfTop(2)).toBe(5);
+    expect(tree.positionOfTop(6)).toBe(9);
+    for (const top of [2, 6]) expect(tree.topIndexOf(tree.positionOfTop(top) ?? -1)).toBe(top);
+    expect(tree.positionOfTop(cache.rowCount)).toBeUndefined();
+    expect(tree.positionOfTop(-1)).toBeUndefined();
+    expect(tree.positionOfTop(1.5)).toBeUndefined();
+  });
+
   it('topRange covers the top-level rows of a shown range', () => {
     const { tree } = setup();
     tree.setExpanded(['1']);

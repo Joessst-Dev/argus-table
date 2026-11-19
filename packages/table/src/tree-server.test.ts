@@ -816,6 +816,78 @@ describe('tree rows from a data source: rendering, keys and state', () => {
     expect(el.treeExpanded).toEqual(['1']);
   });
 
+  test('Left on a failed child row goes to its parent', async () => {
+    const { source, calls, childCalls } = server(100);
+    const el = await loaded(source, calls);
+    await toggle(el, 'Person 1');
+    childCalls[0]?.reject(new Error('offline'));
+    await Promise.resolve();
+    await settle(el);
+    const failed = rowAt(el, 2);
+    expect(failed.getAttribute('part')).toContain('row-error');
+    failed.querySelector<HTMLElement>('[data-col="name"]')?.focus();
+    await settle(el);
+    await press(el, '{ArrowLeft}');
+    expect(focused(el)).toBe(cellOf(el, 'Person 1'));
+    expect(el.treeExpanded).toEqual(['1']);
+  });
+
+  test('focus on a row still loading stays on it as rows load above it', async () => {
+    const { source, calls, childCalls } = server(100);
+    const el = await loaded(source, calls, { treeExpanded: ['25'] });
+    await scrollTo(el, 22 * 40);
+    await load(el);
+    expect(calls).toHaveLength(2);
+    // Top-level row 30, not loaded: shown index 30 while row 25 isn't loaded (so not open).
+    const skeleton = rowAt(el, 30);
+    expect(skeleton.getAttribute('aria-busy')).toBe('true');
+    skeleton.querySelector<HTMLElement>('[data-col="age"]')?.focus();
+    await settle(el);
+
+    // Its page loads: row 25 opens with a loading row, so row 30 is at 31 now.
+    await answer(el, calls.slice(1));
+    expect(focused(el)).toBe(cellOf(el, 'Person 30', 'age'));
+    expect(childCalls.map((c) => c.request.parentId)).toEqual(['25']);
+    await answer(el, childCalls);
+    expect(rowOf(el, 'Person 30').getAttribute('aria-rowindex')).toBe(String(33 + 2));
+    expect(focused(el)).toBe(cellOf(el, 'Person 30', 'age'));
+  });
+
+  test('focus on a loading child row moves to the child once loaded, or to the parent', async () => {
+    const { source, calls, childCalls } = server(100);
+    const el = await loaded(source, calls);
+    await toggle(el, 'Person 1');
+    rowAt(el, 2).querySelector<HTMLElement>('[data-col="age"]')?.focus();
+    await settle(el);
+    await answer(el, childCalls);
+    expect(focused(el)).toBe(cellOf(el, 'Person 1.0', 'age'));
+
+    // Fewer rows than placeholders after a refresh: the parent takes it.
+    await el.refresh();
+    await load(el);
+    await answer(el, calls.slice(-1));
+    expect(names(el, 6)).toEqual(['Person 0', 'Person 1', '…', '…', '…', 'Person 2']);
+    rowAt(el, 4).querySelector<HTMLElement>('[data-col="age"]')?.focus();
+    await settle(el);
+    childCalls[1]?.resolve(1);
+    await Promise.resolve();
+    await load(el);
+    expect(focused(el)).toBe(cellOf(el, 'Person 1', 'age'));
+  });
+
+  test('collapsing from outside moves the active cell from a loading child row to the row', async () => {
+    const { source, calls } = server(100);
+    const el = await loaded(source, calls);
+    await toggle(el, 'Person 1');
+    expect(rowAt(el, 2).getAttribute('aria-busy')).toBe('true');
+    rowAt(el, 2).querySelector<HTMLElement>('[data-col="age"]')?.focus();
+    await settle(el);
+    el.treeExpanded = [];
+    await load(el);
+    expect(names(el, 3)).toEqual(['Person 0', 'Person 1', 'Person 2']);
+    expect(focused(el)).toBe(cellOf(el, 'Person 1', 'age'));
+  });
+
   test('collapsing moves the active cell from a child to the row', async () => {
     const { source, calls, childCalls } = server(100);
     const el = await loaded(source, calls);
@@ -856,6 +928,46 @@ describe('tree rows from a data source: rendering, keys and state', () => {
     expect(el.getState().scroll.row).toBe(3);
     expect(topRowText(el)).toBe('Person 1.1');
     expect(childCalls).toHaveLength(1);
+  });
+
+  test('getState() restores into a new table with a data source', async () => {
+    const first = server(100);
+    const a = await loaded(first.source, first.calls);
+    await toggle(a, 'Person 1');
+    await answer(a, first.childCalls);
+    await toggle(a, 'Person 4');
+    await answer(a, first.childCalls.slice(1));
+    await a.scrollToRow(6);
+    await load(a);
+    expect(topRowText(a)).toBe('Person 3');
+    const state = a.getState();
+    expect(state.treeExpanded).toEqual(['1', '4']);
+    expect(state.scroll.row).toBe(6);
+    a.remove();
+
+    const { source, calls, childCalls } = server(100);
+    const b = await fixture({ columns, dataSource: source });
+    await load(b);
+    const restored = b.setState(state);
+    await load(b);
+    await answer(b, calls.slice(-1));
+    await restored;
+    expect(b.treeExpanded).toEqual(['1', '4']);
+    expect(childCalls.map((c) => c.request.parentId)).toEqual(['1', '4']);
+    // The scroll row is a shown index: a loading row under each open row until it answers.
+    expect(names(b, 7)).toEqual([
+      'Person 0',
+      'Person 1',
+      '…',
+      'Person 2',
+      'Person 3',
+      'Person 4',
+      '…',
+    ]);
+    await answer(b, childCalls);
+    expect(topRowText(b)).toBe('Person 3');
+    expect(b.getState().scroll.row).toBe(6);
+    expect(childCalls).toHaveLength(2);
   });
 
   test('cell clicks, row clicks and rowDetail get depth for remote children', async () => {

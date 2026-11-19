@@ -286,6 +286,15 @@ export class RemoteTree<TData> implements RemoteRows<TData> {
     return top === -1 ? undefined : top;
   }
 
+  /**
+   * The shown index of a top-level row by its top-level index, loaded or not
+   * (the inverse of `topIndexOf`); `undefined` past the top-level rows.
+   */
+  positionOfTop(top: number): number | undefined {
+    if (!Number.isInteger(top) || top < 0 || top >= this.cache.rowCount) return undefined;
+    return this.#positionOfTop(top);
+  }
+
   /** The top-level rows the shown range [start, end) covers, for `getRows` paging. */
   topRange(start: number, end: number): { start: number; end: number } {
     const count = this.rowCount;

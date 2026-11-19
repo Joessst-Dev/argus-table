@@ -924,6 +924,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       insets: (layout) => this.#bodyInsets(layout),
       measured: () => this.#measuring,
     },
+    () => this.#data.tree,
   );
   /** Column widths: resize handles, Alt+Arrow and fits. */
   readonly #resize = new ColumnResize<T>(this, () => this.#table.model, this.#events);
