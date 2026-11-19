@@ -711,6 +711,102 @@ describe('tree rows from a data source: branch selection', () => {
     expect(checkbox(el, 'Person 1.3')).toMatchObject({ checked: true });
   });
 
+  test('grandchildren arriving under a selected child join it', async () => {
+    const { source, calls, childCalls } = server(100, { depth: 2 });
+    const el = await loaded(source, calls, branches);
+    await toggle(el, 'Person 1');
+    await answer(el, childCalls);
+    await tick(el, checkbox(el, 'Person 1'));
+    const seen = events<{ selection: string[] }>(el, 'argus-selection-change');
+    await toggle(el, 'Person 1.0');
+    await answer(el, childCalls.slice(-1));
+    expect(sorted(el.selection)).toEqual(
+      sorted(['1', '1.0', '1.0.0', '1.0.1', '1.0.2', '1.1', '1.2']),
+    );
+    expect(seen).toHaveLength(1);
+    expect(checkbox(el, 'Person 1.0.1')).toMatchObject({ checked: true });
+  });
+
+  test('a parent unticked before its children arrive: nothing joins', async () => {
+    const { source, calls, childCalls } = server(100);
+    const el = await loaded(source, calls, branches);
+    await tick(el, checkbox(el, 'Person 1'));
+    await toggle(el, 'Person 1');
+    await tick(el, checkbox(el, 'Person 1'));
+    expect(el.selection).toEqual([]);
+    const seen = events<{ selection: string[] }>(el, 'argus-selection-change');
+    await answer(el, childCalls);
+    expect(el.selection).toEqual([]);
+    expect(seen).toHaveLength(0);
+  });
+
+  test('controlled: a handler of the arrival event can set other properties', async () => {
+    const { source, calls, childCalls } = server(100);
+    const el = await loaded(source, calls, { ...branches, selection: ['1'] });
+    el.addEventListener('argus-selection-change', (event) => {
+      el.selection = event.detail.selection;
+      el.treeExpanded = [...el.treeExpanded, '3'];
+    });
+    await toggle(el, 'Person 1');
+    await answer(el, childCalls);
+    await load(el);
+    expect(sorted(el.selection)).toEqual(['1', '1.0', '1.1', '1.2']);
+    expect(el.treeExpanded).toEqual(['1', '3']);
+    expect(rowOf(el, 'Person 3').getAttribute('aria-expanded')).toBe('true');
+    expect(childCalls.map((c) => c.request.parentId)).toEqual(['1', '3']);
+  });
+
+  test('the header checkbox stays enabled while the rows reload', async () => {
+    const { source, calls } = server(100);
+    const el = await loaded(source, calls, branches);
+    await tick(el, checkbox(el, 'Person 3'));
+    el.sorting = [{ id: 'name', desc: true }];
+    await load(el);
+    expect(checkAll(el)).toMatchObject({ disabled: false, checked: false, indeterminate: false });
+    await answer(el, calls.slice(-1));
+    expect(checkAll(el)).toMatchObject({ disabled: false, indeterminate: true });
+  });
+
+  test('under a server filter a parent’s id stays out; clearing the filter adds nothing', async () => {
+    const { source, calls, childCalls } = server(100);
+    const el = await loaded(source, calls, { ...branches, quickFilter: 'x' });
+    await toggle(el, 'Person 1');
+    // Under the filter the server sends one child.
+    childCalls[0]?.resolve(1);
+    await Promise.resolve();
+    await load(el);
+    const seen = events<{ selection: string[] }>(el, 'argus-selection-change');
+    await tick(el, checkbox(el, 'Person 1'));
+    expect(el.selection).toEqual(['1.0']);
+    expect(checkbox(el, 'Person 1')).toMatchObject({ checked: false, indeterminate: true });
+    expect(seen).toHaveLength(1);
+
+    el.quickFilter = '';
+    await load(el);
+    await answer(el, calls.slice(-1));
+    childCalls[childCalls.length - 1]?.resolve(3);
+    await Promise.resolve();
+    await load(el);
+    expect(el.selection).toEqual(['1.0']);
+    expect(seen).toHaveLength(1);
+    expect(checkbox(el, 'Person 1')).toMatchObject({ checked: false, indeterminate: true });
+    expect(checkbox(el, 'Person 1.1')).toMatchObject({ checked: false });
+  });
+
+  test('under a server filter a parent without loaded children can’t be ticked', async () => {
+    const { source, calls } = server(100);
+    const el = await loaded(source, calls, { ...branches, quickFilter: 'x' });
+    expect(checkbox(el, 'Person 2').disabled).toBe(true);
+    await tick(el, checkbox(el, 'Person 2'));
+    expect(el.selection).toEqual([]);
+    el.quickFilter = '';
+    await load(el);
+    await answer(el, calls.slice(-1));
+    expect(checkbox(el, 'Person 2').disabled).toBe(false);
+    await tick(el, checkbox(el, 'Person 2'));
+    expect(el.selection).toEqual(['2']);
+  });
+
   test('without selectBranches nothing changes', async () => {
     const { source, calls, childCalls } = server(100);
     const el = await loaded(source, calls, { ...branches, selectBranches: false });

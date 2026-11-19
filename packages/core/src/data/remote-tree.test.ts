@@ -604,7 +604,7 @@ describe('RemoteTree', () => {
     const row = (id: string) => rows.indexOf(id) ?? -1;
     expect(Array.from(layout.children(row('1')), (r) => rows.ids[r])).toEqual(['1.0', '1.1']);
     expect(rows.childCount[row('1')]).toBe(2);
-    expect(layout.keptChildren).toBe(rows.childCount);
+    expect(layout.keptChildren).toEqual(rows.childCount);
     expect(layout.posInSet[row('1.1')]).toBe(2);
     expect(layout.posInSet[row('2')]).toBe(3);
     // Children not loaded: a leaf.
@@ -641,9 +641,12 @@ describe('RemoteTree', () => {
     const cache = new PageCache<Row>({ pageSize: 4 });
     for (let page = 0; page < 20; page++) load(cache, page, 4);
     const tree = new RemoteTree(cache, { hasChildren });
-    tree.setExpanded(['1', '62']);
+    tree.setExpanded(['1', '2', '62']);
     answer(tree, '1', children('1', 2));
+    answer(tree, '2', children('2', 2));
     answer(tree, '62', children('62', 1));
+    // Collapsed: once its page is evicted, it and its children are out.
+    tree.setExpanded(['1', '62']);
     cache.evictOutside(60, 64);
     expect(cache.indexOf('1')).toBeUndefined();
     const { rows, roots } = forestOf(tree);
@@ -665,17 +668,27 @@ describe('RemoteTree', () => {
     expect(forestOf(twice).rows).toEqual(['0', '1', '2(1)', '1/0(1)', '3']);
   });
 
-  it('takeResolved lists the parents whose children arrived, once', () => {
-    const { tree } = setup();
-    tree.setExpanded(['1', '2']);
-    answer(tree, '1', children('1', 2));
-    tree.beginChildren('2');
-    tree.failChildren('2');
-    expect(tree.takeResolved()).toEqual(['1']);
-    expect(tree.takeResolved()).toEqual([]);
-    tree.retryChildren('2');
-    answer(tree, '2', children('2', 1));
-    expect(tree.takeResolved()).toEqual(['2']);
+  it('forest gives rows with children a hidden child under a server filter', () => {
+    const cache = new PageCache<Row>({ pageSize: 4 });
+    const { start } = cache.begin(0);
+    cache.resolve(0, [...rows(start, 2), { id: 'leaf', kids: 0 }]);
+    const tree = new RemoteTree(cache, { hasChildren, filtered: true });
+    tree.setExpanded(['1']);
+    answer(tree, '1', [...children('1', 1), { id: 'deep', kids: 1 }]);
+    const { tree: forest, layout } = tree.forest();
+    const row = (id: string) => forest.indexOf(id) ?? -1;
+    // Shown rows first, in layout order; the hidden children after them.
+    expect(Array.from(layout.order, (r) => forest.ids[r])).toEqual(['0', '1', '1.0', '1.1', '2']);
+    expect(forest.ids.slice(5)).toEqual(['\u00000', '\u00001', '\u00001.1']);
+    expect(Array.from(forest.parent.slice(5))).toEqual([row('0'), row('1'), row('1.1')]);
+    // Kept children as loaded; the whole tree has one more under rows with children.
+    expect(layout.keptChildren[row('1')]).toBe(2);
+    expect(forest.childCount[row('1')]).toBe(3);
+    expect(forest.childCount[row('0')]).toBe(1);
+    expect(forest.childCount[row('1.0')]).toBe(0);
+    expect(forest.childCount[row('2')]).toBe(0);
+    expect(layout.posInSet[5]).toBe(0);
+    expect(forest.indexOf('\u00000')).toBeUndefined();
   });
 
   it('stays logarithmic', { timeout: 30_000 }, () => {

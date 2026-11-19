@@ -53,6 +53,7 @@ interface Carry {
  */
 export class DataController<T> implements ReactiveController {
   readonly #host: ReactiveControllerHost;
+  readonly #arrived: (parentId: string) => void;
   #config: DataConfig<T> = {
     source: undefined,
     sorting: [],
@@ -74,8 +75,10 @@ export class DataController<T> implements ReactiveController {
   /** Whether a row id used twice was reported: once, whatever the resets. */
   #warned = false;
 
-  constructor(host: ReactiveControllerHost) {
+  /** `arrived`: called with a parent's id when its children arrive. */
+  constructor(host: ReactiveControllerHost, arrived: (parentId: string) => void = () => undefined) {
     this.#host = host;
+    this.#arrived = arrived;
     host.addController(this);
   }
 
@@ -234,6 +237,7 @@ export class DataController<T> implements ReactiveController {
           })
         : undefined;
     const hasChildren = source?.hasChildren?.bind(source);
+    const { filters, quickFilter } = this.#config;
     this.#tree =
       this.#cache && hasChildren && source?.getChildren
         ? new RemoteTree<T>(this.#cache, {
@@ -241,6 +245,7 @@ export class DataController<T> implements ReactiveController {
             getRowId,
             keepCounts: carry?.counts,
             warn: this.#warn,
+            filtered: Object.keys(filters).length > 0 || quickFilter.trim() !== '',
           })
         : undefined;
   }
@@ -354,6 +359,8 @@ export class DataController<T> implements ReactiveController {
         }
         this.#childRequests.delete(parentId);
         tree.resolveChildren(parentId, rows as T[]);
+        // Outside any update, so a controlled table's handler can set properties.
+        this.#arrived(parentId);
         this.#startChildren(tree);
         this.#host.requestUpdate();
       },

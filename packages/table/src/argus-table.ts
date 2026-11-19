@@ -586,7 +586,13 @@ export class ArgusTable<T = unknown> extends LitElement {
    * click elsewhere in its row still selects a range), and select-all and the
    * header checkbox leave it out; with only such rows, the header checkbox is
    * disabled too. A controlled `selection` that breaks these rules shows as it
-   * is until the user changes it.
+   * is until the user changes it. With a `dataSource` the rules apply to the
+   * loaded rows (a row whose children aren't loaded counts as having none),
+   * and children that arrive under a selected row join the selection, with
+   * the change event. While a filter or quick filter is on, the server may not
+   * have sent every child, so a row with children never has its id selected
+   * then: selecting it selects the loaded rows under it, and one without
+   * loaded children can't be selected until they load.
    */
   @property({ type: Boolean, attribute: 'select-branches' })
   selectBranches = false;
@@ -858,7 +864,10 @@ export class ArgusTable<T = unknown> extends LitElement {
   /** The detail panels' content, kept per row while open (`rowDetail`). */
   readonly #detail = new DetailContent<T>(this);
   #lightConnected = true;
-  readonly #data = new DataController<T>(this);
+  // Children loaded under a branch-selected row join the selection.
+  readonly #data = new DataController<T>(this, (parentId) => {
+    this.#select.arrived(parentId);
+  });
   /** Scroll back to the top after the update (a new sort order for a data source). */
   #scrollToTop = false;
   // Looked up lazily: the virtualizer's hostUpdated runs before firstUpdated.
@@ -1293,9 +1302,6 @@ export class ArgusTable<T = unknown> extends LitElement {
       selectionColumn,
       stretch: this.#stretch,
     });
-    // Children loaded under a branch-selected row join the selection.
-    const arrived = this.#data.tree?.takeResolved();
-    if (arrived) this.#select.arrived(arrived);
     const model = this.#table.model;
     this.#nav.reconcile(model);
     // -1 tells assistive tech the total is unknown (a data source still growing).

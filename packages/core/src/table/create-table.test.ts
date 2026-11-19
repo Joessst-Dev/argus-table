@@ -2013,6 +2013,57 @@ describe('remote tree rows', () => {
     expect(m.branchCheckAll(new Set(['0', '1', '2', '3']))).toBe('some');
   });
 
+  it('under a server filter, parents’ ids stay out: their branches may be incomplete', () => {
+    const cache = cacheOf();
+    const remote = new RemoteTree(cache, { hasChildren: (row) => row.kids > 0, filtered: true });
+    const m = createTableModel<Item, string>({
+      columns: itemColumns,
+      data: [],
+      getRowId: undefined,
+      sorting: [],
+      columnSizing: {},
+      remote,
+    });
+    open(remote, '1', [b1]);
+    const tree = m.branchTree();
+    if (!tree) throw new Error('no branch tree');
+    // Ticking a parent selects the rows shown under it, not its id.
+    expect(toggleBranch([], '1', tree)).toEqual(['1.0']);
+    const ticked = new Set(['1.0']);
+    // '0' and '3' have children, none loaded: nothing to tick.
+    expect([0, 1, 2, 3, 4, 5].map(m.branchCheck(ticked))).toEqual([
+      'blocked',
+      'some',
+      'all',
+      'none',
+      'blocked',
+      'none',
+    ]);
+    // Part-ticked, it counts as checked: the next click unticks.
+    expect(toggleBranch(['1.0'], '1', tree)).toEqual([]);
+    expect(m.branchSelectAll([])).toEqual(['1.0', '2']);
+    expect(m.branchCheckAll(new Set(['1.0', '2']))).toBe('all');
+    expect(m.branchCheckAll(new Set())).toBe('none');
+    // A parent's id set against the rule goes when its branch changes.
+    expect(withBranches(['1'], ['1.0'], tree)).toEqual(['1.0']);
+  });
+
+  it('a remote tree with nothing loaded shows an unticked header, whatever is selected', () => {
+    const remote = new RemoteTree(new PageCache<Item>({ pageSize: 4 }), {
+      hasChildren: (row) => row.kids > 0,
+    });
+    const m = createTableModel<Item, string>({
+      columns: itemColumns,
+      data: [],
+      getRowId: undefined,
+      sorting: [],
+      columnSizing: {},
+      remote,
+    });
+    expect(m.branchCheckAll(new Set(['1']))).toBe('none');
+    expect(m.branchSelectAll(['1'])).toEqual(['1']);
+  });
+
   it('ignores getSubRows with a remote tree, with the warning', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const { m } = setup({ getSubRows: () => undefined });

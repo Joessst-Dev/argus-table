@@ -107,17 +107,17 @@ export class SelectionController<T> {
   }
 
   /**
-   * Children that arrived from a `dataSource` under `parents`: with branches,
-   * those under a selected parent (its branch was whole: the user ticked it)
-   * join the selection, through the normal change event.
+   * Children that arrived from a `dataSource`: with branches, under a selected
+   * parent (its branch was whole: the user ticked it), they join the selection
+   * through the normal change event. Called outside an update.
    */
-  arrived(parents: readonly string[]): void {
-    const tree = parents.length > 0 ? this.#tree() : undefined;
-    if (!tree) return;
-    const selected = this.#selected();
-    const ids = parents.filter((id) => selected.has(id)).flatMap((id) => tree.children(id));
-    if (ids.length > 0) {
-      this.#request({ selection: withBranches(this.state.value, ids, tree), anchor: this.#anchor });
+  arrived(parentId: string): void {
+    const tree = this.#tree();
+    if (tree && this.#selected().has(parentId)) {
+      this.#request({
+        selection: withBranches(this.state.value, tree.children(parentId), tree),
+        anchor: this.#anchor,
+      });
     }
   }
 

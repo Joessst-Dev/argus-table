@@ -205,8 +205,14 @@ export function createTableModel<TData, TContent>(
     if (checks?.selected === selected && checks.layout === layout) return checks;
     let check: (index: number) => BranchCheck = () => 'none';
     let all: BranchCheck = 'none';
-    // Without a selection, only a filter can block rows.
-    if (steps && (selected.size > 0 || steps.layout.order.length < steps.tree.ids.length)) {
+    // Without a selection, only a filter can block rows. A remote tree with no
+    // rows loaded (reloading) shows nothing yet.
+    const count = steps?.layout.order.length ?? 0;
+    if (
+      steps &&
+      (count > 0 || !remoteTree()) &&
+      (selected.size > 0 || count < steps.tree.ids.length)
+    ) {
       const { tree } = steps;
       const { parent, ids } = tree;
       const { order } = steps.layout;

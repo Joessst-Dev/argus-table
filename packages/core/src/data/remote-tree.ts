@@ -39,6 +39,12 @@ export interface RemoteTreeOptions<TData> {
    * that warns once over all of them.
    */
   warn?: ((message: string) => void) | undefined;
+  /**
+   * The server filtered the rows (a filter or quick filter is on): a row with
+   * children may have more than it sent, so for branch selection its id never
+   * stands for its whole branch (`forest()`).
+   */
+  filtered?: boolean | undefined;
 }
 
 /** A parent's children: their state and, once loaded, the rows. */
@@ -119,6 +125,7 @@ export class RemoteTree<TData> implements RemoteRows<TData> {
   /** Kept counts of parents whose children haven't settled since. */
   readonly #kept: Map<string, KeptCount>;
   readonly #warn: (message: string) => void;
+  readonly #filtered: boolean;
   #warned = false;
   /** The last expanded top-level rows found, in `#expanded` order, and those sorted. */
   #found: { top: number; id: string }[] = [];
@@ -138,13 +145,12 @@ export class RemoteTree<TData> implements RemoteRows<TData> {
   #order: object = Object.freeze({});
   /** The loaded rows as a forest, and the version it was built for. */
   #forest: { version: number; forest: RemoteForest } | undefined;
-  /** Parents whose children arrived since `takeResolved()`. */
-  #resolved: string[] = [];
 
   constructor(cache: PageCache<TData>, options: RemoteTreeOptions<TData>) {
     this.cache = cache;
     this.#hasChildren = options.hasChildren;
     this.#getRowId = options.getRowId;
+    this.#filtered = options.filtered ?? false;
     this.#warn =
       options.warn ??
       ((message) => {
@@ -196,22 +202,15 @@ export class RemoteTree<TData> implements RemoteRows<TData> {
 
   /** The ids of the loaded rows shown, in order. */
   loadedIds(): string[] {
-    const { tops, subtrees } = this.#ensure();
+    const { byId, subtrees } = this.#ensure();
     const ids: string[] = [];
-    let m = 0;
-    const flush = (below: number) => {
-      // Children of open rows above `below` (their own row may be evicted).
-      for (; m < tops.length && (tops[m] ?? 0) < below; m++) {
-        for (const node of subtrees[m]?.nodes ?? []) if (node.entry) ids.push(node.entry.id);
+    for (const [id, loaded] of this.#roots()) {
+      if (loaded) ids.push(id);
+      // Its shown children (an open row's, its own row may be evicted).
+      for (const node of subtrees[byId.get(id) ?? -1]?.nodes ?? []) {
+        if (node.entry) ids.push(node.entry.id);
       }
-    };
-    for (const id of this.cache.loadedIds()) {
-      const top = this.cache.indexOf(id) ?? 0;
-      flush(top);
-      ids.push(id);
-      flush(top + 1);
     }
-    flush(Infinity);
     return ids;
   }
 
@@ -265,12 +264,7 @@ export class RemoteTree<TData> implements RemoteRows<TData> {
 
   /** Whether a row can open: loaded, `hasChildren`, and not known to have no children. */
   canExpand(rowId: string): boolean {
-    if (this.#empty(rowId)) return false;
-    const known = this.#known.get(rowId);
-    if (known) return known.has;
-    const top = this.cache.indexOf(rowId);
-    const entry = top === undefined ? undefined : this.cache.entryAt(top);
-    return entry !== undefined && this.#hasChildren(entry.row);
+    return !this.#empty(rowId) && this.#has(rowId) === true;
   }
 
   /** The index of the row when shown, else of its nearest shown ancestor; `undefined` when none is. */
@@ -394,76 +388,65 @@ export class RemoteTree<TData> implements RemoteRows<TData> {
     }
     this.#children.set(parentId, { state: 'loaded', entries });
     this.#kept.delete(parentId);
-    this.#resolved.push(parentId);
     this.#changed(parentId);
     return true;
-  }
-
-  /** The parents whose children arrived since the last call, in the order they did. */
-  takeResolved(): string[] {
-    const resolved = this.#resolved;
-    this.#resolved = [];
-    return resolved;
   }
 
   /**
    * The loaded rows as a forest, for branch selection: the loaded top-level
    * rows (and open ones whose page was evicted, with their children) in order,
    * each followed by its loaded descendants depth first, collapsed or not. A
-   * row whose children aren't loaded is a leaf. Every row is kept (the server
-   * filters), so `childCount` is `keptChildren`. Built once per `version`,
-   * O(loaded rows); its rows are its `order`'s positions.
+   * row whose children aren't loaded is a leaf. Every row it holds is kept
+   * (the server filters). With `filtered`, each row with children (by
+   * `hasChildren`) also gets one hidden child, which isn't in the layout and is
+   * never selected: its id then never stands for its whole branch, which the
+   * server may not have sent (ticking it selects the rows shown under it, and
+   * one without loaded children can't be ticked). Built once per `version`,
+   * O(loaded rows); its shown rows are its `order`'s positions.
    */
   forest(): RemoteForest {
     const version = this.version;
     if (this.#forest?.version === version) return this.#forest.forest;
-    const cache = this.cache;
-    // Top-level parents with loaded children whose page was evicted, by index.
-    const evicted: { top: number; id: string }[] = [];
-    for (const [id, record] of this.#children) {
-      if (record.state !== 'loaded' || this.#known.has(id) || cache.indexOf(id) !== undefined) {
-        continue;
-      }
-      const top = this.#topIndex(id);
-      if (top !== undefined) evicted.push({ top, id });
-    }
-    evicted.sort((a, b) => a.top - b.top);
-    const roots: string[] = [];
-    let e = 0;
-    for (const id of cache.loadedIds()) {
-      const top = cache.indexOf(id) ?? 0;
-      for (; e < evicted.length && (evicted[e]?.top ?? 0) < top; e++)
-        roots.push(evicted[e]?.id ?? '');
-      roots.push(id);
-    }
-    for (; e < evicted.length; e++) roots.push(evicted[e]?.id ?? '');
-
     // Depth first, each row numbered as it's reached, so its rows are already
     // in layout order: the layout is that of a tree sorted that way.
     const ids: string[] = [];
     const rows = new Map<string, number>();
     const parent: number[] = [];
+    // Under a server filter, rows with children: each gets a hidden child.
+    const hiding: number[] = [];
     const stack: { id: string; up: number }[] = [];
-    for (let k = roots.length - 1; k >= 0; k--) stack.push({ id: roots[k] ?? '', up: -1 });
+    const roots = this.#roots().filter(
+      ([id, loaded]) => loaded || this.#children.get(id)?.state === 'loaded',
+    );
+    for (let k = roots.length - 1; k >= 0; k--) stack.push({ id: roots[k]?.[0] ?? '', up: -1 });
     for (let item = stack.pop(); item; item = stack.pop()) {
       // An id used twice (warned about when its children arrived) is placed once.
       if (rows.has(item.id)) continue;
-      rows.set(item.id, ids.length);
+      const row = ids.length;
+      rows.set(item.id, row);
+      ids.push(item.id);
       parent.push(item.up);
+      // An evicted root has children (`undefined`: not loaded).
+      if (this.#filtered && this.#has(item.id) !== false) hiding.push(row);
       const record = this.#children.get(item.id);
       const entries = record?.state === 'loaded' ? record.entries : [];
       for (let k = entries.length - 1; k >= 0; k--) {
-        stack.push({ id: entries[k]?.id ?? '', up: ids.length });
+        stack.push({ id: entries[k]?.id ?? '', up: row });
       }
-      ids.push(item.id);
+    }
+    const shown = ids.map((_, row) => row);
+    // Hidden children after the rows, out of the layout: never selected, they
+    // keep their parents' ids out, as rows a client filter hides do.
+    for (const row of hiding) {
+      parent.push(row);
+      ids.push(`\u0000${ids[row] ?? ''}`);
     }
     const tree = { ids, rows: ids, parent: Int32Array.from(parent) };
-    const layout = layoutTree(
-      tree,
-      ids.map((_, row) => row),
-    );
+    const layout = layoutTree(tree, shown);
+    const childCount = Int32Array.from(layout.keptChildren);
+    for (const row of hiding) childCount[row] = (childCount[row] ?? 0) + 1;
     const forest: RemoteForest = {
-      tree: { ...tree, childCount: layout.keptChildren, indexOf: (id) => rows.get(id) },
+      tree: { ...tree, childCount, indexOf: (id) => rows.get(id) },
       layout,
       at: (index) => {
         const id = this.entryAt(index)?.id;
@@ -535,6 +518,38 @@ export class RemoteTree<TData> implements RemoteRows<TData> {
     if (known) return known.entry.row;
     const top = this.cache.indexOf(parentId);
     return top === undefined ? undefined : this.cache.entryAt(top)?.row;
+  }
+
+  /**
+   * The top-level rows in order: the loaded ones (`true`), and the open ones
+   * whose page was evicted (`false`), whose children stay.
+   */
+  #roots(): [id: string, loaded: boolean][] {
+    this.#ensure();
+    const cache = this.cache;
+    const evicted = this.#sorted.filter(({ id }) => cache.indexOf(id) === undefined);
+    const roots: [string, boolean][] = [];
+    let e = 0;
+    const flush = (below: number) => {
+      for (; e < evicted.length && (evicted[e]?.top ?? 0) < below; e++) {
+        roots.push([evicted[e]?.id ?? '', false]);
+      }
+    };
+    for (const id of cache.loadedIds()) {
+      flush(cache.indexOf(id) ?? 0);
+      roots.push([id, true]);
+    }
+    flush(Infinity);
+    return roots;
+  }
+
+  /** Whether a loaded row has children on the server (`hasChildren`); `undefined` when it isn't loaded. */
+  #has(id: string): boolean | undefined {
+    const known = this.#known.get(id);
+    if (known) return known.has;
+    const top = this.cache.indexOf(id);
+    const entry = top === undefined ? undefined : this.cache.entryAt(top);
+    return entry && this.#hasChildren(entry.row);
   }
 
   /** Rows shown under a shown child row (its open subtree); `undefined` when it isn't shown. */
