@@ -43,7 +43,7 @@ export const ADDON_EVENTS: Readonly<Partial<Record<Tag, readonly AddonEvent[]>>>
       name: 'argus-cell-edit',
       type: 'CustomEvent<CellEditDetail<T>>',
       description:
-        "From `cellEditing()` (`@argus-table/editing`): an edit was committed with a new value. The table doesn't change its data: apply it yourself, for example with `applyEdit()`. `detail: { row, rowId, index, columnId, value, previous, pinned? }`.",
+        "From `cellEditing()` (`@argus-table/editing`): an edit was committed with a new value. The table doesn't change its data: apply it yourself, for example with `applyEdit()`. `detail: { row, rowId, index, columnId, value, previous, pinned?, depth? }`; `depth` is the row's level in a tree, set only when the rows form one.",
       from: EDITING,
     },
   ],

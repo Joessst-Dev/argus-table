@@ -21,6 +21,7 @@ No grouping by column values, no group rows, no aggregation, no pivot.
 
 Tree rows held in memory are supported since 1.4: nested children with `getSubRows`, or flat rows with `getParentId`, expanded with `treeExpanded` (see the library's guide). Trees whose children load from the server when a row is expanded are not, yet: Element Plus `lazy` with `:load`, PrimeNG/PrimeVue lazy tree tables (`onNodeExpand` loading children), AG Grid's server-side tree data (`isServerSideGroup`, `getServerSideGroupKey`), MUI X lazy-loaded tree data (a data source with `getChildrenCount`). With a `dataSource`, `getSubRows` and `getParentId` are ignored (with a console warning) and the rows show flat; children from the server are planned for a later release.
 
+- **Ask first:** how many rows the whole tree has, and whether the server can return it in one request (or could, with a new endpoint). Offer the workaround only when it can.
 - **Workaround:** load the whole tree (every row, or every row with its parent's id) and pass it as `data` with `getSubRows` or `getParentId`. The table virtualizes the shown rows and sorts and filters within the tree itself; what limits this is loading the whole tree in one request.
 - Keep the old table when the tree is too large to load at once.
 

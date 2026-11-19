@@ -75,10 +75,11 @@ defineExpose({ sorting, clicked, table, refresh });
     <ArgusTable :data="orders" @update:tree-expanded="(ids) => ids.join()" />
     <ArgusTable
       :data="orders"
-      :get-parent-id="(o) => (o.total > 50 ? o.id : null)"
+      :get-parent-id="(o) => o.parentId"
       select-branches
       @tree-expanded-change="(e) => e.detail.rowId + String(e.detail.open)"
     />
+    <ArgusTable :data="orders" :get-sub-rows="(o) => o.children" />
     <!-- @vue-expect-error the row is an Order, which has no `kids` -->
     <ArgusTable :data="orders" :get-sub-rows="(o) => o.kids" />
     <ArgusTable :data="orders" :row-detail="({ row }) => row.total.toFixed()" />

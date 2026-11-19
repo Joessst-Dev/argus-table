@@ -131,6 +131,8 @@ describe('scan.mjs', () => {
     assert.equal(prime.library, 'primeng');
     assert.equal(prime.file, 'src/app/products/products.component.ts');
     assert.equal(feature(prime, 'lazy').fit, 'maps');
+    // A lazy p-table isn't a lazy tree.
+    assert.equal(feature(prime, 'lazy-tree'), undefined);
   });
 
   it('counts only antd’s own Table', async () => {
@@ -142,6 +144,84 @@ describe('scan.mjs', () => {
     const [u] = report.usages;
     assert.equal(feature(u, 'row-key').fit, 'maps');
     assert.equal(feature(u, 'expandable').fit, 'partial');
+    assert.equal(feature(u, 'tree-data'), undefined);
+  });
+
+  it('finds tree rows that come from a children array alone', async () => {
+    const antd = await scan(
+      project('antd', {
+        'src/Folders.tsx': [
+          "import { Table, Tree } from 'antd';",
+          '',
+          'interface Folder {',
+          '  key: string;',
+          '  name: string;',
+          '  children?: Folder[];',
+          '}',
+          '',
+          'export function Folders({ data }: { data: Folder[] }) {',
+          '  return (',
+          '    <>',
+          '      <Tree checkable checkStrictly treeData={[]} />',
+          "      <Table<Folder> columns={[{ title: 'Name', dataIndex: 'name' }]} dataSource={data} rowKey=\"key\" rowSelection={{ type: 'checkbox' }} />",
+          '    </>',
+          '  );',
+          '}',
+          '',
+        ].join('\n'),
+      }),
+    );
+    const folders = antd.usages.find((u) => u.file === 'src/Folders.tsx');
+    // The interface marks the tree; <Tree checkStrictly> isn't the table's.
+    assert.deepEqual(feature(folders, 'tree-data'), {
+      ...feature(folders, 'tree-data'),
+      fit: 'maps',
+      at: ['src/Folders.tsx:6'],
+    });
+
+    const vue = await scan(
+      project('vue-kits', {
+        'src/components/Folders.vue': [
+          '<script setup lang="ts">',
+          "const folders = [{ id: '1', name: 'Docs', children: [{ id: '1.1', name: 'a.pdf' }] }];",
+          '</script>',
+          '',
+          '<template>',
+          '  <el-table :data="folders" row-key="id" default-expand-all>',
+          '    <el-table-column prop="name" label="Name" />',
+          '  </el-table>',
+          '</template>',
+          '',
+        ].join('\n'),
+      }),
+    );
+    const element = vue.usages.find((u) => u.file === 'src/components/Folders.vue');
+    assert.equal(feature(element, 'tree').fit, 'maps');
+    assert.deepEqual(feature(element, 'tree').at, ['src/components/Folders.vue:6']);
+    const orders = vue.usages.find((u) => u.file === 'src/components/Orders.vue');
+    assert.equal(feature(orders, 'tree'), undefined);
+  });
+
+  it('reads PrimeNG tree tables under every tag spelling, lazy ones as a gap', async () => {
+    const report = await scan(
+      project('angular-material-primeng', {
+        'src/app/files/files.component.html': [
+          '<p-treetable [value]="files" [lazy]="true" (onNodeExpand)="load($event)">',
+          '  <ng-template #body let-rowNode let-row="rowData"><tr><td>{{ row.name }}</td></tr></ng-template>',
+          '</p-treetable>',
+          '<p-tree-table [value]="folders"></p-tree-table>',
+          '',
+        ].join('\n'),
+      }),
+    );
+    const files = report.usages.filter((u) => u.file === 'src/app/files/files.component.html');
+    assert.deepEqual(
+      files.map((u) => [u.line, feature(u, 'tree')?.fit, feature(u, 'lazy-tree')?.gap]),
+      [
+        [1, 'maps', 'lazy-trees'],
+        [4, 'maps', undefined],
+      ],
+    );
   });
 
   it('finds plain tables filled by a script, and static ones on request', async () => {

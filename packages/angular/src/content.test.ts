@@ -509,7 +509,11 @@ interface TreeNode {
       [getRowId]="idOf"
       [getSubRows]="kidsOf"
       [(treeExpanded)]="treeExpanded"
-    />
+    >
+      <ng-template argusCell="name" [argusCellOf]="nodes" let-row let-depth="depth">
+        <span class="name">{{ row.name }} {{ depth }}</span>
+      </ng-template>
+    </argus-table>
   `,
 })
 class Tree {
@@ -536,5 +540,11 @@ describe('Angular tree rows', () => {
       (fixture.nativeElement as HTMLElement).querySelector('output.tree-expanded')?.textContent,
     ).toBe('a');
     expect(el.textContent).toContain('A1');
+    // The cell template gets the row's depth.
+    expect([...el.querySelectorAll('span.name')].map((s) => s.textContent).sort()).toEqual([
+      'A 0',
+      'A1 1',
+      'B 0',
+    ]);
   });
 });

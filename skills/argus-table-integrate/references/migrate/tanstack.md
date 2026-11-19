@@ -124,6 +124,7 @@ Pagination (the table scrolls), grouping and aggregation. See [gaps.md](../gaps.
 - Columns don't sort unless `sortable: true`, as with TanStack's manual headers. A header click cycles ascending → descending → unsorted (a `toggleSorting(getIsSorted() === 'asc')` header only toggled).
 - With `selectionMode`, a click anywhere on a row selects it, not only its checkbox; select-all selects every row the filters keep, not the current page.
 - `quickFilter` keeps rows where every word appears in some shown column; TanStack's default global filter matched the whole text in one column.
+- A filter on sub-rows keeps the matching rows and their ancestors, as `filterFromLeafRows: true` does. TanStack's default (`false`) filters from the top: a row that doesn't match hides its children, matching or not.
 - Sub-rows sort among their siblings, under their parent. The toggle is always in the first shown data column; Right and Left expand and collapse a row from the keyboard.
 - Rows are virtualized: only rows in view are in the DOM (tests: [testing.md](../testing.md)).
 - Styling moves from the app's `<table>` classes (Tailwind on `TableRow`, `TableCell`) to a theme and tokens; content inside cells keeps its classes.

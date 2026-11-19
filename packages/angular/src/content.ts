@@ -38,6 +38,8 @@ export interface ArgusCellContext<T = unknown> {
   columnId: string;
   /** Set for a row from `pinnedRows`: its side. */
   pinned?: RowPin | undefined;
+  /** The row's level in a tree (`0` for a top-level row); set only when the rows form one. */
+  depth?: number | undefined;
 }
 
 /** What an `argusHeader` template gets: the column id. */
@@ -120,6 +122,8 @@ export interface ArgusDetailContext<T = unknown> {
   rowId: string;
   /** The row's index in the current order. */
   index: number;
+  /** The row's level in a tree (`0` for a top-level row); set only when the rows form one. */
+  depth?: number | undefined;
 }
 
 /**
@@ -298,8 +302,14 @@ export abstract class ArgusTableBase<T = unknown> implements AfterContentInit, O
     if (element.rowDetail !== this.#templateDetail) return;
     const template = this.detailTemplates?.get(0)?.template;
     this.#templateDetail = template
-      ? ({ row, rowId, index }) =>
-          argusTemplate(template, { $implicit: row, row, rowId, index }) as unknown as CellContent
+      ? ({ row, rowId, index, depth }) =>
+          argusTemplate(template, {
+            $implicit: row,
+            row,
+            rowId,
+            index,
+            depth,
+          }) as unknown as CellContent
       : undefined;
     element.rowDetail = this.#templateDetail;
   }
@@ -346,6 +356,7 @@ export abstract class ArgusTableBase<T = unknown> implements AfterContentInit, O
             index: context.index,
             columnId: context.columnId,
             pinned: context.pinned,
+            depth: context.depth,
           }),
       }),
       ...(header && {

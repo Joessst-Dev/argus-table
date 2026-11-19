@@ -10,6 +10,12 @@
 const f = (id, re, fit, argus = {}, extra = {}) => ({ id, re, fit, argus, ...extra });
 
 /**
+ * A row type with an array of child rows (`children?: Folder[]`): antd and
+ * Element Plus show such rows as a tree without any prop.
+ */
+const CHILDREN_ARRAY = String.raw`\bchildren\??\s*:\s*(?:readonly\s+)?(?:\w+\[\]|(?:Readonly)?Array<)`;
+
+/**
  * Each library: `deps` (package names), `gate` (a file must match to be
  * looked at), `requires` (must match too, unless the project depends on one
  * of `deps`: components registered globally), `anchors` (where a usage
@@ -275,6 +281,12 @@ export const LIBRARIES = [
           events: ['argus-selection-change'],
         },
       ),
+      f(
+        'branch-selection',
+        /\bgroupSelects\b|\bgroupSelectsChildren\b|\bgroupSelectsFiltered\b/,
+        'maps',
+        { props: ['selectBranches'] },
+      ),
       f('row-id', /\bgetRowId\b|\bgetRowNodeId\b/, 'maps', { props: ['getRowId'] }),
       f('pinned-columns', /\bpinned\s*:\s*['"](?:left|right)['"]|\blockPinned\b/, 'maps', {
         column: ['pin'],
@@ -473,6 +485,9 @@ export const LIBRARIES = [
           events: ['argus-selection-change'],
         },
       ),
+      f('branch-selection', /\browSelectionPropagation\b/, 'partial', {
+        props: ['selectBranches'],
+      }),
       f('row-id', /\bgetRowId\s*=/, 'maps', { props: ['getRowId'] }),
       f(
         'column-types',
@@ -614,9 +629,9 @@ export const LIBRARIES = [
     name: 'PrimeNG / PrimeVue DataTable',
     reference: 'migrate/primeng-primevue.md',
     deps: ['primeng', 'primevue'],
-    gate: /<p-table\b|<p-treeTable\b|<DataTable\b|<TreeTable\b/,
-    requires: /primevue|primeng|<p-table\b|<p-treeTable\b/,
-    anchors: [/<p-table\b/, /<DataTable\b/, /<TreeTable\b/, /<p-treeTable\b/],
+    gate: /<p-table\b|<p-tree(?:[tT]able|-table)\b|<DataTable\b|<TreeTable\b/,
+    requires: /primevue|primeng|<p-table\b|<p-tree(?:[tT]able|-table)\b/,
+    anchors: [/<p-table\b/, /<DataTable\b/, /<TreeTable\b/, /<p-tree(?:[tT]able|-table)\b/],
     vocabulary: /\bfield\s*[:=]\s*['"]|<Column\b|\bpSortableColumn\b/,
     columnKey: /<Column\b|\bfield\s*:\s*['"]/g,
     sortsByDefault: false,
@@ -666,11 +681,18 @@ export const LIBRARIES = [
       f('col-group', /<ColumnGroup\b|<p-columnGroup\b/, 'maps', { props: ['columnGroups'] }),
       f('export', /\bexportCSV\b/, 'maps', { addons: ['@argus-table/export'] }),
       f('state', /\bstateStorage\b|\bstateKey\b/, 'maps', { methods: ['getState', 'setState'] }),
-      f('tree', /<TreeTable\b|<p-treeTable\b/, 'maps', {
+      f('tree', /<TreeTable\b|<p-tree(?:[tT]able|-table)\b/, 'maps', {
         props: ['getSubRows', 'getRowId', 'treeExpanded', 'selectBranches'],
         events: ['argus-tree-expanded-change'],
       }),
-      f('lazy-tree', /\bonNodeExpand\b|@node-expand\b/, 'gap', {}, { gap: 'lazy-trees' }),
+      // A lazy tree table: `lazy` and a node-expand handler on the same tag.
+      f(
+        'lazy-tree',
+        /<(?:TreeTable|p-tree(?:[tT]able|-table))\b(?=(?:[^>]|=>)*\blazy\b)(?:[^>]|=>)*(?:\bonNodeExpand\b|@node-expand\b)/,
+        'gap',
+        {},
+        { gap: 'lazy-trees' },
+      ),
       f('row-click', /\bonRowSelect\b|@row-click\b|\(onRowSelect\)/, 'maps', {
         events: ['argus-row-click'],
       }),
@@ -759,10 +781,23 @@ export const LIBRARIES = [
       f('children', /\bchildren\s*:\s*\[\s*\{[^}]*\bdataIndex\b/, 'maps', {
         props: ['columnGroups'],
       }),
-      f('tree-data', /\bchildrenColumnName\b|\bindentSize\b|\bcheckStrictly\b/, 'maps', {
-        props: ['getSubRows', 'getRowId', 'treeExpanded', 'selectBranches'],
-        events: ['argus-tree-expanded-change'],
-      }),
+      f(
+        'tree-data',
+        new RegExp(
+          [
+            String.raw`\bchildrenColumnName\b|\bindentSize\b`,
+            // defaultExpandAllRows in an `expandable` without a detail renderer
+            String.raw`\bexpandable\s*=\s*\{\{(?![^}]*\bexpandedRowRender\b)[^}]*\bdefaultExpandAllRows\b`,
+            String.raw`\browSelection\b[^}]{0,120}\bcheckStrictly\b`,
+            CHILDREN_ARRAY,
+          ].join('|'),
+        ),
+        'maps',
+        {
+          props: ['getSubRows', 'getRowId', 'treeExpanded', 'selectBranches'],
+          events: ['argus-tree-expanded-change'],
+        },
+      ),
       f('editable', /\bEditableCell\b|\bcomponents\s*=\s*\{\{\s*body/, 'partial', {
         addons: ['@argus-table/editing'],
         events: ['argus-cell-edit'],
@@ -803,10 +838,22 @@ export const LIBRARIES = [
       }),
       f('summary', /\bshow-summary\b|\bsummary-method\b/, 'partial', { props: ['pinnedRows'] }),
       f('span', /\bspan-method\b/, 'gap', {}, { gap: 'cell-spanning' }),
-      f('tree', /\btree-props\b|\btreeProps\b/, 'maps', {
-        props: ['getSubRows', 'getRowId', 'treeExpanded', 'selectBranches'],
-        events: ['argus-tree-expanded-change'],
-      }),
+      f(
+        'tree',
+        new RegExp(
+          [
+            String.raw`\btree-props\b|\btreeProps\b|\bdefault-expand-all\b|\bdefaultExpandAll\b`,
+            String.raw`(?:^|\s):?indent\s*=`,
+            CHILDREN_ARRAY,
+          ].join('|'),
+          'm',
+        ),
+        'maps',
+        {
+          props: ['getSubRows', 'getRowId', 'treeExpanded', 'selectBranches'],
+          events: ['argus-tree-expanded-change'],
+        },
+      ),
       f('lazy-tree', /:load\b/, 'gap', {}, { gap: 'lazy-trees' }),
       f('height', /<el-table\b[^>]*\b(?:max-)?height\s*=/, 'maps'),
       f('stripe-border', /\bstripe\b|\bborder\b/, 'maps'),
