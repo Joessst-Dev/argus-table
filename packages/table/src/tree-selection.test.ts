@@ -149,10 +149,63 @@ describe('tree rows: branch selection', () => {
     expect(rowOf(el, 'P0').getAttribute('aria-selected')).toBe('true');
   });
 
-  test('under a filter, ticking a parent selects only kept children', async () => {
+  test("under a filter, ticking a parent selects only kept children, not the parent's id", async () => {
     const el = await treeTable({ quickFilter: 'C0.1' });
     await tick(el, 'P0');
-    expect(sorted(el.selection)).toEqual(['0', '0.1']);
+    expect(el.selection).toEqual(['0.1']);
+    // C0.0 and C0.2 aren't selected, so P0 isn't whole: part-ticked.
+    expect(checkbox(el, 'P0')).toMatchObject({ checked: false, indeterminate: true });
+    expect(checkbox(el, 'C0.1')).toMatchObject({ checked: true, indeterminate: false });
+    expect(rowOf(el, 'P0').getAttribute('aria-selected')).toBe('false');
+    // Cleared, the filter leaves P0 part-ticked, its id out of the selection.
+    el.quickFilter = '';
+    await settle(el);
+    expect(el.selection).toEqual(['0.1']);
+    expect(checkbox(el, 'P0')).toMatchObject({ checked: false, indeterminate: true });
+  });
+
+  test('under a filter, a part-ticked parent with its shown rows selected unticks, then ticks', async () => {
+    const el = await treeTable({ quickFilter: 'C0.1' });
+    const seen = changes(el);
+    await tick(el, 'P0');
+    await tick(el, 'P0');
+    expect(el.selection).toEqual([]);
+    expect(checkbox(el, 'P0')).toMatchObject({ checked: false, indeterminate: false });
+    await press(el, cellOf(el, 'P0'), ' ');
+    expect(el.selection).toEqual(['0.1']);
+    expect(seen).toEqual([['0.1'], [], ['0.1']]);
+  });
+
+  test('under a filter, the parent joins once the rows the filter hides are selected', async () => {
+    // Controlled: the proposed selection is the event's.
+    const el = await treeTable({ selection: ['0.0', '0.2'], quickFilter: 'C0.1' });
+    const seen = changes(el);
+    expect(checkbox(el, 'P0')).toMatchObject({ checked: false, indeterminate: false });
+    await tick(el, 'P0');
+    expect(seen.map(sorted)).toEqual([['0', '0.0', '0.1', '0.2']]);
+    el.selection = seen[0] ?? [];
+    await settle(el);
+    expect(checkbox(el, 'P0')).toMatchObject({ checked: true, indeterminate: false });
+  });
+
+  test('under a filter, select-all and the header checkbox count whole branches only', async () => {
+    const el = await treeTable({ quickFilter: 'C0.1' });
+    expect(checkAll(el)).toMatchObject({ checked: false, indeterminate: false });
+    await press(el, cellOf(el, 'P0'), 'a', { ctrlKey: true });
+    expect(el.selection).toEqual(['0.1']);
+    // Every shown row counts as checked: P0's shown rows are all selected.
+    expect(checkAll(el)).toMatchObject({ checked: true, indeterminate: false });
+    expect(checkbox(el, 'P0')).toMatchObject({ checked: false, indeterminate: true });
+    checkAll(el)?.click();
+    await settle(el);
+    expect(el.selection).toEqual([]);
+    checkAll(el)?.click();
+    await settle(el);
+    expect(el.selection).toEqual(['0.1']);
+    // Without the filter, it's part of the rows.
+    el.quickFilter = '';
+    await settle(el);
+    expect(checkAll(el)).toMatchObject({ checked: false, indeterminate: true });
   });
 
   test('unticking a parent under a filter leaves the rows it hides selected', async () => {

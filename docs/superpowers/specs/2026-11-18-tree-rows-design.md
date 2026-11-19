@@ -150,6 +150,15 @@ With `virtualizeColumns`, the tree column is kept rendered while it holds the ac
   - Ctrl/Cmd and Shift clicks work as today, each row clicked counting as its branch.
   - `selection` stays a list of ids, unchanged in type.
 
+> **Changed in review (19 November 2026): whole branch only.** The rule above counted a branch as whole when every descendant the filters _keep_ was selected. Under a filter, ticking a parent then added the parent's id although its hidden children weren't selected; after the filter cleared, the parent showed part-ticked while its id was in `selection`, so an app's "delete selected" deleted children the user never saw. The owner's decision replaces the second and third bullets and the select-all one:
+>
+> - A parent's id is in the selection the table proposes only when its **whole** branch is selected, filters not applied (every descendant in the full tree). A tick selects the row and its kept descendants (never hidden rows), then the ids of the row and its ancestors where that holds.
+> - A row counts as checked (so a click or Space unticks it: its id, its kept descendants, its ancestors' ids) when every kept descendant is selected and its own id is too, or, for a row with kept children, its id is kept out by unselected hidden rows. (A selected id with a kept descendant unselected, which only a controlled value can give, ticks the rest, as before.) Under a filter, such a parent shows part-ticked, unticks on the next click and ticks again on the one after.
+> - The checkbox is ticked when the row's id and every kept descendant are selected, part-ticked when some are (as before; a parent kept out by hidden rows shows part-ticked).
+> - Select-all selects every kept row by the same rule; the header checkbox is ticked when every kept row counts as checked.
+>
+> Without a filter nothing changes. Edge: a parent the filter keeps without any of its children (it matches, they don't) can't be ticked while the filter is on, since its id needs the hidden children.
+
 ### Everything else that touches rows
 
 - `getState()`/`setState()`: `treeExpanded` saved and restored like `expanded`. `scroll.row` is an index in the shown order, so it's restored after `treeExpanded`.

@@ -11,7 +11,7 @@ Tree rows: rows can have child rows, such as a folder and its files or a manager
 
 From the keyboard, on a cell of the first data column, ArrowRight expands a collapsed row and ArrowLeft collapses an expanded one or goes to the parent row (mirrored in right-to-left tables); Enter keeps its meaning. The table becomes a WAI-ARIA `treegrid`, and rows carry their level, whether they're expanded and their place among their siblings, for screen readers.
 
-`selectBranches` (attribute `select-branches`, in `selectionMode: 'multi'`) selects whole branches: ticking a row selects it and every row under it that the filters keep, a row's id is in `selection` while its whole branch is, and a row with part of its branch selected shows a part-ticked checkbox. Select-all then covers every row the filters keep, collapsed or not.
+`selectBranches` (attribute `select-branches`, in `selectionMode: 'multi'`) selects whole branches: ticking a row selects it and every row under it that the filters keep, a row's id is in `selection` only while its whole branch is (rows a filter hides included, so under a filter a parent with unselected hidden children stays out and shows part-ticked), and a row with part of its branch selected shows a part-ticked checkbox. Select-all then covers every row the filters keep, collapsed or not.
 
 Styling: the toggle is the `tree-toggle` part (with `tree-toggle-disabled` while a filter keeps its row open), and `--argus-tree-indent` (1.25rem) sets the indent per level. New labels: `expandTreeRow`, `collapseTreeRow`. With a `dataSource`, `getSubRows` and `getParentId` are ignored for now (the rows show flat, with a console warning).
 

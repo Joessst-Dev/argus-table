@@ -135,7 +135,7 @@ table.treeExpanded = ['a', 'a/2']; // optional; two-way, like expanded
 - Children sort among their siblings. A filter keeps the matching rows with their ancestors, shown expanded while it's on (their toggles disabled, part `tree-toggle-disabled`), without changing `treeExpanded`.
 - Default ids: the index in `data` at the top level, the parent's id, a dot and the index among siblings below (`'3.0'`, `'3.0.2'`). With flat data, give `getRowId`: `getParentId` returns those ids.
 - `cell` contexts, `argus-cell-click`, `argus-row-click`, `argus-cell-edit` and `rowDetail` get `depth` (`0` at the top level), only when the rows form a tree. Indexes in events and `scrollToRow()` count the rows shown; `scrollToRow({ id })` resolves `false` for a row under a collapsed one.
-- `selectBranches` (in `multi` mode): a row's checkbox selects its branch, and a parent's id is in `selection` exactly when its whole branch is.
+- `selectBranches` (in `multi` mode): a row's checkbox selects its branch (the rows the filters keep), and a parent's id is in `selection` only while its whole branch is, rows a filter hides included: under a filter, ticking a parent selects its shown rows and leaves its id out until the hidden ones are selected too.
 - Not with a `dataSource` yet (ignored, with a console warning): [gaps.md](gaps.md#lazy-trees).
 - Plugins read `host.rowDepth(index, section?)`, and `host.sourceRow(index)` for an index `host.filteredIndexes()` returns (nested children's are `data.length` and up).
 - Editing nested children: `applyEdit`'s fourth argument, [addons.md](addons.md#cell-editing-argus-tableediting).

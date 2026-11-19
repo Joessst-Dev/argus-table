@@ -127,15 +127,24 @@ describe('clickSelection', () => {
   });
 });
 
-/** A `BranchTree` from each row's kept children; rows not listed have none. */
-const branchTree = (kids: Record<string, readonly string[]>): BranchTree => {
+/**
+ * A `BranchTree` from each row's children; rows not listed have none. Rows in
+ * `hidden` are the ones a filter drops (with their ancestors kept, as the
+ * model keeps them): they're left out of `children` and have no parent.
+ */
+const branchTree = (
+  kids: Record<string, readonly string[]>,
+  hidden: readonly string[] = [],
+): BranchTree => {
   const parents = new Map<string, string>();
   for (const [parent, children] of Object.entries(kids)) {
     for (const child of children) parents.set(child, parent);
   }
+  const dropped = new Set(hidden);
   return {
-    children: (id) => kids[id] ?? [],
-    parent: (id) => parents.get(id),
+    children: (id) => (kids[id] ?? []).filter((child) => !dropped.has(child)),
+    allChildren: (id) => kids[id] ?? [],
+    parent: (id) => (dropped.has(id) ? undefined : parents.get(id)),
   };
 };
 
@@ -182,9 +191,38 @@ describe('withBranches', () => {
     expect(withBranches(['G', 'Q'], ['P1'], tree)).toEqual(['Q', 'P1']);
   });
 
-  it('ticking under a filter selects only kept rows', () => {
-    const filtered = branchTree({ A: ['A1'], B: ['B1'] });
-    expect(sameSelection(withBranches([], ['A'], filtered), ['A', 'A1'])).toBe(true);
+  it('ticking under a filter selects only kept rows, and no parent missing a hidden one', () => {
+    const filtered = branchTree({ A: ['A1', 'A2'], B: ['B1'] }, ['A2']);
+    expect(withBranches([], ['A'], filtered)).toEqual(['A1']);
+    // With the hidden row already selected, the branch is whole.
+    expect(withBranches(['A2'], ['A'], filtered)).toEqual(['A2', 'A', 'A1']);
+    expect(withBranches(['A2'], ['A1'], filtered)).toEqual(['A2', 'A1', 'A']);
+  });
+
+  it('a hidden row keeps every ancestor out', () => {
+    // G{P{P1, P2}, Q}, P2 hidden.
+    const tree = branchTree({ G: ['P', 'Q'], P: ['P1', 'P2'] }, ['P2']);
+    expect(sameSelection(withBranches([], ['G'], tree), ['P1', 'Q'])).toBe(true);
+    expect(withBranches(['Q'], ['P1'], tree)).toEqual(['Q', 'P1']);
+    // Ancestors selected against the rules are dropped.
+    expect(withBranches(['G', 'P', 'Q'], ['P1'], tree)).toEqual(['Q', 'P1']);
+    expect(withBranches(['G', 'P', 'Q'], ['G'], tree)).toEqual(['Q', 'P1']);
+  });
+
+  it('a kept parent whose children are all hidden is never ticked', () => {
+    const tree = branchTree({ A: ['A1', 'A2'] }, ['A1', 'A2']);
+    expect(withBranches([], ['A'], tree)).toEqual([]);
+    expect(withBranches(['A1', 'A2'], ['A'], tree)).toEqual(['A1', 'A2', 'A']);
+  });
+
+  it('decides a parent after a branch below it walked first', () => {
+    // P2 is walked on its own before R reaches it.
+    const tree = branchTree({ R: ['P', 'Q'], P: ['P1', 'P2'] });
+    expect(sameSelection(withBranches([], ['P1', 'R'], tree), ['R', 'P', 'P1', 'P2', 'Q'])).toBe(
+      true,
+    );
+    const filtered = branchTree({ R: ['P', 'Q'], P: ['P1', 'P2'] }, ['P2']);
+    expect(sameSelection(withBranches([], ['P1', 'R'], filtered), ['P1', 'Q'])).toBe(true);
   });
 
   it('just adds an id that is not in the tree', () => {
@@ -194,7 +232,8 @@ describe('withBranches', () => {
   it('walks a 100k-deep chain without recursion', () => {
     const depth = 100_000;
     const chain: BranchTree = {
-      children: (id) => {
+      children: (id) => chain.allChildren(id),
+      allChildren: (id) => {
         const n = Number(id);
         return n + 1 < depth ? [String(n + 1)] : [];
       },
@@ -232,7 +271,126 @@ describe('toggleBranch', () => {
   });
 
   it('leaves descendants the filters hide selected', () => {
-    const filtered = branchTree({ A: ['A1'] });
+    const filtered = branchTree({ A: ['A1', 'A2'] }, ['A2']);
     expect(toggleBranch(['A', 'A1', 'A2'], 'A', filtered)).toEqual(['A2']);
+  });
+
+  // P0{C0.0, C0.1, C0.2}, a filter keeping C0.1.
+  const p0 = branchTree({ '0': ['0.0', '0.1', '0.2'] }, ['0.0', '0.2']);
+
+  it('under a filter, ticks the shown rows and unticks a parent whose shown rows are all selected', () => {
+    // Ticking P0 selects C0.1 only: P0's id needs C0.0 and C0.2.
+    const ticked = toggleBranch([], '0', p0);
+    expect(ticked).toEqual(['0.1']);
+    // P0 counts as checked now, so the next click unticks, then ticks again.
+    expect(toggleBranch(ticked, '0', p0)).toEqual([]);
+    expect(toggleBranch(toggleBranch(ticked, '0', p0), '0', p0)).toEqual(['0.1']);
+    // Ticking C0.1 itself is the same.
+    expect(toggleBranch([], '0.1', p0)).toEqual(['0.1']);
+    expect(toggleBranch(['0.1'], '0.1', p0)).toEqual([]);
+  });
+
+  it('under a filter, adds the parent once the hidden rows are selected too', () => {
+    expect(toggleBranch(['0.0', '0.2'], '0', p0)).toEqual(['0.0', '0.2', '0', '0.1']);
+    // Unticking removes the shown row and the parent, not the hidden ones.
+    expect(toggleBranch(['0.0', '0.2', '0.1', '0'], '0', p0)).toEqual(['0.0', '0.2']);
+  });
+
+  it('a whole branch without its parent id ticks, adding the id', () => {
+    expect(toggleBranch(['0.0', '0.1', '0.2'], '0', p0)).toEqual(['0.0', '0.1', '0.2', '0']);
+    expect(toggleBranch(['A1', 'A2'], 'A', ab)).toEqual(['A1', 'A2', 'A']);
+  });
+
+  it('a kept parent whose children are all hidden ticks nothing', () => {
+    const tree = branchTree({ A: ['A1', 'A2'] }, ['A1', 'A2']);
+    expect(toggleBranch([], 'A', tree)).toEqual([]);
+  });
+});
+
+/** A deterministic random number generator (mulberry32). */
+function random(seed: number): () => number {
+  let a = seed;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+describe('branch selection over random trees and filters', () => {
+  it("a parent's id is selected only with its whole branch, and ticks never reach hidden rows", () => {
+    for (let seed = 1; seed <= 200; seed++) {
+      const next = random(seed);
+      const pick = <T>(items: readonly T[]): T => items[Math.floor(next() * items.length)] as T;
+      // Up to 25 rows, each under an earlier one or at the top.
+      const count = 2 + Math.floor(next() * 24);
+      const kids: Record<string, string[]> = {};
+      const parentOf = new Map<string, string>();
+      for (let i = 1; i < count; i++) {
+        if (next() < 0.25) continue;
+        const up = String(Math.floor(next() * i));
+        (kids[up] ??= []).push(String(i));
+        parentOf.set(String(i), up);
+      }
+      const all = Array.from({ length: count }, (_, i) => String(i));
+      const descendants = (id: string): string[] => {
+        const out: string[] = [];
+        const stack = [...(kids[id] ?? [])];
+        while (stack.length > 0) {
+          const row = stack.pop() ?? '';
+          out.push(row);
+          stack.push(...(kids[row] ?? []));
+        }
+        return out;
+      };
+      const whole = (selection: readonly string[]) => {
+        const has = new Set(selection);
+        return selection.every((id) => descendants(id).every((d) => has.has(d)));
+      };
+      let selection: readonly string[] = [];
+      for (let step = 0; step < 30; step++) {
+        // A filter: matches, kept with their ancestors (none: no filter).
+        const kept = new Set<string>();
+        const filtered = next() < 0.6;
+        for (const id of all) {
+          if (filtered && next() < 0.6) continue;
+          for (let up: string | undefined = id; up !== undefined; up = parentOf.get(up)) {
+            kept.add(up);
+          }
+        }
+        const shown = all.filter((id) => kept.has(id));
+        if (shown.length === 0) continue;
+        const tree = branchTree(
+          kids,
+          all.filter((id) => !kept.has(id)),
+        );
+        const before = new Set(selection);
+        const op = next();
+        const id = pick(shown);
+        let after: readonly string[];
+        if (op < 0.5) after = toggleBranch(selection, id, tree);
+        else if (op < 0.65) after = withBranches([], [id], tree);
+        else if (op < 0.85) {
+          const from = shown.indexOf(id);
+          const to = Math.floor(next() * shown.length);
+          after = withBranches(
+            next() < 0.5 ? selection : [],
+            shown.slice(Math.min(from, to), Math.max(from, to) + 1),
+            tree,
+          );
+        } else after = withBranches(selection, shown, tree);
+        expect(whole(after), `seed ${String(seed)} step ${String(step)}`).toBe(true);
+        expect(new Set(after).size).toBe(after.length);
+        for (const row of after) {
+          if (!kept.has(row)) expect(before.has(row)).toBe(true);
+        }
+        // Without a filter, ticking a row selects its whole branch.
+        if (!filtered && op >= 0.5 && op < 0.65) {
+          expect(after).toEqual(expect.arrayContaining([id, ...descendants(id)]));
+        }
+        selection = after;
+      }
+    }
   });
 });

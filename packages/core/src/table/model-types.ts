@@ -17,6 +17,7 @@ import type {
   FilterValue,
   PinnedRows,
   RowPin,
+  SelectionState,
   SortState,
   TreeExpandedState,
 } from '../types.js';
@@ -333,14 +334,23 @@ export interface TableModel<TData, TContent> {
   indexOf(rowId: string): number | undefined;
   /**
    * The ids of the rows that can be selected, in row order: every row of the row
-   * model, or only the loaded ones for remote rows. With `branches` and a tree,
-   * every row the filters keep, rows under collapsed rows included, depth-first.
+   * model, or only the loaded ones for remote rows.
    */
-  selectableIds(branches?: boolean): string[];
+  selectableIds(): string[];
+  /**
+   * Select-all with branches: `current` plus every row the filters keep
+   * (collapsed ones included, depth-first), where a parent's id is added only
+   * when its whole branch ends up selected, filters not applied; kept parents
+   * selected against that rule lose their ids. What `withBranches` gives for
+   * every kept row, in one pass over typed arrays. `selected` is `current` as a
+   * set (made here when not given). `current` as it is without a tree.
+   */
+  branchSelectAll(current: readonly string[], selected?: ReadonlySet<string>): SelectionState;
   /**
    * The rows the filters keep as a tree of ids (collapsed rows don't matter),
-   * for `withBranches` and `toggleBranch`; `undefined` without a tree. Kept per
-   * filter and sort result.
+   * with each row's children in the whole tree, for `withBranches` and
+   * `toggleBranch`; `undefined` without a tree. Kept per filter and sort
+   * result.
    */
   branchTree(): BranchTree | undefined;
   /**
@@ -352,6 +362,14 @@ export interface TableModel<TData, TContent> {
    * every row is `'none'`.
    */
   branchCheck(selected: ReadonlySet<string>): (index: number) => BranchCheck;
+  /**
+   * The select-all checkbox with branches, for a selection: `'all'` when every
+   * row the filters keep counts as checked (as `toggleBranch` decides: its kept
+   * descendants selected, and its own id unless descendants the filters hide
+   * keep it out), `'some'` when any of them is selected, else `'none'`. Worked
+   * out and kept with `branchCheck`.
+   */
+  branchCheckAll(selected: ReadonlySet<string>): BranchCheck;
   /** The value a column reads from the row at `index`. */
   valueAt(index: number, columnId: string): unknown;
   /** The value a column reads from any row object, as its accessor gets it at `index`. */

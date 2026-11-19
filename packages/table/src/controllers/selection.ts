@@ -173,11 +173,16 @@ export class SelectionController<T> {
 
   /**
    * Selects every selectable row, keeping the others (with a `dataSource`: the
-   * loaded ones; with branches, every row the filters keep).
+   * loaded ones; with branches, every row the filters keep, and the parents'
+   * ids where their whole branch is selected).
    */
   selectAll(): void {
+    const model = this.#model();
+    const current = this.state.value;
     this.#request({
-      selection: selectAll(this.state.value, this.#model().selectableIds(this.#branches())),
+      selection: this.#branches()
+        ? model.branchSelectAll(current, this.#selected())
+        : selectAll(current, model.selectableIds()),
       anchor: this.#anchor,
     });
   }
@@ -306,24 +311,24 @@ export class SelectionController<T> {
 
   /**
    * Whether all, some or none of the selectable rows are selected (with
-   * branches, every row the filters keep). With `data` it's worked out once per
-   * selection and row order (data, sort, filters, expanded rows; with branches
-   * the kept rows' tree, so expanding a row doesn't count again), not on
-   * scroll; with a `dataSource` every time, over the loaded rows, which
-   * eviction keeps few.
+   * branches, whether every row the filters keep counts as checked: core's
+   * `branchCheckAll`, kept per selection and kept rows' tree, so expanding a
+   * row doesn't count again). With `data` it's worked out once per selection
+   * and row order (data, sort, filters, expanded rows), not on scroll; with a
+   * `dataSource` every time, over the loaded rows, which eviction keeps few.
    */
   #checkAllState(): CheckAll['state'] {
     const model = this.#model();
-    const branches = this.#branches();
+    if (this.#branches()) return model.branchCheckAll(this.#selected());
     const count = (): CheckAll['state'] => {
-      const ids = model.selectableIds(branches);
+      const ids = model.selectableIds();
       const selected = this.#selected();
       const n = ids.reduce((sum, id) => (selected.has(id) ? sum + 1 : sum), 0);
       if (n === 0) return 'none';
       return n === ids.length ? 'all' : 'some';
     };
     if (this.#remote()) return count();
-    const key = [this.state.value, branches ? model.branchTree() : model.rowOrder];
+    const key = [this.state.value, model.rowOrder];
     const cached = this.#checkAll;
     if (cached?.key.every((k, i) => k === key[i])) return cached.state;
     const state = count();

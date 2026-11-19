@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { toggleBranch, withBranches } from '../state/selection.js';
 import type { ColumnDef } from '../types.js';
 import {
   createTableModel,
@@ -1605,13 +1606,13 @@ describe('tree rows', () => {
     expect(model().sourceRow(2)).toBe(people[2]);
   });
 
-  it('selectableIds lists shown rows, or every kept row with branches', () => {
+  it('selectableIds lists shown rows; branchSelectAll every kept row', () => {
     const m = tmodel();
     expect(m.selectableIds()).toEqual(['0', '1']);
-    expect(m.selectableIds(true)).toEqual(['0', '0.0', '0.1', '1', '1.0']);
+    expect(m.branchSelectAll([])).toEqual(['0', '0.0', '0.1', '1', '1.0']);
     m.update({ columnFilters: matchB1 });
-    expect(m.selectableIds(true)).toEqual(['1', '1.0']);
-    expect(model().selectableIds(true)).toEqual(['0', '1', '2', '3']);
+    expect(m.branchSelectAll(['x'])).toEqual(['x', '1', '1.0']);
+    expect(model().branchSelectAll(['x'])).toEqual(['x']);
   });
 
   it('offers child rows values in set filters', () => {
@@ -1878,6 +1879,17 @@ describe('tree branch selection', () => {
     expect(tree?.parent('B1')).toBeUndefined();
   });
 
+  it('branchTree gives every row its children in the whole tree too', () => {
+    const m = bmodel({ columnFilters: { name: { kind: 'text', op: 'equals', value: 'A1' } } });
+    const tree = m.branchTree();
+    expect(tree?.allChildren('A')).toEqual(['A1', 'A2']);
+    expect(tree?.allChildren('B')).toEqual(['B1']);
+    expect(tree?.allChildren('A1')).toEqual([]);
+    expect(tree?.allChildren('nope')).toEqual([]);
+    // Without a filter they're the kept children.
+    expect(bmodel().branchTree()?.allChildren('A')).toEqual(['A1', 'A2']);
+  });
+
   it('branchTree is undefined without a tree', () => {
     expect(bmodel({ getSubRows: undefined }).branchTree()).toBeUndefined();
   });
@@ -1903,6 +1915,8 @@ describe('tree branch selection', () => {
 
   it('branchCheck counts only the descendants the filters keep', () => {
     const m = bmodel({ columnFilters: { name: { kind: 'text', op: 'equals', value: 'A1' } } });
+    expect(checks(m, ['A1'])).toEqual({ A: 'some', A1: 'all' });
+    // A's id without A2 breaks the rules: shown as it is.
     expect(checks(m, ['A', 'A1'])).toEqual({ A: 'all', A1: 'all' });
   });
 
@@ -1947,5 +1961,191 @@ describe('tree branch selection', () => {
     const took = performance.now() - start;
     expect([check(4), check(5), check(6)]).toEqual(['none', 'some', 'none']);
     expect(took).toBeLessThan(300);
+  });
+});
+
+describe('branch selection under a filter: whole branches only', () => {
+  interface Node {
+    name: string;
+    kids?: Node[];
+  }
+  // P0{C0.0, C0.1, C0.2}, P1{…}, P2{…}; ids '0', '0.0', …
+  const data: Node[] = [0, 1, 2].map((p) => ({
+    name: `P${String(p)}`,
+    kids: [0, 1, 2].map((c) => ({ name: `C${String(p)}.${String(c)}` })),
+  }));
+  const tmodel = (quickFilter?: string) =>
+    createTableModel<Node, string>({
+      columns: [{ id: 'name', accessor: 'name' }],
+      data,
+      getRowId: undefined,
+      sorting: [],
+      columnSizing: {},
+      getSubRows: (row) => row.kids,
+      treeExpanded: ['0', '1', '2'],
+      quickFilter,
+    });
+  const states = (m: ReturnType<typeof tmodel>, selected: readonly string[]) => {
+    const check = m.branchCheck(new Set(selected));
+    const out: Record<string, string> = {};
+    for (let i = 0; i < m.rowCount; i++) out[m.rowAt(i)?.id ?? ''] = check(i);
+    return out;
+  };
+  const tick = (m: ReturnType<typeof tmodel>, current: readonly string[], id: string) => {
+    const tree = m.branchTree();
+    if (!tree) throw new Error('no tree');
+    return toggleBranch(current, id, tree);
+  };
+  /** Select-all, checked against `withBranches` over every kept row. */
+  const selectAll = (m: ReturnType<typeof tmodel>, current: readonly string[]) => {
+    const tree = m.branchTree();
+    if (!tree) throw new Error('no tree');
+    const kept: string[] = [];
+    for (let i = 0; i < m.rowCount; i++) kept.push(m.rowAt(i)?.id ?? '');
+    const all = m.branchSelectAll(current);
+    expect([...all].sort()).toEqual([...withBranches(current, kept, tree)].sort());
+    return all;
+  };
+
+  it('ticking a parent selects its shown rows, not its id; clearing the filter shows it part-ticked', () => {
+    const m = tmodel('C0.1');
+    const selection = tick(m, [], '0');
+    expect(selection).toEqual(['0.1']);
+    expect(states(m, selection)).toEqual({ '0': 'some', '0.1': 'all' });
+    m.update({ quickFilter: undefined });
+    expect(states(m, selection)).toMatchObject({ '0': 'some', '0.0': 'none', '0.1': 'all' });
+    expect(selection).not.toContain('0');
+  });
+
+  it('a part-ticked parent whose shown rows are all selected unticks, then ticks again', () => {
+    const m = tmodel('C0.1');
+    const ticked = tick(m, [], '0');
+    expect(m.branchCheckAll(new Set(ticked))).toBe('all');
+    const unticked = tick(m, ticked, '0');
+    expect(unticked).toEqual([]);
+    expect(m.branchCheckAll(new Set(unticked))).toBe('none');
+    expect(tick(m, unticked, '0')).toEqual(['0.1']);
+  });
+
+  it("adds the parent's id once the rows the filter hides are selected", () => {
+    const m = tmodel('C0.1');
+    const selection = tick(m, ['0.0', '0.2'], '0');
+    expect([...selection].sort()).toEqual(['0', '0.0', '0.1', '0.2']);
+    expect(states(m, selection)).toEqual({ '0': 'all', '0.1': 'all' });
+    // Unticking leaves the hidden rows selected.
+    expect(tick(m, selection, '0')).toEqual(['0.0', '0.2']);
+  });
+
+  it('select-all selects the shown rows, with parent ids only for whole branches', () => {
+    const m = tmodel('C0.1');
+    expect(selectAll(m, [])).toEqual(['0.1']);
+    expect(m.branchCheckAll(new Set(['0.1']))).toBe('all');
+    expect(selectAll(m, ['0.0', '0.2'])).toEqual(['0.0', '0.2', '0', '0.1']);
+    // A filter matching parents and children: P1 and its children are kept.
+    const both = tmodel('1');
+    expect([...selectAll(both, [])].sort()).toEqual(['0.1', '1', '1.0', '1.1', '1.2', '2.1']);
+    expect(both.branchCheckAll(new Set(['0.1', '2.1']))).toBe('some');
+  });
+
+  it('a parent the filter keeps without its children is never checked', () => {
+    // 'P1' matches P1 alone.
+    const m = tmodel('P1');
+    expect(tick(m, [], '1')).toEqual([]);
+    expect(selectAll(m, [])).toEqual([]);
+    expect(m.branchCheckAll(new Set())).toBe('none');
+    expect(m.branchCheckAll(new Set(['1.0', '1.1', '1.2']))).toBe('none');
+  });
+
+  it('without a filter nothing changes', () => {
+    const m = tmodel();
+    const ticked = tick(m, [], '0');
+    expect([...ticked].sort()).toEqual(['0', '0.0', '0.1', '0.2']);
+    expect(states(m, ticked)).toMatchObject({ '0': 'all', '0.1': 'all', '1': 'none' });
+    expect(m.branchCheckAll(new Set(ticked))).toBe('some');
+    expect(tick(m, ticked, '0')).toEqual([]);
+    expect(tick(m, ['0.0', '0.1', '0.2'], '0')).toEqual(['0.0', '0.1', '0.2', '0']);
+    const all = selectAll(m, []);
+    expect(all).toHaveLength(12);
+    expect(m.branchCheckAll(new Set(all))).toBe('all');
+    // A whole branch without its parent's id isn't all of it.
+    expect(m.branchCheckAll(new Set(all.filter((id) => id !== '2')))).toBe('some');
+  });
+
+  it('select-all at a million rows under a filter stays linear', () => {
+    const big: Node[] = Array.from({ length: 100_000 }, (_, p) => ({
+      name: `P${String(p)}`,
+      kids: Array.from({ length: 9 }, (_, c) => ({ name: `${c === 0 ? 'x' : 'y'}${String(c)}` })),
+    }));
+    const m = createTableModel<Node, string>({
+      columns: [{ id: 'name', accessor: 'name' }],
+      data: big,
+      getRowId: undefined,
+      sorting: [],
+      columnSizing: {},
+      getSubRows: (row) => row.kids,
+      quickFilter: 'y',
+    });
+    const start = performance.now();
+    const all = m.branchSelectAll([]);
+    const state = m.branchCheckAll(new Set(all));
+    const took = performance.now() - start;
+    // Eight of each parent's nine children, and no parent.
+    expect(all).toHaveLength(800_000);
+    expect(state).toBe('all');
+    expect(took).toBeLessThan(1000);
+  });
+
+  it('branchSelectAll and branchCheckAll agree with the rules over random trees and filters', () => {
+    interface Flat {
+      id: string;
+      name: string;
+      parent: string | null;
+    }
+    let seed = 7;
+    const next = () => {
+      seed = (seed * 1103515245 + 12345) % 2147483648;
+      return seed / 2147483648;
+    };
+    for (let round = 0; round < 150; round++) {
+      const count = 1 + Math.floor(next() * 25);
+      const rows: Flat[] = Array.from({ length: count }, (_, i) => ({
+        id: `r${String(i)}`,
+        name: 'abc'.charAt(Math.floor(next() * 3)),
+        parent: i > 0 && next() < 0.75 ? `r${String(Math.floor(next() * i))}` : null,
+      }));
+      const m = createTableModel<Flat, string>({
+        columns: [{ id: 'name', accessor: 'name' }],
+        data: rows,
+        getRowId: (row) => row.id,
+        getParentId: (row) => row.parent,
+        sorting: [],
+        columnSizing: {},
+        treeExpanded: rows.map((row) => row.id),
+        quickFilter: next() < 0.7 ? 'abc'.charAt(Math.floor(next() * 3)) : undefined,
+      });
+      const tree = m.branchTree();
+      if (!tree) throw new Error('no tree');
+      const kept: string[] = [];
+      for (let i = 0; i < m.rowCount; i++) kept.push(m.rowAt(i)?.id ?? '');
+      const current = rows.filter(() => next() < 0.3).map((row) => row.id);
+      const selected = new Set(current);
+      expect([...m.branchSelectAll(current)].sort()).toEqual(
+        [...withBranches(current, kept, tree)].sort(),
+      );
+      // R3 per kept row, by brute force.
+      const keptDescendants = (id: string): string[] =>
+        tree.children(id).flatMap((child) => [child, ...keptDescendants(child)]);
+      const checked = (id: string) =>
+        keptDescendants(id).every((d) => selected.has(d)) &&
+        (selected.has(id) ||
+          (tree.children(id).length > 0 && tree.allChildren(id).some((c) => !selected.has(c))));
+      const expected =
+        kept.length > 0 && kept.every(checked)
+          ? 'all'
+          : kept.some((id) => selected.has(id))
+            ? 'some'
+            : 'none';
+      expect(m.branchCheckAll(selected)).toBe(expected);
+    }
   });
 });

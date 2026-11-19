@@ -111,13 +111,16 @@ export function clickSelection(
 }
 
 /**
- * The rows the filters keep, as a tree of ids, for selecting whole branches.
- * Rows outside it (unknown, or dropped by a filter) have no children and no
- * parent.
+ * The rows the filters keep, as a tree of ids, for selecting whole branches,
+ * with each row's children in the whole tree for the rule that a parent's id
+ * is selected only with its whole branch. Rows outside it (unknown, or dropped
+ * by a filter) have no kept children and no parent.
  */
 export interface BranchTree {
   /** A row's kept children, in row order. */
   children(id: string): readonly string[];
+  /** A row's children in the whole tree, filters not applied, in any order. */
+  allChildren(id: string): readonly string[];
   /** A row's parent; `undefined` for a top-level row or one outside the tree. */
   parent(id: string): string | undefined;
 }
@@ -128,66 +131,81 @@ export interface BranchTree {
  */
 export type BranchCheck = 'all' | 'some' | 'none';
 
-const SELECTED = 1;
-const WALKED = 2;
-
 /**
- * `current` plus each of `ids` with all its kept descendants; then, from each
- * of `ids` up, each ancestor whose kept children are now all selected, up to
- * the first that has one left unselected. That one and every ancestor above it
+ * `current` plus each of `ids` with all its kept descendants, where a parent's
+ * own id is added only when its whole branch is selected, filters not applied:
+ * descendants the filters hide are never selected here, so a parent with one
+ * of them unselected stays out (and its ancestors with it). Then, from each of
+ * `ids` up, each ancestor whose children are now all selected, up to the
+ * first that has one left unselected. That one and every ancestor above it
  * aren't whole branches, so those that are selected (a value set against the
- * rules) lose their ids: what the user changes comes back normalized. Keeps
- * `current`'s order and appends the new ids. Iterative, so a deep tree can't
- * overflow the stack; linear in the rows added and the children of the
- * ancestors reached, whose unselected children are counted once per call.
+ * rules) lose their ids, as do selected parents in the branches walked: what
+ * the user changes comes back normalized. Keeps `current`'s order and appends
+ * the new ids. Iterative, so a deep tree can't overflow the stack; linear in
+ * the branches walked and the children of the parents reached.
  */
 export function withBranches(
   current: readonly string[],
   ids: readonly string[],
   tree: BranchTree,
 ): SelectionState {
-  const selection = [...current];
-  // Selected rows: `SELECTED`, or `WALKED` once their descendants are added.
-  const have = new Map<string, number>();
-  for (const id of current) have.set(id, SELECTED);
-  const add = (id: string): boolean => {
-    if (have.has(id)) return false;
-    have.set(id, SELECTED);
-    selection.push(id);
-    return true;
-  };
+  const have = new Set(current);
+  const added: string[] = [];
+  const whole = (id: string): boolean => tree.allChildren(id).every((child) => have.has(child));
 
-  // Down: each id and its descendants, each row walked once.
-  const stack: string[] = [];
+  // Down: each id's kept branch, each row walked once, then its ids from the
+  // bottom up (children before parents), each parent's only if it's whole.
+  const walked = new Set<string>();
+  const roots: string[] = [];
   for (const id of ids) {
-    stack.push(id);
+    if (walked.has(id)) continue;
+    roots.push(id);
+    const order: string[] = [];
+    const stack = [id];
     while (stack.length > 0) {
       const row = stack.pop() ?? '';
-      const state = have.get(row);
-      if (state === WALKED) continue;
-      have.set(row, WALKED);
-      if (state === undefined) selection.push(row);
+      if (walked.has(row)) continue;
+      walked.add(row);
+      order.push(row);
       for (const child of tree.children(row)) stack.push(child);
     }
+    const fresh: string[] = [];
+    for (let k = order.length - 1; k >= 0; k--) {
+      const row = order[k] ?? '';
+      if (!whole(row)) have.delete(row);
+      else if (!have.has(row)) {
+        have.add(row);
+        fresh.push(row);
+      }
+    }
+    // Appended in walk order, parents first.
+    for (let k = fresh.length - 1; k >= 0; k--) added.push(fresh[k] ?? '');
   }
 
-  // Up: a row's unselected children are counted when first reached, and the
-  // count drops as its children join, so no row is counted twice.
+  // Up from the roots of the walks (a root under another walk was counted
+  // there): a row's unselected children are counted when first reached, and
+  // the count drops as its children join, so no row is counted twice.
+  const tops = roots.filter((id) => {
+    const up = tree.parent(id);
+    return up === undefined || !walked.has(up);
+  });
   const missing = new Map<string, number>();
   const complete = new Set<string>();
-  for (const id of ids) {
+  for (const id of tops) {
     for (let up = tree.parent(id); up !== undefined; up = tree.parent(up)) {
       // Reached from another child before: everything above it is done.
       if (complete.has(up)) break;
       let left = missing.get(up);
       if (left === undefined) {
         left = 0;
-        for (const child of tree.children(up)) if (!have.has(child)) left++;
+        for (const child of tree.allChildren(up)) if (!have.has(child)) left++;
         missing.set(up, left);
       }
       if (left > 0) break;
       complete.add(up);
-      if (!add(up)) continue;
+      if (have.has(up)) continue;
+      have.add(up);
+      added.push(up);
       const above = tree.parent(up);
       const count = above === undefined ? undefined : missing.get(above);
       if (above !== undefined && count !== undefined) missing.set(above, count - 1);
@@ -196,33 +214,35 @@ export function withBranches(
 
   // Up again, dropping selected ancestors above the first incomplete one. Each
   // row is passed once while complete and once above an incomplete one.
-  const drop = new Set<string>();
   const passed = new Set<string>();
   const broken = new Set<string>();
-  for (const id of ids) {
-    let whole = true;
+  for (const id of tops) {
+    let intact = true;
     for (let up = tree.parent(id); up !== undefined; up = tree.parent(up)) {
-      if (whole && complete.has(up)) {
+      if (intact && complete.has(up)) {
         if (passed.has(up)) break;
         passed.add(up);
         continue;
       }
-      whole = false;
+      intact = false;
       if (broken.has(up)) break;
       broken.add(up);
-      if (have.has(up)) drop.add(up);
+      have.delete(up);
     }
   }
-  return drop.size === 0 ? selection : selection.filter((s) => !drop.has(s));
+  return [...current, ...added].filter((id) => have.has(id));
 }
 
 /**
- * A click on a row's checkbox with branches. When its checkbox shows `'all'`
- * (the row and every kept descendant are in `selected`): deselects the row,
- * its kept descendants and its ancestors, since a parent stays selected only
- * with its whole branch. Otherwise selects the branch (`withBranches`).
- * Descendants the filters drop are left as they are. O(branch) beyond
- * `selected`, which is `current` as a set (made here when not given).
+ * A click on a row's checkbox with branches. When the row counts as checked,
+ * deselects it, its kept descendants and its ancestors, since a parent stays
+ * selected only with its whole branch; otherwise selects the branch
+ * (`withBranches`). Checked: every kept descendant is selected, and the row's
+ * own id too, unless descendants the filters hide keep it out (a parent whose
+ * shown rows are all selected under a filter: its checkbox is part-ticked, and
+ * a click unticks it). Descendants the filters hide are left as they are.
+ * O(branch) beyond `selected`, which is `current` as a set (made here when not
+ * given).
  */
 export function toggleBranch(
   current: readonly string[],
@@ -230,15 +250,22 @@ export function toggleBranch(
   tree: BranchTree,
   selected: ReadonlySet<string> = new Set(current),
 ): SelectionState {
-  const drop = new Set<string>();
-  const stack = [id];
+  const drop = new Set([id]);
+  const stack = [...tree.children(id)];
   while (stack.length > 0) {
     const row = stack.pop() ?? '';
-    // Not all selected: select the branch instead.
+    // A kept descendant isn't selected: select the branch instead.
     if (!selected.has(row)) return withBranches(current, [id], tree);
     if (drop.has(row)) continue;
     drop.add(row);
     for (const child of tree.children(row)) stack.push(child);
+  }
+  // Without its own id, checked only when hidden children keep it out.
+  if (
+    !selected.has(id) &&
+    (drop.size === 1 || tree.allChildren(id).every((child) => selected.has(child)))
+  ) {
+    return withBranches(current, [id], tree);
   }
   for (let up = tree.parent(id); up !== undefined && !drop.has(up); up = tree.parent(up)) {
     drop.add(up);
