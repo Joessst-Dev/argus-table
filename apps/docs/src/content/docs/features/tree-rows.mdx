@@ -108,7 +108,9 @@ const dataSource: DataSource<Folder> = {
       filters: JSON.stringify(filters),
       q: quickFilter,
     });
-    const response = await fetch(`/api/folders/${parentId}/children?${query}`, { signal });
+    const response = await fetch(`/api/folders/${encodeURIComponent(parentId)}/children?${query}`, {
+      signal,
+    });
     return { rows: (await response.json()) as Folder[] }; // [] removes the toggle
   },
 };
@@ -116,7 +118,7 @@ const dataSource: DataSource<Folder> = {
 
 Expanding a row calls `getChildren` once, with the current sort, filters and quick filter: return the children sorted like the rows, and those that match a filter or hold a match. Until the answer arrives, a loading row shows under the row. Children stay loaded, and collapsing keeps them, so a row opened again needs no request. A new source, sort, filters, quick filter or `getRowId`, or `refresh()`, drops them all (requests in flight are aborted through `signal`), and the expanded rows load their children again once their own rows have loaded; a `treeExpanded` restored with `setState()` opens the same way, as pages arrive.
 
-When `getChildren` rejects, the loading row shows a Retry button instead (its name is the `retryChildren` [label](../labels/)), and the table fires `argus-load-error` with the row's id as `parentId`; its `start` is the row's index among the rows shown and `end` the next one. Retry, or expanding the row again, asks again.
+When `getChildren` rejects, the loading row shows a Retry button instead (its name is the `retryChildren` [label](../labels/)), and the table fires `argus-load-error` with the row's id as `parentId`; its `start` is the row's index among the rows shown (`-1` while a collapsed ancestor hides it) and `end` the next one. Retry, or expanding the row again, asks again. A row collapsed before its request failed fires nothing and shows no Retry: its next expand asks again.
 
 Here a shared drive pages its 200 top-level entries from a pretend server that answers after a short delay; every project folder holds folders of its own. Expand one and its entries load. Sort by Name or Size: the open folders load their entries again, in the new order.
 
@@ -126,9 +128,9 @@ Here a shared drive pages its 200 top-level entries from a pretend server that a
   <LazyTreeComponent slot="angular" client:visible />
 </FlavourTabs>
 
-A child's id is `getRowId(row, index)` with its index among its siblings, or without `getRowId` its parent's id, a dot and that index (`'3.0'`, `'3.0.2'`), as for nested data. Give `getRowId` the server's ids, unique across levels, as the example does: an index changes when the server's answer does. `getRows`'s `start` and `end` and its `total` count top-level rows only; every other index counts the rows shown, top-level rows and the loaded children of expanded rows, as in any tree: `scrollToRow(index)`, the click events and `argus-range-change`.
+A child's id is `getRowId(row, index)` with its index among its siblings, or without `getRowId` its parent's id, a dot and that index (`'3.0'`, `'3.0.2'`), as for nested data. Give `getRowId` the server's ids, unique across levels, as the example does: an index changes when the server's answer does. `getRows`'s `start` and `end` and its `total` count top-level rows only; every other index counts the rows shown, top-level rows and the loaded children of expanded rows, as in any tree: `scrollToRow(index)`, the click events, `argus-range-change` and a failed page's `argus-load-error`.
 
-The server filters, at every level. The table can't know which collapsed rows hold a match without loading their children, so a filter opens no rows here and disables no toggles: only `treeExpanded` opens rows, and the children of an expanded row load with the filters. With `selectBranches`, a tick reaches the loaded rows: a row whose children aren't loaded counts as a row without children, and children that arrive under a ticked row join the selection (with an `argus-selection-change`). While a filter or the quick filter is on, a parent's id is never selected, since the server may not have sent all of its children.
+The server filters, at every level. The table can't know which collapsed rows hold a match without loading their children, so a filter opens no rows here and disables no toggles: only `treeExpanded` opens rows, and the children of an expanded row load with the filters. With `selectBranches`, a tick reaches the loaded rows: a row whose children aren't loaded counts as a row without children, and children that arrive under a ticked row join the selection (with an `argus-selection-change`). While a filter or the quick filter is on, a parent's id is never selected, since the server may not have sent all of its children; so a row whose children haven't loaded has nothing to tick, and its checkbox is disabled until it's expanded.
 
 ## Limits
 

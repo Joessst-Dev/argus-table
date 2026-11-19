@@ -326,7 +326,10 @@ export class DataController<T> implements ReactiveController {
         if (!current()) return;
         this.#requests.delete(page);
         cache.fail(page);
-        this.#errors.push({ error, start, end });
+        // In a tree, shown indexes: open rows above the page push it down.
+        const tree = this.#tree;
+        const shown = (top: number) => tree?.positionOfTop(top) ?? tree?.rowCount ?? top;
+        this.#errors.push({ error, start: shown(start), end: shown(end) });
         this.#host.requestUpdate();
       },
     );

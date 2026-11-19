@@ -75,7 +75,12 @@ function sorted(items: readonly DriveItem[], sorting: SortState): DriveItem[] {
   if (!by) return [...items];
   const key = by.id as keyof DriveItem;
   const dir = by.desc ? -1 : 1;
-  return [...items].sort((a, b) => (a[key] < b[key] ? -dir : a[key] > b[key] ? dir : 0));
+  return [...items].sort((a, b) => {
+    const x = a[key];
+    const y = b[key];
+    if (typeof x === 'string' && typeof y === 'string') return dir * x.localeCompare(y);
+    return x < y ? -dir : x > y ? dir : 0;
+  });
 }
 
 /** Resolves after 200–400 ms, or rejects when the table aborts the request. */

@@ -665,8 +665,9 @@ export interface DataSource<TData> {
 export interface LoadErrorDetail {
   error: unknown;
   /**
-   * Index of the first row, inclusive. For children, the parent's index among the
-   * rows shown, `-1` if it isn't shown (an ancestor collapsed).
+   * Index of the first row, inclusive, among the rows shown (with tree rows, open
+   * rows' children above count). For children, the parent's index, `-1` if it
+   * isn't shown (an ancestor collapsed).
    */
   start: number;
   /** Index after the last row, exclusive. For children, the parent's index plus one. */

@@ -512,6 +512,23 @@ describe('tree rows from a data source', () => {
     expect(rowsInOrder(el).some((r) => rowText(r)[0] === 'Person 10')).toBe(true);
   });
 
+  test('a failed page reports shown indexes, counting open rows’ children above it', async () => {
+    const { source, calls, childCalls } = server(1000, { kids: 50 });
+    const el = await loaded(source, calls);
+    const errors = events<LoadErrorDetail>(el, 'argus-load-error');
+    await toggle(el, 'Person 0');
+    await answer(el, childCalls);
+    await scrollTo(el, 60 * 40);
+    await load(el);
+    expect(calls[1]?.request).toMatchObject({ start: 20, end: 40 });
+    const failure = new Error('offline');
+    calls[1]?.reject(failure);
+    await Promise.resolve();
+    await settle(el);
+    // Top-level rows 20–39 are shown rows 70–89: Person 0's 50 children come first.
+    expect(errors).toEqual([{ error: failure, start: 70, end: 90 }]);
+  });
+
   test('children of children load on expand', async () => {
     const { source, calls, childCalls } = server(100, { depth: 2, kids: 2 });
     const el = await loaded(source, calls);

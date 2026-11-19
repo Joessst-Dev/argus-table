@@ -115,7 +115,8 @@ test.describe('tree rows from a data source', () => {
     await toggleAt(page, 2).click();
     await settle(page);
     expect(await treeExpanded(page)).toEqual(['r0']);
-    expect(await childRequests(page)).toEqual([{ parentId: 'r0', sorting: [] }]);
+    // The request starts after the load debounce.
+    await expect.poll(() => childRequests(page)).toEqual([{ parentId: 'r0', sorting: [] }]);
     expect(await rowAt(page, 2)).toMatchObject({ expanded: 'true', text: 'r0' });
     expect(await rowAt(page, 3)).toMatchObject({ level: '2', loading: true, error: false });
     expect(await rowAt(page, 4)).toMatchObject({ level: '1', text: 'r1' });
@@ -159,7 +160,9 @@ test.describe('tree rows from a data source', () => {
     await expect.poll(() => rowAt(page, 1008)).toMatchObject({ level: '1', text: 'r999' });
 
     // Back to r0.0, then ArrowLeft: collapse it, to its parent, collapse that.
+    // The top page was evicted: wait for it, since Left collapses only loaded rows.
     await press(page, 'ControlOrMeta+Home');
+    await loaded(page);
     await press(page, 'ArrowDown');
     await press(page, 'ArrowDown');
     expect(await focused(page)).toEqual({ role: 'gridcell', col: 'index', rowIndex: 3 });
@@ -177,6 +180,7 @@ test.describe('tree rows from a data source', () => {
     await press(page, 'ArrowRight');
     expect(await treeExpanded(page)).toEqual(['r0']);
     expect(await rowAt(page, 3)).toMatchObject({ level: '2', loading: false, text: 'r0.0' });
+    // A smoke check: tree-server.test.ts proves no request follows the debounce.
     expect(await childRequests(page)).toHaveLength(2);
   });
 

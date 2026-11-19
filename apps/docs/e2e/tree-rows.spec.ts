@@ -111,7 +111,8 @@ for (const flavour of FLAVOURS) {
 
     // Sorting by Name: the open folders load their entries again, in the new order.
     await table.locator('[role="columnheader"][data-col="name"]').click();
-    await expect.poll(() => cellText(table, 3, 'name'), { timeout: 5000 }).toBe('README.md');
+    await expect.poll(() => cellText(table, 3, 'name'), { timeout: 5000 }).toBe('docs');
+    await expect.poll(() => cellText(table, 5, 'name')).toBe('README.md');
     await expect.poll(() => cellText(table, 6, 'name'), { timeout: 5000 }).toBe('src');
     await expect(rowAt(table, 6)).toHaveAttribute('aria-expanded', 'true');
     await expect.poll(() => cellText(table, 7, 'name'), { timeout: 5000 }).toBe('components');
