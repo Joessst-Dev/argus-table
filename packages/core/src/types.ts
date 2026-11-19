@@ -50,9 +50,10 @@ export interface CellContext<TData> {
   /** Set for a row from `pinnedRows`: the side it is pinned to. */
   pinned?: RowPin;
   /**
-   * The row's level in a tree of rows (`getSubRows` or `getParentId`): `0` for a
-   * top-level row, `1` for its children, and so on. Set for body rows only, and
-   * only when the rows form a tree.
+   * The row's level in a tree of rows (`getSubRows`, `getParentId`, or a
+   * `dataSource` with `hasChildren` and `getChildren`): `0` for a top-level row,
+   * `1` for its children, and so on. Set for body rows only, and only when the
+   * rows form a tree.
    */
   depth?: number;
 }
@@ -360,9 +361,10 @@ export interface RowDetailContext<TData> {
 
 /**
  * The rows of a tree that are expanded (their children shown), as row ids: from
- * `getRowId`, else the default ids. Those are a row's index in `data`, except for
- * the children in nested data (`getSubRows`), whose id is the parent's id, a dot
- * and the index among its siblings (`'3.0'`, `'3.0.2'`).
+ * `getRowId`, else the default ids. Those are a row's index in `data` (or among
+ * a `dataSource`'s top-level rows), except for the children in nested data
+ * (`getSubRows`) and those from a `dataSource`'s `getChildren`, whose id is the
+ * parent's id, a dot and the index among its siblings (`'3.0'`, `'3.0.2'`).
  */
 export type TreeExpandedState = readonly string[];
 
@@ -421,7 +423,7 @@ export interface TableState {
   columnFilters?: ColumnFilterState;
   selection?: SelectionState;
   expanded?: ExpandedState;
-  /** The expanded rows of a tree (`getSubRows` or `getParentId`). */
+  /** The expanded rows of a tree (`getSubRows`, `getParentId`, or a `dataSource` with `hasChildren` and `getChildren`). */
   treeExpanded?: TreeExpandedState;
   quickFilter?: string;
   scroll?: ScrollState;
@@ -584,19 +586,94 @@ export interface RowsResponse<TData> {
   total?: number;
 }
 
-/** A remote source of rows, loaded page by page as they scroll into view. */
+/**
+ * What `getChildren()` receives: the row to load the children of, the sort order,
+ * the filters and an abort signal. It asks for all of the row's children.
+ */
+export interface ChildrenRequest<TData> {
+  /** The row whose children to load. */
+  parent: TData;
+  /** The row's id: from `getRowId`, else its default id. */
+  parentId: string;
+  /** The current sort order, to sort the children by. `[]` when unsorted. */
+  sorting: SortState;
+  /**
+   * The column filters, to filter the children by. `{}` when nothing is filtered.
+   * Return the children that match or hold a match: the table shows the rows it gets.
+   */
+  filters: ColumnFilterState;
+  /** The `quickFilter` text to match in any column. `''` when unset. */
+  quickFilter: string;
+  /**
+   * Aborted when the children are no longer needed: the source was reset (a new
+   * sort, filters, quick filter, `getRowId` or `refresh()`) or the table left the
+   * page. Not on collapse: children that arrive after it are kept.
+   */
+  signal: AbortSignal;
+}
+
+/** What `getChildren()` resolves to. */
+export interface ChildrenResponse<TData> {
+  /** All of the row's children, in order. `[]` when it has none: its toggle then goes away. */
+  rows: readonly TData[];
+}
+
+/**
+ * A remote source of rows, loaded page by page as they scroll into view.
+ *
+ * With `hasChildren` and `getChildren` the rows form a tree: `getRows` returns the
+ * top-level rows, and a row's children load with one `getChildren` call when it is
+ * expanded (`treeExpanded`), at every level. Children are kept until the
+ * source, the sort, the filters, the quick filter or `getRowId` change, or
+ * `refresh()`; collapsing keeps them. After such a reset, the children of
+ * expanded rows load again once their rows are loaded. Row ids must be unique
+ * across levels: a child's id can't be a top-level row's or another child's.
+ */
 export interface DataSource<TData> {
-  /** Loads one page of rows. Reject (or throw) to show the page as failed, with a Retry button. */
+  /**
+   * Loads one page of rows. Reject (or throw) to show the page as failed, with a
+   * Retry button. With `getChildren`, the top-level rows only: `start` and `end`
+   * count top-level rows.
+   */
   getRows(request: RowsRequest): Promise<RowsResponse<TData>>;
   /** Rows per request. Default: 100. */
   pageSize?: number;
+  /**
+   * Whether a row has children to load, so it gets a toggle. Called for loaded
+   * rows; keep it cheap (a field of the row). The rows form a tree only with
+   * `getChildren` set too.
+   */
+  hasChildren?(row: TData): boolean;
+  /**
+   * Loads all children of a row, sorted and filtered like the rows. Called when
+   * a row with `hasChildren` is expanded (or loads while expanded) and its
+   * children aren't loaded: they load once and stay (collapsing keeps them)
+   * until a reset. At most 6 calls are in flight; the others start as those
+   * settle. Until it resolves, a loading row shows under the row; reject (or
+   * throw) to show a row with a Retry button instead and fire `argus-load-error`
+   * with the row's `parentId` (not for a row collapsed meanwhile). A failed load
+   * is tried again on Retry or on the row's next expand. A child's id is
+   * `getRowId(row, index)` with its index among its siblings, else the parent's
+   * id, a dot and that index (`'3.0'`, `'3.0.2'`); ids must be unique across
+   * levels. The rows form a tree only with `hasChildren` set too.
+   */
+  getChildren?(request: ChildrenRequest<TData>): Promise<ChildrenResponse<TData>>;
 }
 
-/** `detail` of `argus-load-error`: what `getRows()` rejected with, and the rows it was asked for. */
+/**
+ * `detail` of `argus-load-error`: what `getRows()` or `getChildren()` rejected
+ * with, and the rows it was asked for.
+ */
 export interface LoadErrorDetail {
   error: unknown;
-  /** Index of the first row, inclusive. */
+  /**
+   * Index of the first row, inclusive, among the rows shown (with tree rows, open
+   * rows' children above count). For children, the parent's index, `-1` if it
+   * isn't shown (an ancestor collapsed).
+   */
   start: number;
-  /** Index after the last row, exclusive. */
+  /** Index after the last row, exclusive. For children, the parent's index plus one. */
   end: number;
+  /** Set when `getChildren()` failed: the id of the row whose children didn't load. */
+  parentId?: string;
 }

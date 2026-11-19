@@ -27,6 +27,7 @@ const german: Partial<TableLabels> = {
   filtered: 'Gefiltert',
   retry: 'Erneut versuchen',
   retryRows: ({ first, last }) => `Zeilen ${String(first)} bis ${String(last)} erneut laden`,
+  retryChildren: 'Untergeordnete Zeilen erneut laden',
   rowCount: ({ count }) => (count === 1 ? 'Eine Zeile' : `${String(count)} Zeilen`),
   columnMoved: ({ column, position, total }) =>
     `${column} ist jetzt Spalte ${String(position)} von ${String(total)}`,

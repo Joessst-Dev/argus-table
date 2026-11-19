@@ -1,7 +1,7 @@
 # ADR 0013: Tree rows inside the row pipeline
 
 - **Status:** Accepted (19 November 2026).
-- **Builds on:** [ADR 0010](0010-own-row-model.md) (core's own row model), [ADR 0011](0011-displayed-rows.md) (positions inside, data indexes outside) and [ADR 0004](0004-api-1-0.md) (additions only). Design: `docs/superpowers/specs/2026-11-18-tree-rows-design.md`; plan: `docs/superpowers/plans/2026-11-18-tree-rows.md`.
+- **Builds on:** [ADR 0010](0010-own-row-model.md) (core's own row model), [ADR 0011](0011-displayed-rows.md) (positions inside, data indexes outside) and [ADR 0004](0004-api-1-0.md) (additions only). Design: `docs/superpowers/specs/2026-11-18-tree-rows-design.md`; plans: `docs/superpowers/plans/2026-11-18-tree-rows.md` (step 1) and `docs/superpowers/plans/2026-11-19-tree-rows-server.md` (step 2).
 
 ## Context
 
@@ -14,7 +14,7 @@ What was already fixed:
 - **A top-level row's default id is its index in `data`.**
 - **Positions vs data indexes** (ADR 0011): the element works in positions (rows and panels) and converts at every public edge.
 
-The work comes in two steps: trees held in memory (this record), then children loaded from a `dataSource` when a row is expanded (step 2, designed in the spec, built later).
+The work comes in two steps: trees held in memory (the decision below), then children loaded from a `dataSource` when a row is expanded ([step 2](#step-2-children-from-a-data-source), recorded at the end).
 
 ## Decision
 
@@ -34,7 +34,7 @@ The work comes in two steps: trees held in memory (this record), then children l
 - **`depth`** is added to `CellContext`, `CellClickDetail`, `RowClickDetail`, `RowDetailContext` and the editing add-on's `argus-cell-edit`, only when there is a tree, so contexts without one are exactly as before.
 - **Plugin host**: `rowDepth(index, section?)` and `sourceRow(index)`, required members (plugins never implement the host). Formulas' whole columns read rows through `sourceRow`, so they cover child rows; `applyEdit` takes an optional fourth argument, `{ getSubRows, setSubRows }`, to copy the path to a nested child, and throws without it for a nested edit instead of returning `data` unchanged.
 - **Bad trees still show their rows**: a flat row whose parent isn't found or that is part of a cycle becomes top-level, and nested sub-rows that lead back to an ancestor end there, each with one warning per build. Both functions set: `getSubRows` wins, with a warning.
-- **With a `dataSource`, trees are ignored in step 1** (rows shown flat, one warning), until step 2.
+- **With a `dataSource`, `getSubRows` and `getParentId` are ignored** (one warning, pointing at the source's `hasChildren` and `getChildren`): a data source's tree is its own ([step 2](#step-2-children-from-a-data-source)).
 
 ## Options not taken
 
@@ -46,7 +46,48 @@ The work comes in two steps: trees held in memory (this record), then children l
 ## Consequences
 
 - Body indexes inside the model are source indexes when there is a tree; code reading `options.data[i]` for a body row reads `pipeline.source()` (`model.sourceRow`) instead.
-- **Step 2** (children from a `dataSource`) needs a mapping layer between the shown order and the top-level page cache's indexes (open parents and their shown descendant counts, binary search like `DisplayRows`); `getRows` keeps asking for top-level ranges. Until then the integrate skill lists lazy trees as a soft gap (`lazy-trees` in `gaps.md`).
 - **Row grouping** can produce group rows as synthetic parents in the same tree (rows not in `data`, after the nested children's source indexes); the tree column, keys and selection don't assume a parent is a data row.
 - Cost: the CDN bundle grows from 46.75 kB to 51.84 kB min+gzip (over the spec's estimate of 2–3 kB; whole-branch selection under filters, its one-pass select-all and blocked rows are 0.40 kB of it) and the editing add-on from 4.16 kB to 4.41 kB, both past their budgets (47 kB and 4.2 kB); with the owner's approval the budgets are now 52 kB and 4.5 kB.
 - Evidence: core tests in Node (`row-tree.test.ts`, `tree-order.test.ts`, `create-table.test.ts`, `selection.test.ts`), the table's in all three engines (`tree-rows.test.ts`, `tree-selection.test.ts`), the wrappers' content tests, e2e on a 1M-row tree in the playground (`tree=<n>`, `tests/e2e/specs/tree-rows.spec.ts`), the Tree rows story and the docs site's page with its e2e per flavour.
+
+## Step 2: children from a data source
+
+- **Status:** Accepted (19 November 2026).
+
+### Context
+
+With a `dataSource` the table holds only the pages near the scroll position (core's `PageCache`), and `getRows` pages by index. Lazy trees (Element Plus `lazy` + `load`, PrimeNG/PrimeVue lazy TreeTable, AG Grid's server-side tree data, MUI X's lazy loading) load a row's children when it opens, so step 1's `RowTree`, built from every row in memory, can't hold them. Step 1 fixed what step 2 had to keep: public indexes count the rows shown, `treeExpanded` is the expansion state, and the element's tree code (toggle, keys, ARIA, focus, selection) reads the model's `treeRow`, `nextTreeExpanded` and `shownAncestor`.
+
+### Decision
+
+**A remote tree is a `RemoteRows`** (`packages/core/src/data/remote-tree.ts`, `RemoteTree`): it wraps the top-level `PageCache` and the loaded children, and the model reads it through the interface it already reads remote rows through, so `DisplayRows`, positions, events and most of the element are unchanged.
+
+- **Public additions** (ADR 0004): `DataSource.hasChildren?(row)` and `DataSource.getChildren?(request)`, `ChildrenRequest<TData>` (`{ parent, parentId, sorting, filters, quickFilter, signal }`, no range, so `start`/`end` can be added for paged children), `ChildrenResponse<TData>` (`{ rows }`), `LoadErrorDetail.parentId?`, the label `retryChildren`. The rows form a tree only with both members; with one or neither they stay flat, read from the `PageCache` as before, and no `RemoteTree` is made. `getRows` keeps returning top-level rows, its `start`, `end` and `total` counting those.
+- **Optional tree members on `RemoteRows`** (core-internal: `order`, `treeRow`, `depthAt`, `canExpand`, `shownAncestor`, `forest`). The model treats a remote with `treeRow` as a tree: `tree`, `treeRow` and `shownAncestor` delegate to it, `nextTreeExpanded` opens a row when `canExpand` allows it (loaded, `hasChildren`, children not known to be none) and closes an id whether its row is loaded or not, `cellContext` gets `depth`, and `rowOrder` is `remote.order ?? remote`: `order` changes identity when loaded rows move (a row opens or closes, children load or fail), not when a page loads.
+- **The mapping.** The shown order is the top-level rows with each open row's shown descendants spliced in after it, at every level. `RemoteTree` keeps the open top-level rows sorted with prefix sums of their shown descendants, so a shown index resolves to a top-level index or a place in one open row's flattened subtree by binary search, O(log k) for k open top-level rows. A subtree is rebuilt only when something under it changes. `topRange(start, end)` converts the rendered range to the top-level rows it covers for `getRows` paging and eviction; `topIndexOf`, `positionOfTop` and `parentIdAt` convert the other way.
+- **One `getChildren` call per parent**, with the current sort, filters, quick filter and an abort signal, loading all of its children. `DataController` (`packages/table/src/controllers/data-controller.ts`) requests what `RemoteTree.wanted` lists (open rows whose own row is loaded, with every ancestor open, and whose children are neither loaded, in flight nor failed), at most `MAX_CHILD_REQUESTS` (6) in flight, the rest as those settle. Children load when the parent's row loads, not only when they scroll into view: they're small, and expanding stays cheap. An answer is dropped unless its request is current (not aborted, same tree).
+- **The child cache.** Children are kept per parent id; collapsing keeps them, and an answer that arrives after a collapse is kept too. Evicting a page doesn't drop them: an open top-level row whose page was evicted keeps its place (`#seen`) and its children, its own row showing as a skeleton. A new source, sort, filters, quick filter or `getRowId`, or `refresh()`, starts a new tree over a new cache and aborts the requests in flight; open rows' children load again once their own rows have loaded. An id in `treeExpanded` whose row isn't loaded opens when it loads, so a restored `treeExpanded` works as pages arrive.
+- **Kept counts.** Until its children arrive, an open row shows one loading row under it. Over a reset that keeps the rows, it shows as many as it showed before (`counts()` → `keepCounts`, `KeptCount`), so the rows below don't jump: `refresh()` keeps each open row's count with its top-level index (it counts as open there before its page loads again), a sort or `getRowId` change keeps the counts without positions (they apply once the row has loaded), and a new source or filter keeps none.
+- **Ids.** A child's id is `getRowId(row, index)` with its index among its siblings, else `` `${parentId}.${index}` `` (as nested data in step 1). Ids must be unique across levels; a duplicate warns once per table. Rows not loaded get reserved stand-in ids for the active cell (`NavigationController.#placeholderId`) anchored to what doesn't move as rows load above: a top-level row's top-level index, or a loading or failed child row's parent id and its place under it.
+- **`forced` is always `false`.** The server filters, at every level; the table can't know which collapsed rows hold a match without loading their children, so a filter opens no rows and disables no toggles. Only `treeExpanded` opens rows.
+- **Errors.** A failed `getChildren` leaves one error row under the parent with a Retry button named `retryChildren`; Retry (a click, or Enter on the row) asks again, and so does collapsing and expanding the row (a collapse forgets the failure, as a failed page scrolled back to loads again). `argus-load-error` fires with `parentId`, `start` the parent's shown index (`-1` when a collapsed ancestor hides it) and `end` that plus one: no new event. A row collapsed before its request failed fires nothing and shows no error. Failed pages in a tree report shown indexes too (`positionOfTop`), so open rows' children above count, like every other public index.
+- **Treegrid ARIA**: as step 1, with a top-level row's `aria-setsize` the total row count, `-1` while it isn't known. Keys: ArrowLeft on a loading or failed child row moves to its parent.
+- **Branch selection over the loaded rows.** `RemoteTree.forest()` gives the model the loaded rows (top-level rows and loaded children, collapsed or not) as a `TreeForest`, and step 1's rules run on it unchanged (`branchTree`, `branchCheck`, `branchSelectAll`); a row whose children aren't loaded is a leaf. Children that arrive under a selected parent join the selection through the normal change event (`SelectionController.arrived`, called outside an update, so a controlled host gets the proposed value). While a server filter or quick filter is on, the server may not have sent every child, so each row with children gets one hidden child in the forest, out of the layout and never selected: as with rows a client filter hides, a parent's id is then never selected, a tick selects the loaded rows under it, and a row without loaded children is blocked (its checkbox disabled) until they load. No change to `state/selection.ts`.
+- **Plugin host and add-ons.** `rowDepth()` knows loading rows' depth too (`RemoteTree.depthAt`); `sourceRow()` stays `undefined` with a `dataSource`. The export add-on exports the rows shown (loaded children included); with `allRows` it pages `getRows`, so top-level rows only.
+
+### Options not taken
+
+- **Children as a second kind of row next to the page cache**, read by the element beside `RemoteRows`. Every place that reads remote rows (rendering, focus, selection, events, `scrollToRow`, the plugin host) would need a second path; implementing `RemoteRows` keeps one.
+- **Loading children only while they're in view.** Requests would follow scrolling for rows that are small and cheap, and an open row above the view would show a loading row each time it came back.
+- **Dropping children with their parent's evicted page.** Scrolling away and back would load them again and collapse the counts below.
+- **One loading row after every reset.** Rows below each open row would jump when a sort or `refresh()` reloads; kept counts hold them in place.
+- **A separate event for failed children.** `argus-load-error` with `parentId` keeps one event for failed loads, and its `start`/`end` still name rows shown.
+- **Paged children** (`start`/`end` in `ChildrenRequest`), and **a server hint to open rows while filtering** (an optional `DataSource` member): left out; both can be added without breaking anything.
+
+### Consequences
+
+- The integrate skill no longer lists lazy trees as a gap: Element Plus `lazy` + `load` and PrimeNG/PrimeVue lazy TreeTables map to `hasChildren` + `getChildren`, AG Grid's server-side tree data and MUI X's lazy loading map partially (no paged children).
+- `getState().scroll.row` counts shown rows; restored with a `dataSource` tree, it can be off by the children of open rows above it whose pages don't load on the way.
+- Code that reads remote rows works in shown indexes; a top-level index is only for `getRows` (`topRange`, `topIndexOf`, `positionOfTop`). Use `DataController.rows` (the tree or the cache) for rows and `DataController.cache` for paging and `totalKnown`.
+- Cost: the CDN bundle grows from 51.84 kB to 55.69 kB min+gzip (`RemoteTree` is about 2.6 kB of it; a whole-branch review trimmed 0.26 kB without changing behaviour), past its 52 kB budget; with the owner's approval the budget is now 56 kB. The add-ons don't change.
+- Evidence: core tests in Node (`remote-tree.test.ts`, `create-table.test.ts`'s `remote tree rows`), the table's in all three engines (`tree-server.test.ts`), e2e on the playground's `source=remote&tree` (`tests/e2e/specs/tree-server.spec.ts`), the Tree rows story's `FromServer`, and the docs site's "Children from the server" with its `lazy-tree` example in four flavours and its e2e.

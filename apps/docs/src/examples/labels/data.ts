@@ -43,6 +43,7 @@ export const tableLabels = {
   filtered: 'Gefiltert',
   retry: 'Erneut versuchen',
   retryRows: ({ first, last }) => `Zeilen ${n.format(first)} bis ${n.format(last)} erneut laden`,
+  retryChildren: 'Untergeordnete Zeilen erneut laden',
   rowCount: ({ count: rows }) => count(rows, 'Zeile', 'Zeilen'),
   columnMoved: ({ column, position, total }) =>
     `${column} ist jetzt Spalte ${String(position)} von ${String(total)}`,

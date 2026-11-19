@@ -8,6 +8,8 @@ import {
   ArgusTableComponent,
   type AngularColumnDef,
   type ArgusPlugin,
+  type ChildrenRequest,
+  type ChildrenResponse,
   type ColumnDef,
   type ColumnFilter,
   type ColumnFilterState,
@@ -15,6 +17,7 @@ import {
   type ColumnPinningState,
   type ColumnSizingState,
   type ColumnVisibilityState,
+  type DataSource,
   type SortState,
 } from '../index.js';
 import { orders, type Order } from './data.js';
@@ -86,6 +89,12 @@ import { orders, type Order } from './data.js';
       [(treeExpanded)]="treeOpen"
       (argus-tree-expanded-change)="takeIds($event.detail.treeExpanded)"
     />
+    <argus-table
+      [dataSource]="source"
+      [(treeExpanded)]="treeOpen"
+      (rowClick)="takeOrder($event.detail.row)"
+      (argus-load-error)="takeParent($event.detail.parentId)"
+    />
   `,
 })
 export class TypesComponent {
@@ -102,6 +111,14 @@ export class TypesComponent {
   readonly parentOf = (o: Order) => o.parentId;
   readonly childrenOf = (o: Order) => o.children;
   readonly treeOpen = signal<readonly string[]>([]);
+  // A tree from a data source: `hasChildren` and `getChildren` get the row type.
+  readonly loadChildren = (request: ChildrenRequest<Order>): Promise<ChildrenResponse<Order>> =>
+    Promise.resolve({ rows: request.parent.children ?? [] });
+  readonly source: DataSource<Order> = {
+    getRows: () => Promise.resolve({ rows: orders }),
+    hasChildren: (o) => o.total > 0,
+    getChildren: (request) => this.loadChildren(request),
+  };
   readonly plugins: ArgusPlugin<Order>[] = [
     { name: 'totals', columns: (defs) => [...defs, { id: 'x2', accessor: (o) => o.total * 2 }] },
   ];
@@ -130,6 +147,9 @@ export class TypesComponent {
   }
   takeNumber(n: number): number {
     return n;
+  }
+  takeParent(id: string | undefined): string {
+    return id ?? '';
   }
   takeUnknown(error: unknown): unknown {
     return error;

@@ -150,6 +150,21 @@ function quickTerms(quickFilter: string | undefined): string[] {
 }
 
 /**
+ * Whether the column filters or the quick filter drop rows (a server's filters,
+ * where there are no columns to test): a filter that compiles to a test, or a
+ * word to find. Filters that keep every row, and blank text, don't count.
+ */
+export function filtersRows(
+  filters: ColumnFilterState | undefined,
+  quickFilter: string | undefined,
+): boolean {
+  return (
+    quickTerms(quickFilter).length > 0 ||
+    Object.values(filters ?? {}).some((filter) => compileFilter(filter) !== undefined)
+  );
+}
+
+/**
  * One test of a row for the column filters and the quick filter, or `undefined` when
  * they keep every row. A row passes every column filter, and each word of the quick
  * filter is found in the text of one of `quickColumns` (ignoring case).

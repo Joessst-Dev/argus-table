@@ -84,3 +84,39 @@ for (const flavour of FLAVOURS) {
     await expectAccessible(page, example);
   });
 }
+
+for (const flavour of FLAVOURS) {
+  test(`${flavour}: a lazy tree loads a folder's entries when it expands`, async ({ page }) => {
+    await page.goto('features/tree-rows/');
+    const example = await openFlavour(page, 'tree-rows/lazy-tree', flavour);
+    const table = example.locator('argus-table');
+    await expect(table).toHaveAttribute('role', 'treegrid');
+    await expect.poll(() => cellText(table, 2, 'name'), { timeout: 5000 }).toBe('Project 001');
+    await expect(rowAt(table, 2)).toHaveAttribute('aria-expanded', 'false');
+    await expect.poll(() => cellText(table, 3, 'name')).toBe('Project 002');
+
+    // Its toggle opens Project 001: its entries load in its place, a level deeper.
+    await rowAt(table, 2).locator('[part~="tree-toggle"]').click();
+    await expect(rowAt(table, 2)).toHaveAttribute('aria-expanded', 'true');
+    await expect.poll(() => cellText(table, 3, 'name'), { timeout: 5000 }).toBe('src');
+    await expect(rowAt(table, 3)).toHaveAttribute('aria-level', '2');
+    await expect.poll(() => cellText(table, 7, 'name')).toBe('Project 002');
+
+    // ArrowRight on src's name cell opens it: its entries load at the third level.
+    await rowAt(table, 3).locator('[data-col="name"]').focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(rowAt(table, 3)).toHaveAttribute('aria-expanded', 'true');
+    await expect.poll(() => cellText(table, 4, 'name'), { timeout: 5000 }).toBe('components');
+    await expect(rowAt(table, 4)).toHaveAttribute('aria-level', '3');
+
+    // Sorting by Name: the open folders load their entries again, in the new order.
+    await table.locator('[role="columnheader"][data-col="name"]').click();
+    await expect.poll(() => cellText(table, 3, 'name'), { timeout: 5000 }).toBe('docs');
+    await expect.poll(() => cellText(table, 5, 'name')).toBe('README.md');
+    await expect.poll(() => cellText(table, 6, 'name'), { timeout: 5000 }).toBe('src');
+    await expect(rowAt(table, 6)).toHaveAttribute('aria-expanded', 'true');
+    await expect.poll(() => cellText(table, 7, 'name'), { timeout: 5000 }).toBe('components');
+    await expect(rowAt(table, 7)).toHaveAttribute('aria-level', '3');
+    await expectAccessible(page, example);
+  });
+}

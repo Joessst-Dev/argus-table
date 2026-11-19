@@ -181,7 +181,8 @@ export class KeyboardRouter<T> {
    * Right or Left (logical, no modifier keys) on a body cell of a tree's first
    * data column. Toward the inline end: expands a collapsed row with children.
    * Toward the start: collapses an expanded row, else moves to the parent row's
-   * cell in that column. A row a filter keeps expanded doesn't collapse. `false`
+   * cell in that column (also from a data source's loading or failed child
+   * row). A row a filter keeps expanded doesn't collapse. `false`
    * leaves the key to navigation: toward the end on an expanded row or a leaf,
    * toward the start on a top-level row that can't collapse.
    */
@@ -191,9 +192,20 @@ export class KeyboardRouter<T> {
     if (!model.tree || id !== firstDataColumn(model.columns)) return false;
     const at = gridRowOfCell(cell, layoutOf(model));
     const index = at?.section === 'body' ? dataIndexOf(model, at.index) : undefined;
-    const info = index === undefined ? undefined : model.treeRow(index);
-    if (index === undefined || !info) return false;
+    if (index === undefined) return false;
+    const info = model.treeRow(index);
     const towardEnd = (event.key === 'ArrowRight') === (directionOf(this.#host) === 1);
+    if (!info) {
+      // A data source's row not loaded: toward the start from a loading or failed
+      // child row goes to its parent, which is shown (it's open).
+      const remote = this.#data.tree;
+      const parentId = towardEnd ? undefined : remote?.parentIdAt(index);
+      const parent = parentId === undefined ? undefined : remote?.shownIndexOf(parentId);
+      if (parent === undefined) return false;
+      event.preventDefault();
+      this.#nav.moveTo({ section: 'body', index: positionOfIndex(model, parent) }, id);
+      return true;
+    }
     if (towardEnd) {
       if (!info.hasChildren || info.open) return false;
       event.preventDefault();

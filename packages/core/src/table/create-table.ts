@@ -10,8 +10,7 @@ import { resolveColumns, type ResolvedColumn } from '../columns/resolve-columns.
 import { distinctValues, rowPredicate } from '../filters/filter.js';
 import { buildAllViews, buildViews, hiddenIn, pinIn, sizingOf } from './column-views.js';
 import { RowPipeline } from './row-pipeline.js';
-import type { RowTree } from './row-tree.js';
-import { keepWithAncestors, type TreeLayout } from './tree-order.js';
+import { keepWithAncestors, type TreeForest, type TreeLayout } from './tree-order.js';
 import type { BranchCheck, BranchTree } from '../state/selection.js';
 import type {
   CellContext,
@@ -128,9 +127,19 @@ export function createTableModel<TData, TContent>(
     () => valueVersion,
   );
   const rows = () => pipeline.rows();
+  // The remote rows when they form a tree (`RemoteTree`).
+  const remoteTree = () => (options.remote?.treeRow ? options.remote : undefined);
   const pinned = (side: RowPin): readonly TData[] => options.pinnedRows?.[side] ?? [];
 
   let allViews: ColumnView<TData, TContent>[] | undefined;
+
+  // The rows branch selection runs on: a tree's kept rows, or a remote tree's
+  // loaded ones (kept per version), and the forest row at a shown index.
+  const forestOf = (): TreeForest | undefined => remoteTree()?.forest?.() ?? pipeline.treeSteps();
+  const forestRow = (index: number): number | undefined => {
+    const remote = remoteTree()?.forest?.();
+    return remote ? remote.at(index) : rows()[index];
+  };
 
   // Branch selection, kept per tree layout (a filter or sort result).
   let branches: { layout: TreeLayout; tree: BranchTree } | undefined;
@@ -145,8 +154,8 @@ export function createTableModel<TData, TContent>(
   // Every row's children in the whole tree (filters not applied), by source
   // index: `kids[start[i]]` up to `kids[start[i + 1]]`. Built per tree, the
   // first time a filter hides some row's children.
-  let family: { tree: RowTree<TData>; start: Int32Array; kids: Int32Array } | undefined;
-  const familyOf = (tree: RowTree<TData>) => {
+  let family: { tree: TreeForest['tree']; start: Int32Array; kids: Int32Array } | undefined;
+  const familyOf = (tree: TreeForest['tree']) => {
     if (family?.tree !== tree) {
       const { parent, childCount } = tree;
       const n = parent.length;
@@ -163,14 +172,14 @@ export function createTableModel<TData, TContent>(
     return family;
   };
   // A row's children in the whole tree, when the filters hide some.
-  const fullKids = (tree: RowTree<TData>, layout: TreeLayout, row: number) => {
+  const fullKids = (tree: TreeForest['tree'], layout: TreeLayout, row: number) => {
     if ((layout.keptChildren[row] ?? 0) === (tree.childCount[row] ?? 0)) return undefined;
     const { start, kids } = familyOf(tree);
     return kids.subarray(start[row] ?? 0, start[row + 1] ?? 0);
   };
   // Whether a row has a child the filters hide that isn't selected.
   const missesHidden = (
-    tree: RowTree<TData>,
+    tree: TreeForest['tree'],
     layout: TreeLayout,
     row: number,
     selected: ReadonlySet<string>,
@@ -191,13 +200,19 @@ export function createTableModel<TData, TContent>(
    * branches, not for the select-all checkbox.
    */
   const checksFor = (selected: ReadonlySet<string>) => {
-    const steps = pipeline.treeSteps();
+    const steps = forestOf();
     const layout = steps?.layout;
     if (checks?.selected === selected && checks.layout === layout) return checks;
     let check: (index: number) => BranchCheck = () => 'none';
     let all: BranchCheck = 'none';
-    // Without a selection, only a filter can block rows.
-    if (steps && (selected.size > 0 || steps.layout.order.length < steps.tree.ids.length)) {
+    // Without a selection, only a filter can block rows. A remote tree with no
+    // rows loaded (reloading) shows nothing yet.
+    const count = steps?.layout.order.length ?? 0;
+    if (
+      steps &&
+      (count > 0 || !remoteTree()) &&
+      (selected.size > 0 || count < steps.tree.ids.length)
+    ) {
       const { tree } = steps;
       const { parent, ids } = tree;
       const { order } = steps.layout;
@@ -227,7 +242,7 @@ export function createTableModel<TData, TContent>(
       let top = 0;
       for (const row of steps.layout.children(-1)) top |= marks[row] ?? 0;
       check = (index) => {
-        const row = rows()[index];
+        const row = forestRow(index);
         const mark = row === undefined ? 0 : (marks[row] ?? 0);
         if (row !== undefined && !(mark & LIVE)) return 'blocked';
         return mark & PICKED ? (mark & MISSED ? 'some' : 'all') : 'none';
@@ -297,7 +312,8 @@ export function createTableModel<TData, TContent>(
       return options.remote?.rowCount ?? rows().length;
     },
     get rowOrder() {
-      return options.remote ?? rows();
+      const { remote } = options;
+      return remote ? (remote.order ?? remote) : rows();
     },
 
     get totalWidth() {
@@ -343,10 +359,12 @@ export function createTableModel<TData, TContent>(
     },
 
     get tree() {
-      return pipeline.tree() !== undefined;
+      // Asked first: it warns about tree functions ignored with remote rows.
+      return pipeline.tree() !== undefined || remoteTree() !== undefined;
     },
 
     treeRow(index) {
+      if (options.remote) return options.remote.treeRow?.(index);
       const steps = pipeline.treeSteps();
       const row = steps && rows()[index];
       if (!steps || row === undefined) return undefined;
@@ -367,16 +385,22 @@ export function createTableModel<TData, TContent>(
     },
 
     nextTreeExpanded(rowId, open, base = options.treeExpanded ?? []) {
-      const tree = pipeline.tree();
-      const row = tree?.indexOf(rowId);
-      // Filters aren't applied: a controlled host's ids are never refused for one.
-      if (!tree || row === undefined || (tree.childCount[row] ?? 0) === 0) return undefined;
-      const has = base.includes(rowId);
-      if (has === open) return undefined;
+      let ok: boolean;
+      if (options.remote) {
+        // Closing needs no loaded row: an open id may be under a page not loaded.
+        ok = remoteTree() !== undefined && (!open || options.remote.canExpand?.(rowId) === true);
+      } else {
+        const tree = pipeline.tree();
+        const row = tree?.indexOf(rowId);
+        // Filters aren't applied: a controlled host's ids are never refused for one.
+        ok = row !== undefined && (tree?.childCount[row] ?? 0) > 0;
+      }
+      if (!ok || base.includes(rowId) === open) return undefined;
       return open ? [...base, rowId] : base.filter((id) => id !== rowId);
     },
 
     shownAncestor(rowId) {
+      if (options.remote) return options.remote.shownAncestor?.(rowId);
       const tree = pipeline.tree();
       let row = tree?.indexOf(rowId);
       if (!tree || row === undefined) return undefined;
@@ -418,7 +442,7 @@ export function createTableModel<TData, TContent>(
     },
 
     branchSelectAll(current, selected = new Set(current)) {
-      const steps = pipeline.treeSteps();
+      const steps = forestOf();
       if (!steps) return [...current];
       const { tree, layout } = steps;
       const { parent, ids } = tree;
@@ -446,7 +470,7 @@ export function createTableModel<TData, TContent>(
     },
 
     branchTree() {
-      const steps = pipeline.treeSteps();
+      const steps = forestOf();
       if (!steps) return undefined;
       const { tree, layout } = steps;
       if (branches?.layout === layout) return branches.tree;
@@ -508,13 +532,19 @@ export function createTableModel<TData, TContent>(
         const entry = options.remote.entryAt(index);
         const column = byId.get(columnId);
         if (!entry || !column) return undefined;
-        return {
+        const context: CellContext<TData> = {
           row: entry.row,
           rowId: entry.id,
           index,
           columnId,
           value: column.getValue(entry.row, index),
         };
+        // No `depth` key without a tree, as for `data`.
+        const remote = remoteTree();
+        if (remote) {
+          context.depth = remote.depthAt?.(index) ?? 0;
+        }
+        return context;
       }
       const row = rows()[index];
       const column = byId.get(columnId);

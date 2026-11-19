@@ -11,6 +11,9 @@ import { FileTreeComponent } from '../../../examples/tree-rows/file-tree/angular
 import ReactOrgChart from '../../../examples/tree-rows/org-chart/react/OrgChart.tsx';
 import VueOrgChart from '../../../examples/tree-rows/org-chart/vue/OrgChart.vue';
 import { OrgChartComponent } from '../../../examples/tree-rows/org-chart/angular/org-chart.component.ts';
+import ReactLazyTree from '../../../examples/tree-rows/lazy-tree/react/LazyTree.tsx';
+import VueLazyTree from '../../../examples/tree-rows/lazy-tree/vue/LazyTree.vue';
+import { LazyTreeComponent } from '../../../examples/tree-rows/lazy-tree/angular/lazy-tree.component.ts';
 
 Rows can have child rows: a folder and its files, a manager and their team, a category and its products. Give the table `getSubRows`, a function that returns a row's children (or `undefined` for a row without any), and `data` holds the top-level rows. A row with children gets a toggle in the first data column, and each level is indented under its parent. Child rows are rows like any other: they have cells in every column, and they sort, filter, select, edit and fire click events. Define `getSubRows` once (at module scope, `useCallback`, a class field), and `getParentId` and `getRowId` the same way: a new function on every render builds and sorts the tree again.
 
@@ -44,7 +47,7 @@ This org chart is flat data. Tick a manager and everyone under them is ticked to
 
 ## Filtering
 
-A filter or the quick filter keeps the rows that match and their ancestors, so a match always shows in its place in the tree. The ancestors show expanded, whatever `treeExpanded` says, and their toggles are disabled until the filter clears; `treeExpanded` itself doesn't change, so clearing the filter brings back the rows people had open. Children of a match aren't kept unless they match too. A row whose children are all filtered out shows no toggle while the filter is on.
+A filter or the quick filter keeps the rows that match and their ancestors, so a match always shows in its place in the tree. The ancestors show expanded, whatever `treeExpanded` says, and their toggles are disabled until the filter clears; `treeExpanded` itself doesn't change, so clearing the filter brings back the rows people had open. Children of a match aren't kept unless they match too. A row whose children are all filtered out shows no toggle while the filter is on. With a `dataSource` the server filters, and no row opens by itself: see [Children from the server](#children-from-the-server).
 
 ## Selecting branches
 
@@ -91,10 +94,49 @@ table.addEventListener('argus-cell-edit', (event) => {
 
 A formula's whole column (`[[size]]`, [formulas add-on](../formulas/)) holds every row the filters keep, child rows included, collapsed or not.
 
+## Children from the server
+
+When the rows come from a [`dataSource`](../infinite-loading/), their children can load as rows expand. Give the source two more members: `hasChildren(row)` says whether a row has children to load, so it gets a toggle (it's called for every loaded row: read a field), and `getChildren({ parent, parentId, sorting, filters, quickFilter, signal })` loads all of a row's children and resolves to `{ rows }`. Both are needed; with only one, the rows stay flat. `getRows` keeps returning the top-level rows, and children can have children of their own, loaded the same way.
+
+```ts
+const dataSource: DataSource<Folder> = {
+  getRows: (request) => loadTopFolders(request), // the top-level rows, page by page
+  hasChildren: (folder) => folder.hasChildren,
+  async getChildren({ parentId, sorting, filters, quickFilter, signal }) {
+    const query = new URLSearchParams({
+      sort: JSON.stringify(sorting),
+      filters: JSON.stringify(filters),
+      q: quickFilter,
+    });
+    const response = await fetch(`/api/folders/${encodeURIComponent(parentId)}/children?${query}`, {
+      signal,
+    });
+    return { rows: (await response.json()) as Folder[] }; // [] removes the toggle
+  },
+};
+```
+
+Expanding a row calls `getChildren` once, with the current sort, filters and quick filter: return the children sorted like the rows, and those that match a filter or hold a match. Until the answer arrives, a loading row shows under the row. Children stay loaded, and collapsing keeps them, so a row opened again needs no request. A new source, sort, filters, quick filter or `getRowId`, or `refresh()`, drops them all (requests in flight are aborted through `signal`), and the expanded rows load their children again once their own rows have loaded; a `treeExpanded` restored with `setState()` opens the same way, as pages arrive.
+
+When `getChildren` rejects, the loading row shows a Retry button instead (its name is the `retryChildren` [label](../labels/)), and the table fires `argus-load-error` with the row's id as `parentId`; its `start` is the row's index among the rows shown (`-1` while a collapsed ancestor hides it) and `end` the next one. Retry, or expanding the row again, asks again. A row collapsed before its request failed fires nothing and shows no Retry: its next expand asks again.
+
+Here a shared drive pages its 200 top-level entries from a pretend server that answers after a short delay; every project folder holds folders of its own. Expand one and its entries load. Sort by Name or Size: the open folders load their entries again, in the new order.
+
+<FlavourTabs example="tree-rows/lazy-tree">
+  <ReactLazyTree slot="react" client:visible />
+  <VueLazyTree slot="vue" client:visible />
+  <LazyTreeComponent slot="angular" client:visible />
+</FlavourTabs>
+
+A child's id is `getRowId(row, index)` with its index among its siblings, or without `getRowId` its parent's id, a dot and that index (`'3.0'`, `'3.0.2'`), as for nested data. Give `getRowId` the server's ids, unique across levels, as the example does: an index changes when the server's answer does. `getRows`'s `start` and `end` and its `total` count top-level rows only; every other index counts the rows shown, top-level rows and the loaded children of expanded rows, as in any tree: `scrollToRow(index)`, the click events, `argus-range-change` and a failed page's `argus-load-error`.
+
+The server filters, at every level. The table can't know which collapsed rows hold a match without loading their children, so a filter opens no rows here and disables no toggles: only `treeExpanded` opens rows, and the children of an expanded row load with the filters. With `selectBranches`, a tick reaches the loaded rows: a row whose children aren't loaded counts as a row without children, and children that arrive under a ticked row join the selection (with an `argus-selection-change`). While a filter or the quick filter is on, a parent's id is never selected, since the server may not have sent all of its children; so a row whose children haven't loaded has nothing to tick, and its checkbox is disabled until it's expanded.
+
 ## Limits
 
 - The first data column holds the toggle and the indent; there's no option to choose another one yet.
-- Trees need every row in memory: with a [`dataSource`](../infinite-loading/), `getSubRows` and `getParentId` are ignored, with a warning in the console.
+- With a [`dataSource`](../infinite-loading/), `getSubRows` and `getParentId` are ignored, with a warning in the console: children come from its `hasChildren` and `getChildren` ([above](#children-from-the-server)).
+- A row's children load in one `getChildren` call: there are no pages of children.
 - `scrollToRow({ id })` doesn't open a row's ancestors: for a row under a collapsed row it does nothing. Expand the ancestors through `treeExpanded` first.
-- The [export add-on](../export/) exports the rows shown, without their levels.
+- The [export add-on](../export/) exports the rows shown, without their levels. With a `dataSource` and `allRows`, it exports the top-level rows only, the rows `getRows` returns.
 - `pinnedRows` have no tree.

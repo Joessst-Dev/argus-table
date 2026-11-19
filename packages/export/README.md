@@ -92,6 +92,8 @@ await downloadTable(table, 'csv', {
 
 The table loads only the rows near the scroll position, so an export holds the rows that are loaded. With `allRows: true`, it fetches every row from your `getRows`, a page at a time (the source's `pageSize`). It sends the table's sort, filters and quick filter, and stops at `total` or at a page with fewer rows. Pass a `signal` to cancel a long export.
 
+When the source loads child rows (`hasChildren` and `getChildren`), an export without `allRows` holds the rows shown, in their order: the loaded top-level rows and the loaded children of expanded rows. With `allRows`, it holds the top-level rows only, the rows `getRows` returns; no children are fetched.
+
 ### Detail rows
 
 `detail` adds the rows behind each row, an order's lines say: their `columns` (`id`, `header`, and optionally `value(item)`, `align`, `width` in px) and `rows(row, { rowId, signal })`, which returns a row's detail rows or a promise of them. It's called for every exported row, in order and at most six at a time, but not for pinned rows or rows the table's `rowExpandable` rejects. It works with or without `rowDetail`: the export writes the data you give it, not what a panel shows.

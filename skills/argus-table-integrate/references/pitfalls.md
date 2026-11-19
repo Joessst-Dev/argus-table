@@ -109,6 +109,8 @@ function Orders({ rows }: { rows: Order[] }) {
 
 Columns that depend on props or state: `useMemo(() => [...], [deps])`. Columns a component receives as a prop are fine: the stability is the caller's job. In Angular, a `get columns()` that returns a new array is read on every change detection: use a readonly field or a `computed()`. Keep accessor functions stable too: a column whose `accessor` is a new function makes the table re-read its values. In Vue, declare them in `<script setup>`, not inline in the template; in Angular, as readonly class fields.
 
+With a `dataSource`, keep `getRowId` stable as well: a new function reloads the loaded rows and a tree's children, so `getRowId={(r) => r.id}` written inline (or `:get-row-id="(r) => r.id"` in a Vue template) reloads on every render. Define it once (module scope, `useCallback`, `<script setup>`, a readonly field).
+
 ## selection-without-row-id
 
 Without `getRowId`, a row's id is its index in `data`. Selection is a list of ids, so after new data (or with a `dataSource`, after a sort) the selected ids point at other rows. Return a stable string:

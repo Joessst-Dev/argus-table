@@ -39,6 +39,8 @@ export type { TableLabels } from './labels.js';
 export type {
   CellClickDetail,
   CellContext,
+  ChildrenRequest,
+  ChildrenResponse,
   ColumnAlign,
   ColumnFilter,
   ColumnFiltersChangeDetail,

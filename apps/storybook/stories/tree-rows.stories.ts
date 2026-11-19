@@ -1,7 +1,13 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { html } from 'lit';
 import { expect, userEvent, waitFor } from 'storybook/test';
-import type { ArgusTable, ColumnDef, TreeExpandedChangeDetail } from 'argus-table';
+import type {
+  ArgusTable,
+  ColumnDef,
+  DataSource,
+  SortState,
+  TreeExpandedChangeDetail,
+} from 'argus-table';
 import 'argus-table';
 
 const meta = {
@@ -249,5 +255,128 @@ export const Filtered: Story = {
     await expect(table.treeExpanded).toEqual([]);
     await expect(rowAt(table, 3).getAttribute('aria-expanded')).toBe('true');
     await expect(textAt(table, 4, 'name')).toBe('format.ts');
+  },
+};
+
+/** A row from the pretend server: no children in it, they load on expand. */
+interface Item {
+  /** The server's id, the entry's path: unique across levels. */
+  id: string;
+  name: string;
+  size: number;
+  folder: boolean;
+}
+
+/** A copy of the rows in the order `sorting` asks for (its first column). */
+function sortItems(items: Item[], sorting: SortState): Item[] {
+  const [by] = sorting;
+  if (!by) return items;
+  const key = by.id as keyof Item;
+  const dir = by.desc ? -1 : 1;
+  return [...items].sort((a, b) => (a[key] < b[key] ? -dir : a[key] > b[key] ? dir : 0));
+}
+
+/** Resolves after `ms`, or rejects when the table aborts the request. */
+const after = (ms: number, signal: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(resolve, ms);
+    signal.addEventListener('abort', () => {
+      clearTimeout(timer);
+      reject(signal.reason as Error);
+    });
+  });
+
+/**
+ * A pretend server: 500 top-level folders; each holds a folder (Drafts, with two
+ * files) and two files. It sorts and answers after `latency` ms.
+ */
+function treeServer(latency = 300): DataSource<Item> {
+  const top: Item[] = Array.from({ length: 500 }, (_, i) => ({
+    id: `f${String(i + 1)}`,
+    name: `Folder ${String(i + 1).padStart(3, '0')}`,
+    size: 50_640 + ((i * 7919) % 10_000),
+    folder: true,
+  }));
+  const childrenOf = (parent: Item): Item[] => {
+    const entries: [string, number, boolean][] = parent.id.includes('/')
+      ? [
+          ['draft-1.txt', 800, false],
+          ['draft-2.txt', 640, false],
+        ]
+      : [
+          ['Drafts', 1_440, true],
+          ['notes.txt', 1_200, false],
+          ['photo.png', 48_000, false],
+        ];
+    return entries.map(([name, size, folder]) => ({
+      id: `${parent.id}/${name}`,
+      name,
+      size,
+      folder,
+    }));
+  };
+  return {
+    pageSize: 100,
+    async getRows({ start, end, sorting, signal }) {
+      await after(latency, signal);
+      return { rows: sortItems(top, sorting).slice(start, end), total: top.length };
+    },
+    hasChildren: (item) => item.folder,
+    async getChildren({ parent, sorting, signal }) {
+      await after(latency, signal);
+      return { rows: sortItems(childrenOf(parent), sorting) };
+    },
+  };
+}
+
+const itemColumns: ColumnDef<Item>[] = [
+  { id: 'name', header: 'Name', accessor: 'name', width: { flex: 1 }, sortable: true },
+  { id: 'size', header: 'Size', accessor: 'size', width: 120, align: 'end', sortable: true },
+];
+const itemId = (item: Item) => item.id;
+
+/**
+ * Children from a `dataSource`: `getRows` returns the top-level rows (its
+ * `start` and `end` count those), `hasChildren(row)` says which rows get a
+ * toggle, and expanding a row calls `getChildren({ parent, parentId, sorting,
+ * filters, quickFilter, signal })` once for all of its children. A loading row
+ * shows under the row until they arrive. Children stay loaded (collapsing keeps
+ * them) until a new source, sort, filters, quick filter, `getRowId` or
+ * `refresh()`; then the expanded rows load theirs again. A failed request shows
+ * a Retry row and fires `argus-load-error` with `parentId`. This server answers
+ * after 300 ms.
+ */
+export const FromServer: Story = {
+  render: () =>
+    html`<argus-table
+      aria-label="Folders"
+      style="block-size: 420px"
+      .columns=${itemColumns}
+      .getRowId=${itemId}
+      .dataSource=${treeServer()}
+    ></argus-table>`,
+  play: async ({ canvasElement }) => {
+    const table = await tableIn(canvasElement);
+    await waitFor(() => expect(textAt(table, 2, 'name')).toBe('Folder 001'), { timeout: 3000 });
+    await expect(table.getAttribute('role')).toBe('treegrid');
+    await expect(rowAt(table, 2).getAttribute('aria-expanded')).toBe('false');
+
+    // Expanding Folder 001: a loading row a level deeper, until the answer.
+    await userEvent.click(toggleAt(table, 2));
+    await waitFor(() => expect(table.treeExpanded).toEqual(['f1']));
+    await table.updateComplete;
+    await expect(rowAt(table, 2).getAttribute('aria-expanded')).toBe('true');
+    await expect(rowAt(table, 3).getAttribute('part')).toContain('row-loading');
+    await expect(rowAt(table, 3).getAttribute('aria-level')).toBe('2');
+
+    // Its three entries, then the next folder.
+    await waitFor(() => expect(textAt(table, 3, 'name')).toBe('Drafts'), { timeout: 3000 });
+    await expect(rowAt(table, 3).getAttribute('part')).not.toContain('row-loading');
+    await expect(rowAt(table, 3).getAttribute('aria-level')).toBe('2');
+    await expect(rowAt(table, 3).getAttribute('aria-expanded')).toBe('false');
+    await expect(textAt(table, 5, 'name')).toBe('photo.png');
+    await expect(rowAt(table, 5).getAttribute('aria-expanded')).toBeNull();
+    await expect(textAt(table, 6, 'name')).toBe('Folder 002');
+    await expect(rowAt(table, 6).getAttribute('aria-level')).toBe('1');
   },
 };

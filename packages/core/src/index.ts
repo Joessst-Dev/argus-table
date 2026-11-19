@@ -26,6 +26,7 @@ export {
   type HeaderGroupCell,
 } from './columns/column-groups.js';
 export { spreadWidth, type SpreadColumn } from './columns/spread-width.js';
+export { filtersRows } from './filters/filter.js';
 export {
   createTableModel,
   EXPAND_COLUMN_ID,
@@ -76,3 +77,4 @@ export {
   type PageCacheOptions,
   type RowState,
 } from './data/page-cache.js';
+export { RemoteTree, type KeptCount, type RemoteTreeOptions } from './data/remote-tree.js';

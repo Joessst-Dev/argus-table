@@ -145,11 +145,11 @@ function attachGridInternals(host: HTMLElement): ElementInternals {
  * @fires {CustomEvent<ColumnFiltersChangeDetail>} argus-column-filters-change - `columnFilters` changed: a column's filter was set, changed or cleared, through a plugin such as the column menu. `detail: { columnFilters, columnId, columnFilter }`: `columnFilter` is the column's new filter, or `undefined` when it was cleared. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it.
  * @fires {CustomEvent<SelectionChangeDetail>} argus-selection-change - `selection` changed: by a click on a row (Ctrl/Cmd toggles, Shift selects a range), with Space, Shift+Arrow or Shift+PageUp/PageDown on a body cell, or with Ctrl/Cmd+A. Only with a `selectionMode`. `detail: { selection }`. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it.
  * @fires {CustomEvent<ExpandedChangeDetail>} argus-expanded-change - `expanded` changed: a row's detail panel was opened or closed with its chevron (a click, or Enter or Space on the chevron cell). Only with `rowDetail`. `detail: { expanded, rowId, open }`: `open` is `true` when it was opened. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it.
- * @fires {CustomEvent<TreeExpandedChangeDetail>} argus-tree-expanded-change - `treeExpanded` changed: a row of a tree was expanded or collapsed with its toggle (a click) or with Right or Left on its cell in the tree column; not for a row a filter keeps expanded. Only with `getSubRows` or `getParentId`. `detail: { treeExpanded, rowId, open }`: `open` is `true` when it was expanded. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it.
+ * @fires {CustomEvent<TreeExpandedChangeDetail>} argus-tree-expanded-change - `treeExpanded` changed: a row of a tree was expanded or collapsed with its toggle (a click) or with Right or Left on its cell in the tree column; not for a row a filter keeps expanded. Only with `getSubRows`, `getParentId`, or a `dataSource` with `hasChildren` and `getChildren`. `detail: { treeExpanded, rowId, open }`: `open` is `true` when it was expanded. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it.
  * @fires {CustomEvent<CellClickDetail<T>>} argus-cell-click - A body or pinned-row cell was clicked, or Enter was pressed on it. `detail: { row, rowId, index, columnId, value, pinned?, depth? }`; `pinned` is `'top'` or `'bottom'` for a pinned row, and `index` is then its index in its list. `depth` is a body row's level in a tree (`0` for a top-level row), set only when the rows form one. Fires before `argus-row-click`.
  * @fires {CustomEvent<RowClickDetail<T>>} argus-row-click - A body or pinned row was clicked, or Enter was pressed on one of its cells. `detail: { row, rowId, index, pinned?, depth? }`; for a pinned row, `index` is its index in its list. `depth` is a body row's level in a tree (`0` for a top-level row), set only when the rows form one.
  * @fires {CustomEvent<RangeChangeDetail>} argus-range-change - The rows in view changed (rows rendered ahead of the scroll position not counted). `detail: { first, last }` (row indices in the current order, both inclusive).
- * @fires {CustomEvent<LoadErrorDetail>} argus-load-error - A `dataSource` page failed to load: `getRows()` rejected or threw. `detail: { error, start, end }` (`end` exclusive). The rows show a Retry button.
+ * @fires {CustomEvent<LoadErrorDetail>} argus-load-error - A `dataSource` page failed to load: `getRows()` rejected or threw. `detail: { error, start, end }` (`end` exclusive; with tree rows, indexes of the rows shown, so children of open rows above count). The rows show a Retry button. When a row's children failed (`getChildren()` rejected or threw), `detail: { error, start, end, parentId }`: `start` is the row's index (`-1` when it isn't shown: an ancestor collapsed) and `end` that plus one, and a row with a Retry button shows under it. Not for a row collapsed before its children failed: its next expand loads them again.
  *
  * @slot empty - Shown instead of the body when there are no rows. Default: `labels.noRows` ("No rows").
  *
@@ -176,8 +176,8 @@ function attachGridInternals(host: HTMLElement): ElementInternals {
  * @csspart row - Every body row.
  * @csspart row-even - Body rows with an even index (0-based).
  * @csspart row-odd - Body rows with an odd index.
- * @csspart row-loading - Body rows whose `dataSource` page hasn't loaded yet, or failed.
- * @csspart row-error - Added to `row-loading` on body rows whose `dataSource` page failed to load.
+ * @csspart row-loading - Body rows whose `dataSource` page hasn't loaded yet, or failed; in a tree, the row under a row whose children are loading or failed.
+ * @csspart row-error - Added to `row-loading` on body rows whose `dataSource` page (or a tree row's children) failed to load.
  * @csspart row-selected - Body rows whose id is in `selection`.
  * @csspart cell-selection - Added to `cell` in the checkbox column (`selectionCheckboxes`), pinned rows included.
  * @csspart header-cell-selection - Added to `header-cell` on the checkbox column's header.
@@ -188,7 +188,7 @@ function attachGridInternals(host: HTMLElement): ElementInternals {
  * @csspart cell-expand - Added to `cell` in the toggle column of detail panels (`rowDetail`), pinned rows included.
  * @csspart header-cell-expand - Added to `header-cell` on the toggle column's header: an empty cell (`role="gridcell"`, as an empty column header has no name to read).
  * @csspart expand-toggle - The chevron button that opens and closes a row's detail panel. It is drawn with borders in `currentColor` (`::before`) and has `aria-expanded`.
- * @csspart tree-toggle - The button that expands and collapses a tree row (`getSubRows` or `getParentId`), in the first data column after the row's indent; only rows with children have one. It is drawn with borders in `currentColor` (`::before`) and has `aria-expanded`. While a filter keeps its row expanded (the row holds a match), it has `aria-disabled="true"` and `tree-toggle-disabled`, is dimmed, and does nothing.
+ * @csspart tree-toggle - The button that expands and collapses a tree row (`getSubRows`, `getParentId`, or a `dataSource` with `hasChildren` and `getChildren`), in the first data column after the row's indent; only rows with children have one. It is drawn with borders in `currentColor` (`::before`) and has `aria-expanded`. While a filter keeps its row expanded (the row holds a match), it has `aria-disabled="true"` and `tree-toggle-disabled`, is dimmed, and does nothing.
  * @csspart tree-toggle-disabled - Added to `tree-toggle` while a filter keeps the row open for its matches; the toggle does nothing until the filter clears.
  * @csspart row-pinned - Every row from `pinnedRows`, on either side. Also has `row`, but no `row-even`/`row-odd`.
  * @csspart row-pinned-top - The rows pinned below the header.
@@ -224,7 +224,7 @@ function attachGridInternals(host: HTMLElement): ElementInternals {
  * @cssprop [--argus-row-hover-bg] - Background of the hovered row. Default: no change.
  * @cssprop [--argus-row-pinned-bg=var(--argus-bg)] - Background of the pinned rows, pinned columns included.
  * @cssprop [--argus-skeleton-bg] - Colour of the skeleton bars in rows still loading. Default: the text colour at low opacity.
- * @cssprop [--argus-tree-indent=1.25rem] - The indent per level of a tree row (`getSubRows` or `getParentId`), before the toggle in the first data column.
+ * @cssprop [--argus-tree-indent=1.25rem] - The indent per level of a tree row (`getSubRows`, `getParentId`, or a `dataSource` with `hasChildren` and `getChildren`), before the toggle in the first data column.
  * @cssprop [--argus-detail-max-height=400px] - The tallest a detail panel (`rowDetail`) is; its content scrolls past it. Style the panel itself (background, padding) through the `detail` part.
  * @cssprop [--argus-row-selected-bg] - Background of selected rows, pinned columns included. Default: the system highlight colour, mixed into `--argus-bg`. It wins over `--argus-row-hover-bg`.
  */
@@ -283,6 +283,17 @@ export class ArgusTable<T = unknown> extends LitElement {
    * and filtering happen on the server: a new order or filter reloads from the top.
    * While set, it wins over `data`. Replace the object to change `getRows` or
    * `pageSize`.
+   *
+   * With `hasChildren(row)` and `getChildren({ parent, parentId, sorting, filters,
+   * quickFilter, signal })` (resolving to `{ rows }`) the rows form a tree:
+   * `getRows` returns the top-level rows (its `start` and `end` count those), and
+   * expanding a row (`treeExpanded`) loads all of its children with one
+   * `getChildren` call, at every level. A loading row shows under it until the
+   * answer, and a row with a Retry button if it fails. Children stay loaded when
+   * the row collapses, until the source, the sort, the filters, `getRowId` or
+   * `refresh()` change them: then expanded rows load theirs again. Row indexes
+   * (events, `scrollToRow`) count the rows shown: top-level rows and the
+   * children of expanded ones.
    */
   @property({ attribute: false })
   dataSource?: DataSource<T>;
@@ -299,9 +310,10 @@ export class ArgusTable<T = unknown> extends LitElement {
 
   /**
    * Returns a stable id for a row, given the row and its index: in `data`, among
-   * all `dataSource` rows, or for a nested child of a tree (`getSubRows`) its
-   * index from `data.length` on, in depth-first order. Default: the index as a
-   * string; a nested child's is its parent's id, a dot and its index among its
+   * all `dataSource` rows (a child from `getChildren`: among its siblings), or
+   * for a nested child of a tree (`getSubRows`) its index from `data.length` on,
+   * in depth-first order. Default: the index as a string; a nested child's, or a
+   * `dataSource` child's, is its parent's id, a dot and its index among its
    * siblings (`'3.0'`, `'3.0.2'`).
    */
   @property({ attribute: false })
@@ -322,9 +334,10 @@ export class ArgusTable<T = unknown> extends LitElement {
    * `'3.0.2'`); top-level rows keep their index in `data`. Functions given a
    * row's index (`getRowId`, a column's `accessor`) get a child's index from
    * `data.length` on, in depth-first order. Wins over `getParentId` (with a
-   * console warning). Ignored with a `dataSource` for now. Property only. Keep
-   * the function stable: a new function on every render builds and sorts the
-   * tree again, as a new `getRowId` reads every id again.
+   * console warning). Ignored with a `dataSource`: use its `hasChildren` and
+   * `getChildren`. Property only. Keep the function stable: a new function on
+   * every render builds and sorts the tree again, as a new `getRowId` reads
+   * every id again.
    */
   @property({ attribute: false })
   getSubRows?: (row: T) => readonly T[] | undefined;
@@ -337,9 +350,9 @@ export class ArgusTable<T = unknown> extends LitElement {
    * rows that match with their ancestors, work as with `getSubRows`. Rows keep
    * their index in `data`. A row whose parent isn't found, or that is part of a
    * cycle, shows as a top-level row (with a console warning). `getSubRows` wins
-   * when both are set. Ignored with a `dataSource` for now. Property only. Keep
-   * the function stable: a new function on every render builds and sorts the
-   * tree again.
+   * when both are set. Ignored with a `dataSource`: use its `hasChildren` and
+   * `getChildren`. Property only. Keep the function stable: a new function on
+   * every render builds and sorts the tree again.
    */
   @property({ attribute: false })
   getParentId?: (row: T) => string | null | undefined;
@@ -549,7 +562,8 @@ export class ArgusTable<T = unknown> extends LitElement {
   }
 
   /**
-   * Selects whole branches of a tree (`getSubRows` or `getParentId`), in `multi`
+   * Selects whole branches of a tree (`getSubRows`, `getParentId`, or a
+   * `dataSource` with `hasChildren` and `getChildren`), in `multi`
    * `selectionMode` only (ignored in `single` mode and without a tree).
    * Selecting a row, by its checkbox, a click or Space, selects it and its
    * descendants the filters keep, rows under collapsed rows included; rows a
@@ -574,7 +588,13 @@ export class ArgusTable<T = unknown> extends LitElement {
    * click elsewhere in its row still selects a range), and select-all and the
    * header checkbox leave it out; with only such rows, the header checkbox is
    * disabled too. A controlled `selection` that breaks these rules shows as it
-   * is until the user changes it.
+   * is until the user changes it. With a `dataSource` the rules apply to the
+   * loaded rows (a row whose children aren't loaded counts as having none),
+   * and children that arrive under a selected row join the selection, with
+   * the change event. While a filter or quick filter is on, the server may not
+   * have sent every child, so a row with children never has its id selected
+   * then: selecting it selects the loaded rows under it, and one without
+   * loaded children can't be selected until they load.
    */
   @property({ type: Boolean, attribute: 'select-branches' })
   selectBranches = false;
@@ -619,13 +639,20 @@ export class ArgusTable<T = unknown> extends LitElement {
   }
 
   /**
-   * The expanded rows of a tree (`getSubRows` or `getParentId`), as row ids
+   * The expanded rows of a tree (`getSubRows`, `getParentId`, or a `dataSource`
+   * with `hasChildren` and `getChildren`), as row ids
    * (`getRowId`'s, or the default ids such as `'3'` and `'3.0'`), e.g.
    * `['3', '3.0']`. A row's children show while it and its ancestors are
    * expanded. While a filter or the quick filter is on, rows holding a match
    * show expanded whatever it says, without changing it, and their toggles are
    * disabled (`aria-disabled`) until the filter clears, so a match is never
-   * hidden and nothing changes out of sight. Default: none.
+   * hidden and nothing changes out of sight; not with a `dataSource`, whose
+   * server filters (only this opens rows there). Default: none.
+   * With a `dataSource`, an expanded row loads its children (`getChildren`)
+   * once its own row has loaded, showing a loading row under it meanwhile; ids
+   * of rows not loaded yet open when they load, so a restored value
+   * (`setState()`) works as pages arrive. A row whose children come back empty
+   * keeps its id here but shows no toggle and nothing under it.
    * Uncontrolled until set, like `expanded`: once set, a toggle only fires
    * `argus-tree-expanded-change` with the proposed ids. `undefined` hands it
    * back. Ids stay through sorting, filtering and a new `data`.
@@ -802,8 +829,13 @@ export class ArgusTable<T = unknown> extends LitElement {
         : model.pinnedValueAt(section, index, columnId);
     },
     readValue: (row, columnId, index) => this.#table.model.readValue(row, columnId, index),
-    rowDepth: (index, section = 'body') =>
-      section === 'body' ? (this.#table.model.treeRow(index)?.depth ?? 0) : 0,
+    rowDepth: (index, section = 'body') => {
+      if (section !== 'body') return 0;
+      // A data source's tree knows the depth of rows not loaded too (children loading).
+      const remote = this.#data.tree;
+      if (remote) return remote.depthAt(index) ?? 0;
+      return this.#table.model.treeRow(index)?.depth ?? 0;
+    },
     // A data source's rows have no source indexes (`data` isn't read).
     sourceRow: (index) => (this.#data.rows ? undefined : this.#table.model.sourceRow(index)),
     headerGroups: () =>
@@ -834,7 +866,10 @@ export class ArgusTable<T = unknown> extends LitElement {
   /** The detail panels' content, kept per row while open (`rowDetail`). */
   readonly #detail = new DetailContent<T>(this);
   #lightConnected = true;
-  readonly #data = new DataController<T>(this);
+  // Children loaded under a branch-selected row join the selection.
+  readonly #data = new DataController<T>(this, (parentId) => {
+    this.#select.arrived(parentId);
+  });
   /** Scroll back to the top after the update (a new sort order for a data source). */
   #scrollToTop = false;
   // Looked up lazily: the virtualizer's hostUpdated runs before firstUpdated.
@@ -900,6 +935,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       insets: (layout) => this.#bodyInsets(layout),
       measured: () => this.#measuring,
     },
+    () => this.#data.tree,
   );
   /** Column widths: resize handles, Alt+Arrow and fits. */
   readonly #resize = new ColumnResize<T>(this, () => this.#table.model, this.#events);
@@ -1071,7 +1107,10 @@ export class ArgusTable<T = unknown> extends LitElement {
    * end). With a `dataSource`
    * whose total isn't known yet, an index past the rows counted so far resolves
    * `false` and the table scrolls on toward the row as pages arrive, until the
-   * user scrolls, clicks or presses a key.
+   * user scrolls, clicks or presses a key. In a tree from a `dataSource`, an
+   * index counts the rows shown (top-level rows, and the children and loading
+   * rows of expanded ones), and an id finds a row whose page or parent's
+   * children have loaded and whose ancestors are expanded.
    */
   scrollToRow(target: RowTarget, options: ScrollToRowOptions = {}): Promise<boolean> {
     return this.#scroll.toRow(target, options);
@@ -1136,8 +1175,11 @@ export class ArgusTable<T = unknown> extends LitElement {
    * yourself), and the others stay uncontrolled. No change events fire.
    * `quickFilter` is set like the property: a search box of yours shows it only
    * if you read it back. `scroll` is applied after the rest, so with a
-   * `dataSource` the restored rows load where it points. Resolves once the table
-   * has re-rendered there.
+   * `dataSource` the restored rows load where it points. In a tree from a
+   * `dataSource`, its row counts the rows shown: an expanded row's children
+   * count once its own row has loaded and they have (one loading row before), so
+   * the restored row is off by the children of expanded rows above it whose
+   * pages don't load on the way. Resolves once the table has re-rendered there.
    */
   async setState(state: TableState): Promise<void> {
     // Another format (a later version's): nothing it holds can be trusted to mean the same.
@@ -1171,19 +1213,23 @@ export class ArgusTable<T = unknown> extends LitElement {
     this.#groupsChanged = groups !== this.#groups;
     this.#groups = groups;
     const filtersChanged = changed.has('columnFilters') || changed.has('quickFilter');
-    if (
+    const sourceChanged =
       changed.has('dataSource') ||
       changed.has('sorting') ||
       changed.has('getRowId') ||
-      filtersChanged
-    ) {
+      filtersChanged;
+    // Expanded rows matter to a data source's tree only.
+    if (sourceChanged || (changed.has('treeExpanded') && this.dataSource)) {
       this.#data.configure({
         source: this.dataSource,
         sorting: this.#sorting.value,
         filters: this.#filters.value,
         quickFilter: this.#quickFilter,
         getRowId: this.getRowId,
+        treeExpanded: this.#treeExpanded.value,
       });
+    }
+    if (sourceChanged) {
       // A new order or filter starts over from the first row, so show it.
       if (this.dataSource && this.hasUpdated && (changed.has('sorting') || filtersChanged)) {
         this.#scrollToTop = !changed.has('dataSource');
@@ -1262,7 +1308,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     const model = this.#table.model;
     this.#nav.reconcile(model);
     // -1 tells assistive tech the total is unknown (a data source still growing).
-    const unknownTotal = this.#data.rows?.totalKnown === false;
+    const unknownTotal = this.#data.cache?.totalKnown === false;
     const layout = layoutOf(model);
     this.#internals.ariaRowCount = unknownTotal ? '-1' : String(layout.total);
     this.#internals.ariaColCount = String(model.columns.length);
@@ -1436,7 +1482,7 @@ export class ArgusTable<T = unknown> extends LitElement {
                   ? { rows: this.#window.details, colspan: columns.length }
                   : undefined,
                 edges,
-                treeRows(model, labels, this.#onTreeToggle),
+                treeRows(model, labels, this.#onTreeToggle, this.#data.tree),
               )
         }
         ${renderPinnedRows('bottom', layout.bottom, rendered, firstIndex('bottom'), activeIn('bottom'))}

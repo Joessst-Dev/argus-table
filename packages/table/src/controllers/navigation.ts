@@ -3,6 +3,7 @@ import {
   SELECTION_COLUMN_ID,
   type ColumnView,
   type GridRow,
+  type RemoteTree,
   type RowLayout,
   type TableModel,
 } from '@argus-table/core';
@@ -28,6 +29,7 @@ import type { VirtualController } from './virtual-controller.js';
 interface NavigationHost extends ReactiveElement {
   rowHeight?: number | 'auto';
   getRowId?: unknown;
+  dataSource?: unknown;
 }
 
 /** Sizes the table measures, for paging and revealing a row. */
@@ -55,6 +57,8 @@ export class NavigationController<T> {
   readonly #virtual: VirtualController;
   readonly #select: SelectionController<T>;
   readonly #env: NavigationSizes;
+  /** The rows of a data source's tree, while there is one. */
+  readonly #remote: () => RemoteTree<T> | undefined;
   #active: Active | undefined;
   /** Move focus to the active cell after the next update (keyboard navigation). */
   #focusPending = false;
@@ -69,12 +73,14 @@ export class NavigationController<T> {
     virtual: VirtualController,
     select: SelectionController<T>,
     sizes: NavigationSizes,
+    remote: () => RemoteTree<T> | undefined,
   ) {
     this.#host = host;
     this.#model = model;
     this.#virtual = virtual;
     this.#select = select;
     this.#env = sizes;
+    this.#remote = remote;
   }
 
   /** The active cell; `undefined` while there are no columns. */
@@ -486,18 +492,70 @@ export class NavigationController<T> {
     ) {
       return active.rowId;
     }
-    return this.#placeholderId(index);
+    return this.#placeholderId(model, index);
   }
 
-  /** The id of an unloaded row: its index, or a reserved string if `getRowId` makes the ids. */
-  #placeholderId(index: number): string {
-    return this.#host.getRowId ? `\u0000${String(index)}` : String(index);
+  /**
+   * Whether stand-in ids are reserved strings: when `getRowId` makes the ids, or
+   * the rows are a tree from a `dataSource` (an index there isn't a row's default id).
+   */
+  #reserved(model: TableModel<T, CellContent>): boolean {
+    return Boolean(this.#host.getRowId) || (this.#host.dataSource !== undefined && model.tree);
   }
 
-  /** The data index a stand-in id from `#placeholderId` holds, or `undefined` for another id. */
-  #placeholderIndex(id: string): number | undefined {
-    const digits = this.#host.getRowId ? (id.startsWith('\u0000') ? id.slice(1) : '') : id;
-    return /^\d+$/.test(digits) ? Number(digits) : undefined;
+  /**
+   * The id of an unloaded row: its index, or a reserved string (`#reserved`). In
+   * a data source's tree, shown indexes move as rows load above (an open row's
+   * loading rows appear when its page loads), so the reserved string names what
+   * doesn't move: a top-level row's top-level index, or a loading or failed child
+   * row's parent and its place among the rows under it.
+   */
+  #placeholderId(model: TableModel<T, CellContent>, index: number): string {
+    const remote = this.#remote();
+    if (remote) {
+      const top = remote.topIndexOf(index);
+      if (top !== undefined) return `\u0000t${String(top)}`;
+      const parentId = remote.parentIdAt(index);
+      const parent = parentId === undefined ? undefined : remote.shownIndexOf(parentId);
+      if (parent !== undefined)
+        return `\u0000c${String(index - parent - 1)}\u0000${parentId ?? ''}`;
+    }
+    return this.#reserved(model) ? `\u0000${String(index)}` : String(index);
+  }
+
+  /**
+   * The row a stand-in id from `#placeholderId` holds, as a data index, or
+   * `undefined` for another id. `same` is `false` when that row is gone and the
+   * index is a replacement: a child row's parent (its children came back fewer,
+   * or it collapsed) or the parent's nearest shown ancestor. `remote` marks a
+   * data source tree's stand-in, whose index can move.
+   */
+  #placeholderRow(
+    model: TableModel<T, CellContent>,
+    id: string,
+  ): { index: number; same: boolean; remote: boolean } | undefined {
+    const remote = this.#remote();
+    if (remote && id.startsWith('\u0000t')) {
+      const top = /^\d+$/.test(id.slice(2)) ? Number(id.slice(2)) : undefined;
+      const index = top === undefined ? undefined : remote.positionOfTop(top);
+      return index === undefined ? undefined : { index, same: true, remote: true };
+    }
+    if (remote && id.startsWith('\u0000c')) {
+      const sep = id.indexOf('\u0000', 2);
+      const offset = Number(id.slice(2, sep));
+      const parentId = id.slice(sep + 1);
+      const parent = remote.shownIndexOf(parentId);
+      if (parent === undefined) {
+        const ancestor = remote.shownAncestor(parentId);
+        return ancestor === undefined ? undefined : { index: ancestor, same: false, remote: true };
+      }
+      // Still a row right under the parent (loading, failed, or its child once loaded).
+      const at = parent + 1 + offset;
+      if (remote.parentIdAt(at) === parentId) return { index: at, same: true, remote: true };
+      return { index: parent, same: false, remote: true };
+    }
+    const digits = this.#reserved(model) ? (id.startsWith('\u0000') ? id.slice(1) : '') : id;
+    return /^\d+$/.test(digits) ? { index: Number(digits), same: true, remote: false } : undefined;
   }
 
   /** The id of a grid row: a body or pinned row's id; none for the header. */
@@ -619,13 +677,28 @@ export class NavigationController<T> {
       const unloaded = data !== undefined && model.rowAt(data) === undefined;
       // A row not loaded yet keeps its stand-in id, which holds its data index:
       // its position follows panels that appear above it.
-      const held = found === undefined ? this.#placeholderIndex(rowId) : undefined;
+      const held = found === undefined ? this.#placeholderRow(model, rowId) : undefined;
       // A tree row out of the shown rows (its parent collapsed, or a filter
       // dropped it): to its nearest shown ancestor.
       const ancestor =
         found === undefined && model.tree ? model.shownAncestor(owner ?? rowId) : undefined;
-      if (held !== undefined && held < model.rowCount && model.rowAt(held) === undefined) {
-        index = display.positionOf(held);
+      if (held?.remote) {
+        // A data source tree's row: where it is now (rows may have loaded above
+        // it), with its id once it has loaded; or its replacement.
+        index = display.positionOf(held.index);
+        const loaded = model.rowAt(held.index)?.id;
+        if (loaded !== undefined || !held.same) {
+          rowId = loaded ?? this.#placeholderId(model, held.index);
+        }
+        // Rendered rows follow ids: under the same id the focused cell stays
+        // (and isn't scrolled back into view); another id renders another row.
+        if (!held.same || rowId !== prev.rowId) moved = true;
+      } else if (
+        held !== undefined &&
+        held.index < model.rowCount &&
+        model.rowAt(held.index) === undefined
+      ) {
+        index = display.positionOf(held.index);
       } else if (found !== undefined) {
         const panel = owner === undefined ? undefined : display.detailPositionOf(found);
         index = panel ?? display.positionOf(found);

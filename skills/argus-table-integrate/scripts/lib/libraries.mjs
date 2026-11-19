@@ -4,8 +4,10 @@
 // fit: `maps` (argus-table has it), `partial` (close, with differences),
 // `builtin` (argus-table does it already: delete the code), `gap` (no
 // equivalent; references/gaps.md#<gap> says what to tell the user).
-// `argus` names only real API (props, column fields, events, methods,
-// add-ons): skills/test/integrate-sync.test.mjs checks them.
+// `argus` names only real API (props, column fields, `dataSource` members,
+// events, methods, add-ons): skills/test/integrate-sync.test.mjs checks them.
+// `supersedes` lists features of the same library a usage drops when this one
+// matches (a lazy tree isn't mapped as a tree held in memory).
 
 const f = (id, re, fit, argus = {}, extra = {}) => ({ id, re, fit, argus, ...extra });
 
@@ -352,10 +354,14 @@ export const LIBRARIES = [
       ),
       f(
         'server-side-tree',
-        /\bisServerSideGroup\b|\bgetServerSideGroupKey\b|\bserverSideGroupOpenLevel\b/,
-        'gap',
-        {},
-        { gap: 'lazy-trees' },
+        /\bisServerSideGroup\b|\bgetServerSideGroupKey\b|\bisServerSideGroupOpenByDefault\b/,
+        'partial',
+        {
+          props: ['getRowId', 'treeExpanded'],
+          dataSource: ['hasChildren', 'getChildren'],
+          events: ['argus-tree-expanded-change'],
+        },
+        { supersedes: ['tree-data'] },
       ),
       f('master-detail', /\bmasterDetail\b|\bdetailCellRenderer\b/, 'partial', {
         props: ['rowDetail', 'expanded'],
@@ -559,7 +565,17 @@ export const LIBRARIES = [
         props: ['getParentId', 'getRowId', 'treeExpanded'],
         events: ['argus-tree-expanded-change'],
       }),
-      f('lazy-tree', /\bgetChildrenCount\b/, 'gap', {}, { gap: 'lazy-trees' }),
+      f(
+        'lazy-tree',
+        /\bgetChildrenCount\b/,
+        'partial',
+        {
+          props: ['getRowId', 'treeExpanded'],
+          dataSource: ['hasChildren', 'getChildren'],
+          events: ['argus-tree-expanded-change'],
+        },
+        { supersedes: ['tree-data'] },
+      ),
       f('detail-panel', /\bgetDetailPanelContent\b/, 'partial', {
         props: ['rowDetail', 'expanded'],
       }),
@@ -689,9 +705,13 @@ export const LIBRARIES = [
       f(
         'lazy-tree',
         /<(?:TreeTable|p-tree(?:[tT]able|-table))\b(?=(?:[^>]|=>)*\blazy\b)(?:[^>]|=>)*(?:\bonNodeExpand\b|@node-expand\b)/,
-        'gap',
-        {},
-        { gap: 'lazy-trees' },
+        'maps',
+        {
+          props: ['getRowId', 'treeExpanded'],
+          dataSource: ['hasChildren', 'getChildren'],
+          events: ['argus-tree-expanded-change'],
+        },
+        { supersedes: ['tree'] },
       ),
       f('row-click', /\bonRowSelect\b|@row-click\b|\(onRowSelect\)/, 'maps', {
         events: ['argus-row-click'],
@@ -854,7 +874,18 @@ export const LIBRARIES = [
           events: ['argus-tree-expanded-change'],
         },
       ),
-      f('lazy-tree', /:load\b/, 'gap', {}, { gap: 'lazy-trees' }),
+      // A lazy tree table: `lazy` and `:load` on the table's own tag (not an `el-tree`).
+      f(
+        'lazy-tree',
+        /<(?:el-table|ElTable)(?![\w-])(?=(?:[^>]|=>)*\blazy\b)(?:[^>]|=>)*:load\b/,
+        'maps',
+        {
+          props: ['getRowId', 'treeExpanded'],
+          dataSource: ['hasChildren', 'getChildren'],
+          events: ['argus-tree-expanded-change'],
+        },
+        { supersedes: ['tree'] },
+      ),
       f('height', /<el-table\b[^>]*\b(?:max-)?height\s*=/, 'maps'),
       f('stripe-border', /\bstripe\b|\bborder\b/, 'maps'),
       f('slots', /#default\s*=\s*['"]\s*(?:scope|\{)/, 'maps', { column: ['cell'] }),
@@ -910,7 +941,6 @@ export const LIBRARIES = [
 export const GAPS = [
   'pagination',
   'row-grouping',
-  'lazy-trees',
   'range-selection',
   'row-drag',
   'context-menu',
@@ -928,6 +958,8 @@ export function describeArgus(argus) {
   const parts = [];
   if (argus.column?.length) parts.push(argus.column.map((c) => `ColumnDef.${c}`).join(', '));
   if (argus.props?.length) parts.push(argus.props.join(', '));
+  if (argus.dataSource?.length)
+    parts.push(argus.dataSource.map((m) => `dataSource.${m}`).join(', '));
   if (argus.events?.length) parts.push(argus.events.join(', '));
   if (argus.methods?.length) parts.push(argus.methods.map((m) => `${m}()`).join(', '));
   if (argus.addons?.length) parts.push(argus.addons.join(', '));

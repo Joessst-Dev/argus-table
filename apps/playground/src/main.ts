@@ -1,6 +1,7 @@
 import { html } from 'lit';
 import type {
   ArgusTable,
+  ChildrenRequest,
   ColumnDef,
   ColumnGroup,
   ColumnFilter,
@@ -8,6 +9,7 @@ import type {
   DataSource,
   Density,
   RowsRequest,
+  SortState,
 } from 'argus-table';
 import 'argus-table';
 import { EXTRA_COLUMNS, makePeople, STATUSES, type Person } from './data.js';
@@ -46,6 +48,15 @@ import { installBenchHooks } from './bench-hooks.js';
 // 10th child (the 1st, 11th, 21st, …) is the parent of the 3 rows after it, so the
 // tree is three levels deep. Every row starts collapsed; treeopen expands every row
 // with children. treeExpanded follows argus-tree-expanded-change.
+// With source=remote, tree makes the pretend server's rows a tree through hasChildren
+// and getChildren instead (any n is ignored): every 10th top-level row (r0, r10, …)
+// has 5, 4, 3, 2, 1, 5, … children (r0 has 5, r10 4, …), ids r0.0, r0.1, …; the
+// first child of each (r0.0) has 2 children again (r0.0.0, r0.0.1). The "#" column
+// shows the row's id. Children are sorted and filtered like the rows and logged in
+// window.__argusChildRequests; childlatency=<ms> (default: latency) is their delay,
+// or hold to keep every answer until window.__argusAnswerChildren() is called;
+// failchildren=<id> fails that row's first child request. treeopen expands every
+// row with children.
 const params = new URLSearchParams(location.search);
 // A switch, not a lookup table: the query value never picks a function to call.
 switch (params.get('theme')) {
@@ -281,7 +292,18 @@ if (params.has('detail')) {
     });
   }
 }
-if (params.has('tree')) {
+if (params.has('tree') && params.get('source') === 'remote') {
+  // The first data column holds the indent, the toggle and the id: room for three levels.
+  table.columns = columns.map((c) =>
+    c.id === 'index' ? { ...c, accessor: 'id', align: undefined, width: 150 } : c,
+  );
+  table.treeExpanded = params.has('treeopen')
+    ? people.flatMap((p) => (childCount(p) > 0 ? [p.id, `${p.id}.0`] : []))
+    : [];
+  table.addEventListener('argus-tree-expanded-change', (event) => {
+    table.treeExpanded = event.detail.treeExpanded;
+  });
+} else if (params.has('tree')) {
   const size = Math.max(2, Number(params.get('tree')) || 10);
   table.getParentId = (p) => {
     const parent = treeParent(p.index, size);
@@ -307,6 +329,8 @@ else document.body.append(table);
 declare global {
   interface Window {
     __argusRequests?: RowsRequest[];
+    __argusChildRequests?: ChildrenRequest<Person>[];
+    __argusAnswerChildren?: () => void;
   }
 }
 
@@ -418,7 +442,72 @@ function filterPeople(people: Person[], filters: ColumnFilterState, quick: strin
   );
 }
 
-/** A pretend server over the people: sorts, filters, waits, honours `signal`, can fail a page once. */
+/**
+ * How many children a row has on the pretend server with `source=remote&tree`: 5, 4,
+ * 3, 2, 1, 5, … for every 10th top-level row, 2 for the first child of each, else none.
+ */
+function childCount(p: Person): number {
+  const depth = p.id.split('.').length - 1;
+  if (depth === 0) return p.index % 10 === 0 ? 5 - ((p.index / 10) % 5) : 0;
+  return depth === 1 && p.id.endsWith('.0') ? 2 : 0;
+}
+
+const childLists = new Map<string, Person[]>();
+
+/**
+ * A row's children on the pretend server: other people's details under the ids
+ * `<parent id>.<i>`, the same objects on every request.
+ */
+function childrenOf(parent: Person): Person[] {
+  let list = childLists.get(parent.id);
+  if (!list) {
+    const count = childCount(parent);
+    const seed = parent.id
+      .split('.')
+      .reduce((sum, part) => sum * 31 + parseInt(part.replace('r', ''), 10), 7);
+    list = Array.from({ length: count }, (_, i) => {
+      const base = people[(seed + i * 37) % people.length] ?? parent;
+      return { ...base, id: `${parent.id}.${String(i)}` };
+    });
+    childLists.set(parent.id, list);
+  }
+  return list;
+}
+
+/** Rows sorted by the first sort key, the way the pretend server sorts. */
+function sortPeople(rows: Person[], sorting: SortState): Person[] {
+  const [by] = sorting;
+  if (!by) return rows;
+  const dir = by.desc ? -1 : 1;
+  return [...rows].sort((a, b) => {
+    const x = readColumn(by.id, a) as string | number;
+    const y = readColumn(by.id, b) as string | number;
+    return x < y ? -dir : x > y ? dir : 0;
+  });
+}
+
+/** Waits `ms`, or with `'hold'` until `held`'s entry is called; rejects on `signal`. */
+function wait(ms: number | 'hold', signal: AbortSignal, held?: Set<() => void>): Promise<void> {
+  return new Promise((resolve, reject) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const release = () => {
+      held?.delete(release);
+      resolve();
+    };
+    if (ms === 'hold') held?.add(release);
+    else timer = setTimeout(release, ms);
+    signal.addEventListener('abort', () => {
+      clearTimeout(timer);
+      held?.delete(release);
+      reject(signal.reason as Error);
+    });
+  });
+}
+
+/**
+ * A pretend server over the people: sorts, filters, waits, honours `signal`, can fail
+ * a page once. With `tree`, it answers children too (see the parameters above).
+ */
 function remoteSource(people: Person[]): DataSource<Person> {
   const latency = Number(params.get('latency') ?? 100);
   const withTotal = params.get('total') !== 'unknown';
@@ -426,40 +515,45 @@ function remoteSource(people: Person[]): DataSource<Person> {
   const pageSize = 100;
   const sortedBy = new Map<string, Person[]>();
   const log: RowsRequest[] = (window.__argusRequests = []);
-  return {
+  const source: DataSource<Person> = {
     pageSize,
-    getRows: ({ start, end, sorting, filters, quickFilter, signal }) => {
+    getRows: async ({ start, end, sorting, filters, quickFilter, signal }) => {
       log.push({ start, end, sorting, filters, quickFilter, signal });
-      return new Promise((resolve, reject) => {
-        const timer = setTimeout(() => {
-          if (failing.delete(Math.floor(start / pageSize))) {
-            reject(new Error('Server error'));
-            return;
-          }
-          const [by] = sorting;
-          let rows = people;
-          if (by) {
-            const key = `${by.id}:${String(by.desc)}`;
-            let sorted = sortedBy.get(key);
-            if (!sorted) {
-              const dir = by.desc ? -1 : 1;
-              sorted = [...people].sort((a, b) => {
-                const x = readColumn(by.id, a) as string | number;
-                const y = readColumn(by.id, b) as string | number;
-                return x < y ? -dir : x > y ? dir : 0;
-              });
-              sortedBy.set(key, sorted);
-            }
-            rows = sorted;
-          }
-          rows = filterPeople(rows, filters, quickFilter);
-          resolve({ rows: rows.slice(start, end), total: withTotal ? rows.length : undefined });
-        }, latency);
-        signal.addEventListener('abort', () => {
-          clearTimeout(timer);
-          reject(signal.reason as Error);
-        });
-      });
+      await wait(latency, signal);
+      if (failing.delete(Math.floor(start / pageSize))) throw new Error('Server error');
+      const [by] = sorting;
+      let rows = people;
+      if (by) {
+        const key = `${by.id}:${String(by.desc)}`;
+        let sorted = sortedBy.get(key);
+        if (!sorted) {
+          sorted = sortPeople(people, sorting);
+          sortedBy.set(key, sorted);
+        }
+        rows = sorted;
+      }
+      rows = filterPeople(rows, filters, quickFilter);
+      return { rows: rows.slice(start, end), total: withTotal ? rows.length : undefined };
+    },
+  };
+  if (!params.has('tree')) return source;
+  const delay = params.get('childlatency');
+  const childLatency = delay === 'hold' ? 'hold' : Number(delay ?? latency);
+  const failingChildren = new Set(params.getAll('failchildren'));
+  const held = new Set<() => void>();
+  const childLog: ChildrenRequest<Person>[] = (window.__argusChildRequests = []);
+  window.__argusAnswerChildren = () => {
+    for (const release of [...held]) release();
+  };
+  return {
+    ...source,
+    hasChildren: (row) => childCount(row) > 0,
+    getChildren: async (request) => {
+      childLog.push(request);
+      await wait(childLatency, request.signal, held);
+      if (failingChildren.delete(request.parentId)) throw new Error('Server error');
+      const { parent, sorting, filters, quickFilter } = request;
+      return { rows: filterPeople(sortPeople(childrenOf(parent), sorting), filters, quickFilter) };
     },
   };
 }

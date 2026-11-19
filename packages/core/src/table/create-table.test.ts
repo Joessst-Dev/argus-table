@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
+import { PageCache } from '../data/page-cache.js';
+import { RemoteTree } from '../data/remote-tree.js';
 import { sameSelection, toggleBranch, withBranches } from '../state/selection.js';
 import type { ColumnDef } from '../types.js';
 import {
@@ -1805,6 +1807,9 @@ describe('tree rows', () => {
     m.update({ remote: { ...remote } });
     expect(m.tree).toBe(false);
     expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(
+      'argus-table: getSubRows and getParentId are ignored with a dataSource; use its hasChildren and getChildren.',
+    );
     warn.mockRestore();
   });
 
@@ -1816,6 +1821,282 @@ describe('tree rows', () => {
     expect(m.rowCount).toBe(2);
     expect(warn).toHaveBeenCalledTimes(1);
     warn.mockRestore();
+  });
+});
+
+describe('remote tree rows', () => {
+  interface Item {
+    name: string;
+    kids: number;
+  }
+  const itemColumns: ColumnDef<Item, string>[] = [{ id: 'name', accessor: 'name' }];
+  // Top-level ids are indexes: '0' to '3' load, '4' and '5' don't.
+  const tops: Item[] = [
+    { name: 'A', kids: 2 },
+    { name: 'B', kids: 2 },
+    { name: 'C', kids: 0 },
+    { name: 'D', kids: 1 },
+  ];
+  const b1: Item = { name: 'B1', kids: 0 };
+  const b2: Item = { name: 'B2', kids: 0 };
+  const cacheOf = () => {
+    const cache = new PageCache<Item>({ pageSize: 4 });
+    cache.begin(0);
+    cache.resolve(0, tops, 6);
+    return cache;
+  };
+  const setup = (overrides: Partial<TableModelOptions<Item, string>> = {}) => {
+    const cache = cacheOf();
+    const remote = new RemoteTree(cache, { hasChildren: (row) => row.kids > 0 });
+    const m = createTableModel<Item, string>({
+      columns: itemColumns,
+      data: [],
+      getRowId: undefined,
+      sorting: [],
+      columnSizing: {},
+      remote,
+      ...overrides,
+    });
+    return { cache, remote, m };
+  };
+  /** Opens a parent and answers its children. */
+  const open = (remote: RemoteTree<Item>, parentId: string, rows: readonly Item[]) => {
+    remote.setExpanded([parentId]);
+    remote.beginChildren(parentId);
+    remote.resolveChildren(parentId, rows);
+  };
+  const rids = (m: ReturnType<typeof setup>['m']) =>
+    Array.from({ length: m.rowCount }, (_, i) => m.rowAt(i)?.id);
+
+  it('reads the remote as a tree, with depth in rows and cell contexts', () => {
+    const { remote, m } = setup();
+    expect(m.tree).toBe(true);
+    open(remote, '1', [b1, b2]);
+    expect(rids(m)).toEqual(['0', '1', '1.0', '1.1', '2', '3', undefined, undefined]);
+    expect(m.treeRow(1)).toMatchObject({ depth: 0, hasChildren: true, open: true, forced: false });
+    expect(m.treeRow(2)).toEqual({
+      depth: 1,
+      hasChildren: false,
+      open: false,
+      forced: false,
+      parent: 1,
+      setSize: 2,
+      posInSet: 1,
+    });
+    expect(m.treeRow(6)).toBeUndefined();
+    expect(m.cellContext(2, 'name')).toEqual({
+      row: b1,
+      rowId: '1.0',
+      index: 2,
+      columnId: 'name',
+      value: 'B1',
+      depth: 1,
+    });
+    expect(m.cellContext(4, 'name')).toMatchObject({ rowId: '2', depth: 0 });
+    expect(m.indexOf('1.1')).toBe(3);
+    expect(m.shownAncestor('1.1')).toBe(3);
+    remote.setExpanded([]);
+    expect(m.shownAncestor('1.1')).toBe(1);
+    expect(m.shownAncestor('nope')).toBeUndefined();
+  });
+
+  it('expands only rows that can open, and closes any open id', () => {
+    const { remote, m } = setup();
+    expect(m.nextTreeExpanded('1', true)).toEqual(['1']);
+    // No children, not loaded, unknown: nothing to open.
+    expect(m.nextTreeExpanded('2', true)).toBeUndefined();
+    expect(m.nextTreeExpanded('5', true)).toBeUndefined();
+    expect(m.nextTreeExpanded('nope', true)).toBeUndefined();
+    // Closing an open id works whether or not its row is loaded.
+    expect(m.nextTreeExpanded('5', false, ['1', '5'])).toEqual(['1']);
+    expect(m.nextTreeExpanded('1', false, ['1'])).toEqual([]);
+    expect(m.nextTreeExpanded('1', true, ['1'])).toBeUndefined();
+    expect(m.nextTreeExpanded('1', false, [])).toBeUndefined();
+    m.update({ treeExpanded: ['0'] });
+    expect(m.nextTreeExpanded('1', true)).toEqual(['0', '1']);
+    // Children that come back empty: the row can't open any more.
+    open(remote, '3', []);
+    expect(m.nextTreeExpanded('3', true, [])).toBeUndefined();
+    expect(m.treeRow(3)).toMatchObject({ hasChildren: false, open: false });
+  });
+
+  it('keeps rowOrder while only pages load, and changes it when rows move', () => {
+    const { cache, remote, m } = setup();
+    const order = m.rowOrder;
+    expect(order).toBe(remote.order);
+    cache.begin(1);
+    cache.resolve(1, [
+      { name: 'E', kids: 0 },
+      { name: 'F', kids: 0 },
+    ]);
+    expect(m.rowAt(5)?.id).toBe('5');
+    expect(m.rowOrder).toBe(order);
+    open(remote, '1', [b1, b2]);
+    expect(m.rowOrder).not.toBe(order);
+    expect(m.rowOrder).toBe(remote.order);
+  });
+
+  it('places detail panels after loaded children', () => {
+    const { remote, m } = setup({ detail: true, expanded: ['1.0', '2'] });
+    expect(m.display.open).toEqual([2]);
+    open(remote, '1', [b1, b2]);
+    expect(m.display.open).toEqual([2, 4]);
+    expect(m.expandable(2)).toBe(true);
+    remote.setExpanded([]);
+    expect(m.display.open).toEqual([2]);
+  });
+
+  it('selects branches over the loaded rows', () => {
+    const { remote, m } = setup();
+    open(remote, '1', [b1, b2]);
+    const tree = m.branchTree();
+    if (!tree) throw new Error('no branch tree');
+    expect(tree.children('1')).toEqual(['1.0', '1.1']);
+    // The server filters: every loaded child counts.
+    expect(tree.allChildren('1')).toEqual(['1.0', '1.1']);
+    expect(tree.parent('1.1')).toBe('1');
+    expect(tree.parent('1')).toBeUndefined();
+    // Ticking a loaded parent selects it and its loaded children.
+    expect(sameSelection(toggleBranch([], '1', tree), ['1', '1.0', '1.1'])).toBe(true);
+    expect(toggleBranch(['1', '1.0', '1.1'], '1.0', tree)).toEqual(['1.1']);
+    // Ticking the last child adds the parent.
+    expect(withBranches(['1.0'], ['1.1'], tree)).toEqual(['1.0', '1.1', '1']);
+    expect(m.selectableIds()).toEqual(['0', '1', '1.0', '1.1', '2', '3']);
+  });
+
+  it('shows part-ticked parents and the header state over the loaded rows', () => {
+    const { remote, m } = setup();
+    open(remote, '1', [b1, b2]);
+    const some = new Set(['1.0']);
+    expect([0, 1, 2, 3, 4].map(m.branchCheck(some))).toEqual([
+      'none',
+      'some',
+      'all',
+      'none',
+      'none',
+    ]);
+    // The loading row isn't loaded: nothing to show.
+    expect(m.branchCheck(some)(6)).toBe('none');
+    expect(m.branchCheckAll(some)).toBe('some');
+    expect(m.branchCheckAll(new Set())).toBe('none');
+    const every = new Set(['0', '1', '1.0', '1.1', '2', '3']);
+    expect(m.branchCheckAll(every)).toBe('all');
+    expect(m.branchCheck(every)(1)).toBe('all');
+  });
+
+  it('a row whose children aren’t loaded ticks as a leaf; nothing is blocked', () => {
+    const { remote, m } = setup();
+    // '0' has children on the server, none loaded.
+    const tree = m.branchTree();
+    if (!tree) throw new Error('no branch tree');
+    expect(tree.children('0')).toEqual([]);
+    expect(toggleBranch([], '0', tree)).toEqual(['0']);
+    expect(m.branchCheck(new Set(['0']))(0)).toBe('all');
+    // Its children arrive: the tree has them, and the old one is replaced.
+    open(remote, '0', [b1, b2]);
+    expect(m.branchTree()).not.toBe(tree);
+    expect(m.branchTree()?.children('0')).toEqual(['0.0', '0.1']);
+    expect(m.branchCheck(new Set(['0']))(0)).toBe('some');
+    expect([0, 1, 2, 3, 4, 5].map(m.branchCheck(new Set()))).not.toContain('blocked');
+  });
+
+  it('select-all covers loaded children of collapsed rows', () => {
+    const { remote, m } = setup();
+    open(remote, '1', [b1, b2]);
+    remote.setExpanded([]);
+    expect(m.selectableIds()).toEqual(['0', '1', '2', '3']);
+    expect(m.branchSelectAll([])).toEqual(['0', '1', '1.0', '1.1', '2', '3']);
+    expect(m.branchSelectAll(['9'])).toEqual(['9', '0', '1', '1.0', '1.1', '2', '3']);
+    const all = new Set(m.branchSelectAll([]));
+    expect(m.branchCheckAll(all)).toBe('all');
+    expect(m.branchCheck(all)(1)).toBe('all');
+    expect(m.branchCheckAll(new Set(['0', '1', '2', '3']))).toBe('some');
+  });
+
+  it('under a server filter, parents’ ids stay out: their branches may be incomplete', () => {
+    const cache = cacheOf();
+    const remote = new RemoteTree(cache, { hasChildren: (row) => row.kids > 0, filtered: true });
+    const m = createTableModel<Item, string>({
+      columns: itemColumns,
+      data: [],
+      getRowId: undefined,
+      sorting: [],
+      columnSizing: {},
+      remote,
+    });
+    open(remote, '1', [b1]);
+    const tree = m.branchTree();
+    if (!tree) throw new Error('no branch tree');
+    // Ticking a parent selects the rows shown under it, not its id.
+    expect(toggleBranch([], '1', tree)).toEqual(['1.0']);
+    const ticked = new Set(['1.0']);
+    // '0' and '3' have children, none loaded: nothing to tick.
+    expect([0, 1, 2, 3, 4, 5].map(m.branchCheck(ticked))).toEqual([
+      'blocked',
+      'some',
+      'all',
+      'none',
+      'blocked',
+      'none',
+    ]);
+    // Part-ticked, it counts as checked: the next click unticks.
+    expect(toggleBranch(['1.0'], '1', tree)).toEqual([]);
+    expect(m.branchSelectAll([])).toEqual(['1.0', '2']);
+    expect(m.branchCheckAll(new Set(['1.0', '2']))).toBe('all');
+    expect(m.branchCheckAll(new Set())).toBe('none');
+    // A parent's id set against the rule goes when its branch changes.
+    expect(withBranches(['1'], ['1.0'], tree)).toEqual(['1.0']);
+  });
+
+  it('a remote tree with nothing loaded shows an unticked header, whatever is selected', () => {
+    const remote = new RemoteTree(new PageCache<Item>({ pageSize: 4 }), {
+      hasChildren: (row) => row.kids > 0,
+    });
+    const m = createTableModel<Item, string>({
+      columns: itemColumns,
+      data: [],
+      getRowId: undefined,
+      sorting: [],
+      columnSizing: {},
+      remote,
+    });
+    expect(m.branchCheckAll(new Set(['1']))).toBe('none');
+    expect(m.branchSelectAll(['1'])).toEqual(['1']);
+  });
+
+  it('ignores getSubRows with a remote tree, with the warning', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { m } = setup({ getSubRows: () => undefined });
+    expect(m.tree).toBe(true);
+    expect(m.treeRow(1)).toMatchObject({ depth: 0, hasChildren: true });
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
+
+  it('leaves a plain page cache flat', () => {
+    const cache = cacheOf();
+    const m = createTableModel<Item, string>({
+      columns: itemColumns,
+      data: [],
+      getRowId: undefined,
+      sorting: [],
+      columnSizing: {},
+      remote: cache,
+      treeExpanded: ['1'],
+    });
+    expect(m.tree).toBe(false);
+    expect(m.treeRow(1)).toBeUndefined();
+    expect(m.rowOrder).toBe(cache);
+    expect(m.cellContext(1, 'name')).toEqual({
+      row: tops[1],
+      rowId: '1',
+      index: 1,
+      columnId: 'name',
+      value: 'B',
+    });
+    expect(m.nextTreeExpanded('1', true)).toBeUndefined();
+    expect(m.nextTreeExpanded('1', false)).toBeUndefined();
+    expect(m.shownAncestor('1')).toBeUndefined();
   });
 });
 

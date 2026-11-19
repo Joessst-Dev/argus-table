@@ -1,11 +1,16 @@
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
 import {
+  filtersRows,
   PageCache,
+  RemoteTree,
+  type ChildrenRequest,
   type ColumnFilterState,
   type DataSource,
+  type KeptCount,
   type LoadErrorDetail,
   type RowState,
   type SortState,
+  type TreeExpandedState,
 } from '@argus-table/core';
 
 /** Rows per request when the data source sets no `pageSize`. */
@@ -14,12 +19,24 @@ export const DEFAULT_PAGE_SIZE = 100;
 /** Quiet time after the last range change before pages load, so fast scrolling loads only where it stops. */
 export const LOAD_DEBOUNCE_MS = 50;
 
+/** `getChildren` calls in flight at most; the others start as these settle. */
+export const MAX_CHILD_REQUESTS = 6;
+
 export interface DataConfig<T> {
   source: DataSource<T> | undefined;
   sorting: SortState;
   filters: ColumnFilterState;
   quickFilter: string;
   getRowId: ((row: T, index: number) => string) | undefined;
+  /** The expanded rows, for a source with `hasChildren` and `getChildren`. */
+  treeExpanded: TreeExpandedState;
+}
+
+/** What a reset keeps: the row count and, for a tree, open rows' child counts. */
+interface Carry {
+  rowCount: number | undefined;
+  totalKnown: boolean;
+  counts?: ReadonlyMap<string, KeptCount> | undefined;
 }
 
 /**
@@ -27,24 +44,44 @@ export interface DataConfig<T> {
  * page cache: a new source, sort order, filter or row id function starts a fresh one, and
  * answers for an old cache are dropped. Requests wait until the range has been
  * quiet for `LOAD_DEBOUNCE_MS`; pages that scrolled away are aborted.
+ *
+ * With `hasChildren` and `getChildren` the rows form a tree: a `RemoteTree` over
+ * the cache, whose indexes are shown indexes (top-level rows and the loaded
+ * children of open ones). Pages are requested for the top-level rows the shown
+ * range covers, and the children of open, loaded rows with one `getChildren`
+ * call per parent (at most `MAX_CHILD_REQUESTS` at a time), aborted on a reset
+ * or disconnect (not on collapse).
  */
 export class DataController<T> implements ReactiveController {
   readonly #host: ReactiveControllerHost;
+  readonly #arrived: (parentId: string) => void;
   #config: DataConfig<T> = {
     source: undefined,
     sorting: [],
     filters: {},
     quickFilter: '',
     getRowId: undefined,
+    treeExpanded: [],
   };
   #cache: PageCache<T> | undefined;
+  /** The rows as a tree, while the source has `hasChildren` and `getChildren`. */
+  #tree: RemoteTree<T> | undefined;
+  /** The source's `getChildren`, bound, while there is a tree. */
+  #getChildren: DataSource<T>['getChildren'];
   readonly #requests = new Map<number, AbortController>();
+  /** In-flight `getChildren` calls, by parent id. */
+  readonly #childRequests = new Map<string, AbortController>();
+  /** The top-level rows of the rendered range. */
   #range: { start: number; end: number } | undefined;
   #timer: ReturnType<typeof setTimeout> | undefined;
   #errors: LoadErrorDetail[] = [];
+  /** Whether a row id used twice was reported: once, whatever the resets. */
+  #warned = false;
 
-  constructor(host: ReactiveControllerHost) {
+  /** `arrived`: called with a parent's id when its children arrive. */
+  constructor(host: ReactiveControllerHost, arrived: (parentId: string) => void = () => undefined) {
     this.#host = host;
+    this.#arrived = arrived;
     host.addController(this);
   }
 
@@ -59,15 +96,29 @@ export class DataController<T> implements ReactiveController {
     this.#range = undefined;
   }
 
-  /** The page cache, while a data source is set: the model reads rows from it. */
-  get rows(): PageCache<T> | undefined {
+  /**
+   * The rows the model reads, while a data source is set: the tree, or the page
+   * cache. Indexes are shown indexes.
+   */
+  get rows(): PageCache<T> | RemoteTree<T> | undefined {
+    return this.#tree ?? this.#cache;
+  }
+
+  /** The tree, while a data source with `hasChildren` and `getChildren` is set. */
+  get tree(): RemoteTree<T> | undefined {
+    return this.#tree;
+  }
+
+  /** The page cache of the (top-level) rows, while a data source is set. */
+  get cache(): PageCache<T> | undefined {
     return this.#cache;
   }
 
   /**
-   * Takes the source, sort order, filters and row id function. Any change starts a
-   * fresh cache; a sort or row id change keeps the row count (the rows are the same),
-   * a new source or filter doesn't (the rows aren't).
+   * Takes the source, sort order, filters, row id function and expanded rows. A
+   * change other than the expanded rows starts a fresh cache: a sort or row id
+   * change keeps the row count (the rows are the same) and open rows' child
+   * counts, a new source or filter doesn't (the rows aren't).
    */
   configure(next: DataConfig<T>): void {
     const prev = this.#config;
@@ -84,34 +135,55 @@ export class DataController<T> implements ReactiveController {
     ) {
       this.#reset({ rowCount: undefined, totalKnown: false });
     } else if (next.sorting !== prev.sorting || next.getRowId !== prev.getRowId) {
-      this.#reset({ rowCount: this.#cache.rowCount, totalKnown: this.#cache.totalKnown });
+      // Other positions: open rows keep their counts once their rows load again.
+      this.#reset({
+        rowCount: this.#cache.rowCount,
+        totalKnown: this.#cache.totalKnown,
+        counts: this.#tree?.counts(false),
+      });
     }
-  }
-
-  /** Drops every loaded page and loads the rendered ones again. The row count stays until pages answer. */
-  refresh(): void {
-    if (!this.#cache) return;
-    this.#reset({ rowCount: this.#cache.rowCount, totalKnown: false });
-    this.#host.requestUpdate();
-  }
-
-  stateAt(index: number): RowState {
-    return this.#cache?.stateAt(index) ?? 'loaded';
+    this.#tree?.setExpanded(next.treeExpanded);
   }
 
   /**
-   * The rendered rows, `start` to `end` (exclusive). Loads what's missing once the
-   * range has been quiet for a moment. Call after every update.
+   * Drops every loaded page and child rows and loads the rendered ones again. The
+   * row count and open rows' child counts stay until the answers.
+   */
+  refresh(): void {
+    if (!this.#cache) return;
+    this.#reset({
+      rowCount: this.#cache.rowCount,
+      totalKnown: false,
+      counts: this.#tree?.counts(true),
+    });
+    this.#host.requestUpdate();
+  }
+
+  /** The state of the row at a shown index. */
+  stateAt(index: number): RowState {
+    return this.rows?.stateAt(index) ?? 'loaded';
+  }
+
+  /**
+   * The rendered rows, `start` to `end` (exclusive, shown indexes). Loads what's
+   * missing once the range has been quiet for a moment: the pages of the
+   * top-level rows they cover, and the children of open rows. Call after every update.
    */
   request(start: number, end: number): void {
     const cache = this.#cache;
     if (!cache) return;
+    const tree = this.#tree;
+    const range = tree ? tree.topRange(start, end) : { start, end };
     const prev = this.#range;
-    const moved = prev?.start !== start || prev.end !== end;
-    this.#range = { start, end };
+    const moved = prev?.start !== range.start || prev.end !== range.end;
+    this.#range = range;
     if (moved) {
       clearTimeout(this.#timer);
-    } else if (this.#timer !== undefined || cache.missingPages(start, end).length === 0) {
+    } else if (
+      this.#timer !== undefined ||
+      (cache.missingPages(range.start, range.end).length === 0 &&
+        (!tree || tree.wanted.length === 0 || this.#childRequests.size >= MAX_CHILD_REQUESTS))
+    ) {
       return;
     }
     this.#timer = setTimeout(() => {
@@ -120,12 +192,23 @@ export class DataController<T> implements ReactiveController {
     }, LOAD_DEBOUNCE_MS);
   }
 
-  /** Requests the failed page holding row `index` again (the Retry button, or Enter on a failed row). */
+  /**
+   * Requests the failed rows at a shown index again (the Retry button, or Enter
+   * on a failed row): a top-level row's page, or a child row's parent's children.
+   */
   retry(index: number): void {
     const cache = this.#cache;
-    const page = cache?.pageOf(index);
-    if (!cache || page === undefined || !cache.isFailed(page)) return;
-    cache.retry(page);
+    if (!cache) return;
+    const tree = this.#tree;
+    const top = tree ? tree.topIndexOf(index) : index;
+    if (top === undefined) {
+      const parentId = tree?.parentIdAt(index);
+      if (parentId === undefined || !tree?.forget(parentId, 'error')) return;
+    } else {
+      const page = cache.pageOf(top);
+      if (!cache.isFailed(page)) return;
+      cache.retry(page);
+    }
     this.#range = undefined;
     this.#host.requestUpdate();
   }
@@ -137,13 +220,13 @@ export class DataController<T> implements ReactiveController {
     return errors;
   }
 
-  #reset(carry: { rowCount: number | undefined; totalKnown: boolean } | undefined): void {
+  #reset(carry: Carry | undefined): void {
     clearTimeout(this.#timer);
     this.#timer = undefined;
     this.#abortAll();
     this.#range = undefined;
     this.#errors = [];
-    const { source, getRowId } = this.#config;
+    const { source, getRowId, filters, quickFilter, treeExpanded } = this.#config;
     this.#cache =
       source && carry
         ? new PageCache<T>({
@@ -153,7 +236,26 @@ export class DataController<T> implements ReactiveController {
             totalKnown: carry.totalKnown,
           })
         : undefined;
+    const hasChildren = source?.hasChildren?.bind(source);
+    this.#getChildren = source?.getChildren?.bind(source);
+    this.#tree =
+      this.#cache && hasChildren && this.#getChildren
+        ? new RemoteTree<T>(this.#cache, {
+            hasChildren,
+            getRowId,
+            keepCounts: carry?.counts,
+            warn: this.#warn,
+            filtered: filtersRows(filters, quickFilter),
+            expanded: treeExpanded,
+          })
+        : undefined;
   }
+
+  readonly #warn = (message: string) => {
+    if (this.#warned) return;
+    this.#warned = true;
+    console.warn(message);
+  };
 
   #abortAll(): void {
     for (const [page, controller] of this.#requests) {
@@ -161,6 +263,11 @@ export class DataController<T> implements ReactiveController {
       this.#cache?.cancel(page);
     }
     this.#requests.clear();
+    for (const [parentId, controller] of this.#childRequests) {
+      controller.abort();
+      this.#tree?.forget(parentId, 'loading');
+    }
+    this.#childRequests.clear();
   }
 
   #load(): void {
@@ -176,6 +283,17 @@ export class DataController<T> implements ReactiveController {
     }
     cache.evictOutside(range.start, range.end);
     for (const page of cache.missingPages(range.start, range.end)) this.#fetch(cache, page);
+    const tree = this.#tree;
+    if (tree) this.#startChildren(tree);
+  }
+
+  /** Requests the children `wanted` lists, up to `MAX_CHILD_REQUESTS` in flight. */
+  #startChildren(tree: RemoteTree<T>): void {
+    // `wanted` is a new array once a request starts: this one stays as it is.
+    for (const parentId of tree.wanted) {
+      if (this.#childRequests.size >= MAX_CHILD_REQUESTS) break;
+      this.#fetchChildren(tree, parentId);
+    }
   }
 
   #fetch(cache: PageCache<T>, page: number): void {
@@ -185,9 +303,8 @@ export class DataController<T> implements ReactiveController {
     const controller = new AbortController();
     this.#requests.set(page, controller);
     const current = () => !controller.signal.aborted && cache === this.#cache;
-    let pending: Promise<unknown>;
-    try {
-      pending = Promise.resolve(
+    settle(
+      () =>
         source.getRows({
           start,
           end,
@@ -196,12 +313,7 @@ export class DataController<T> implements ReactiveController {
           quickFilter: this.#config.quickFilter,
           signal: controller.signal,
         }),
-      );
-    } catch (error) {
-      pending = Promise.reject(error instanceof Error ? error : new Error(String(error)));
-    }
-    pending
-      .then((response) => {
+      (response) => {
         if (!current()) return;
         const { rows, total } = (response ?? {}) as { rows?: unknown; total?: unknown };
         if (!Array.isArray(rows)) {
@@ -210,13 +322,80 @@ export class DataController<T> implements ReactiveController {
         this.#requests.delete(page);
         cache.resolve(page, rows as T[], typeof total === 'number' ? total : undefined);
         this.#host.requestUpdate();
-      })
-      .catch((error: unknown) => {
+      },
+      (error) => {
         if (!current()) return;
         this.#requests.delete(page);
         cache.fail(page);
-        this.#errors.push({ error, start, end });
+        // In a tree, shown indexes: open rows above the page push it down.
+        const tree = this.#tree;
+        const shown = (top: number) => tree?.positionOfTop(top) ?? tree?.rowCount ?? top;
+        this.#errors.push({ error, start: shown(start), end: shown(end) });
         this.#host.requestUpdate();
-      });
+      },
+    );
   }
+
+  /** Loads the children of an open, loaded row (one `wanted` lists) with one `getChildren` call. */
+  #fetchChildren(tree: RemoteTree<T>, parentId: string): void {
+    tree.beginChildren(parentId);
+    const controller = new AbortController();
+    this.#childRequests.set(parentId, controller);
+    const current = () => !controller.signal.aborted && tree === this.#tree;
+    const request: ChildrenRequest<T> = {
+      // Loaded: `wanted` lists loaded rows only.
+      parent: tree.childRow(parentId) as T,
+      parentId,
+      sorting: this.#config.sorting,
+      filters: this.#config.filters,
+      quickFilter: this.#config.quickFilter,
+      signal: controller.signal,
+    };
+    settle(
+      () => this.#getChildren?.(request),
+      (response) => {
+        if (!current()) return;
+        const { rows } = (response ?? {}) as { rows?: unknown };
+        if (!Array.isArray(rows)) {
+          throw new TypeError('argus-table: getChildren() must resolve to { rows: [] }.');
+        }
+        this.#childRequests.delete(parentId);
+        tree.resolveChildren(parentId, rows as T[]);
+        // Outside any update, so a controlled table's handler can set properties.
+        this.#arrived(parentId);
+        this.#startChildren(tree);
+        this.#host.requestUpdate();
+      },
+      (error) => {
+        if (!current()) return;
+        this.#childRequests.delete(parentId);
+        // Not reported for a row collapsed meanwhile: its next expand loads again.
+        if (tree.failChildren(parentId)) {
+          // The parent's shown index (the error row is right below it), `-1` when it isn't shown.
+          const start = tree.shownIndexOf(parentId) ?? -1;
+          this.#errors.push({ error, start, end: start + 1, parentId });
+        }
+        this.#startChildren(tree);
+        this.#host.requestUpdate();
+      },
+    );
+  }
+}
+
+/**
+ * Calls a loader and hands its answer to `done`, or what it threw or rejected
+ * with (or what `done` threw) to `failed`.
+ */
+function settle(
+  call: () => unknown,
+  done: (response: unknown) => void,
+  failed: (error: unknown) => void,
+): void {
+  let pending: Promise<unknown>;
+  try {
+    pending = Promise.resolve(call());
+  } catch (error) {
+    pending = Promise.reject(error instanceof Error ? error : new Error(String(error)));
+  }
+  pending.then(done).catch(failed);
 }

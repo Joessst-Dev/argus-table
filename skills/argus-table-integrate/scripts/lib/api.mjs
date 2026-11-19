@@ -224,6 +224,9 @@ export const COLUMN_FIELDS = [
 /** Fields of a `ColumnGroup`. */
 export const COLUMN_GROUP_FIELDS = ['id', 'header', 'reorderable', 'columns'];
 
+/** Members of a `DataSource` (`hasChildren` and `getChildren` together make a tree). */
+export const DATA_SOURCE_MEMBERS = ['getRows', 'pageSize', 'hasChildren', 'getChildren'];
+
 /** Attributes of `<argus-column>` (`cell`, `filterFn`, `filterOptions` are properties only). */
 export const COLUMN_ATTRIBUTES = [
   'column-id',
