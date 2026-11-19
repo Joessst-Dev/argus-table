@@ -73,7 +73,7 @@ Names are case-insensitive.
 
 ## Whole columns
 
-`[[name]]` is a whole column: the column's values in every row the table's filters keep, in `data` order (whatever the sort). Totals follow the filters, as Excel's `SUBTOTAL` does:
+`[[name]]` is a whole column: the column's values in every row the table's filters keep, in the order of `data`, whatever the sort (with nested child rows from `getSubRows`: the rows of `data` first, then their children, depth first). Totals follow the filters, as Excel's `SUBTOTAL` does:
 
 ```text
 Share    = [amount] / SUM([[amount]])
@@ -87,6 +87,7 @@ Position = RANK([amount], [[amount]])
 - **In functions only.** `SUM`, `MIN`, `MAX`, `AVERAGE` and the Columns group take whole columns; a whole column anywhere else (`[[amount]] * 2`, `ROUND([[amount]])`, your own functions) is `#VALUE!`. In a whole column, totals count numbers and numeric text and skip the rest.
 - **Criteria** (`SUMIF`, `COUNTIF`, `AVERAGEIF`) are a value (equal, text without case), or text starting with `=`, `<>`, `<`, `<=`, `>` or `>=` (`">10"`, `"<>done"`, `">=" & [limit]`, dates as ISO text). In `=` and `<>` text, `*` matches any characters and `?` one.
 - **Lookups:** `XLOOKUP(value, column, result_column, [if_not_found])` finds the first exact match (text without case); `MATCH(value, column, [type])` gives a position, `0` for an exact match and `1` (the default) or `-1` for sorted data; `INDEX(column, position)` reads one, from 1. `RANK(value, column, [ascending])` ranks among the column's numbers, the largest first unless `ascending`; ties share a rank.
+- **Tree rows.** In a table whose rows have child rows (`getSubRows` or `getParentId`), whole columns cover the child rows too, under collapsed rows as well as expanded ones; under a filter they cover the rows that match and the parents kept to show them.
 - **With a `dataSource`**, whole columns are `#N/A`: its rows aren't all loaded.
 - **Speed.** A part that doesn't depend on the row, such as `SUM([[amount]])`, is computed once per set of rows; criteria and lookups that change from row to row go through an index of the column built once, not a scan per row. Wildcard and text-order criteria scan the column once per distinct criterion. A change of filters, quick filter or `data` computes the columns using whole columns again, and only those.
 

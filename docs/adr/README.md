@@ -16,3 +16,4 @@ Decisions contributors will ask about, with the evidence behind them. One file p
 | [0010](0010-own-row-model.md)                  | Own row model, without TanStack Table                             | Accepted |
 | [0011](0011-displayed-rows.md)                 | Displayed rows: positions inside, data indexes outside            | Accepted |
 | [0012](0012-formula-trees-for-data-sources.md) | Formula trees for data sources                                    | Accepted |
+| [0013](0013-tree-rows.md)                      | Tree rows inside the row pipeline, by source index                | Accepted |

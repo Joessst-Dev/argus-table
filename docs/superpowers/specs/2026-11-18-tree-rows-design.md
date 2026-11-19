@@ -62,11 +62,11 @@ Everything public here is API, frozen once released under [ADR 0004](../../adr/0
 
 Three ways were considered; **A was chosen**.
 
-**A. Tree rows inside the row pipeline (chosen).** Child rows are ordinary rows of core's model. Core flattens the tree once per `data` into one array of rows with each row's parent and depth; the pipeline filters (keeping ancestors), sorts within siblings and drops rows under collapsed parents. Collapsing works like a filter. Everything that works on rows (selection, events, plugins, export, editing, keyboard) works on child rows unchanged. `DisplayRows` stays as it is. *Trade-off:* a few kB in core, and step 2 needs a layer that splices children into the remote row order.
+**A. Tree rows inside the row pipeline (chosen).** Child rows are ordinary rows of core's model. Core flattens the tree once per `data` into one array of rows with each row's parent and depth; the pipeline filters (keeping ancestors), sorts within siblings and drops rows under collapsed parents. Collapsing works like a filter. Everything that works on rows (selection, events, plugins, export, editing, keyboard) works on child rows unchanged. `DisplayRows` stays as it is. _Trade-off:_ a few kB in core, and step 2 needs a layer that splices children into the remote row order.
 
-**B. Child rows as a new kind of displayed row** (what ADR 0011 anticipated). Top-level rows stay the model's rows and children are inserted after their parent like panels. *Rejected:* children would be second-class: no public index, and sorting, filtering, selection, events, export and plugins would each need special cases. More code and API than A, for worse behaviour.
+**B. Child rows as a new kind of displayed row** (what ADR 0011 anticipated). Top-level rows stay the model's rows and children are inserted after their parent like panels. _Rejected:_ children would be second-class: no public index, and sorting, filtering, selection, events, export and plugins would each need special cases. More code and API than A, for worse behaviour.
 
-**C. An add-on (`@argus-table/tree`) over small core hooks.** The add-on flattens and filters the tree and wraps the first column's cells; core adds tree attributes on rows and a hook for the row order. *Rejected:* almost no core size, but a public row hook, which ADR 0011 turned down as another surface to freeze, and sorting within parents, ancestor-keeping filters and lazy loading would all have to go through it. Grouping would have to be an add-on too.
+**C. An add-on (`@argus-table/tree`) over small core hooks.** The add-on flattens and filters the tree and wraps the first column's cells; core adds tree attributes on rows and a hook for the row order. _Rejected:_ almost no core size, but a public row hook, which ADR 0011 turned down as another surface to freeze, and sorting within parents, ancestor-keeping filters and lazy loading would all have to go through it. Grouping would have to be an add-on too.
 
 ## Design
 
@@ -76,12 +76,12 @@ All additions. Names are proposals to confirm in the plan's API review; the shap
 
 On `<argus-table>` (and `TableModelOptions` in core):
 
-| Property | Type | Meaning |
-| --- | --- | --- |
-| `getSubRows` | `(row: T) => readonly T[] \| undefined` | Nested data: a row's children. `data` holds the top-level rows. |
-| `getParentId` | `(row: T) => string \| null \| undefined` | Flat data: the id of a row's parent (a `getRowId` id), or nothing for a top-level row. `data` holds every row. |
-| `treeExpanded` | `readonly string[]` (`TreeExpandedState`) | The ids of expanded rows. Controllable (`controllable()`), in `TableState` and `getState()`/`setState()`. Default: none expanded. |
-| `selectBranches` | `boolean` (attribute `select-branches`) | Branch selection (see [Selection](#selection)). Default `false`. |
+| Property         | Type                                      | Meaning                                                                                                                           |
+| ---------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `getSubRows`     | `(row: T) => readonly T[] \| undefined`   | Nested data: a row's children. `data` holds the top-level rows.                                                                   |
+| `getParentId`    | `(row: T) => string \| null \| undefined` | Flat data: the id of a row's parent (a `getRowId` id), or nothing for a top-level row. `data` holds every row.                    |
+| `treeExpanded`   | `readonly string[]` (`TreeExpandedState`) | The ids of expanded rows. Controllable (`controllable()`), in `TableState` and `getState()`/`setState()`. Default: none expanded. |
+| `selectBranches` | `boolean` (attribute `select-branches`)   | Branch selection (see [Selection](#selection)). Default `false`.                                                                  |
 
 Setting both `getSubRows` and `getParentId` is a mistake: `getSubRows` wins, with a console warning once. Neither set: no tree, and nothing below applies.
 
