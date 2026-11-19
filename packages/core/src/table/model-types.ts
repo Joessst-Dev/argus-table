@@ -423,8 +423,8 @@ export interface TableModel<TData, TContent> {
    * unselected rows of their ancestors' branches. A selection that breaks the
    * branch rules (a parent without all its children) shows as it is. One pass
    * per selection `Set` and filter and sort result (for a remote tree, its
-   * loaded rows; nothing is blocked there). Needs a tree: without one every
-   * row is `'none'`.
+   * loaded rows; under a server filter a row without loaded children is
+   * blocked). Needs a tree: without one every row is `'none'`.
    */
   branchCheck(selected: ReadonlySet<string>): (index: number) => BranchCheck;
   /**

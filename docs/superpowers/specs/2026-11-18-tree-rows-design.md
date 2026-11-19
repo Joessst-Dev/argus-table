@@ -159,6 +159,8 @@ With `virtualizeColumns`, the tree column is kept rendered while it holds the ac
 >
 > Without a filter nothing changes. Edge: a parent the filter keeps without any of its children (it matches, they don't) can't be ticked while the filter is on, since its id needs the hidden children. Decided in review too: such a row (and one with only such rows under it) is _blocked_: its checkbox renders `disabled` (part `selection-checkbox`, so `::part(selection-checkbox):disabled` styles it), clicks and Space on it don't change the selection, and it doesn't count for its ancestors' checked state or the header checkbox, so select-all under that filter can still show ticked.
 
+> **Built for step 2 (19 November 2026): server filters.** The rules above run on a `dataSource` tree's loaded rows (a row whose children aren't loaded counts as a leaf), and children that arrive under a selected row join the selection as planned. But "filters not applied" can't be checked there: the server returns only the children that match, and the table never sees the others. So while a filter or the quick filter is on, a row with children never has its id selected (each such row counts as having one unselected hidden child): a tick selects the loaded rows under it, and a row whose children aren't loaded has nothing to tick and is blocked (disabled checkbox) until they load. Without a filter, a loaded branch is the whole branch, as above.
+
 ### Everything else that touches rows
 
 - `getState()`/`setState()`: `treeExpanded` saved and restored like `expanded`. `scroll.row` is an index in the shown order, so it's restored after `treeExpanded`.
