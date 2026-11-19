@@ -44,11 +44,12 @@ const BODY_ROWS = '[part~="body"] > [part~="row"]';
 /**
  * A body row's data index: its `aria-rowindex` after the header and the rows pinned
  * to the top, less the detail panels above it (`detail=<n>`: every nth row open,
- * ids `r<index>`).
+ * ids `r<index>`), or in a tree (`tree=<n>`) the index of the nth row shown.
  */
 function bodyIndex(table: ArgusTable<Person>, row: Element): number {
   const position =
     Number(row.getAttribute('aria-rowindex')) - 2 - (table.pinnedRows?.top?.length ?? 0);
+  if (table.getParentId) return shownRows(table)[position] ?? -1;
   if (!table.rowDetail || table.expanded.length === 0) return position;
   const open = openIndexes(table);
   // The data index i with i + (open rows below i) === position.
@@ -70,6 +71,34 @@ const openIndexes = (table: ArgusTable<Person>) => {
   }
   return openCache.indexes;
 };
+
+let shownCache: { of: readonly string[]; rows: Int32Array } | undefined;
+/**
+ * `tree=<n>`: the data indexes of the rows shown, in order (unsorted, no filter).
+ * The playground's data is in the tree's order, parents first, ids `r<index>`.
+ */
+const shownRows = (table: ArgusTable<Person>) => {
+  if (shownCache?.of !== table.treeExpanded) {
+    const { data, getParentId } = table;
+    const open = new Set(table.treeExpanded);
+    const shown = new Uint8Array(data.length);
+    const rows = new Int32Array(data.length);
+    let count = 0;
+    data.forEach((row, i) => {
+      const parent = getParentId?.(row);
+      if (parent == null || (open.has(parent) && shown[Number(parent.slice(1))] === 1)) {
+        shown[i] = 1;
+        rows[count++] = i;
+      }
+    });
+    shownCache = { of: table.treeExpanded, rows: rows.subarray(0, count) };
+  }
+  return shownCache.rows;
+};
+
+/** The data index of the last body row: in a tree, of the last row shown. */
+const lastIndex = (table: ArgusTable<Person>) =>
+  table.getParentId ? (shownRows(table).at(-1) ?? -1) : table.data.length - 1;
 
 const nextFrame = () => new Promise<number>((resolve) => requestAnimationFrame(resolve));
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -112,11 +141,12 @@ export function installBenchHooks(table: ArgusTable<Person>, info: { dataMs: num
     let top = Infinity;
     let bottom = -Infinity;
     let showsLastRow = false;
+    const lastRow = lastIndex(table);
     for (const row of rendered) {
       const rect = row.getBoundingClientRect();
       top = Math.min(top, rect.top);
       bottom = Math.max(bottom, rect.bottom);
-      if (bodyIndex(table, row) === table.data.length - 1) showsLastRow = true;
+      if (bodyIndex(table, row) === lastRow) showsLastRow = true;
     }
     return top > viewTop + 1 || (bottom < viewBottom - 1 && !showsLastRow);
   };
@@ -155,6 +185,9 @@ export function installBenchHooks(table: ArgusTable<Person>, info: { dataMs: num
   };
 
   const reset = async () => {
+    // A tree's row mapping takes a pass over the data (a long task): here, before
+    // the frames below, so it's over and reported before a scenario records.
+    lastIndex(table);
     const el = scroller();
     if (el) {
       el.scrollTop = 0;
@@ -215,12 +248,13 @@ export function installBenchHooks(table: ArgusTable<Person>, info: { dataMs: num
       await reset();
       const el = scroller();
       if (!el) throw new Error('no scroller');
-      const expected = table.data.length - 1;
+      const expected = lastIndex(table);
       el.scrollTop = el.scrollHeight;
       await wait(300);
       const byScroll = lastRendered();
       await reset();
-      await table.scrollToRow(expected);
+      // Public indexes count the rows shown: in a tree, not the data index.
+      await table.scrollToRow(table.getParentId ? shownRows(table).length - 1 : expected);
       await wait(300);
       const byMethod = lastRendered();
       await reset();
