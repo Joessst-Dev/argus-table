@@ -158,6 +158,24 @@ export interface RemoteRows<TData> {
    * builds from them can be kept until then. Without it, it's built on each read.
    */
   readonly version?: number;
+  /**
+   * For rows that form a tree (`RemoteTree`): changes identity when loaded rows
+   * change position (a row expanded or collapsed, children loaded or failed), not
+   * when only a page loads. The model's `rowOrder` is then this object.
+   */
+  readonly order?: object;
+  /** For rows that form a tree: where the loaded row at an index sits in it. */
+  treeRow?(index: number): TreeRowInfo | undefined;
+  /**
+   * For rows that form a tree: whether a row can open: loaded, has children
+   * (`DataSource.hasChildren`) and isn't known to have none.
+   */
+  canExpand?(rowId: string): boolean;
+  /**
+   * For rows that form a tree: the index of the row when it's shown, else of its
+   * nearest shown ancestor; `undefined` for an unknown id.
+   */
+  shownAncestor?(rowId: string): number | undefined;
 }
 
 export interface TableModelOptions<TData, TContent> {
