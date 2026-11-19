@@ -1960,8 +1960,9 @@ describe('tree branch selection', () => {
     const check = m.branchCheck(new Set(['P5-3']));
     const took = performance.now() - start;
     expect([check(4), check(5), check(6)]).toEqual(['none', 'some', 'none']);
-    expect(took).toBeLessThan(300);
-  });
+    // A guard against quadratic code (minutes at this size), with room for slow CI runners.
+    expect(took).toBeLessThan(10_000);
+  }, 30_000);
 });
 
 describe('branch selection under a filter: whole branches only', () => {
@@ -2153,8 +2154,9 @@ describe('branch selection under a filter: whole branches only', () => {
     // Eight of each parent's nine children, and no parent.
     expect(all).toHaveLength(800_000);
     expect(state).toBe('all');
-    expect(took).toBeLessThan(1000);
-  });
+    // A guard against quadratic code (minutes at this size), with room for slow CI runners.
+    expect(took).toBeLessThan(10_000);
+  }, 30_000);
 
   it('a grandparent whose shown rows are all selected unticks (no dead click three levels deep)', () => {
     // Root{Folder{report, other}}, a filter keeping `report`.

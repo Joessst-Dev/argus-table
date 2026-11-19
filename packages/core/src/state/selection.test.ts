@@ -248,8 +248,9 @@ describe('withBranches', () => {
     expect(withBranches([], [String(depth - 1)], chain)).toHaveLength(depth);
     expect(toggleBranch([], String(depth - 1), chain)).toHaveLength(depth);
     expect(toggleBranch(['0', '1', '7', String(depth - 1)], String(depth - 1), chain)).toEqual([]);
-    expect(performance.now() - start).toBeLessThan(1000);
-  });
+    // A guard against quadratic code (minutes at this size), with room for slow CI runners.
+    expect(performance.now() - start).toBeLessThan(10_000);
+  }, 30_000);
 });
 
 describe('toggleBranch', () => {

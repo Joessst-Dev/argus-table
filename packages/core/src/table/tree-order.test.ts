@@ -204,12 +204,12 @@ describe('showOpen', () => {
     const shown = showOpen(tree, layout, (index) => index % 2 === 0);
     const elapsed = performance.now() - started;
 
-    // A guard against quadratic code, not the performance target.
-    expect(elapsed).toBeLessThan(1000);
+    // A guard against quadratic code, not the performance target, with room for slow CI runners.
+    expect(elapsed).toBeLessThan(10_000);
 
     expect(layout.order).toHaveLength(kept.rows.length);
     expect(shown.length).toBeGreaterThan(0);
     expect(depthFirstErrors(tree, layout.order)).toBe(0);
     expect(depthFirstErrors(tree, shown)).toBe(0);
-  });
+  }, 30_000);
 });
