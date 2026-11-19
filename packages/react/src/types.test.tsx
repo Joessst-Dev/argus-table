@@ -153,6 +153,16 @@ export const wrongChildren = (
   />
 );
 
+export const wrongChildRows = (
+  <ArgusTable<Order>
+    dataSource={{
+      getRows: () => Promise.resolve({ rows: orders }),
+      // @ts-expect-error: children are Orders too.
+      getChildren: () => Promise.resolve({ rows: [{ id: 1 }] }),
+    }}
+  />
+);
+
 const noop = () => undefined;
 // @ts-expect-error: `contentRenderer` is the wrapper's own.
 export const noRenderer = <ArgusTable contentRenderer={{ render: noop, release: noop }} />;

@@ -226,6 +226,45 @@ describe('check.mjs', () => {
     assert.match(wrong[0].fix, /^Order them \[formulas\(\), headerMenu\(\)\]/);
   });
 
+  it('flags a getRowId written inline next to a dataSource', async () => {
+    const files = (props) => ({
+      'package.json': {
+        dependencies: {
+          react: '^19.1.0',
+          '@argus-table/react': '^1.3.0',
+          '@argus-table/themes': '^1.3.0',
+        },
+      },
+      'src/main.tsx': "import '@argus-table/themes/default.css';\n",
+      'src/Files.tsx': [
+        "import { ArgusTable, type DataSource, type ReactColumnDef } from '@argus-table/react';",
+        "const columns: ReactColumnDef<{ id: string }>[] = [{ id: 'id', header: 'Id', accessor: 'id', sortable: true }];",
+        'const source: DataSource<{ id: string }> = {',
+        '  getRows: () => Promise.resolve({ rows: [] }),',
+        '};',
+        'const rowId = (row: { id: string }) => row.id;',
+        'export function Files() {',
+        `  return <ArgusTable aria-label="Files" columns={columns} ${props} />;`,
+        '}',
+        '',
+      ].join('\n'),
+    });
+    const inline = await findings(
+      project(undefined, files('dataSource={source} getRowId={(row) => row.id}')),
+    );
+    assert.deepEqual(ids(inline), ['unstable-identity@src/Files.tsx:8']);
+    assert.match(inline[0].message, /^getRowId is written inline next to a dataSource/);
+    assert.deepEqual(
+      await findings(project(undefined, files('dataSource={source} getRowId={rowId}'))),
+      [],
+    );
+    // With data, a new getRowId only re-reads the ids.
+    assert.deepEqual(
+      await findings(project(undefined, files('data={[]} getRowId={(row) => row.id}'))),
+      [],
+    );
+  });
+
   it('sees generic tags, imported columns, getters and script-set columns', async () => {
     const react = project(undefined, {
       'package.json': {

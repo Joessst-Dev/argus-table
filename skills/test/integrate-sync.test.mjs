@@ -332,6 +332,8 @@ describe('libraries.mjs', () => {
         for (const m of f.argus.methods ?? [])
           assert.ok(api.METHODS.includes(m), `${where}: method ${m}`);
         for (const a of f.argus.addons ?? []) assert.ok(a in api.ADDONS, `${where}: add-on ${a}`);
+        for (const s of f.supersedes ?? [])
+          assert.ok(ids.includes(s) && s !== f.id, `${where}: supersedes ${s}`);
         if (f.fit === 'gap') assert.ok(GAPS.includes(f.gap), `${where}: gap ${String(f.gap)}`);
         else assert.equal(f.gap, undefined, where);
       }

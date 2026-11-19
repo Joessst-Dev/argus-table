@@ -960,6 +960,29 @@ function checkTable(t, ctx) {
     );
   }
 
+  // unstable-identity: a getRowId written inline, next to a dataSource
+  const rowIdAttr = bound('getRowId');
+  if (
+    rowIdAttr &&
+    rowIdAttr.kind !== 'static' &&
+    has('dataSource') &&
+    /^(?:async\s+)?(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>|^function\b/.test(
+      String(rowIdAttr.value ?? '').trim(),
+    )
+  ) {
+    report(
+      'unstable-identity',
+      file,
+      rowIdAttr.index,
+      "getRowId is written inline next to a dataSource: every render passes a new function, and a new getRowId reloads the loaded rows (and a tree's children).",
+      fw === 'react'
+        ? 'Define it at module scope (or in useCallback), and pass the variable.'
+        : fw === 'vue'
+          ? 'Declare it once in <script setup> and bind the variable.'
+          : 'Make it a readonly field of the component.',
+    );
+  }
+
   // selection-without-row-id
   const selection = bound('selectionMode');
   if (

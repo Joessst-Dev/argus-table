@@ -61,7 +61,29 @@ export const ordersSource: DataSource<Order> = {
 Since 1.4. A tree whose children come from the server as rows expand (lazy trees: Element Plus `lazy` + `load`, PrimeNG/PrimeVue `onNodeExpand`, AG Grid server-side tree data, MUI X `getChildrenCount`) is a `dataSource` with `hasChildren` and `getChildren`. `getRows` returns the top-level rows; `getChildren` returns all of one row's children.
 
 ```ts
-// query(): the URL parameters, built as in the first example.
+import type { ColumnFilterState, DataSource, SortState } from 'argus-table'; // or the wrapper
+
+// The URL parameters, as in the first example; `start` and `end` only for the top level.
+function query(request: {
+  start?: number;
+  end?: number;
+  sorting: SortState;
+  filters: ColumnFilterState;
+  quickFilter: string;
+}): URLSearchParams {
+  const params = new URLSearchParams();
+  if (request.start !== undefined && request.end !== undefined) {
+    params.set('offset', String(request.start));
+    params.set('limit', String(request.end - request.start));
+  }
+  const sort = request.sorting[0];
+  if (sort) params.set('sort', `${sort.id}:${sort.desc ? 'desc' : 'asc'}`);
+  if (request.quickFilter) params.set('q', request.quickFilter);
+  for (const [id, filter] of Object.entries(request.filters))
+    params.set(`filter.${id}`, JSON.stringify(filter));
+  return params;
+}
+
 export const foldersSource: DataSource<Folder> = {
   async getRows({ start, end, sorting, filters, quickFilter, signal }) {
     const res = await fetch(

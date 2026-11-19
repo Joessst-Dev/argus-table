@@ -6,6 +6,8 @@
 // equivalent; references/gaps.md#<gap> says what to tell the user).
 // `argus` names only real API (props, column fields, `dataSource` members,
 // events, methods, add-ons): skills/test/integrate-sync.test.mjs checks them.
+// `supersedes` lists features of the same library a usage drops when this one
+// matches (a lazy tree isn't mapped as a tree held in memory).
 
 const f = (id, re, fit, argus = {}, extra = {}) => ({ id, re, fit, argus, ...extra });
 
@@ -352,13 +354,14 @@ export const LIBRARIES = [
       ),
       f(
         'server-side-tree',
-        /\bisServerSideGroup\b|\bgetServerSideGroupKey\b|\bserverSideGroupOpenLevel\b/,
+        /\bisServerSideGroup\b|\bgetServerSideGroupKey\b|\bisServerSideGroupOpenByDefault\b/,
         'partial',
         {
           props: ['getRowId', 'treeExpanded'],
           dataSource: ['hasChildren', 'getChildren'],
           events: ['argus-tree-expanded-change'],
         },
+        { supersedes: ['tree-data'] },
       ),
       f('master-detail', /\bmasterDetail\b|\bdetailCellRenderer\b/, 'partial', {
         props: ['rowDetail', 'expanded'],
@@ -562,11 +565,17 @@ export const LIBRARIES = [
         props: ['getParentId', 'getRowId', 'treeExpanded'],
         events: ['argus-tree-expanded-change'],
       }),
-      f('lazy-tree', /\bgetChildrenCount\b/, 'partial', {
-        props: ['getRowId', 'treeExpanded'],
-        dataSource: ['hasChildren', 'getChildren'],
-        events: ['argus-tree-expanded-change'],
-      }),
+      f(
+        'lazy-tree',
+        /\bgetChildrenCount\b/,
+        'partial',
+        {
+          props: ['getRowId', 'treeExpanded'],
+          dataSource: ['hasChildren', 'getChildren'],
+          events: ['argus-tree-expanded-change'],
+        },
+        { supersedes: ['tree-data'] },
+      ),
       f('detail-panel', /\bgetDetailPanelContent\b/, 'partial', {
         props: ['rowDetail', 'expanded'],
       }),
@@ -702,6 +711,7 @@ export const LIBRARIES = [
           dataSource: ['hasChildren', 'getChildren'],
           events: ['argus-tree-expanded-change'],
         },
+        { supersedes: ['tree'] },
       ),
       f('row-click', /\bonRowSelect\b|@row-click\b|\(onRowSelect\)/, 'maps', {
         events: ['argus-row-click'],
@@ -864,11 +874,18 @@ export const LIBRARIES = [
           events: ['argus-tree-expanded-change'],
         },
       ),
-      f('lazy-tree', /:load\b/, 'maps', {
-        props: ['getRowId', 'treeExpanded'],
-        dataSource: ['hasChildren', 'getChildren'],
-        events: ['argus-tree-expanded-change'],
-      }),
+      // A lazy tree table: `lazy` and `:load` on the table's own tag (not an `el-tree`).
+      f(
+        'lazy-tree',
+        /<(?:el-table|ElTable)(?![\w-])(?=(?:[^>]|=>)*\blazy\b)(?:[^>]|=>)*:load\b/,
+        'maps',
+        {
+          props: ['getRowId', 'treeExpanded'],
+          dataSource: ['hasChildren', 'getChildren'],
+          events: ['argus-tree-expanded-change'],
+        },
+        { supersedes: ['tree'] },
+      ),
       f('height', /<el-table\b[^>]*\b(?:max-)?height\s*=/, 'maps'),
       f('stripe-border', /\bstripe\b|\bborder\b/, 'maps'),
       f('slots', /#default\s*=\s*['"]\s*(?:scope|\{)/, 'maps', { column: ['cell'] }),

@@ -441,7 +441,7 @@ function buildUsage(library, file, anchor, anchors, ctx) {
   const position = anchors.indexOf(anchor);
   const from = position === 0 ? 0 : anchor.index;
   const to = anchors[position + 1]?.index ?? Infinity;
-  const features = [];
+  const found = [];
   for (const feature of library.features) {
     const at = [];
     let evidence;
@@ -461,7 +461,7 @@ function buildUsage(library, file, anchor, anchors, ctx) {
     }
     if (!at.length) continue;
     const ref = feature.fit === 'gap' ? `gaps.md#${feature.gap}` : `${library.reference}`;
-    features.push({
+    found.push({
       id: feature.id,
       fit: feature.fit,
       argus: describeArgus(feature.argus),
@@ -471,6 +471,13 @@ function buildUsage(library, file, anchor, anchors, ctx) {
       ...(feature.gap ? { gap: feature.gap } : {}),
     });
   }
+  // A feature that matched drops the ones it supersedes (a lazy tree isn't a tree in memory).
+  const superseded = new Set(
+    library.features
+      .filter((f) => f.supersedes && found.some((m) => m.id === f.id))
+      .flatMap((f) => f.supersedes),
+  );
+  const features = found.filter((f) => !superseded.has(f.id));
   if (library.sortsByDefault && !features.some((f) => f.id === 'sorting' || f.id === 'sort')) {
     features.unshift({
       id: 'sorting',

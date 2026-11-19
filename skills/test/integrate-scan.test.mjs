@@ -202,6 +202,92 @@ describe('scan.mjs', () => {
     assert.equal(feature(orders, 'tree'), undefined);
   });
 
+  it('reads Element Plus lazy tree tables, not a lazy el-tree next to a flat table', async () => {
+    const report = await scan(
+      project('vue-kits', {
+        'src/components/Lazy.vue': [
+          '<template>',
+          '  <el-table',
+          '    :data="folders"',
+          '    row-key="id"',
+          '    lazy',
+          '    :load="(row, node, resolve) => api.children(row.id).then(resolve)"',
+          '    :tree-props="{ hasChildren: \'hasChildren\' }"',
+          '  >',
+          '    <el-table-column prop="name" label="Name" />',
+          '  </el-table>',
+          '</template>',
+          '',
+        ].join('\n'),
+        'src/components/Flat.vue': [
+          '<template>',
+          '  <el-tree lazy :load="loadNode" />',
+          '  <el-table :data="files">',
+          '    <el-table-column prop="name" label="Name" />',
+          '  </el-table>',
+          '</template>',
+          '',
+        ].join('\n'),
+      }),
+    );
+    const lazy = report.usages.find((u) => u.file === 'src/components/Lazy.vue');
+    assert.equal(feature(lazy, 'lazy-tree').fit, 'maps');
+    assert.match(
+      feature(lazy, 'lazy-tree').argus,
+      /dataSource\.hasChildren, dataSource\.getChildren/,
+    );
+    // A lazy tree isn't also mapped as a tree held in memory.
+    assert.equal(feature(lazy, 'tree'), undefined);
+    const flat = report.usages.find((u) => u.file === 'src/components/Flat.vue');
+    assert.equal(feature(flat, 'lazy-tree'), undefined);
+  });
+
+  it('maps AG Grid server-side tree data and MUI X lazy tree data as lazy trees only', async () => {
+    const ag = await scan(
+      project('next-app-aggrid', {
+        'app/files/files-grid.tsx': [
+          "'use client';",
+          "import { AgGridReact } from 'ag-grid-react';",
+          'export function FilesGrid({ datasource }) {',
+          '  return (',
+          '    <AgGridReact',
+          '      rowModelType="serverSide"',
+          '      serverSideDatasource={datasource}',
+          '      treeData',
+          '      isServerSideGroup={(row) => row.group}',
+          '      getServerSideGroupKey={(row) => row.id}',
+          '    />',
+          '  );',
+          '}',
+          '',
+        ].join('\n'),
+      }),
+    );
+    const files = ag.usages.find((u) => u.file === 'app/files/files-grid.tsx');
+    assert.equal(feature(files, 'server-side-tree').fit, 'partial');
+    assert.equal(feature(files, 'tree-data'), undefined);
+
+    const mui = await scan(
+      project('mui-datagrid-pro', {
+        'src/Files.tsx': [
+          "import { DataGridPro } from '@mui/x-data-grid-pro';",
+          'const dataSource = {',
+          '  getRows: (params) => fetchRows(params.groupKeys),',
+          '  getGroupKey: (row) => row.name,',
+          '  getChildrenCount: (row) => row.descendantCount,',
+          '};',
+          'export function Files() {',
+          '  return <DataGridPro columns={[]} treeData dataSource={dataSource} />;',
+          '}',
+          '',
+        ].join('\n'),
+      }),
+    );
+    const tree = mui.usages.find((u) => u.file === 'src/Files.tsx');
+    assert.equal(feature(tree, 'lazy-tree').fit, 'partial');
+    assert.equal(feature(tree, 'tree-data'), undefined);
+  });
+
   it('reads PrimeNG tree tables under every tag spelling, lazy ones too', async () => {
     const report = await scan(
       project('angular-material-primeng', {
@@ -218,7 +304,8 @@ describe('scan.mjs', () => {
     assert.deepEqual(
       files.map((u) => [u.line, feature(u, 'tree')?.fit, feature(u, 'lazy-tree')?.fit]),
       [
-        [1, 'maps', 'maps'],
+        // The lazy tree table is mapped as a lazy tree only.
+        [1, undefined, 'maps'],
         [4, 'maps', undefined],
       ],
     );
