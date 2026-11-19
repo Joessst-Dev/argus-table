@@ -235,10 +235,12 @@ export interface PluginHost<T = unknown> {
    */
   readValue(row: T, columnId: string, index: number): unknown;
   /**
-   * The level in a tree (`getSubRows` or `getParentId`) of the row at `index` in
-   * a section (default the body, in the current order): `0` for a top-level row,
-   * `1` for its children, and so on. `0` without a tree, for pinned rows, and
-   * past the end.
+   * The level in a tree (`getSubRows`, `getParentId`, or a `dataSource` with
+   * `hasChildren` and `getChildren`) of the row at `index` in a section (default
+   * the body, in the current order): `0` for a top-level row, `1` for its
+   * children, and so on; with a `dataSource`, also for rows not loaded (a
+   * loading row under a parent is a level below it). `0` without a tree, for
+   * pinned rows, and past the end.
    */
   rowDepth(index: number, section?: RowSection): number;
   /**

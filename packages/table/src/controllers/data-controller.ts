@@ -98,6 +98,11 @@ export class DataController<T> implements ReactiveController {
     return this.#tree ?? this.#cache;
   }
 
+  /** The tree, while a data source with `hasChildren` and `getChildren` is set. */
+  get tree(): RemoteTree<T> | undefined {
+    return this.#tree;
+  }
+
   /** The page cache of the (top-level) rows, while a data source is set. */
   get cache(): PageCache<T> | undefined {
     return this.#cache;

@@ -39,8 +39,14 @@ export interface RowToggles {
 export interface TreeRows {
   /** The tree column: the first data column in reading order (`firstDataColumn`). */
   column: string | undefined;
-  /** Where the row at a data index sits in the tree. */
+  /** Where the row at a data index sits in the tree; `undefined` for a row not loaded. */
   row: (index: number) => TreeRowInfo | undefined;
+  /**
+   * With a data source, the depth of a row not loaded (a page loading, or a
+   * placeholder for children loading or failed), so it carries its level and
+   * sits indented under its parent.
+   */
+  depth?: (index: number) => number | undefined;
   expandLabel: string;
   collapseLabel: string;
   /** Click handler of the toggles; the button carries the row's data index in `data-row`. */
@@ -224,6 +230,8 @@ function renderRow<T>(
   // The Retry button goes in the first data column, after a selection column.
   const retryCol = retry === undefined ? undefined : firstDataColumn(columns);
   const node = idle || state !== 'loaded' ? undefined : tree?.row(index);
+  // A row not loaded has only a level: no toggle state, no place among its siblings yet.
+  const depth = node ? node.depth : idle || state === 'loaded' ? undefined : tree?.depth?.(index);
   return html`<div
     part=${idle ? nothing : parts}
     class="row"
@@ -232,7 +240,7 @@ function renderRow<T>(
     aria-rowindex=${idle ? nothing : row.index + firstRowIndex}
     aria-busy=${state === 'loading' ? 'true' : nothing}
     aria-selected=${selected === undefined ? nothing : String(selected)}
-    aria-level=${node ? node.depth + 1 : nothing}
+    aria-level=${depth === undefined ? nothing : depth + 1}
     aria-expanded=${node?.hasChildren ? String(node.open) : nothing}
     aria-setsize=${node?.setSize ?? nothing}
     aria-posinset=${node?.posInSet ?? nothing}
@@ -258,8 +266,13 @@ function renderRow<T>(
             ? rowCheckbox(index, selected, checkboxes)
             : c.kind === 'expand'
               ? rowToggle(index, open, state === 'loaded' ? toggles : undefined)
-              : node && tree?.column === c.id
-                ? treeToggle(index, node, tree)
+              : depth !== undefined && tree?.column === c.id
+                ? node
+                  ? treeToggle(index, node, tree)
+                  : treeIndent(
+                      depth,
+                      placeholder(state, c.id === retryCol ? retry : undefined, index, loading),
+                    )
                 : placeholder(state, c.id === retryCol ? retry : undefined, index, loading),
         ),
     )}
@@ -379,6 +392,16 @@ function treeToggle(index: number, node: TreeRowInfo, tree: TreeRows) {
           ></button>`
         : html`<span class="tree-spacer"></span>`
     }`;
+}
+
+/**
+ * The tree column's start in a row not loaded: the indent of its depth and a
+ * spacer as wide as a toggle, so its bar (or Retry button) starts where its
+ * content will.
+ */
+function treeIndent(depth: number, content: unknown) {
+  return html`<span class="tree-indent" style=${styleMap({ '--_depth': String(depth) })}></span
+    ><span class="tree-spacer"></span>${content}`;
 }
 
 /** What an unloaded cell shows: a skeleton bar, or the Retry button in a failed page's first cell. */

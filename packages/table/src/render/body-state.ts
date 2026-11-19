@@ -80,17 +80,20 @@ export function rowToggles<T>(
 /**
  * The tree column and the rows' places in the tree, for the body; `undefined`
  * while the rows don't form a tree. The tree column is the model's first data
- * column, rendered or not (`virtualizeColumns`).
+ * column, rendered or not (`virtualizeColumns`). With a data source's tree
+ * (`remote`), rows not loaded carry their depth too.
  */
 export function treeRows<T>(
   model: TableModel<T, CellContent>,
   labels: TableLabels,
   onClick: (event: Event) => void,
+  remote: RemoteTree<T> | undefined,
 ): TreeRows | undefined {
   if (!model.tree) return undefined;
   return {
     column: firstDataColumn(model.columns),
     row: (index) => model.treeRow(index),
+    depth: remote && ((index) => remote.depthAt(index)),
     expandLabel: labels.expandTreeRow,
     collapseLabel: labels.collapseTreeRow,
     onClick,

@@ -640,6 +640,11 @@ export class ArgusTable<T = unknown> extends LitElement {
    * disabled (`aria-disabled`) until the filter clears, so a match is never
    * hidden and nothing changes out of sight; not with a `dataSource`, whose
    * server filters (only this opens rows there). Default: none.
+   * With a `dataSource`, an expanded row loads its children (`getChildren`)
+   * once its own row has loaded, showing a loading row under it meanwhile; ids
+   * of rows not loaded yet open when they load, so a restored value
+   * (`setState()`) works as pages arrive. A row whose children come back empty
+   * keeps its id here but shows no toggle and nothing under it.
    * Uncontrolled until set, like `expanded`: once set, a toggle only fires
    * `argus-tree-expanded-change` with the proposed ids. `undefined` hands it
    * back. Ids stay through sorting, filtering and a new `data`.
@@ -816,8 +821,13 @@ export class ArgusTable<T = unknown> extends LitElement {
         : model.pinnedValueAt(section, index, columnId);
     },
     readValue: (row, columnId, index) => this.#table.model.readValue(row, columnId, index),
-    rowDepth: (index, section = 'body') =>
-      section === 'body' ? (this.#table.model.treeRow(index)?.depth ?? 0) : 0,
+    rowDepth: (index, section = 'body') => {
+      if (section !== 'body') return 0;
+      // A data source's tree knows the depth of rows not loaded too (children loading).
+      const remote = this.#data.tree;
+      if (remote) return remote.depthAt(index) ?? 0;
+      return this.#table.model.treeRow(index)?.depth ?? 0;
+    },
     // A data source's rows have no source indexes (`data` isn't read).
     sourceRow: (index) => (this.#data.rows ? undefined : this.#table.model.sourceRow(index)),
     headerGroups: () =>
@@ -1085,7 +1095,10 @@ export class ArgusTable<T = unknown> extends LitElement {
    * end). With a `dataSource`
    * whose total isn't known yet, an index past the rows counted so far resolves
    * `false` and the table scrolls on toward the row as pages arrive, until the
-   * user scrolls, clicks or presses a key.
+   * user scrolls, clicks or presses a key. In a tree from a `dataSource`, an
+   * index counts the rows shown (top-level rows, and the children and loading
+   * rows of expanded ones), and an id finds a row whose page or parent's
+   * children have loaded and whose ancestors are expanded.
    */
   scrollToRow(target: RowTarget, options: ScrollToRowOptions = {}): Promise<boolean> {
     return this.#scroll.toRow(target, options);
@@ -1150,8 +1163,11 @@ export class ArgusTable<T = unknown> extends LitElement {
    * yourself), and the others stay uncontrolled. No change events fire.
    * `quickFilter` is set like the property: a search box of yours shows it only
    * if you read it back. `scroll` is applied after the rest, so with a
-   * `dataSource` the restored rows load where it points. Resolves once the table
-   * has re-rendered there.
+   * `dataSource` the restored rows load where it points. In a tree from a
+   * `dataSource`, its row counts the rows shown: an expanded row's children
+   * count once its own row has loaded and they have (one loading row before), so
+   * the restored row is off by the children of expanded rows above it whose
+   * pages don't load on the way. Resolves once the table has re-rendered there.
    */
   async setState(state: TableState): Promise<void> {
     // Another format (a later version's): nothing it holds can be trusted to mean the same.
@@ -1453,7 +1469,7 @@ export class ArgusTable<T = unknown> extends LitElement {
                   ? { rows: this.#window.details, colspan: columns.length }
                   : undefined,
                 edges,
-                treeRows(model, labels, this.#onTreeToggle),
+                treeRows(model, labels, this.#onTreeToggle, this.#data.tree),
               )
         }
         ${renderPinnedRows('bottom', layout.bottom, rendered, firstIndex('bottom'), activeIn('bottom'))}
