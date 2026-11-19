@@ -42,11 +42,14 @@
 ### Task 1: Core `RemoteTree`: the shown order over the page cache and loaded children
 
 **Files:**
+
 - Create: `packages/core/src/data/remote-tree.ts`, `packages/core/src/data/remote-tree.test.ts`
 - Modify: `packages/core/src/types.ts` (`DataSource`, `ChildrenRequest`, `ChildrenResponse`, `LoadErrorDetail.parentId`), `packages/core/src/table/model-types.ts` (`RemoteRows` optional tree members), `packages/core/src/index.ts`
 
 **Interfaces:**
+
 - Produces (core, exported):
+
   ```ts
   /** Optional tree members a remote implements to show rows as a tree. */
   export interface RemoteRows<TData> {
@@ -60,20 +63,23 @@
   }
   export type ChildState = 'loaded' | 'loading' | 'error';
   export class RemoteTree<TData> implements RemoteRows<TData> {
-    constructor(cache: PageCache<TData>, options: {
-      hasChildren: (row: TData) => boolean;
-      getRowId?: ((row: TData, index: number) => string) | undefined;
-      /** Kept child counts from a previous tree (refresh): open parents show that many loading rows until their children arrive. */
-      keepCounts?: ReadonlyMap<string, number> | undefined;
-    });
+    constructor(
+      cache: PageCache<TData>,
+      options: {
+        hasChildren: (row: TData) => boolean;
+        getRowId?: ((row: TData, index: number) => string) | undefined;
+        /** Kept child counts from a previous tree (refresh): open parents show that many loading rows until their children arrive. */
+        keepCounts?: ReadonlyMap<string, number> | undefined;
+      },
+    );
     readonly cache: PageCache<TData>;
-    readonly rowCount: number;            // shown rows: top-level count + shown descendants
-    readonly version: number;             // bumped on any change below or in the cache
+    readonly rowCount: number; // shown rows: top-level count + shown descendants
+    readonly version: number; // bumped on any change below or in the cache
     readonly order: object;
     entryAt(index: number): { id: string; row: TData } | undefined;
     indexOf(rowId: string): number | undefined;
-    loadedIds(): string[];                // loaded shown rows, in order
-    stateAt(index: number): RowState;     // top-level rows: the cache's; child placeholders: 'loading' | 'error'
+    loadedIds(): string[]; // loaded shown rows, in order
+    stateAt(index: number): RowState; // top-level rows: the cache's; child placeholders: 'loading' | 'error'
     treeRow(index: number): TreeRowInfo | undefined;
     canExpand(rowId: string): boolean;
     shownAncestor(rowId: string): number | undefined;
@@ -95,6 +101,7 @@
     childRow(parentId: string): TData | undefined; // the parent row object, for `ChildrenRequest.parent`
   }
   ```
+
   `TreeRowInfo` as in step 1, with `forced: false` always; top-level `setSize` is the cache's `rowCount` (`-1` while the total isn't known), `posInSet` the top-level index + 1; children among their siblings.
 
 - [ ] **Step 1: Write the failing tests** (`remote-tree.test.ts`, Node; a `PageCache` with page size 4 and rows `{ id, kids }`, `hasChildren: r => r.kids > 0`):
@@ -111,8 +118,8 @@
   - `stays logarithmic` — 10,000 open top-level rows with 5 children each in a 100k-row cache: 10,000 `entryAt` / `indexOf` calls under 200 ms in Node (guard: generous bound and a 30 s test timeout).
 
 - [ ] **Step 2: Run them to see them fail**
-  Run: `pnpm --filter @argus-table/core exec vitest run src/data/remote-tree.test.ts`
-  Expected: FAIL (module missing).
+      Run: `pnpm --filter @argus-table/core exec vitest run src/data/remote-tree.test.ts`
+      Expected: FAIL (module missing).
 
 - [ ] **Step 3: Implement `RemoteTree`.** Keep a sorted array of open top-level indexes with a prefix-sum array of their shown-descendant counts (rebuilt when expansion or children change, O(k)); a shown index resolves by binary search to a top-level row or to a position inside an open row's flattened subtree (each open top-level row's shown descendants as an array of `{ id, row, depth, parentId, posInSet, setSize, state }`, rebuilt when its subtree changes). Child ids and a `Map<id, location>` for `indexOf`. Top-level ids come from the cache (`cache.indexOf`). Bump `version` and replace `order` on any change; read the cache's `version` so page loads are seen (and an open id whose row just loaded joins `wanted()`).
 
@@ -125,10 +132,12 @@
 ### Task 2: Remote trees in the model
 
 **Files:**
+
 - Modify: `packages/core/src/table/create-table.ts`, `packages/core/src/table/row-pipeline.ts` (the warning text), `packages/core/src/table/model-types.ts` (JSDoc)
 - Test: `packages/core/src/table/create-table.test.ts` (new `describe('remote tree rows')`)
 
 **Interfaces:**
+
 - Consumes: `RemoteRows` tree members, `RemoteTree` (task 1).
 - Produces: with a remote that has `treeRow`: `model.tree === true`; `treeRow`, `shownAncestor` delegate to the remote; `nextTreeExpanded(id, open, base)` uses `remote.canExpand(id)` (unknown or not loaded → `undefined`); `rowOrder` returns `remote.order ?? remote`; `cellContext` (remote branch) adds `depth` when the remote is a tree; branch selection members work over loaded rows (task 5 fills them in; here they return the no-tree answers for remotes). Remote without tree members: unchanged.
 
@@ -138,10 +147,12 @@
 ### Task 3: Loading children in the `DataController`
 
 **Files:**
+
 - Modify: `packages/table/src/controllers/data-controller.ts`, `packages/table/src/argus-table.ts` (configure with `treeExpanded`; `request()` with `topRange`; `refresh()`; load errors), `packages/core/src/types.ts` JSDoc for `DataSource` members
 - Test: create `packages/table/src/tree-server.test.ts` (reuse the manual-answer server pattern of `argus-table.test.ts` `describe('dataSource (infinite loading)')`: `server()`, `load(el)`, `answer()`; extend it with `getChildren` calls answered by hand)
 
 **Interfaces:**
+
 - Consumes: `RemoteTree` (task 1), model members (task 2).
 - Produces: `DataController.rows` is a `RemoteTree` when the source has both `hasChildren` and `getChildren`, else the `PageCache` as today; `DataConfig` gains `treeExpanded: TreeExpandedState`; `stateAt(index)` and `retry(index)` work on shown indexes (a child row retries its parent's children; a top-level row its page); `takeErrors()` entries for children are `{ error, start: parentIndex, end: parentIndex + 1, parentId }`.
 
@@ -160,10 +171,12 @@
 ### Task 4: Rendering, keys and state with remote trees
 
 **Files:**
+
 - Modify: `packages/table/src/render/body-state.ts` (`loadingState` for child rows, `treeRows`), `packages/table/src/render/body.ts` if needed, `packages/table/src/argus-table.ts` (`#onRetry`, `getState`/`setState`, plugin host `rowDepth`), `packages/table/src/labels.ts`, `apps/storybook/stories/labels.stories.ts`, `apps/docs/src/examples/labels/data.ts`
 - Test: `packages/table/src/tree-server.test.ts`
 
 **Interfaces:**
+
 - Consumes: tasks 1–3.
 - Produces: label `retryChildren`; Retry rows for failed children labelled `retryChildren` (one per failed parent, on its error row); toggles, `aria-level`/`aria-expanded`/`aria-setsize`/`aria-posinset`, Right/Left, focus following a collapse, `rowDepth`, `depth` in contexts and click events — all for loaded remote rows.
 
@@ -180,10 +193,12 @@
 ### Task 5: Branch selection with remote trees
 
 **Files:**
+
 - Modify: `packages/core/src/data/remote-tree.ts` (a loaded forest), `packages/core/src/table/create-table.ts` (branch members for remote trees), `packages/table/src/controllers/selection.ts` (children arriving under a selected row)
 - Test: `packages/core/src/data/remote-tree.test.ts`, `packages/table/src/tree-server.test.ts`
 
 **Interfaces:**
+
 - Consumes: core branch rules (`withBranches`, `toggleBranch`, `branchCheck`, `branchCheckAll`, `branchSelectAll`, `BranchTree` with `children`/`allChildren`/`parent`) from step 1; `RemoteTree`.
 - Produces: `RemoteTree.forest()` → a structure the model's branch members can run on (rows: loaded top-level rows and loaded children, parent links, depth-first order), memoized on `version`; with remote trees `children === allChildren` (the server filtered); a row with `hasChildren` whose children aren't loaded counts as a leaf for the rules; `SelectionController` adds children that arrive under a selected parent (whole branch selected) through the normal change event, once per arrival.
 
@@ -193,6 +208,7 @@
 ### Task 6: Wrappers, skills and add-ons
 
 **Files:**
+
 - Modify: wrappers' generated files (regenerate) and hand-written type re-exports in `packages/{react,vue,angular}/src/index.ts` (`ChildrenRequest`, `ChildrenResponse`); `skills/argus-table-integrate` (`scripts/lib/api.mjs`, `references/api.md`, `references/gaps.md`, migrate references for Element Plus `lazy`+`load`, PrimeNG/PrimeVue lazy TreeTable, AG Grid server-side tree data, MUI X lazy loading, `scripts/lib/libraries.mjs` fits: the `lazy-trees` features become `maps`/`partial`, the `lazy-trees` gap goes), `packages/export/README.md` (with `allRows` and a `dataSource`, only top-level rows are exported; without `allRows`, the shown rows including loaded children)
 - Test: existing suites
 
@@ -203,6 +219,7 @@
 ### Task 7: Playground, e2e, Storybook and docs
 
 **Files:**
+
 - Modify: `apps/playground/src/main.ts` (`source=remote&tree`: the pretend server answers `getChildren` for every 10th row with 1–5 children, honours sort/filter/latency/`signal`, `failchildren=<id>` fails once), `benchmarks/README.md` if a variant is added
 - Create: `tests/e2e/specs/tree-server.spec.ts`; a story `Features/Tree rows` → `FromServer` in `apps/storybook/stories/tree-rows.stories.ts`; docs: a "Children from the server" section in `apps/docs/src/content/docs/features/tree-rows.mdx` (`<Since since="1.5" />` if 1.4 has shipped by then, else part of 1.4 — check `packages/table/package.json` and the pending changesets) with an example `lazy-tree` in four flavours (`apps/docs/src/examples/tree-rows/lazy-tree/{html,react,vue,angular}`), using a pretend server in `apps/docs/src/examples/tree-rows/server.ts`; a line in `infinite-loading.mdx` linking to it.
 
@@ -213,6 +230,7 @@
 ### Task 8: ADR, CLAUDE.md, changesets, size, full check
 
 **Files:**
+
 - Modify: `docs/adr/0013-tree-rows.md` (a "Step 2" section: `RemoteTree` implementing `RemoteRows`, the mapping, the child cache and reset rules, `keepCounts`, `forced` off), `CLAUDE.md` ("Infinite loading" and "Tree rows" paragraphs), `packages/table/.size-limit.json` only with the owner's approval
 - Create: `.changeset/tree-rows-server.md` (`argus-table` minor with the wrappers, as the step-1 changeset does)
 
