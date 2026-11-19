@@ -128,6 +128,8 @@ export function createTableModel<TData, TContent>(
     () => valueVersion,
   );
   const rows = () => pipeline.rows();
+  // The remote rows when they form a tree (`RemoteTree`).
+  const remoteTree = () => (options.remote?.treeRow ? options.remote : undefined);
   const pinned = (side: RowPin): readonly TData[] => options.pinnedRows?.[side] ?? [];
 
   let allViews: ColumnView<TData, TContent>[] | undefined;
@@ -297,7 +299,8 @@ export function createTableModel<TData, TContent>(
       return options.remote?.rowCount ?? rows().length;
     },
     get rowOrder() {
-      return options.remote ?? rows();
+      const { remote } = options;
+      return remote ? (remote.order ?? remote) : rows();
     },
 
     get totalWidth() {
@@ -343,10 +346,12 @@ export function createTableModel<TData, TContent>(
     },
 
     get tree() {
-      return pipeline.tree() !== undefined;
+      // Asked first: it warns about tree functions ignored with remote rows.
+      return pipeline.tree() !== undefined || remoteTree() !== undefined;
     },
 
     treeRow(index) {
+      if (options.remote) return options.remote.treeRow?.(index);
       const steps = pipeline.treeSteps();
       const row = steps && rows()[index];
       if (!steps || row === undefined) return undefined;
@@ -367,6 +372,13 @@ export function createTableModel<TData, TContent>(
     },
 
     nextTreeExpanded(rowId, open, base = options.treeExpanded ?? []) {
+      if (options.remote) {
+        const remote = remoteTree();
+        if (!remote || base.includes(rowId) === open) return undefined;
+        // Closing needs no loaded row: an open id may be under a page not loaded.
+        if (!open) return base.filter((id) => id !== rowId);
+        return remote.canExpand?.(rowId) ? [...base, rowId] : undefined;
+      }
       const tree = pipeline.tree();
       const row = tree?.indexOf(rowId);
       // Filters aren't applied: a controlled host's ids are never refused for one.
@@ -377,6 +389,7 @@ export function createTableModel<TData, TContent>(
     },
 
     shownAncestor(rowId) {
+      if (options.remote) return options.remote.shownAncestor?.(rowId);
       const tree = pipeline.tree();
       let row = tree?.indexOf(rowId);
       if (!tree || row === undefined) return undefined;
@@ -508,13 +521,19 @@ export function createTableModel<TData, TContent>(
         const entry = options.remote.entryAt(index);
         const column = byId.get(columnId);
         if (!entry || !column) return undefined;
-        return {
+        const context: CellContext<TData> = {
           row: entry.row,
           rowId: entry.id,
           index,
           columnId,
           value: column.getValue(entry.row, index),
         };
+        // No `depth` key without a tree, as for `data`.
+        const remote = remoteTree();
+        if (remote) {
+          context.depth = remote.depthAt?.(index) ?? remote.treeRow?.(index)?.depth ?? 0;
+        }
+        return context;
       }
       const row = rows()[index];
       const column = byId.get(columnId);

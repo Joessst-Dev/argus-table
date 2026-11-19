@@ -97,8 +97,9 @@ export class RowPipeline<TData, TContent> {
   /**
    * The rows' tree, built once per `data`, `getSubRows`, `getParentId` and
    * `getRowId`; `undefined` (nothing allocated) when the rows don't form one.
-   * Trees with a data source come later (children loaded per row): until then
-   * the tree functions are ignored with remote rows, with one warning.
+   * Always `undefined` with remote rows: a data source's tree is its own
+   * (`RemoteTree`, from `hasChildren` and `getChildren`), and the tree functions
+   * are ignored, with one warning.
    */
   tree(): RowTree<TData> | undefined {
     const { data, getSubRows, getParentId, getRowId, remote } = this.#options();
@@ -107,7 +108,7 @@ export class RowPipeline<TData, TContent> {
       if (!this.#warnedRemote) {
         this.#warnedRemote = true;
         console.warn(
-          'argus-table: getSubRows and getParentId are ignored with a dataSource; its rows are shown flat.',
+          'argus-table: getSubRows and getParentId are ignored with a dataSource; use its hasChildren and getChildren.',
         );
       }
       return undefined;

@@ -164,8 +164,16 @@ export interface RemoteRows<TData> {
    * when only a page loads. The model's `rowOrder` is then this object.
    */
   readonly order?: object;
-  /** For rows that form a tree: where the loaded row at an index sits in it. */
+  /**
+   * For rows that form a tree: where the loaded row at an index sits in it. The
+   * model reads the rows as a tree when a remote has this member.
+   */
   treeRow?(index: number): TreeRowInfo | undefined;
+  /**
+   * For rows that form a tree: the depth of the row at an index, loaded or not
+   * (`0` for a top-level row); `undefined` out of range. Cheaper than `treeRow`.
+   */
+  depthAt?(index: number): number | undefined;
   /**
    * For rows that form a tree: whether a row can open: loaded, has children
    * (`DataSource.hasChildren`) and isn't known to have none.
@@ -213,7 +221,8 @@ export interface TableModelOptions<TData, TContent> {
   /**
    * The ids of the tree's expanded rows: the children of the others aren't in the
    * current order. While a filter is on, rows holding a match are shown open too.
-   * Its owner is the caller.
+   * Its owner is the caller. A remote tree is given them by its owner
+   * (`RemoteTree.setExpanded`): the model reads them only in `nextTreeExpanded`.
    */
   treeExpanded?: TreeExpandedState | undefined;
   /** Current sort state; its owner is the caller (see `controllable`). */
@@ -287,7 +296,10 @@ export interface TableModel<TData, TContent> {
   readonly rowCount: number;
   /**
    * Changes identity whenever the row at an index may have changed: new data, a
-   * sort, a filter, a new remote source. Compare it by identity only.
+   * sort, a filter, a new remote source. Compare it by identity only. For remote
+   * rows: the remote's `order` when it has one (a remote tree: a new object when
+   * loaded rows move, as when a row opens, closes or its children load; not when
+   * a page loads), else the remote itself.
    */
   readonly rowOrder: object;
   /** Sum of the shown columns' widths in px (flex columns count their minimum). */
@@ -320,17 +332,27 @@ export interface TableModel<TData, TContent> {
   /** The row at an index of the current row model; `undefined` for a remote row not loaded yet. */
   rowAt(index: number): RowView<TData> | undefined;
   /**
-   * Whether the rows form a tree: `getSubRows` or `getParentId` is set, and the
-   * rows aren't remote. The current order then holds the rows shown: children of
-   * collapsed rows are out of it, like rows the filters drop.
+   * Whether the rows form a tree: `getSubRows` or `getParentId` is set and the
+   * rows aren't remote, or the remote rows form one (they have `treeRow`, as a
+   * `RemoteTree` does). The current order then holds the rows shown: children of
+   * collapsed rows are out of it, like rows the filters drop; for a remote tree,
+   * the top-level rows and the loaded (or loading) children of open rows.
    */
   readonly tree: boolean;
-  /** Where the row at an index of the current order sits in the tree; `undefined` without a tree. */
+  /**
+   * Where the row at an index of the current order sits in the tree; `undefined`
+   * without a tree. For a remote tree, the remote's answer: `undefined` for a row
+   * not loaded and for a placeholder of children loading or failed, `forced`
+   * always `false`.
+   */
   treeRow(index: number): TreeRowInfo | undefined;
   /**
    * `treeExpanded` after expanding or collapsing a row, starting from `base`
    * (default: the current `treeExpanded`). `undefined` without a tree, for an
    * unknown row or one without children (filters not applied), or no change.
+   * For a remote tree, a row opens when the remote's `canExpand` allows it
+   * (loaded, `hasChildren`, children not known to be none); an id in `base`
+   * closes whether or not its row is loaded.
    */
   nextTreeExpanded(
     rowId: string,
@@ -341,6 +363,7 @@ export interface TableModel<TData, TContent> {
    * The index in the current order of the row itself when it's shown, else of its
    * nearest shown ancestor (for a row under a collapsed row or filtered out).
    * `undefined` without a tree, for an unknown id, or when no ancestor is shown.
+   * For a remote tree, the remote's answer (rows it has loaded).
    */
   shownAncestor(rowId: string): number | undefined;
   /**
@@ -361,14 +384,15 @@ export interface TableModel<TData, TContent> {
    * when its whole branch ends up selected, filters not applied; kept parents
    * selected against that rule lose their ids. What `withBranches` gives for
    * every kept row, in one pass over typed arrays. `selected` is `current` as a
-   * set (made here when not given). `current` as it is without a tree.
+   * set (made here when not given). `current` as it is without a tree and
+   * for remote rows.
    */
   branchSelectAll(current: readonly string[], selected?: ReadonlySet<string>): SelectionState;
   /**
    * The rows the filters keep as a tree of ids (collapsed rows don't matter),
    * with each row's children in the whole tree, for `withBranches` and
    * `toggleBranch`; `undefined` without a tree. Kept per filter and sort
-   * result.
+   * result. `undefined` for remote rows.
    */
   branchTree(): BranchTree | undefined;
   /**
@@ -380,7 +404,7 @@ export interface TableModel<TData, TContent> {
    * unselected rows of their ancestors' branches. A selection that breaks the
    * branch rules (a parent without all its children) shows as it is. One pass
    * per selection `Set` and filter and sort result. Needs a tree: without one,
-   * every row is `'none'`.
+   * and for remote rows, every row is `'none'`.
    */
   branchCheck(selected: ReadonlySet<string>): (index: number) => BranchCheck;
   /**
@@ -396,7 +420,10 @@ export interface TableModel<TData, TContent> {
   valueAt(index: number, columnId: string): unknown;
   /** The value a column reads from any row object, as its accessor gets it at `index`. */
   readValue(row: TData, columnId: string, index: number): unknown;
-  /** What a column's `cell` function receives for the row at `index`. */
+  /**
+   * What a column's `cell` function receives for the row at `index`; with
+   * `depth` when the rows form a tree (a remote tree included).
+   */
   cellContext(index: number, columnId: string): CellContext<TData> | undefined;
   /**
    * The sort state that clicking this column's header would produce:
