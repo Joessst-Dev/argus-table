@@ -7,6 +7,7 @@ import type {
   ColumnSizingChangeDetail,
   ColumnVisibilityChangeDetail,
   ExpandedChangeDetail,
+  GroupingChangeDetail,
   LoadErrorDetail,
   RangeChangeDetail,
   RowClickDetail,
@@ -53,6 +54,9 @@ export const EXPANDED_CHANGE = 'argus-expanded-change';
 /** `treeExpanded` changed (uncontrolled), or the proposed ids (controlled). */
 export const TREE_EXPANDED_CHANGE = 'argus-tree-expanded-change';
 
+/** `grouping` changed (uncontrolled), or the proposed columns (controlled). */
+export const GROUPING_CHANGE = 'argus-grouping-change';
+
 /** Fired when a body row was clicked, after `argus-cell-click`. */
 export const ROW_CLICK = 'argus-row-click';
 
@@ -75,6 +79,7 @@ declare global {
     'argus-selection-change': CustomEvent<SelectionChangeDetail>;
     'argus-expanded-change': CustomEvent<ExpandedChangeDetail>;
     'argus-tree-expanded-change': CustomEvent<TreeExpandedChangeDetail>;
+    'argus-grouping-change': CustomEvent<GroupingChangeDetail>;
     'argus-row-click': CustomEvent<RowClickDetail<unknown>>;
     'argus-cell-click': CustomEvent<CellClickDetail<unknown>>;
     'argus-load-error': CustomEvent<LoadErrorDetail>;

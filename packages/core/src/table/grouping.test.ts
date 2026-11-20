@@ -173,9 +173,9 @@ describe('grouping', () => {
   });
 
   it('groupedOrder lists every kept data row, closed groups’ too, in sort order', () => {
-    expect(model({ sorting: [{ id: 'amount', desc: true }] }).groupedOrder()).toEqual([
-      3, 1, 0, 2, 4,
-    ]);
+    const order = model({ sorting: [{ id: 'amount', desc: true }] }).groupedOrder();
+    expect(order?.map((r) => r.index)).toEqual([3, 1, 0, 2, 4]);
+    expect(order?.map((r) => r.id)).toEqual(['d', 'b', 'a', 'c', 'e']);
     expect(model({ grouping: [] }).groupedOrder()).toBeUndefined();
   });
 

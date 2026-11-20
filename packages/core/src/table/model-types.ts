@@ -96,6 +96,8 @@ export interface ColumnView<TData, TContent> {
   reorderable: boolean;
   pinnable: boolean;
   hideable: boolean;
+  /** Whether the rows can be grouped by the column (`ColumnDef.groupable`). */
+  groupable: boolean;
   /** The kind of filter users can set, or `undefined` when they can't filter the column. */
   filter: FilterKind | undefined;
   /** `true` when `columnFilters` has a filter for the column. */
@@ -387,11 +389,11 @@ export interface TableModel<TData, TContent> {
    */
   sourceRow(index: number): TData | undefined;
   /**
-   * While grouped: every data row the filters keep, as source indexes, group by
-   * group in sort order, closed groups' rows too (what an export of the grouped
-   * rows lists). `undefined` without grouping.
+   * While grouped: every data row the filters keep, by source index and id,
+   * group by group in sort order, closed groups' rows too (what an export of
+   * the grouped rows lists). `undefined` without grouping.
    */
-  groupedOrder(): readonly number[] | undefined;
+  groupedOrder(): readonly { index: number; id: string }[] | undefined;
   /** The index of a row id in the current row model (after filtering and sorting), or `undefined`. */
   indexOf(rowId: string): number | undefined;
   /**

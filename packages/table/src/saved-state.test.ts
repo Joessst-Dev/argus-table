@@ -84,6 +84,7 @@ const saved: Required<TableState> = {
   selection: ['p12', 'p13'],
   expanded: ['p12'],
   treeExpanded: ['p12'],
+  grouping: [],
   quickFilter: 'Person 1',
   scroll: { row: 3, inline: 0 },
 };
@@ -102,6 +103,7 @@ describe('getState()', () => {
       selection: [],
       expanded: [],
       treeExpanded: [],
+      grouping: [],
       quickFilter: '',
       scroll: { row: 0, inline: 0 },
     });

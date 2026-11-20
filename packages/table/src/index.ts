@@ -14,6 +14,7 @@ export {
   RANGE_CHANGE,
   ROW_CLICK,
   SELECTION_CHANGE,
+  GROUPING_CHANGE,
   SORTING_CHANGE,
 } from './events.js';
 export type * from './types.js';

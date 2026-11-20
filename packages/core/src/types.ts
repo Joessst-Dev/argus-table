@@ -496,6 +496,8 @@ export interface TableState {
   expanded?: ExpandedState;
   /** The expanded rows of a tree (`getSubRows`, `getParentId`, or a `dataSource` with `hasChildren` and `getChildren`). */
   treeExpanded?: TreeExpandedState;
+  /** The columns the rows are grouped by (`grouping`). */
+  grouping?: GroupingState;
   quickFilter?: string;
   scroll?: ScrollState;
 }

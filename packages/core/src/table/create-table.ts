@@ -194,7 +194,8 @@ export function createTableModel<TData, TContent>(
    * rows count for nothing else: not as unselected rows of their ancestors'
    * branches, not for the select-all checkbox.
    */
-  let groupedOrder: { layout: TreeLayout; rows: readonly number[] } | undefined;
+  let groupedOrder:
+    { layout: TreeLayout; rows: readonly { index: number; id: string }[] } | undefined;
   const checksFor = (selected: ReadonlySet<string>) => {
     const steps = structure().forest();
     const layout = steps?.layout;
@@ -391,8 +392,10 @@ export function createTableModel<TData, TContent>(
       const layout = grouped && pipeline.treeSteps()?.layout;
       if (!grouped || !layout) return undefined;
       if (groupedOrder?.layout !== layout) {
-        const rows: number[] = [];
-        for (const row of layout.order) if (row < grouped.size) rows.push(row);
+        const rows: { index: number; id: string }[] = [];
+        for (const row of layout.order) {
+          if (row < grouped.size) rows.push({ index: row, id: grouped.ids[row] ?? '' });
+        }
         groupedOrder = { layout, rows };
       }
       return groupedOrder.rows;

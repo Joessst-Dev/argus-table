@@ -543,6 +543,7 @@ describe('plugin host', () => {
       resizable: true,
       pinnable: true,
       hideable: true,
+      groupable: false,
       pin: 'start',
       hidden: false,
       width: 200,
