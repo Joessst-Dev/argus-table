@@ -51,6 +51,8 @@ export const tableLabels = {
     first === last
       ? `${group} ist jetzt Spalte ${String(first)} von ${String(total)}`
       : `${group} ist jetzt in den Spalten ${String(first)} bis ${String(last)} von ${String(total)}`,
+  groupCount: ({ count }) => `(${String(count)})`,
+  emptyGroup: '(leer)',
 } satisfies TableLabels;
 
 const rangeOperators = {

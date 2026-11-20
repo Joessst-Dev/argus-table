@@ -193,6 +193,9 @@ function attachGridInternals(host: HTMLElement): ElementInternals {
  * @csspart header-cell-expand - Added to `header-cell` on the toggle column's header: an empty cell (`role="gridcell"`, as an empty column header has no name to read).
  * @csspart expand-toggle - The chevron button that opens and closes a row's detail panel. It is drawn with borders in `currentColor` (`::before`) and has `aria-expanded`.
  * @csspart tree-toggle - The button that expands and collapses a tree row (`getSubRows`, `getParentId`, or a `dataSource` with `hasChildren` and `getChildren`), in the first data column after the row's indent; only rows with children have one. It is drawn with borders in `currentColor` (`::before`) and has `aria-expanded`. While a filter keeps its row expanded (the row holds a match), it has `aria-disabled="true"` and `tree-toggle-disabled`, is dimmed, and does nothing.
+ * @csspart row-group - Added to `row` on a group row (`grouping`): the row for a group, with its value and count in the first data column and the columns' totals in theirs. Its text is bold by default.
+ * @csspart cell-group - Added to `cell` on the cells of a group row; they are read-only.
+ * @csspart group-count - The number of rows a group row holds, after its value (`labels.groupCount`, by default `(12)`).
  * @csspart tree-toggle-disabled - Added to `tree-toggle` while a filter keeps the row open for its matches; the toggle does nothing until the filter clears.
  * @csspart row-pinned - Every row from `pinnedRows`, on either side. Also has `row`, but no `row-even`/`row-odd`.
  * @csspart row-pinned-top - The rows pinned below the header.
@@ -1423,6 +1426,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       model.headerGroups,
       this.#lightDomEnd(),
       this.#window.details,
+      this.#labels.emptyGroup,
     );
     // A new marker starts a new part (the old one was removed): its content is gone.
     if (this.#lightPart && this.#lightPart !== part) this.#lightPart.setConnected(false);

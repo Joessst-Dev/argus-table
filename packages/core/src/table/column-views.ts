@@ -115,6 +115,7 @@ function systemView<TData, TContent>(
     sorted: false,
     header: undefined,
     cell: undefined,
+    groupCell: undefined,
     meta: undefined,
     hasAccessor: false,
   };
@@ -161,6 +162,7 @@ function view<TData, TContent>(
     sorted: sort ? (sort.desc ? 'desc' : 'asc') : false,
     header: def.header,
     cell: def.cell,
+    groupCell: def.groupCell,
     meta: def.meta,
     hasAccessor: def.hasAccessor,
   };

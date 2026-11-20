@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import type { ArgusPlugin, ArgusTable, ColumnDef, PluginHost } from './index.js';
-import { fixture, rowsInOrder, settle } from './test-utils.js';
+import { html } from 'lit';
+import { fixture, rowsInOrder, rowText, settle } from './test-utils.js';
 
 interface Sale {
   id: string;
@@ -141,5 +142,70 @@ describe('grouping', () => {
     await settle(el);
     expect(el.getAttribute('role')).toBe('grid');
     expect(warn.mock.calls.filter(([m]) => String(m).includes('grouping'))).toHaveLength(1);
+  });
+
+  test('a group row: its parts, value, count and totals', async () => {
+    const el = await mount({ grouping: ['region'], treeExpanded: [EU] });
+    const [apac, eu, row] = rowsInOrder(el);
+    expect(apac?.getAttribute('part')).toContain('row-group');
+    expect(row?.getAttribute('part')).not.toContain('row-group');
+    expect(rowText(apac ?? el)).toEqual(['APAC', '', '', '35']);
+    expect(rowText(eu ?? el)).toEqual(['EU', '', '', '18']);
+    expect(rowText(row ?? el)).toEqual(['s1', 'EU', 'Open', '10']);
+    const count = apac?.querySelector('[part~="group-count"]');
+    expect(count?.textContent).toBe('(2)');
+    // Only in the tree column.
+    expect(apac?.querySelectorAll('[part~="group-count"]')).toHaveLength(1);
+    const cells = [...(apac?.querySelectorAll('[role="gridcell"]') ?? [])];
+    expect(cells.every((c) => c.getAttribute('part')?.includes('cell-group'))).toBe(true);
+    expect(cells.every((c) => c.getAttribute('aria-readonly') === 'true')).toBe(true);
+    expect(apac?.getAttribute('aria-level')).toBe('1');
+    expect(apac?.getAttribute('aria-expanded')).toBe('false');
+    expect(eu?.getAttribute('aria-expanded')).toBe('true');
+    expect(apac?.getAttribute('aria-setsize')).toBe('2');
+    expect(row?.getAttribute('aria-level')).toBe('2');
+  });
+
+  test('groupCell renders a column’s group cells from its context', async () => {
+    const seen: unknown[] = [];
+    const el = await mount({
+      grouping: ['region'],
+      columns: columns.map((c) =>
+        c.id === 'amount'
+          ? {
+              ...c,
+              groupCell: (context) => {
+                seen.push(context);
+                return html`<b>${String(context.total)} €</b>`;
+              },
+            }
+          : c.id === 'name'
+            ? { ...c, groupCell: ({ value, count }) => `${String(value)}: ${String(count)}` }
+            : c,
+      ),
+    });
+    expect(rowText(rowsInOrder(el)[0] ?? el)).toEqual(['APAC: 2', '', '', '35 €']);
+    expect(seen[0]).toEqual({
+      id: '\u0000g["region","APAC"]',
+      groupColumnId: 'region',
+      value: 'APAC',
+      count: 2,
+      depth: 0,
+      totals: { amount: 35 },
+      index: 0,
+      columnId: 'amount',
+      total: 35,
+    });
+  });
+
+  test('the group of empty values is named by emptyGroup; labels change it and the count', async () => {
+    const el = await mount({
+      data: [...sales, { id: 's6', region: '', status: 'Open', amount: 2 }],
+      grouping: ['region'],
+      labels: { emptyGroup: 'None', groupCount: ({ count }) => `· ${String(count)}` },
+    });
+    const empty = rowsInOrder(el)[2];
+    expect(rowText(empty ?? el)[0]).toBe('None');
+    expect(empty?.querySelector('[part~="group-count"]')?.textContent).toBe('· 1');
   });
 });

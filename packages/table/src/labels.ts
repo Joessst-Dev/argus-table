@@ -53,6 +53,10 @@ export interface TableLabels {
    * group of one), and the number of columns. Default: `Sales moved to columns 2 to 4 of 8`.
    */
   groupMoved: (move: { group: string; first: number; last: number; total: number }) => string;
+  /** The number of rows a group row holds, after its value (`grouping`). Default: `(12)`. */
+  groupCount: (group: { count: number }) => string;
+  /** The value of the group of rows with an empty value (`grouping`). Default: `(empty)`. */
+  emptyGroup: string;
 }
 
 const DEFAULT_LABELS: TableLabels = {
@@ -76,6 +80,8 @@ const DEFAULT_LABELS: TableLabels = {
     `${group} moved to ${
       first === last ? `column ${String(first)}` : `columns ${String(first)} to ${String(last)}`
     } of ${String(total)}`,
+  groupCount: ({ count }) => `(${String(count)})`,
+  emptyGroup: '(empty)',
 };
 
 /**

@@ -108,6 +108,8 @@ export interface ColumnView<TData, TContent> {
   sorted: SortDirection;
   header: ColumnDef<TData, TContent>['header'];
   cell: ColumnDef<TData, TContent>['cell'];
+  /** A group row's cell content (`ColumnDef.groupCell`). */
+  groupCell: ColumnDef<TData, TContent>['groupCell'];
   /** The definition's `meta`, for plugins. */
   meta: ColumnDef<TData, TContent>['meta'];
   hasAccessor: boolean;

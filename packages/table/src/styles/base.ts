@@ -264,6 +264,16 @@ export const baseStyles = css`
       margin-inline-end: auto;
     }
     /* A row a filter keeps expanded: its toggle does nothing until the filter clears. */
+    /* A group row (grouping): its value and totals stand out; its count follows the value. */
+    [part~='row-group'] {
+      font-weight: 600;
+    }
+    [part~='group-count'] {
+      flex: none;
+      margin-inline-start: 0.5ch;
+      font-weight: normal;
+      opacity: 0.7;
+    }
     [part~='tree-toggle-disabled'] {
       opacity: 0.4;
       cursor: default;

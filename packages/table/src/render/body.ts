@@ -2,7 +2,7 @@ import { html, nothing, type TemplateResult } from 'lit';
 import { live } from 'lit/directives/live.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { styleMap } from 'lit/directives/style-map.js';
-import type { BranchCheck, RowState, TreeRowInfo } from '@argus-table/core';
+import type { BranchCheck, GroupRowInfo, RowState, TreeRowInfo } from '@argus-table/core';
 import type { RenderedColumn } from '../controllers/column-window.js';
 import type { WindowRow } from '../controllers/virtual-controller.js';
 import { cellParts, cellSlot, cellStyle, detailSlot, type CheckboxHandlers } from './content.js';
@@ -50,6 +50,10 @@ export interface TreeRows {
    * and sits indented under its parent.
    */
   depth: (index: number) => number | undefined;
+  /** The group row at a data index (`grouping`); unset without grouping. */
+  group: ((index: number) => GroupRowInfo | undefined) | undefined;
+  /** A group row's count after its value (`groupCount`). */
+  groupCount: (count: number) => string;
   expandLabel: string;
   collapseLabel: string;
   /** Click handler of the toggles; the button carries the row's data index in `data-row`. */
@@ -235,6 +239,8 @@ function renderRow<T>(
   const node = idle || state !== 'loaded' ? undefined : tree?.row(index);
   // A row not loaded has only a level: no toggle state, no place among its siblings yet.
   const depth = node ? node.depth : idle || state === 'loaded' ? undefined : tree?.depth(index);
+  const group = node && tree?.group?.(index);
+  if (group) parts += ' row-group';
   return html`<div
     part=${idle ? nothing : parts}
     class="row"
@@ -282,6 +288,11 @@ function renderRow<T>(
                         )}`,
                     )
                 : placeholder(state, c.id === retryCol ? retry : undefined, index, loading),
+          // A group row's count, after its value in the tree column.
+          group && tree?.column === c.id
+            ? html`<span part="group-count">${tree.groupCount(group.count)}</span>`
+            : nothing,
+          group !== undefined,
         ),
     )}
   </div>`;
@@ -290,7 +301,9 @@ function renderRow<T>(
 /**
  * A body or pinned-row cell. Every cell is focusable (`tabindex=-1`) so clicks
  * focus it; `tabStop` marks the grid's single tab stop. `before` goes ahead of
- * the slot (a loading row's skeleton bar or Retry button).
+ * the slot (a loading row's skeleton bar or Retry button), `after` after it (a
+ * group row's count); a group row's cells (`group`) get the part `cell-group`
+ * and are read-only.
  */
 export function renderCell<T>(
   c: RenderedColumn<T>,
@@ -298,12 +311,14 @@ export function renderCell<T>(
   slot: string,
   pinnedRow: boolean,
   before: unknown = nothing,
+  after: unknown = nothing,
+  group = false,
 ) {
   return html`<div
-    part=${cellParts(c, pinnedRow)}
+    part=${group ? `${cellParts(c, pinnedRow)} cell-group` : cellParts(c, pinnedRow)}
     role="gridcell"
     aria-colindex=${c.colIndex}
-    aria-readonly=${c.readonly ? 'true' : nothing}
+    aria-readonly=${c.readonly || group ? 'true' : nothing}
     tabindex=${tabStop ? 0 : -1}
     data-col=${c.id}
     data-align=${c.align}
@@ -311,7 +326,7 @@ export function renderCell<T>(
     data-pin=${c.pin ?? nothing}
     style=${cellStyle(c) ?? nothing}
   >
-    ${before}<slot name=${slot}></slot>
+    ${before}<slot name=${slot}></slot>${after}
   </div>`;
 }
 
