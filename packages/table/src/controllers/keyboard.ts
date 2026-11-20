@@ -162,12 +162,16 @@ export class KeyboardRouter<T> {
       !event.ctrlKey &&
       !event.metaKey
     ) {
-      // Enter on a body cell does what a click does; on a failed row, it retries.
+      // Enter on a body cell does what a click does; on a failed row, it retries;
+      // on a group row (which has no clicks), it opens or closes the group.
       const from = gridRowOfCell(cell, layoutOf(this.#model()));
       if (!from) return;
       event.preventDefault();
       const failed = from.section === 'body' ? dataIndexOf(this.#model(), from.index) : undefined;
-      if (failed !== undefined && this.#model().rows.stateAt(failed) === 'error') {
+      const { rows } = this.#model();
+      if (failed !== undefined && rows.grouped && rows.groupAt(failed)) {
+        this.#toggleTree(failed);
+      } else if (failed !== undefined && rows.stateAt(failed) === 'error') {
         this.#data.retry(failed);
       } else {
         activate(this.#host, this.#host.renderRoot, this.#model(), event.composedPath());

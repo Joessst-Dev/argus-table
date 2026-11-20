@@ -149,6 +149,8 @@ export function cellEditing<T = unknown>(options: CellEditingOptions = {}): Argu
       if (target.section === 'header' || event.altKey || event.ctrlKey || event.metaKey) {
         return false;
       }
+      // A group row (`grouping`) has nothing to edit: Enter opens or closes it.
+      if (target.section === 'body' && host.group(target.rowIndex)) return false;
       const state = stateOf(host);
       const def = state.defs.get(target.columnId);
       const edit = editOptionsOf(def);

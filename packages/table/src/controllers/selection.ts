@@ -89,7 +89,20 @@ export class SelectionController<T> {
    * `dataSource` too: over its loaded rows), in `multi` mode.
    */
   #branches(): boolean {
-    return this.#host.selectBranches && this.mode === 'multi' && this.#model().tree;
+    const model = this.#model();
+    // Group rows select their rows: grouped rows always select by branch.
+    return this.mode === 'multi' && model.tree && (this.#host.selectBranches || model.rows.grouped);
+  }
+
+  /** Whether the body row at a data index is a group row (`grouping`). */
+  #isGroup(index: number): boolean {
+    const { rows } = this.#model();
+    return rows.grouped && rows.groupAt(index) !== undefined;
+  }
+
+  /** A row's id for ranges: group rows are skipped (their rows join through their own ids). */
+  #rangeId(index: number): string | undefined {
+    return this.#isGroup(index) ? undefined : this.#model().rows.idAt(index);
   }
 
   /**
@@ -131,8 +144,12 @@ export class SelectionController<T> {
     if (this.mode === 'none') return undefined;
     const ids = this.#selected();
     const model = this.#model();
+    const { rows } = model;
+    // A group row is selected when its rows are; it can't be selected alone.
+    const check = rows.grouped && this.#branches() ? model.branchCheck(ids) : undefined;
     return (index) => {
-      const id = model.rows.idAt(index);
+      if (rows.grouped && rows.groupAt(index)) return check ? check(index) === 'all' : undefined;
+      const id = rows.idAt(index);
       return id === undefined ? undefined : ids.has(id);
     };
   }
@@ -167,6 +184,8 @@ export class SelectionController<T> {
     const inCheckboxCell = path.some(
       (t) => t instanceof HTMLElement && t.dataset.col === SELECTION_COLUMN_ID,
     );
+    // A group row selects only through its checkbox, in multi mode.
+    if ((!inCheckboxCell || this.mode !== 'multi') && this.#isGroup(target.index)) return;
     this.#click(target, event, inCheckboxCell || event.ctrlKey || event.metaKey);
   }
 
@@ -174,6 +193,8 @@ export class SelectionController<T> {
   toggle(index: number): void {
     const id = this.#model().rows.idAt(index);
     if (id === undefined || this.#blocked(index)) return;
+    // Space on a group row ticks its rows (multi mode), as its checkbox does.
+    if (this.mode !== 'multi' && this.#isGroup(index)) return;
     const tree = this.#tree();
     if (tree) this.#request(this.#toggleBranch(id, tree));
     else this.#request(toggleRow(this.state.value, this.mode, id));
@@ -189,8 +210,7 @@ export class SelectionController<T> {
     const anchor =
       this.#anchorAt() ?? (fromId === undefined ? undefined : { id: fromId, index: from });
     if (!anchor) return;
-    const idAt = (index: number) => model.rows.idAt(index);
-    const selection = selectRange([], anchor.index, to, idAt, false);
+    const selection = selectRange([], anchor.index, to, (i) => this.#rangeId(i), false);
     const tree = this.#tree();
     this.#request({
       selection: tree ? withBranches([], selection, tree) : selection,
@@ -302,8 +322,7 @@ export class SelectionController<T> {
   ): SelectionStep {
     const anchor = this.#anchorAt();
     if (modifiers.range && anchor) {
-      const model = this.#model();
-      const ids = selectRange([], anchor.index, target.index, (i) => model.rows.idAt(i), false);
+      const ids = selectRange([], anchor.index, target.index, (i) => this.#rangeId(i), false);
       const current = modifiers.toggle ? this.state.value : [];
       return { selection: withBranches(current, ids, tree), anchor: anchor.id };
     }

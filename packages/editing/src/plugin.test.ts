@@ -142,6 +142,22 @@ describe('cellEditing', () => {
     expect(cellOf(el, 0, 'name').hasAttribute('aria-readonly')).toBe(false);
   });
 
+  test('a group row (grouping) opens no editor: Enter opens the group', async () => {
+    const { el } = await fixture(
+      {},
+      {
+        columns: columns.map((c) => (c.id === 'status' ? { ...c, groupable: true } : c)),
+        grouping: ['status'],
+      },
+    );
+    await focusCell(el, 0, 'name');
+    await press(el, '{F2}');
+    expect(editor(el)).toBeNull();
+    await press(el, '{Enter}');
+    expect(editor(el)).toBeNull();
+    expect(el.treeExpanded).toEqual(['\u0000g["status","done"]']);
+  });
+
   test('Enter opens the editor with the value; Enter commits and moves down', async () => {
     const { el, edits } = await fixture();
     await focusCell(el, 0, 'name');

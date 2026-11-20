@@ -76,6 +76,19 @@ describe('exportTable', () => {
     );
   });
 
+  test('grouped rows: every data row, closed groups too, in the grouped order', async () => {
+    const el = await fixture({
+      columns: columns.map((c) => (c.id === 'city' ? { ...c, groupable: true } : c)),
+      data: [...data, { id: 'e', name: 'Eve', age: 50, city: 'Oslo' }],
+      grouping: ['city'],
+      sorting: [{ id: 'age', desc: true }],
+    });
+    // Group rows aren't written: their rows are, group by group.
+    expect(await csv(el)).toBe(
+      "Name,Age,City\r\nDee,40,'=cmd\r\nCid,20,Lima\r\nEve,50,Oslo\r\nAnn,30,Oslo\r\nBob,10,Rome\r\n",
+    );
+  });
+
   test("names columns by their headers' text, wherever it is listed among the plugins", async () => {
     const el = await fixture({ plugins: [tableExport<Row>(), headerMenu<Row>()] });
     expect((await csv(el)).split('\r\n')[0]).toBe('Name,Age,City');

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
+import { userEvent } from 'vitest/browser';
 import type { ArgusPlugin, ArgusTable, ColumnDef, PluginHost } from './index.js';
 import { html } from 'lit';
 import { fixture, rowsInOrder, rowText, settle } from './test-utils.js';
@@ -207,5 +208,122 @@ describe('grouping', () => {
     const empty = rowsInOrder(el)[2];
     expect(rowText(empty ?? el)[0]).toBe('None');
     expect(empty?.querySelector('[part~="group-count"]')?.textContent).toBe('· 1');
+  });
+});
+
+/** The row showing a value in its first cell (a group's value, or a sale's id). */
+function rowOf(el: HTMLElement, first: string): HTMLElement {
+  const row = rowsInOrder(el).find((r) => rowText(r).find((t) => t !== '') === first);
+  if (!row) throw new Error(`no row ${first}`);
+  return row;
+}
+
+const cellIn = (row: HTMLElement, col: string) => {
+  const cell = row.querySelector<HTMLElement>(`[data-col="${col}"]`);
+  if (!cell) throw new Error(`no cell ${col}`);
+  return cell;
+};
+
+const checkboxOf = (row: HTMLElement) =>
+  row.querySelector<HTMLInputElement>('[part~="selection-checkbox"]');
+
+describe('grouping: keys, clicks and selection', () => {
+  test('Enter on a group row opens and closes it; on a data row it is a click', async () => {
+    const el = await mount({ grouping: ['region'] });
+    const opened: unknown[] = [];
+    el.addEventListener('argus-tree-expanded-change', (e) => opened.push(e.detail.open));
+    const clicks: unknown[] = [];
+    el.addEventListener('argus-cell-click', (e) => clicks.push(e.detail.rowId));
+    cellIn(rowOf(el, 'EU'), 'amount').focus();
+    await userEvent.keyboard('{Enter}');
+    await settle(el);
+    expect(opened).toEqual([true]);
+    expect(el.treeExpanded).toEqual([EU]);
+    cellIn(rowOf(el, 'EU'), 'amount').focus();
+    await userEvent.keyboard('{Enter}');
+    await settle(el);
+    expect(opened).toEqual([true, false]);
+    expect(clicks).toEqual([]);
+    el.treeExpanded = [EU];
+    await settle(el);
+    cellIn(rowOf(el, 's1'), 'amount').focus();
+    await userEvent.keyboard('{Enter}');
+    expect(clicks).toEqual(['s1']);
+  });
+
+  test('a click on a group row makes its cell active and fires no click events', async () => {
+    const el = await mount({ grouping: ['region'] });
+    const fired: string[] = [];
+    el.addEventListener('argus-row-click', () => fired.push('row'));
+    el.addEventListener('argus-cell-click', () => fired.push('cell'));
+    await userEvent.click(cellIn(rowOf(el, 'APAC'), 'status'));
+    await settle(el);
+    expect(fired).toEqual([]);
+    expect(el.shadowRoot?.activeElement).toBe(cellIn(rowOf(el, 'APAC'), 'status'));
+  });
+
+  test('the active cell in a group that closes moves to the group row', async () => {
+    const el = await mount({ grouping: ['region'], treeExpanded: [EU] });
+    cellIn(rowOf(el, 's3'), 'status').focus();
+    await settle(el);
+    el.treeExpanded = [];
+    await settle(el);
+    expect(el.shadowRoot?.activeElement).toBe(cellIn(rowOf(el, 'EU'), 'status'));
+  });
+
+  test('multi mode: a group checkbox ticks its rows, never the group; ranges skip groups', async () => {
+    const el = await mount({
+      grouping: ['region'],
+      treeExpanded: [EU],
+      selectionMode: 'multi',
+      selectionCheckboxes: true,
+    });
+    await userEvent.click(checkboxOf(rowOf(el, 'EU')) ?? el);
+    await settle(el);
+    expect([...el.selection].sort()).toEqual(['s1', 's3', 's5']);
+    expect(checkboxOf(rowOf(el, 'EU'))?.checked).toBe(true);
+    expect(rowOf(el, 'EU').getAttribute('aria-selected')).toBe('true');
+    await userEvent.click(checkboxOf(rowOf(el, 's3')) ?? el);
+    await settle(el);
+    expect(checkboxOf(rowOf(el, 'EU'))?.indeterminate).toBe(true);
+    // Select-all: data rows only, closed groups' too.
+    const all = el.shadowRoot?.querySelector<HTMLInputElement>(
+      '[part~="header"] [part~="selection-checkbox"]',
+    );
+    await userEvent.click(all ?? el);
+    await settle(el);
+    expect([...el.selection].sort()).toEqual(['s1', 's2', 's3', 's4', 's5']);
+    // Space on a group row ticks (here: unticks) its rows.
+    cellIn(rowOf(el, 'EU'), 'amount').focus();
+    await userEvent.keyboard(' ');
+    await settle(el);
+    expect([...el.selection].sort()).toEqual(['s2', 's4']);
+  });
+
+  test('a Shift range across groups selects the data rows between, not the groups', async () => {
+    const el = await mount({
+      grouping: ['region'],
+      treeExpanded: ['\u0000g["region","APAC"]', EU],
+      selectionMode: 'multi',
+    });
+    await userEvent.click(cellIn(rowOf(el, 's4'), 'amount'));
+    await userEvent.keyboard('{Shift>}');
+    await userEvent.click(cellIn(rowOf(el, 's3'), 'amount'));
+    await userEvent.keyboard('{/Shift}');
+    await settle(el);
+    expect([...el.selection].sort()).toEqual(['s1', 's3', 's4']);
+  });
+
+  test('single mode: group rows have no checkbox and clicks or Space select nothing', async () => {
+    const el = await mount({
+      grouping: ['region'],
+      selectionMode: 'single',
+      selectionCheckboxes: true,
+    });
+    expect(checkboxOf(rowOf(el, 'EU'))).toBeNull();
+    await userEvent.click(cellIn(rowOf(el, 'EU'), 'amount'));
+    await userEvent.keyboard(' ');
+    await settle(el);
+    expect(el.selection).toEqual([]);
   });
 });

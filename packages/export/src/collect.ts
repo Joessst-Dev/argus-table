@@ -194,6 +194,13 @@ export async function collect<T>(
       });
       if (page.length < size || (total !== undefined && start + size >= total)) break;
     }
+  } else if (host.groupedRows()) {
+    // Grouped rows: every data row, closed groups' too, in the grouped order.
+    for (const { index, id, row } of host.groupedRows() ?? []) {
+      if (selected && !selected.has(id)) continue;
+      items.push({ row, rowId: id });
+      rows.push(columns.map((c) => valueOf(host.readValue(row, c.id, index), c.id, () => row)));
+    }
   } else {
     for (let i = 0, n = host.rowCount(); i < n; i++) {
       const id = host.rowId(i);
