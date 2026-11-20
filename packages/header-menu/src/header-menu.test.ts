@@ -1175,7 +1175,7 @@ describe('group items', () => {
     ]);
   });
 
-  test('not for columns without groupable, with group: false, or with a dataSource', async () => {
+  test('not for columns without groupable, with group: false, or with a data-source tree', async () => {
     const el = await fixture({
       columns: grouping(),
       plugins: [headerMenu<Row>({ group: false, pin: false, hide: false })],
@@ -1184,11 +1184,20 @@ describe('group items', () => {
     buttonOf(el, 'name')?.click();
     expect(labels(await opened(el))).not.toContain('Group by this column');
     document.body.replaceChildren();
-    const remote = await fixture({
+    const getRows = () => Promise.resolve({ rows: data, total: data.length });
+    const remote = await fixture({ columns: grouping(), data: [], dataSource: { getRows } });
+    // A data source groups on the server: offered.
+    expect(buttonOf(remote, 'note')).toBeInstanceOf(HTMLButtonElement);
+    document.body.replaceChildren();
+    const tree = await fixture({
       columns: grouping(),
       data: [],
-      dataSource: { getRows: () => Promise.resolve({ rows: data, total: data.length }) },
+      dataSource: {
+        getRows,
+        hasChildren: () => false,
+        getChildren: () => Promise.resolve({ rows: [] }),
+      },
     });
-    expect(buttonOf(remote, 'note') ?? null).toBeNull();
+    expect(buttonOf(tree, 'note') ?? null).toBeNull();
   });
 });

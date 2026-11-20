@@ -24,35 +24,30 @@ export function loadingState<T>(
   labels: TableLabels,
   onRetry: (event: Event) => void,
 ): Loading | undefined {
-  const cache = data.cache;
-  if (!cache) return undefined;
+  if (!data.cache) return undefined;
   // Read once: `stateAt` runs per rendered row.
   const { rows } = model;
   const { range } = window;
   const top = (range && model.display.dataRange(range.start, range.end)?.first) ?? 0;
-  const firstByPage = new Map<number, number>();
+  // The first visible row of each failed page, with the page's shown rows.
+  const firstByPage = new Map<string, { index: number; start: number; end: number }>();
   const retry = new Map<number, string>();
   for (const { row: index, idle } of window.rows) {
     if (idle) continue;
     if (index < top || rows.stateAt(index) !== 'error') continue;
-    const page = data.pageAt(index);
-    if (page === undefined) {
+    const span = data.pageSpan(index);
+    if (span === undefined) {
       // A parent's failed children: one error row under it.
       retry.set(index, labels.retryChildren);
       continue;
     }
-    const first = firstByPage.get(page);
-    if (first === undefined || index < first) firstByPage.set(page, index);
+    const first = firstByPage.get(span.key);
+    if (first === undefined || index < first.index) firstByPage.set(span.key, { ...span, index });
   }
-  // In a tree, shown rows (as `argus-load-error` and `aria-rowindex` count them):
-  // open rows above push the page down.
-  for (const [page, index] of firstByPage) {
-    const start = page * cache.pageSize;
-    const end = Math.min(start + cache.pageSize, cache.rowCount);
-    retry.set(
-      index,
-      labels.retryRows({ first: data.shownOfTop(start) + 1, last: data.shownOfTop(end) }),
-    );
+  // Shown rows (as `argus-load-error` and `aria-rowindex` count them): open rows
+  // above push a page down.
+  for (const { index, start, end } of firstByPage.values()) {
+    retry.set(index, labels.retryRows({ first: start + 1, last: end }));
   }
   return {
     stateAt: (index) => rows.stateAt(index),
