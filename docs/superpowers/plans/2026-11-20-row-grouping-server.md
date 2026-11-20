@@ -37,15 +37,15 @@
 
 **Files:**
 - Modify: `packages/core/src/types.ts` (`GroupPathItem`, `GroupData`, `RowsRequest.grouping?` / `groupPath?`, `RowsResponse.groups?`, `LoadErrorDetail.groupPath?`, `DataSource.getRows` JSDoc)
-- Modify: `packages/core/src/table/group-rows.ts` (export `groupId(path: readonly unknown[]): string` and `groupKey(value: unknown): unknown`, used by `buildGroups`), `packages/core/src/index.ts`
+- Modify: `packages/core/src/table/group-rows.ts` (export `groupId(path: readonly unknown[]): string` and `groupingKey(value: unknown): unknown`, used by `buildGroups`), `packages/core/src/index.ts`
 - Modify: `packages/core/src/table/create-table.ts` (`checksFor`: a row is a group row when its id starts with `GROUP_ID_PREFIX = '\u0000g'`, exported from `group-rows.ts`; drop `groupsFrom`)
 - Modify: `packages/table/src/types.ts`, `packages/{react,vue,angular}/src/index.ts` (re-export `GroupPathItem`, `GroupData`)
 - Test: `packages/core/src/table/group-rows.test.ts`, `packages/core/src/table/grouping.test.ts`
 
 **Interfaces:**
-- Produces: `groupId(path)`, `groupKey(value)`, `GROUP_ID_PREFIX`; the types above.
+- Produces: `groupId(path)`, `groupingKey(value)`, `GROUP_ID_PREFIX`; the types above.
 
-- [ ] **Step 1: Failing tests:** `groupId(['region', 'EU'])` is `'\u0000g["region","EU"]'`; `groupId(['day', groupKey(new Date(0))])` is `'\u0000g["day",0]'`; `groupKey('')` and `groupKey(undefined)` are `null`. The existing local branch-selection tests (`grouping.test.ts`, "selection never holds a group id") still pass with the prefix rule.
+- [ ] **Step 1: Failing tests:** `groupId(['region', 'EU'])` is `'\u0000g["region","EU"]'`; `groupId(['day', groupingKey(new Date(0))])` is `'\u0000g["day",0]'`; `groupingKey('')` and `groupingKey(undefined)` are `null`. The existing local branch-selection tests (`grouping.test.ts`, "selection never holds a group id") still pass with the prefix rule.
 - [ ] **Step 2: Run** `pnpm --filter @argus-table/core exec vitest run src/table` — expect the new tests to FAIL.
 - [ ] **Step 3: Implement** the exports (move the id building out of `buildGroups`), the types with JSDoc for app developers (the `getRows` JSDoc explains the levels: `groupPath: []` asks for top-level groups; a path one short of `grouping` asks for the groups inside that group; a full path asks for its rows), and the prefix rule in `checksFor`.
 - [ ] **Step 4: Run** core tests and `pnpm nx run-many -t typecheck -p core argus-table` — PASS.
@@ -58,7 +58,7 @@
 - Test: `packages/core/src/data/remote-groups.test.ts`
 
 **Interfaces:**
-- Consumes: `PageCache`, `groupId`, `groupKey`, `GroupData`, `GroupPathItem`.
+- Consumes: `PageCache`, `groupId`, `groupingKey`, `GroupData`, `GroupPathItem`.
 - Produces:
   - `interface RemoteGroupsOptions<TData> { grouping: readonly string[]; pageSize: number; getRowId?: ((row: TData, index: number) => string) | undefined; expanded?: TreeExpandedState }`
   - `interface GroupLevel { readonly key: string /* '' for the root, else the group's id */; readonly path: readonly GroupPathItem[]; readonly groups: boolean /* rows are groups, else data rows */ }`

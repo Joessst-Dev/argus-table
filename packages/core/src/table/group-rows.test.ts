@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildGroups } from './group-rows.js';
+import { buildGroups, groupId, groupingKey } from './group-rows.js';
 
 interface Sale {
   region?: string | null;
@@ -147,5 +147,13 @@ describe('buildGroups', () => {
       '\u0000g["amount","Infinity"]',
       '\u0000g["amount",null]',
     ]);
+  });
+
+  it('groupId: the path as JSON after the prefix, with groupingKey keys', () => {
+    expect(groupId(['region', 'EU'])).toBe('\u0000g["region","EU"]');
+    expect(groupId(['day', groupingKey(new Date(0))])).toBe('\u0000g["day",0]');
+    expect(groupingKey('')).toBeNull();
+    expect(groupingKey(undefined)).toBeNull();
+    expect(groupId(['n', groupingKey(-Infinity)])).toBe('\u0000g["n","-Infinity"]');
   });
 });

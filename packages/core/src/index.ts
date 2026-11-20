@@ -43,6 +43,7 @@ export {
 } from './table/create-table.js';
 export { RowLayout, type GridRow, type GridSection } from './grid/row-layout.js';
 export { DisplayRows, type DisplayRow } from './table/display-rows.js';
+export { GROUP_ID_PREFIX, groupId, groupingKey } from './table/group-rows.js';
 export { controllable, type Controllable } from './state/controllable.js';
 export {
   clickSelection,
