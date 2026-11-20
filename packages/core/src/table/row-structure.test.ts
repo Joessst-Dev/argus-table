@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PageCache } from '../data/page-cache.js';
+import { RemoteGroups } from '../data/remote-groups.js';
 import { RemoteTree } from '../data/remote-tree.js';
 import type { ColumnDef } from '../types.js';
 import { createTableModel } from './create-table.js';
@@ -51,6 +52,35 @@ const remoteTree = () => {
   return { cache, tree, m: model({ remote: tree }) };
 };
 
+/** Two top-level groups on pages of two, A open with three rows of which the first page loaded. */
+const remoteGroups = () => {
+  const groups = new RemoteGroups<Item>({
+    grouping: ['name'],
+    pageSize: 2,
+    expanded: ['\u0000g["name","A"]'],
+  });
+  const answer = (
+    key: string,
+    page: number,
+    response: { rows: Item[]; groups?: unknown[]; total?: number },
+  ) => {
+    const level = groups.levels().find((l) => l.key === key);
+    if (!level) throw new Error(`no level ${key}`);
+    groups.begin(level, page);
+    groups.resolve(level, page, response);
+  };
+  answer('', 0, {
+    rows: [],
+    groups: [
+      { value: 'A', count: 3 },
+      { value: 'B', count: 1 },
+    ],
+    total: 2,
+  });
+  answer('\u0000g["name","A"]', 0, { rows: [{ name: 'A1' }, { name: 'A2' }] });
+  return { groups, m: model({ remote: groups }) };
+};
+
 const pagedCache = () => {
   const cache = new PageCache<Item>({ pageSize: 4 });
   cache.begin(0);
@@ -74,6 +104,7 @@ describe('row structures: shared contract', () => {
       moves: false,
     },
     { name: "a data source's tree", make: () => remoteTree().m, unloaded: 5, moves: true },
+    { name: "a data source's groups", make: () => remoteGroups().m, unloaded: 3, moves: true },
     {
       name: 'data, grouped',
       make: () =>

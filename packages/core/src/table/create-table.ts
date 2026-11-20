@@ -9,7 +9,7 @@ import { moveUnit, normalizeOrder, siblingUnits } from '../columns/column-order.
 import { resolveColumns, type ResolvedColumn } from '../columns/resolve-columns.js';
 import { distinctValues, rowPredicate } from '../filters/filter.js';
 import { buildAllViews, buildViews, hiddenIn, pinIn, sizingOf } from './column-views.js';
-import { GROUP_ID_PREFIX } from './group-rows.js';
+import { isGroupId } from './group-rows.js';
 import { RowPipeline } from './row-pipeline.js';
 import { ModelRows, type RowStructure } from './row-structure.js';
 import { keepWithAncestors, type TreeForest, type TreeLayout } from './tree-order.js';
@@ -228,7 +228,7 @@ export function createTableModel<TData, TContent>(
         if (!own && !(below & LIVE) && out()) mark |= DEAD;
         else {
           // A group row's own id is never selected: it counts as checked when its rows are.
-          const group = (ids[row] ?? '').startsWith(GROUP_ID_PREFIX);
+          const group = isGroupId(ids[row] ?? '');
           mark |= LIVE | (own ? PICKED : group ? 0 : MISSED);
           // Checked (as `toggleBranch` decides): every row below that can be
           // ticked is, and its own id selected, or kept out with something

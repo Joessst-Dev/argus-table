@@ -47,6 +47,13 @@ interface Group {
 export const GROUP_ID_PREFIX = '\u0000g';
 
 /**
+ * Whether an id is a group row's: the prefix and a JSON path. A data source's
+ * rows in a group get `<group id>.<index>` by default, which starts the same.
+ */
+export const isGroupId = (id: string): boolean =>
+  id.startsWith(GROUP_ID_PREFIX) && id.endsWith(']');
+
+/**
  * The value a row is grouped by: a date's time (an invalid date is empty), and
  * `null` for empty values; others as they are, compared like `Map` keys.
  */
