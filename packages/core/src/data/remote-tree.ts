@@ -7,7 +7,7 @@ import {
 } from '../table/row-structure.js';
 import type { TreeExpandedState } from '../types.js';
 import type { CachedRow, PageCache, RowState } from './page-cache.js';
-import { layoutTree } from '../table/tree-order.js';
+import { remoteForest } from './forest.js';
 
 /** The rows shown under a parent, kept from one tree to the next (`RemoteTree.counts()`). */
 export interface KeptCount {
@@ -501,25 +501,7 @@ export class RemoteTree<TData> implements RemoteRows<TData>, RowStructure {
         stack.push({ id: entries[k]?.id ?? '', up: row });
       }
     }
-    const shown = ids.map((_, row) => row);
-    // Hidden children after the rows, out of the layout: never selected, they
-    // keep their parents' ids out, as rows a client filter hides do.
-    for (const row of hiding) {
-      parent.push(row);
-      ids.push(`\u0000${ids[row] ?? ''}`);
-    }
-    const tree = { ids, rows: ids, parent: Int32Array.from(parent) };
-    const layout = layoutTree(tree, shown);
-    const childCount = Int32Array.from(layout.keptChildren);
-    for (const row of hiding) childCount[row] = (childCount[row] ?? 0) + 1;
-    const forest: RemoteForest = {
-      tree: { ...tree, childCount, indexOf: (id) => rows.get(id) },
-      layout,
-      at: (index) => {
-        const id = this.entryAt(index)?.id;
-        return id === undefined ? undefined : rows.get(id);
-      },
-    };
+    const forest = remoteForest(ids, parent, hiding, (index) => this.entryAt(index)?.id);
     this.#forest = { version, forest };
     return forest;
   }

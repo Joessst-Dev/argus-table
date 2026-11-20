@@ -36,6 +36,7 @@
 ### Task 1: Request and response types, and the shared group id
 
 **Files:**
+
 - Modify: `packages/core/src/types.ts` (`GroupPathItem`, `GroupData`, `RowsRequest.grouping?` / `groupPath?`, `RowsResponse.groups?`, `LoadErrorDetail.groupPath?`, `DataSource.getRows` JSDoc)
 - Modify: `packages/core/src/table/group-rows.ts` (export `groupId(path: readonly unknown[]): string` and `groupingKey(value: unknown): unknown`, used by `buildGroups`), `packages/core/src/index.ts`
 - Modify: `packages/core/src/table/create-table.ts` (`checksFor`: a row is a group row when its id starts with `GROUP_ID_PREFIX = '\u0000g'`, exported from `group-rows.ts`; drop `groupsFrom`)
@@ -43,6 +44,7 @@
 - Test: `packages/core/src/table/group-rows.test.ts`, `packages/core/src/table/grouping.test.ts`
 
 **Interfaces:**
+
 - Produces: `groupId(path)`, `groupingKey(value)`, `GROUP_ID_PREFIX`; the types above.
 
 - [ ] **Step 1: Failing tests:** `groupId(['region', 'EU'])` is `'\u0000g["region","EU"]'`; `groupId(['day', groupingKey(new Date(0))])` is `'\u0000g["day",0]'`; `groupingKey('')` and `groupingKey(undefined)` are `null`. The existing local branch-selection tests (`grouping.test.ts`, "selection never holds a group id") still pass with the prefix rule.
@@ -54,10 +56,12 @@
 ### Task 2: `RemoteGroups`: levels, paging and shown indexes
 
 **Files:**
+
 - Create: `packages/core/src/data/remote-groups.ts`
 - Test: `packages/core/src/data/remote-groups.test.ts`
 
 **Interfaces:**
+
 - Consumes: `PageCache`, `groupId`, `groupingKey`, `GroupData`, `GroupPathItem`.
 - Produces:
   - `interface RemoteGroupsOptions<TData> { grouping: readonly string[]; pageSize: number; getRowId?: ((row: TData, index: number) => string) | undefined; expanded?: TreeExpandedState }`
@@ -90,12 +94,14 @@
 ### Task 3: `RemoteGroups` as the model's rows
 
 **Files:**
+
 - Modify: `packages/core/src/data/remote-groups.ts` (`RemoteRows` and `RowStructure`)
 - Modify: `packages/core/src/table/row-pipeline.ts` (`groups()` returns `undefined` silently with `remote`: the remote groups itself)
 - Modify: `packages/core/src/index.ts` (export `RemoteGroups`, `GroupLevel`, `RemoteGroupsOptions`)
 - Test: `packages/core/src/data/remote-groups.test.ts`, `packages/core/src/table/row-structure.test.ts` (fixture "a data source's groups" in the contract suite, `moves: true`), `packages/core/src/table/grouping.test.ts`
 
 **Interfaces:**
+
 - Produces on `RemoteGroups`: `structure = this`, `tree = true`, `grouped = true`, `entryAt` (data rows only: group rows have no row object), `indexOf` (groups and data rows), `loadedIds()` (data rows only), `stateAt`, `idAt`, `groupAt`, `treeRow` (group rows: `hasChildren` `count > 0`, `open`, `forced: false`, `setSize` the level's total or `-1` while unknown, `posInSet`; data rows: no children), `depthAt`, `parentAt`, `toggleId` (loaded group rows), `mayToggle(id, open)` (`!open` or an id starting with `GROUP_ID_PREFIX`), `shownAncestor`, `standInId` (`'\u0000s' + localIndex + '\u0000' + levelKey`; root rows `'\u0000s' + index + '\u0000'`), `standIn` (`moves: true`; a level that closed gives its group row with `same: false`), `forest()` (loaded rows depth first, every group with one hidden child, as `RemoteTree.forest()` under a filter), `forestRow`.
 
 - [ ] **Step 1: Failing tests:** the contract suite passes for the new fixture (ids without a row view, stand-in round trip as rows load above); a model with `remote: groups` has `tree` true, `rows.grouped` true, `rowAt(0)` and `cellContext(0, …)` `undefined` for a group row and defined (with `depth`) for a data row; `branchSelectAll([])` lists only loaded data ids; a group whose loaded rows are all selected checks `'all'`; Review Focus 5: a stand-in id for the row under an upper-level open group's loading row finds the same row (`standIn`) after that group's page arrives and the rows below move.
@@ -107,6 +113,7 @@
 ### Task 4: Loading groups from the data source
 
 **Files:**
+
 - Modify: `packages/table/src/controllers/data-controller.ts` (`DataConfig.grouping`; build `RemoteGroups` in `#reset` when `grouping` is non-empty and the source isn't a tree; `rows` returns it, `cache` its `root`; per-level request planning in `request()` / `#load()` through `ranges`, `missingPages`, `inFlightOutside`, `evict`; requests keyed `` `${level.key}\u0001${page}` ``; `#fetchLevel(groups, level, page)` sends `getRows({ start, end, sorting, filters, quickFilter, grouping, groupPath: level.path, signal })`; `'wrong'` fails the page with a `TypeError` whose message says what `getRows` must return there; errors carry `groupPath`; `retry(index)` through `RemoteGroups.retry`; replace `pageAt` / `shownOfTop` with `pageSpan(index): { key: string; start: number; end: number } | undefined` for every mode)
 - Modify: `packages/table/src/render/body-state.ts` (Retry labels from `data.pageSpan`)
 - Modify: `packages/table/src/argus-table.ts` (pass the effective grouping, the `groupable` ids of `grouping` in order, to `DataController.configure`; `grouping` JSDoc: works with a `dataSource`)
@@ -114,6 +121,7 @@
 - Test: `packages/table/src/grouping-server.test.ts` (new), `packages/header-menu/src/header-menu.test.ts`
 
 **Interfaces:**
+
 - Consumes: `RemoteGroups` (Tasks 2–3).
 - Produces: `DataController.pageSpan(index)`.
 
@@ -134,6 +142,7 @@
 ### Task 5: Docs, skill, size and the full check
 
 **Files:**
+
 - Create: `apps/docs/src/examples/row-grouping/server/{html,react,vue,angular}/…` and `apps/docs/src/examples/row-grouping/server.ts` (a fake server grouping the sales with a short delay, as `tree-rows/server.ts` does), `apps/docs/e2e/row-grouping.spec.ts` (a test per flavour: open a region, its rows load)
 - Modify: `apps/docs/src/content/docs/features/row-grouping.mdx` (a "With a dataSource" section: the request levels, `GroupData`, totals from the server, ids, eviction, errors; drop "not supported yet")
 - Modify: `apps/storybook/stories/row-grouping.stories.ts` (a `Server` story with a play function opening a group)

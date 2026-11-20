@@ -123,10 +123,25 @@ Since 1.4. With `grouping` (on `groupable` columns) and a `dataSource`, the serv
 ```ts
 table.grouping = ['region', 'status'];
 table.dataSource = {
-  async getRows({ start, end, sorting, filters, quickFilter, grouping = [], groupPath = [], signal }) {
+  async getRows({
+    start,
+    end,
+    sorting,
+    filters,
+    quickFilter,
+    grouping = [],
+    groupPath = [],
+    signal,
+  }) {
     if (groupPath.length < grouping.length) {
       // The groups of column grouping[groupPath.length] inside groupPath.
-      const { groups, total } = await api.groups({ by: grouping[groupPath.length], path: groupPath, start, end, signal });
+      const { groups, total } = await api.groups({
+        by: grouping[groupPath.length],
+        path: groupPath,
+        start,
+        end,
+        signal,
+      });
       return { rows: [], groups, total }; // groups: [{ value, count, totals: { amount } }]
     }
     const { rows, total } = await api.rows({ path: groupPath, start, end, sorting, signal });

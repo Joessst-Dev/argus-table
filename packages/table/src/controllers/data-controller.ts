@@ -506,9 +506,7 @@ export class DataController<T> implements ReactiveController {
         const result = groups.resolve(level, page, response ?? {});
         if (result === 'wrong') {
           throw new TypeError(
-            level.groups
-              ? 'argus-table: getRows() for a groupPath shorter than grouping must resolve to { rows: [], groups: [], total? }.'
-              : 'argus-table: getRows() for a full groupPath must resolve to { rows: [], total? }.',
+            'argus-table: getRows() answers groups for a groupPath shorter than grouping, else rows.',
           );
         }
         this.#requests.delete(key);

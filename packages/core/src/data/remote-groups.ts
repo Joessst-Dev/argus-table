@@ -1,7 +1,7 @@
 import type { RemoteForest, RemoteRows, TreeRowInfo } from '../table/model-types.js';
 import { GROUP_ID_PREFIX, groupId, groupingKey, isGroupId } from '../table/group-rows.js';
 import type { RowStructure, StandIn } from '../table/row-structure.js';
-import { layoutTree } from '../table/tree-order.js';
+import { remoteForest } from './forest.js';
 import type { GroupData, GroupPathItem, GroupRowInfo, TreeExpandedState } from '../types.js';
 import { PageCache, type CachedRow, type RowState } from './page-cache.js';
 
@@ -212,12 +212,6 @@ export class RemoteGroups<TData> implements RemoteRows<TData>, RowStructure {
     this.#version++;
   }
 
-  /** The level and index of the row at a shown index. */
-  levelOf(index: number): { level: GroupLevel; index: number } | undefined {
-    const { node, index: i } = this.#at(index);
-    return node && { level: node.level, index: i };
-  }
-
   /** The shown rows of a level's page, `start` to `end` (exclusive). */
   span(level: GroupLevel, page: number): { start: number; end: number } {
     const node = this.#ensure().get(level.key);
@@ -364,14 +358,12 @@ export class RemoteGroups<TData> implements RemoteRows<TData>, RowStructure {
     const nodes = this.#ensure();
     const ids: string[] = [];
     const parent: number[] = [];
-    const rows = new Map<string, number>();
     const groups: number[] = [];
     const data: string[] = [];
     const walk = (node: Node, up: number) => {
       const { cache, groups: grouped } = node.level;
       for (const id of cache.loadedIds()) {
         const row = ids.length;
-        rows.set(id, row);
         ids.push(id);
         parent.push(up);
         if (!grouped) {
@@ -385,23 +377,7 @@ export class RemoteGroups<TData> implements RemoteRows<TData>, RowStructure {
     };
     const root = nodes.get('');
     if (root) walk(root, -1);
-    const shown = ids.map((_, row) => row);
-    for (const row of groups) {
-      parent.push(row);
-      ids.push(`\u0000${ids[row] ?? ''}`);
-    }
-    const tree = { ids, rows: ids, parent: Int32Array.from(parent) };
-    const layout = layoutTree(tree, shown);
-    const childCount = Int32Array.from(layout.keptChildren);
-    for (const row of groups) childCount[row] = (childCount[row] ?? 0) + 1;
-    const forest: RemoteForest = {
-      tree: { ...tree, childCount, indexOf: (id) => rows.get(id) },
-      layout,
-      at: (index) => {
-        const id = this.idAt(index);
-        return id === undefined ? undefined : rows.get(id);
-      },
-    };
+    const forest = remoteForest(ids, parent, groups, (index) => this.idAt(index));
     this.#forest = { version, forest, data };
     return forest;
   }

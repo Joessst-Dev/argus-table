@@ -22,13 +22,15 @@ const wait = (ms: number, signal: AbortSignal) =>
     const timer = setTimeout(resolve, ms);
     signal.addEventListener('abort', () => {
       clearTimeout(timer);
-      reject(signal.reason);
+      reject(signal.reason as Error);
     });
   });
 
 const byAmount = (sorting: SortState) => {
   const sort = sorting.find((s) => s.id === 'amount');
-  return sort ? (a: Sale, b: Sale) => (sort.desc ? b.amount - a.amount : a.amount - b.amount) : undefined;
+  return sort
+    ? (a: Sale, b: Sale) => (sort.desc ? b.amount - a.amount : a.amount - b.amount)
+    : undefined;
 };
 
 export function createSalesSource(): DataSource<Sale> {
@@ -49,12 +51,18 @@ export function createSalesSource(): DataSource<Sale> {
       const column = grouping[groupPath.length] as keyof Sale;
       const groups = new Map<unknown, GroupData>();
       for (const sale of rows) {
-        const group = groups.get(sale[column]) ?? { value: sale[column], count: 0, totals: { amount: 0 } };
+        const group = groups.get(sale[column]) ?? {
+          value: sale[column],
+          count: 0,
+          totals: { amount: 0 },
+        };
         group.count++;
         (group.totals as { amount: number }).amount += sale.amount;
         groups.set(sale[column], group);
       }
-      const list = [...groups.values()].sort((a, b) => String(a.value).localeCompare(String(b.value)));
+      const list = [...groups.values()].sort((a, b) =>
+        String(a.value).localeCompare(String(b.value)),
+      );
       return { rows: [], groups: list.slice(start, end), total: list.length };
     },
   };
