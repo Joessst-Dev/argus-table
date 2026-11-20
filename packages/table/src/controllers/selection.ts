@@ -132,7 +132,7 @@ export class SelectionController<T> {
     const ids = this.#selected();
     const model = this.#model();
     return (index) => {
-      const id = model.rowAt(index)?.id;
+      const id = model.rows.idAt(index);
       return id === undefined ? undefined : ids.has(id);
     };
   }
@@ -172,7 +172,7 @@ export class SelectionController<T> {
 
   /** Space on a body row: toggles it (with branches, its branch). */
   toggle(index: number): void {
-    const id = this.#model().rowAt(index)?.id;
+    const id = this.#model().rows.idAt(index);
     if (id === undefined || this.#blocked(index)) return;
     const tree = this.#tree();
     if (tree) this.#request(this.#toggleBranch(id, tree));
@@ -185,11 +185,11 @@ export class SelectionController<T> {
    */
   range(from: number, to: number): void {
     const model = this.#model();
-    const fromId = model.rowAt(from)?.id;
+    const fromId = model.rows.idAt(from);
     const anchor =
       this.#anchorAt() ?? (fromId === undefined ? undefined : { id: fromId, index: from });
     if (!anchor) return;
-    const idAt = (index: number) => model.rowAt(index)?.id;
+    const idAt = (index: number) => model.rows.idAt(index);
     const selection = selectRange([], anchor.index, to, idAt, false);
     const tree = this.#tree();
     this.#request({
@@ -233,7 +233,7 @@ export class SelectionController<T> {
   readonly handlers: CheckboxHandlers = {
     row: (event) => {
       const index = Number((event.currentTarget as HTMLElement).dataset.row);
-      const id = this.#model().rowAt(index)?.id;
+      const id = this.#model().rows.idAt(index);
       if (id !== undefined) this.#click({ id, index }, event, true);
       this.#host.requestUpdate();
     },
@@ -284,7 +284,7 @@ export class SelectionController<T> {
         target,
         this.#anchorAt(),
         { toggle, range: event.shiftKey },
-        (index) => model.rowAt(index)?.id,
+        (index) => model.rows.idAt(index),
       ),
     );
   }
@@ -303,7 +303,7 @@ export class SelectionController<T> {
     const anchor = this.#anchorAt();
     if (modifiers.range && anchor) {
       const model = this.#model();
-      const ids = selectRange([], anchor.index, target.index, (i) => model.rowAt(i)?.id, false);
+      const ids = selectRange([], anchor.index, target.index, (i) => model.rows.idAt(i), false);
       const current = modifiers.toggle ? this.state.value : [];
       return { selection: withBranches(current, ids, tree), anchor: anchor.id };
     }
@@ -387,7 +387,7 @@ export class SelectionController<T> {
     if (at?.section !== 'body') return undefined;
     // A panel's row selects nothing.
     const index = dataIndexOf(model, at.index);
-    const id = index === undefined ? undefined : model.rowAt(index)?.id;
+    const id = index === undefined ? undefined : model.rows.idAt(index);
     return id === undefined || index === undefined ? undefined : { id, index };
   }
 

@@ -167,7 +167,7 @@ export class KeyboardRouter<T> {
       if (!from) return;
       event.preventDefault();
       const failed = from.section === 'body' ? dataIndexOf(this.#model(), from.index) : undefined;
-      if (failed !== undefined && this.#data.stateAt(failed) === 'error') {
+      if (failed !== undefined && this.#model().rows.stateAt(failed) === 'error') {
         this.#data.retry(failed);
       } else {
         activate(this.#host, this.#host.renderRoot, this.#model(), event.composedPath());
@@ -198,9 +198,7 @@ export class KeyboardRouter<T> {
     if (!info) {
       // A data source's row not loaded: toward the start from a loading or failed
       // child row goes to its parent, which is shown (it's open).
-      const remote = this.#data.tree;
-      const parentId = towardEnd ? undefined : remote?.parentIdAt(index);
-      const parent = parentId === undefined ? undefined : remote?.shownIndexOf(parentId);
+      const parent = towardEnd ? undefined : model.rows.parentAt(index);
       if (parent === undefined) return false;
       event.preventDefault();
       this.#nav.moveTo({ section: 'body', index: positionOfIndex(model, parent) }, id);

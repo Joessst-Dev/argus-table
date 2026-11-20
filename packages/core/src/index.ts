@@ -78,3 +78,4 @@ export {
   type RowState,
 } from './data/page-cache.js';
 export { RemoteTree, type KeptCount, type RemoteTreeOptions } from './data/remote-tree.js';
+export { type RowStructure, type StandIn } from './table/row-structure.js';

@@ -1,4 +1,10 @@
 import type { RemoteForest, RemoteRows, TreeRowInfo } from '../table/model-types.js';
+import {
+  plainStandIn,
+  plainStandInId,
+  type RowStructure,
+  type StandIn,
+} from '../table/row-structure.js';
 import type { TreeExpandedState } from '../types.js';
 import type { CachedRow, PageCache, RowState } from './page-cache.js';
 import { layoutTree } from '../table/tree-order.js';
@@ -113,7 +119,7 @@ interface Seen<TData> {
  *
  * Child ids must be unique across levels (reported through `warn` otherwise).
  */
-export class RemoteTree<TData> implements RemoteRows<TData> {
+export class RemoteTree<TData> implements RemoteRows<TData>, RowStructure {
   readonly cache: PageCache<TData>;
   readonly #hasChildren: (row: TData) => boolean;
   readonly #getRowId: ((row: TData, index: number) => string) | undefined;
@@ -265,6 +271,79 @@ export class RemoteTree<TData> implements RemoteRows<TData> {
       id = this.#known.get(id)?.parentId;
     }
     return undefined;
+  }
+
+  /** The rows arrange themselves: the model reads them through this tree. */
+  readonly structure: RowStructure = this;
+
+  readonly tree: boolean = true;
+
+  idAt(index: number): string | undefined {
+    return this.entryAt(index)?.id;
+  }
+
+  /** A loaded row's parent from its place in the tree; a placeholder's from its parent's id. */
+  parentAt(index: number): number | undefined {
+    const info = this.treeRow(index);
+    if (info) return info.parent;
+    const parentId = this.parentIdAt(index);
+    return parentId === undefined ? undefined : this.shownIndexOf(parentId);
+  }
+
+  toggleId(index: number): string | undefined {
+    // Rows are never `forced` here: the server filters.
+    return this.treeRow(index) ? this.idAt(index) : undefined;
+  }
+
+  /** Closing needs no loaded row: an open id may be under a page not loaded. */
+  mayToggle(rowId: string, open: boolean): boolean {
+    return !open || this.canExpand(rowId);
+  }
+
+  forestRow(index: number): number | undefined {
+    return this.forest().at(index);
+  }
+
+  /**
+   * Shown indexes move as rows load above (an open row's loading rows appear
+   * when its page loads), so a stand-in names what doesn't move: a top-level
+   * row's top-level index (`\u0000t…`), or a loading or failed child row's
+   * parent and its place among the rows under it (`\u0000c…`).
+   */
+  standInId(index: number): string {
+    const top = this.topIndexOf(index);
+    if (top !== undefined) return `\u0000t${String(top)}`;
+    const parentId = this.parentIdAt(index);
+    const parent = parentId === undefined ? undefined : this.shownIndexOf(parentId);
+    if (parent !== undefined) return `\u0000c${String(index - parent - 1)}\u0000${parentId ?? ''}`;
+    return plainStandInId(index, true);
+  }
+
+  /**
+   * A child row's stand-in whose row is gone gives its parent (its children came
+   * back fewer, or it collapsed) or the parent's nearest shown ancestor.
+   */
+  standIn(id: string): StandIn | undefined {
+    if (id.startsWith('\u0000t')) {
+      const top = /^\d+$/.test(id.slice(2)) ? Number(id.slice(2)) : undefined;
+      const index = top === undefined ? undefined : this.positionOfTop(top);
+      return index === undefined ? undefined : { index, same: true, moves: true };
+    }
+    if (id.startsWith('\u0000c')) {
+      const sep = id.indexOf('\u0000', 2);
+      const offset = Number(id.slice(2, sep));
+      const parentId = id.slice(sep + 1);
+      const parent = this.shownIndexOf(parentId);
+      if (parent === undefined) {
+        const ancestor = this.shownAncestor(parentId);
+        return ancestor === undefined ? undefined : { index: ancestor, same: false, moves: true };
+      }
+      // Still a row right under the parent (loading, failed, or its child once loaded).
+      const at = parent + 1 + offset;
+      if (this.parentIdAt(at) === parentId) return { index: at, same: true, moves: true };
+      return { index: parent, same: false, moves: true };
+    }
+    return plainStandIn(id, true);
   }
 
   /** The top-level index at a shown index, or `undefined` for a descendant (or out of range). */

@@ -1,6 +1,8 @@
 import type { HeaderGroupCell } from '../columns/column-groups.js';
 import type { OrderUnit, SiblingUnit } from '../columns/column-order.js';
 import type { TreeForest } from './tree-order.js';
+import type { RowState } from '../data/page-cache.js';
+import type { RowStructure } from './row-structure.js';
 import type {
   CellContext,
   ColumnAlign,
@@ -165,31 +167,14 @@ export interface RemoteRows<TData> {
    * when only a page loads. The model's `rowOrder` is then this object.
    */
   readonly order?: object;
+  /** The state of the row at an index (`PageCache.stateAt`); without it, rows count as loaded. */
+  stateAt?(index: number): RowState;
   /**
-   * For rows that form a tree: where the loaded row at an index sits in it. The
-   * model reads the rows as a tree when a remote has this member.
+   * For rows the remote arranges itself (a data source's tree, `RemoteTree`):
+   * their structure. The model reads the rows as a tree when it says so;
+   * without it, they're flat (the model's `ModelRows`).
    */
-  treeRow?(index: number): TreeRowInfo | undefined;
-  /**
-   * For rows that form a tree: the depth of the row at an index, loaded or not
-   * (`0` for a top-level row); `undefined` out of range. Cheaper than `treeRow`.
-   */
-  depthAt?(index: number): number | undefined;
-  /**
-   * For rows that form a tree: whether a row can open: loaded, has children
-   * (`DataSource.hasChildren`) and isn't known to have none.
-   */
-  canExpand?(rowId: string): boolean;
-  /**
-   * For rows that form a tree: the index of the row when it's shown, else of its
-   * nearest shown ancestor; `undefined` for an unknown id.
-   */
-  shownAncestor?(rowId: string): number | undefined;
-  /**
-   * For rows that form a tree: the loaded rows as a forest, for branch
-   * selection (`RemoteTree.forest()`).
-   */
-  forest?(): RemoteForest;
+  readonly structure?: RowStructure;
 }
 
 /**
@@ -349,7 +334,7 @@ export interface TableModel<TData, TContent> {
   rowAt(index: number): RowView<TData> | undefined;
   /**
    * Whether the rows form a tree: `getSubRows` or `getParentId` is set and the
-   * rows aren't remote, or the remote rows form one (they have `treeRow`, as a
+   * rows aren't remote, or the remote rows form one (their `structure` says so, as a
    * `RemoteTree` does). The current order then holds the rows shown: children of
    * collapsed rows are out of it, like rows the filters drop; for a remote tree,
    * the top-level rows and the loaded (or loading) children of open rows.
@@ -383,8 +368,15 @@ export interface TableModel<TData, TContent> {
    */
   shownAncestor(rowId: string): number | undefined;
   /**
+   * How the shown rows are arranged (`RowStructure`): row states, ids that hold
+   * a row's place before it loads, parents and depths, the tree toggle's id.
+   * Read rows' arrangement here rather than from where they come from.
+   */
+  readonly rows: RowStructure;
+  /**
    * The row object at a source index: `data[index]` without a tree or with flat
    * data, and nested children from `data.length` on (see `getSubRows`).
+   * `undefined` with remote rows.
    */
   sourceRow(index: number): TData | undefined;
   /** The index of a row id in the current row model (after filtering and sorting), or `undefined`. */
@@ -401,7 +393,7 @@ export interface TableModel<TData, TContent> {
    * selected against that rule lose their ids. What `withBranches` gives for
    * every kept row, in one pass over typed arrays. `selected` is `current` as a
    * set (made here when not given). `current` as it is without a tree. For a
-   * remote tree, its loaded rows (`RemoteRows.forest`): top-level rows and
+   * remote tree, its loaded rows (`RemoteTree.forest()`): top-level rows and
    * loaded children, collapsed or not.
    */
   branchSelectAll(current: readonly string[], selected?: ReadonlySet<string>): SelectionState;

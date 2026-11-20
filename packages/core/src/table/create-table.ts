@@ -10,6 +10,7 @@ import { resolveColumns, type ResolvedColumn } from '../columns/resolve-columns.
 import { distinctValues, rowPredicate } from '../filters/filter.js';
 import { buildAllViews, buildViews, hiddenIn, pinIn, sizingOf } from './column-views.js';
 import { RowPipeline } from './row-pipeline.js';
+import { ModelRows, type RowStructure } from './row-structure.js';
 import { keepWithAncestors, type TreeForest, type TreeLayout } from './tree-order.js';
 import type { BranchCheck, BranchTree } from '../state/selection.js';
 import type {
@@ -127,19 +128,13 @@ export function createTableModel<TData, TContent>(
     () => valueVersion,
   );
   const rows = () => pipeline.rows();
-  // The remote rows when they form a tree (`RemoteTree`).
-  const remoteTree = () => (options.remote?.treeRow ? options.remote : undefined);
+  // How the shown rows are arranged: a remote that arranges its own (`RemoteTree`),
+  // else the model's own reading of `data` or a flat remote.
+  const local = new ModelRows<TData, TContent>(pipeline, () => options);
+  const structure = (): RowStructure => options.remote?.structure ?? local;
   const pinned = (side: RowPin): readonly TData[] => options.pinnedRows?.[side] ?? [];
 
   let allViews: ColumnView<TData, TContent>[] | undefined;
-
-  // The rows branch selection runs on: a tree's kept rows, or a remote tree's
-  // loaded ones (kept per version), and the forest row at a shown index.
-  const forestOf = (): TreeForest | undefined => remoteTree()?.forest?.() ?? pipeline.treeSteps();
-  const forestRow = (index: number): number | undefined => {
-    const remote = remoteTree()?.forest?.();
-    return remote ? remote.at(index) : rows()[index];
-  };
 
   // Branch selection, kept per tree layout (a filter or sort result).
   let branches: { layout: TreeLayout; tree: BranchTree } | undefined;
@@ -200,7 +195,7 @@ export function createTableModel<TData, TContent>(
    * branches, not for the select-all checkbox.
    */
   const checksFor = (selected: ReadonlySet<string>) => {
-    const steps = forestOf();
+    const steps = structure().forest();
     const layout = steps?.layout;
     if (checks?.selected === selected && checks.layout === layout) return checks;
     let check: (index: number) => BranchCheck = () => 'none';
@@ -210,7 +205,7 @@ export function createTableModel<TData, TContent>(
     const count = steps?.layout.order.length ?? 0;
     if (
       steps &&
-      (count > 0 || !remoteTree()) &&
+      (count > 0 || !options.remote?.structure) &&
       (selected.size > 0 || count < steps.tree.ids.length)
     ) {
       const { tree } = steps;
@@ -242,7 +237,7 @@ export function createTableModel<TData, TContent>(
       let top = 0;
       for (const row of steps.layout.children(-1)) top |= marks[row] ?? 0;
       check = (index) => {
-        const row = forestRow(index);
+        const row = structure().forestRow(index);
         const mark = row === undefined ? 0 : (marks[row] ?? 0);
         if (row !== undefined && !(mark & LIVE)) return 'blocked';
         return mark & PICKED ? (mark & MISSED ? 'some' : 'all') : 'none';
@@ -360,60 +355,29 @@ export function createTableModel<TData, TContent>(
 
     get tree() {
       // Asked first: it warns about tree functions ignored with remote rows.
-      return pipeline.tree() !== undefined || remoteTree() !== undefined;
+      return pipeline.tree() !== undefined || structure().tree;
     },
 
     treeRow(index) {
-      if (options.remote) return options.remote.treeRow?.(index);
-      const steps = pipeline.treeSteps();
-      const row = steps && rows()[index];
-      if (!steps || row === undefined) return undefined;
-      const { tree, layout } = steps;
-      const up = tree.parent[row] ?? -1;
-      const hasChildren = (layout.keptChildren[row] ?? 0) > 0;
-      // A shown row's parent is shown too (kept and open).
-      const parent = up === -1 ? -1 : pipeline.orderIndexOf(up);
-      return {
-        depth: tree.depth[row] ?? 0,
-        hasChildren,
-        open: hasChildren && pipeline.treeOpen(row),
-        forced: hasChildren && steps.holdsMatch?.[row] === 1,
-        parent: parent === -1 ? undefined : parent,
-        setSize: up === -1 ? steps.roots : (layout.keptChildren[up] ?? 0),
-        posInSet: layout.posInSet[row] ?? 0,
-      };
+      return structure().treeRow(index);
     },
 
     nextTreeExpanded(rowId, open, base = options.treeExpanded ?? []) {
-      let ok: boolean;
-      if (options.remote) {
-        // Closing needs no loaded row: an open id may be under a page not loaded.
-        ok = remoteTree() !== undefined && (!open || options.remote.canExpand?.(rowId) === true);
-      } else {
-        const tree = pipeline.tree();
-        const row = tree?.indexOf(rowId);
-        // Filters aren't applied: a controlled host's ids are never refused for one.
-        ok = row !== undefined && (tree?.childCount[row] ?? 0) > 0;
-      }
-      if (!ok || base.includes(rowId) === open) return undefined;
+      if (!structure().mayToggle(rowId, open) || base.includes(rowId) === open) return undefined;
       return open ? [...base, rowId] : base.filter((id) => id !== rowId);
     },
 
     shownAncestor(rowId) {
-      if (options.remote) return options.remote.shownAncestor?.(rowId);
-      const tree = pipeline.tree();
-      let row = tree?.indexOf(rowId);
-      if (!tree || row === undefined) return undefined;
-      while (row !== -1) {
-        const index = pipeline.orderIndexOf(row);
-        if (index !== -1) return index;
-        row = tree.parent[row] ?? -1;
-      }
-      return undefined;
+      return structure().shownAncestor(rowId);
+    },
+
+    get rows() {
+      return structure();
     },
 
     sourceRow(index) {
-      return pipeline.source()[index];
+      // A data source's rows have no source indexes (`data` isn't read).
+      return options.remote ? undefined : pipeline.source()[index];
     },
 
     indexOf(rowId) {
@@ -442,7 +406,7 @@ export function createTableModel<TData, TContent>(
     },
 
     branchSelectAll(current, selected = new Set(current)) {
-      const steps = forestOf();
+      const steps = structure().forest();
       if (!steps) return [...current];
       const { tree, layout } = steps;
       const { parent, ids } = tree;
@@ -470,7 +434,7 @@ export function createTableModel<TData, TContent>(
     },
 
     branchTree() {
-      const steps = forestOf();
+      const steps = structure().forest();
       if (!steps) return undefined;
       const { tree, layout } = steps;
       if (branches?.layout === layout) return branches.tree;
@@ -540,10 +504,8 @@ export function createTableModel<TData, TContent>(
           value: column.getValue(entry.row, index),
         };
         // No `depth` key without a tree, as for `data`.
-        const remote = remoteTree();
-        if (remote) {
-          context.depth = remote.depthAt?.(index) ?? 0;
-        }
+        const rows = structure();
+        if (rows.tree) context.depth = rows.depthAt(index) ?? 0;
         return context;
       }
       const row = rows()[index];
