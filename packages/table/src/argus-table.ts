@@ -46,6 +46,7 @@ import {
   COLUMN_VISIBILITY_CHANGE,
   EXPANDED_CHANGE,
   fire,
+  GROUPING_CHANGE,
   LOAD_ERROR,
   RANGE_CHANGE,
   SELECTION_CHANGE,
@@ -92,6 +93,7 @@ import type {
   DataSource,
   Density,
   ExpandedState,
+  GroupingState,
   PinnedRows,
   RowDetailContext,
   RowTarget,
@@ -146,6 +148,7 @@ function attachGridInternals(host: HTMLElement): ElementInternals {
  * @fires {CustomEvent<ColumnFiltersChangeDetail>} argus-column-filters-change - `columnFilters` changed: a column's filter was set, changed or cleared, through a plugin such as the column menu. `detail: { columnFilters, columnId, columnFilter }`: `columnFilter` is the column's new filter, or `undefined` when it was cleared. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it.
  * @fires {CustomEvent<SelectionChangeDetail>} argus-selection-change - `selection` changed: by a click on a row (Ctrl/Cmd toggles, Shift selects a range), with Space, Shift+Arrow or Shift+PageUp/PageDown on a body cell, or with Ctrl/Cmd+A. Only with a `selectionMode`. `detail: { selection }`. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it.
  * @fires {CustomEvent<ExpandedChangeDetail>} argus-expanded-change - `expanded` changed: a row's detail panel was opened or closed with its chevron (a click, or Enter or Space on the chevron cell). Only with `rowDetail`. `detail: { expanded, rowId, open }`: `open` is `true` when it was opened. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it.
+ * @fires {CustomEvent<GroupingChangeDetail>} argus-grouping-change - `grouping` changed: a plugin (such as the column menu's "Group by") grouped or ungrouped the rows by a column. `detail: { grouping, columnId }`: `columnId` is the column added or removed. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it.
  * @fires {CustomEvent<TreeExpandedChangeDetail>} argus-tree-expanded-change - `treeExpanded` changed: a row of a tree was expanded or collapsed with its toggle (a click) or with Right or Left on its cell in the tree column; not for a row a filter keeps expanded. Only with `getSubRows`, `getParentId`, or a `dataSource` with `hasChildren` and `getChildren`. `detail: { treeExpanded, rowId, open }`: `open` is `true` when it was expanded. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it.
  * @fires {CustomEvent<CellClickDetail<T>>} argus-cell-click - A body or pinned-row cell was clicked, or Enter was pressed on it. `detail: { row, rowId, index, columnId, value, pinned?, depth? }`; `pinned` is `'top'` or `'bottom'` for a pinned row, and `index` is then its index in its list. `depth` is a body row's level in a tree (`0` for a top-level row), set only when the rows form one. Fires before `argus-row-click`.
  * @fires {CustomEvent<RowClickDetail<T>>} argus-row-click - A body or pinned row was clicked, or Enter was pressed on one of its cells. `detail: { row, rowId, index, pinned?, depth? }`; for a pinned row, `index` is its index in its list. `depth` is a body row's level in a tree (`0` for a top-level row), set only when the rows form one.
@@ -190,6 +193,9 @@ function attachGridInternals(host: HTMLElement): ElementInternals {
  * @csspart header-cell-expand - Added to `header-cell` on the toggle column's header: an empty cell (`role="gridcell"`, as an empty column header has no name to read).
  * @csspart expand-toggle - The chevron button that opens and closes a row's detail panel. It is drawn with borders in `currentColor` (`::before`) and has `aria-expanded`.
  * @csspart tree-toggle - The button that expands and collapses a tree row (`getSubRows`, `getParentId`, or a `dataSource` with `hasChildren` and `getChildren`), in the first data column after the row's indent; only rows with children have one. It is drawn with borders in `currentColor` (`::before`) and has `aria-expanded`. While a filter keeps its row expanded (the row holds a match), it has `aria-disabled="true"` and `tree-toggle-disabled`, is dimmed, and does nothing.
+ * @csspart row-group - Added to `row` on a group row (`grouping`): the row for a group, with its value and count in the first data column and the columns' totals in theirs. Its text is bold by default.
+ * @csspart cell-group - Added to `cell` on the cells of a group row; they are read-only.
+ * @csspart group-count - The number of rows a group row holds, after its value (`labels.groupCount`, by default `(12)`).
  * @csspart tree-toggle-disabled - Added to `tree-toggle` while a filter keeps the row open for its matches; the toggle does nothing until the filter clears.
  * @csspart row-pinned - Every row from `pinnedRows`, on either side. Also has `row`, but no `row-even`/`row-odd`.
  * @csspart row-pinned-top - The rows pinned below the header.
@@ -667,6 +673,31 @@ export class ArgusTable<T = unknown> extends LitElement {
   }
 
   /**
+   * The columns to group the rows by, outermost first, e.g. `['region', 'status']`;
+   * `[]` when the rows aren't grouped. Each group shows as a row with the
+   * group's value and its number of rows in the first column, and the totals
+   * of columns with an `aggregate` in theirs. Group rows open and close like
+   * the rows of a tree: their ids go into `treeExpanded`, and are `'\u0000g'`
+   * followed by the JSON of the group's path, each level's column id and value
+   * (dates as their time, empty values as `null`):
+   * `'\u0000g["region","EU","status","Open"]'`. Groups start closed, are in the
+   * order of their values (sorting by a column with a total orders them by it),
+   * and hold the rows the filters keep. Only columns with `groupable: true`
+   * count; group by values such as text, numbers and dates. Ignored with tree
+   * rows (`getSubRows`, `getParentId`) and, for now, with a `dataSource`.
+   * Uncontrolled until set, like `sorting`: once set, a change a plugin asks for
+   * only fires `argus-grouping-change` with the proposed columns. `undefined`
+   * hands it back.
+   */
+  @property({ attribute: false })
+  get grouping(): GroupingState {
+    return this.#grouping.value;
+  }
+  set grouping(value: GroupingState | undefined) {
+    this.#grouping.set(value);
+  }
+
+  /**
    * Renders header and cell content the table can't render itself, such as React
    * elements, Vue VNodes or Angular templates: `{ render(target, content),
    * release(target), flush?() }`. A `header` or `cell` that returns anything other
@@ -735,6 +766,7 @@ export class ArgusTable<T = unknown> extends LitElement {
   readonly #filters = controllable<ColumnFilterState>({});
   readonly #expanded = controllable<ExpandedState>([]);
   readonly #treeExpanded = controllable<TreeExpandedState>([]);
+  readonly #grouping = controllable<GroupingState>([]);
   /** The `role` attribute the table set itself (`grid` or `treegrid`); a page's own role wins. */
   #roleAttribute: string | undefined;
   #quickFilter = '';
@@ -764,6 +796,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     SELECTION_CHANGE,
     EXPANDED_CHANGE,
     TREE_EXPANDED_CHANGE,
+    GROUPING_CHANGE,
   ]);
   readonly #select = new SelectionController<T>(
     this,
@@ -835,6 +868,22 @@ export class ArgusTable<T = unknown> extends LitElement {
       return section === 'body' ? (this.#table.model.rows.depthAt(index) ?? 0) : 0;
     },
     sourceRow: (index) => this.#table.model.sourceRow(index),
+    grouping: () => this.#grouping.value,
+    setGrouping: (grouping, columnId) => {
+      const model = this.#table.model;
+      const groupable = new Set(model.allColumns.filter((c) => c.groupable).map((c) => c.id));
+      const next = grouping.filter((id) => groupable.has(id));
+      const current = this.#grouping.value;
+      if (next.length === current.length && next.every((id, i) => id === current[i])) return;
+      this.#events.change('grouping', this.#grouping, next, GROUPING_CHANGE, [['', { columnId }]]);
+    },
+    group: (index) => this.#table.model.rows.groupAt(index),
+    groupedRows: () => {
+      const model = this.#table.model;
+      return model
+        .groupedOrder()
+        ?.map(({ index, id }) => ({ index, id, row: model.sourceRow(index) as T }));
+    },
     headerGroups: () =>
       this.#table.model.headerGroups.map((cells) =>
         cells.map(({ groupId, columns }) => ({ groupId, columns })),
@@ -1136,7 +1185,7 @@ export class ArgusTable<T = unknown> extends LitElement {
   /**
    * The state users change, as one object of plain JSON for saving a user's
    * layout: `sorting`, `columnSizing`, `columnOrder`, `columnPinning`,
-   * `columnVisibility`, `columnFilters`, `selection`, `expanded`, `treeExpanded`, `quickFilter`, and `scroll`
+   * `columnVisibility`, `columnFilters`, `selection`, `expanded`, `treeExpanded`, `grouping`, `quickFilter`, and `scroll`
    * (the row at the top and the inline offset), with `version: 1`. Controlled properties are
    * included with the values you set. The object is a copy: changing it changes
    * nothing in the table.
@@ -1154,6 +1203,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       selection: this.#select.state.value,
       expanded: this.#expanded.value,
       treeExpanded: this.#treeExpanded.value,
+      grouping: this.#grouping.value,
       quickFilter: this.#quickFilter,
       // Negative in RTL.
       scroll: {
@@ -1191,6 +1241,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     restore(this, 'expanded', this.#expanded, state.expanded);
     // Before the scroll: its row is an index among the rows shown.
     restore(this, 'treeExpanded', this.#treeExpanded, state.treeExpanded);
+    restore(this, 'grouping', this.#grouping, state.grouping);
     if (state.quickFilter !== undefined) this.quickFilter = state.quickFilter;
     this.#scroll.drop();
     await this.updateComplete;
@@ -1252,7 +1303,8 @@ export class ArgusTable<T = unknown> extends LitElement {
       changed.has('expanded') ||
       changed.has('getSubRows') ||
       changed.has('getParentId') ||
-      changed.has('treeExpanded')
+      changed.has('treeExpanded') ||
+      changed.has('grouping')
     ) {
       if (this.#columnsChanged) {
         this.#autoWidths.sync(columns.filter((c) => c.width === 'auto').map((c) => c.id));
@@ -1276,6 +1328,7 @@ export class ArgusTable<T = unknown> extends LitElement {
         getSubRows: this.getSubRows,
         getParentId: this.getParentId,
         treeExpanded: this.#treeExpanded.value,
+        grouping: this.#grouping.value,
       });
     }
     // A new page cache (new source, sort order or refresh) or none, new measured
@@ -1373,6 +1426,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       model.headerGroups,
       this.#lightDomEnd(),
       this.#window.details,
+      this.#labels.emptyGroup,
     );
     // A new marker starts a new part (the old one was removed): its content is gone.
     if (this.#lightPart && this.#lightPart !== part) this.#lightPart.setConnected(false);

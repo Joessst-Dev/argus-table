@@ -101,6 +101,9 @@ export function treeRows<T>(
     column: firstDataColumn(model.columns),
     row: (index) => model.treeRow(index),
     depth: (index) => rows.depthAt(index),
+    // Read once per render: without grouping, rows don't ask.
+    group: rows.grouped ? (index) => rows.groupAt(index) : undefined,
+    groupCount: (count) => labels.groupCount({ count }),
     expandLabel: labels.expandTreeRow,
     collapseLabel: labels.collapseTreeRow,
     onClick,

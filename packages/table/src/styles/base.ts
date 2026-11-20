@@ -263,6 +263,16 @@ export const baseStyles = css`
     [data-align='center'] > :is([part~='tree-toggle'], .tree-spacer) ~ slot::slotted(*) {
       margin-inline-end: auto;
     }
+    /* A group row (grouping): its value and totals stand out; its count follows the value. */
+    [part~='row-group'] {
+      font-weight: 600;
+    }
+    [part~='group-count'] {
+      flex: none;
+      margin-inline-start: 0.5ch;
+      font-weight: normal;
+      opacity: 0.7;
+    }
     /* A row a filter keeps expanded: its toggle does nothing until the filter clears. */
     [part~='tree-toggle-disabled'] {
       opacity: 0.4;

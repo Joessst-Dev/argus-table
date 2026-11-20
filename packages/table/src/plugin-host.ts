@@ -16,6 +16,7 @@ export function columnInfoOf<T>(
     resizable: view.resizable,
     pinnable: view.pinnable,
     hideable: view.hideable,
+    groupable: view.groupable,
     pin: view.pin,
     hidden: view.hidden,
     width: view.width,

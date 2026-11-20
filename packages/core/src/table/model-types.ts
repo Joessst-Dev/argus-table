@@ -5,6 +5,7 @@ import type { RowState } from '../data/page-cache.js';
 import type { RowStructure } from './row-structure.js';
 import type {
   CellContext,
+  GroupingState,
   ColumnAlign,
   ColumnDef,
   ColumnGroup,
@@ -95,6 +96,8 @@ export interface ColumnView<TData, TContent> {
   reorderable: boolean;
   pinnable: boolean;
   hideable: boolean;
+  /** Whether the rows can be grouped by the column (`ColumnDef.groupable`). */
+  groupable: boolean;
   /** The kind of filter users can set, or `undefined` when they can't filter the column. */
   filter: FilterKind | undefined;
   /** `true` when `columnFilters` has a filter for the column. */
@@ -105,6 +108,8 @@ export interface ColumnView<TData, TContent> {
   sorted: SortDirection;
   header: ColumnDef<TData, TContent>['header'];
   cell: ColumnDef<TData, TContent>['cell'];
+  /** A group row's cell content (`ColumnDef.groupCell`). */
+  groupCell: ColumnDef<TData, TContent>['groupCell'];
   /** The definition's `meta`, for plugins. */
   meta: ColumnDef<TData, TContent>['meta'];
   hasAccessor: boolean;
@@ -226,6 +231,12 @@ export interface TableModelOptions<TData, TContent> {
    * (`RemoteTree.setExpanded`): the model reads them only in `nextTreeExpanded`.
    */
   treeExpanded?: TreeExpandedState | undefined;
+  /**
+   * The columns to group `data`'s rows by, outermost first: group rows, opened
+   * through `treeExpanded`, with the rows under them. Ids of columns that
+   * aren't `groupable` are ignored; all of it with tree rows or `remote`.
+   */
+  grouping?: GroupingState | undefined;
   /** Current sort state; its owner is the caller (see `controllable`). */
   sorting: SortState;
   /** Current resized widths; its owner is the caller. */
@@ -379,6 +390,12 @@ export interface TableModel<TData, TContent> {
    * `undefined` with remote rows.
    */
   sourceRow(index: number): TData | undefined;
+  /**
+   * While grouped: every data row the filters keep, by source index and id,
+   * group by group in sort order, closed groups' rows too (what an export of
+   * the grouped rows lists). `undefined` without grouping.
+   */
+  groupedOrder(): readonly { index: number; id: string }[] | undefined;
   /** The index of a row id in the current row model (after filtering and sorting), or `undefined`. */
   indexOf(rowId: string): number | undefined;
   /**

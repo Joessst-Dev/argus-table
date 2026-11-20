@@ -63,7 +63,7 @@ export function dayOf(value: unknown): number | undefined {
 }
 
 /** A value as a number for the number filters: numbers, and strings that are numbers. */
-function numberOf(value: unknown): number | undefined {
+export function numberOf(value: unknown): number | undefined {
   if (typeof value === 'number') return Number.isNaN(value) ? undefined : value;
   if (typeof value === 'string' && value.trim() !== '') {
     const n = Number(value);

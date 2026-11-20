@@ -205,10 +205,81 @@ export interface ColumnDef<TData, TContent = unknown> {
    */
   wrap?: boolean;
   /**
+   * Whether the rows can be grouped by this column's values (`grouping`, or from
+   * the column menu). Default: `false`. `grouping` ignores columns without it.
+   */
+  groupable?: boolean;
+  /**
+   * The total a group row shows in this column while rows are grouped
+   * (`grouping`): `'sum'`, `'avg'`, `'min'`, `'max'` (numbers, and numeric
+   * strings; `min` and `max` also take dates), `'count'` (values that aren't
+   * empty), or a function of the values and the rows' ids. A total covers every
+   * row under the group, nested groups included, with the filters applied.
+   * Sorting by the column orders the groups by their totals. With a
+   * `dataSource` the server sends the totals and this is ignored.
+   */
+  aggregate?: ColumnAggregate;
+  /**
+   * The content of this column's cell on a group row: in the column that shows
+   * the groups (the first one), the group's value; in the others, the column's
+   * total. Without it, the value or total shows as text. Group rows never call
+   * `cell`, which takes a row.
+   */
+  groupCell?: (context: GroupCellContext) => TContent;
+  /**
    * Fields for plugins and the app, such as `meta.export` for `@argus-table/export`.
    * The table doesn't read it; plugins get it in `PluginHost.column(id).meta`.
    */
   meta?: ColumnMeta<TData>;
+}
+
+/**
+ * How a group row totals a column (`ColumnDef.aggregate`): a built-in, or a
+ * function of the values under the group (filters applied) and those rows' ids.
+ */
+export type ColumnAggregate =
+  | 'sum'
+  | 'avg'
+  | 'min'
+  | 'max'
+  | 'count'
+  | ((values: readonly unknown[], context: { rowIds: readonly string[] }) => unknown);
+
+/**
+ * The columns the rows are grouped by, outermost first: column ids. `[]` when
+ * the rows aren't grouped.
+ */
+export type GroupingState = readonly string[];
+
+/** A group row (`grouping`): which group it is, how many rows it holds and its totals. */
+export interface GroupRowInfo {
+  /**
+   * The group's id, as `treeExpanded` lists it while the group is open: `'\u0000g'`
+   * followed by the JSON of its path, each level's column id and value, outermost
+   * first (`'\u0000g["region","EU","status","Open"]'`). Dates are their time,
+   * and empty values (`undefined`, `null`, `''`) `null`.
+   */
+  id: string;
+  /** The column this group's rows share a value of. */
+  groupColumnId: string;
+  /** That value, as the column's `accessor` reads it; `undefined` for the group of empty values. */
+  value: unknown;
+  /** The rows under the group, nested groups included, with the filters applied. */
+  count: number;
+  /** The group's level: `0` for the outermost groups. */
+  depth: number;
+  /** The totals of the columns with an `aggregate`, by column id. */
+  totals: Readonly<Record<string, unknown>>;
+}
+
+/** What a column's `groupCell` receives: the group row, and the cell's column and total. */
+export interface GroupCellContext extends GroupRowInfo {
+  /** Index of the group row among the rows shown. */
+  index: number;
+  /** The cell's column. */
+  columnId: string;
+  /** This column's total (`totals[columnId]`); `undefined` without an `aggregate`. */
+  total: unknown;
 }
 
 /** A sort direction: ascending or descending. */
@@ -425,8 +496,18 @@ export interface TableState {
   expanded?: ExpandedState;
   /** The expanded rows of a tree (`getSubRows`, `getParentId`, or a `dataSource` with `hasChildren` and `getChildren`). */
   treeExpanded?: TreeExpandedState;
+  /** The columns the rows are grouped by (`grouping`). */
+  grouping?: GroupingState;
   quickFilter?: string;
   scroll?: ScrollState;
+}
+
+/** `detail` of `argus-grouping-change`. */
+export interface GroupingChangeDetail {
+  /** The columns the rows are grouped by: the new ones, or the proposed ones when `grouping` is controlled. */
+  grouping: GroupingState;
+  /** The column added or removed. */
+  columnId: string;
 }
 
 /** `detail` of `argus-expanded-change`. */

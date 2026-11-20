@@ -8,6 +8,7 @@ import {
   type VueColumnDef,
 } from './index.js';
 import Detail from './test/Detail.vue';
+import Grouped from './test/Grouped.vue';
 import Groups from './test/Groups.vue';
 import Slots from './test/Slots.vue';
 import Tree from './test/Tree.vue';
@@ -327,6 +328,18 @@ describe('Vue content in detail panels', () => {
 });
 
 describe('Vue tree rows', () => {
+  test('renders #row-group-<id> slots on group rows, following the parent’s state', async () => {
+    const state = reactive({ currency: 'EUR' });
+    const el = await mount(() => createApp(() => h(Grouped, { rows: orders(3), ...state })));
+    expect(cells(el, 'id')).toEqual(['high', 'low']);
+    // 74 high; 0 + 37 low.
+    expect(cells(el, 'total')).toEqual(['74 EUR / 1', '37 EUR / 2']);
+    state.currency = 'CHF';
+    await settle(el);
+    expect(cells(el, 'total')).toEqual(['74 CHF / 1', '37 CHF / 2']);
+    expect(el.grouping).toEqual(['bucket']);
+  });
+
   test('binds treeExpanded two-way', async () => {
     const el = await mount(() => createApp(Tree));
     expect(el.textContent).not.toContain('A1');

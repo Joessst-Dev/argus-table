@@ -1,6 +1,7 @@
 import type { ResolvedColumn } from '../columns/resolve-columns.js';
 import type { RowPredicate } from '../filters/filter.js';
 import { DisplayRows } from './display-rows.js';
+import { buildGroups, type GroupedRows } from './group-rows.js';
 import type { TableModelOptions } from './model-types.js';
 import { buildRowTree, type RowTree } from './row-tree.js';
 import { sortRows } from './sorted-row-model.js';
@@ -15,6 +16,7 @@ import type { SortState, TreeExpandedState } from '../types.js';
 
 /** A tree's layout with what its rows need from it. */
 export interface TreeSteps<TData> {
+  /** The data's tree, or the grouped rows (`GroupedRows`). */
   tree: RowTree<TData>;
   layout: TreeLayout;
   /** The kept top-level rows. */
@@ -74,6 +76,35 @@ export class RowPipeline<TData, TContent> {
         steps: TreeSteps<TData>;
       }
     | undefined;
+  #groups:
+    | {
+        grouping: readonly string[];
+        byId: unknown;
+        filtered: readonly number[];
+        version: number;
+        /** What grouping reads, compared when the arrays above are new but may hold the same. */
+        key: readonly unknown[];
+        grouped: GroupedRows<TData> | undefined;
+      }
+    | undefined;
+  /** The data rows' ids and their lookup, per `data` and `getRowId` (grouping reuses them). */
+  #dataIds:
+    | { data: readonly TData[]; getRowId: unknown; ids: string[]; map?: Map<string, number> }
+    | undefined;
+  #groupLayout:
+    | {
+        grouped: GroupedRows<TData>;
+        sorting: SortState;
+        version: number;
+        sorted: readonly number[];
+        /** `sorted` is the unsorted order: nothing sorted. */
+        plain: boolean;
+        steps: TreeSteps<TData>;
+      }
+    | undefined;
+  #warnedGrouping = false;
+  /** The options object last found to have no tree and no grouping: the flat fast path. */
+  #flatOptions: object | undefined;
   #expandedSet: { state: TreeExpandedState | undefined; set: ReadonlySet<string> } | undefined;
   #shown:
     { steps: TreeSteps<TData>; expanded: ReadonlySet<string>; rows: readonly number[] } | undefined;
@@ -131,6 +162,140 @@ export class RowPipeline<TData, TContent> {
     return tree;
   }
 
+  /**
+   * The rows grouped by `grouping` (its `groupable` columns, in order), built
+   * over the filtered rows; `undefined` (nothing allocated) without grouping.
+   * Ignored, with one warning, with tree rows or remote rows.
+   */
+  groups(): GroupedRows<TData> | undefined {
+    const options = this.#options();
+    const { grouping } = options;
+    if (!grouping?.length) return undefined;
+    if (options.remote || options.getSubRows || options.getParentId) {
+      if (!this.#warnedGrouping) {
+        this.#warnedGrouping = true;
+        console.warn(
+          options.remote
+            ? "argus-table: grouping with a dataSource isn't supported yet; it is ignored."
+            : 'argus-table: grouping is ignored with tree rows (getSubRows, getParentId).',
+        );
+      }
+      return undefined;
+    }
+    const byId = this.#byId();
+    const filtered = this.#filteredRows();
+    const version = this.#version();
+    const prev = this.#groups;
+    // Asked per row: the identities first.
+    if (
+      prev?.grouping === grouping &&
+      prev.byId === byId &&
+      prev.filtered === filtered &&
+      prev.version === version
+    ) {
+      return prev.grouped;
+    }
+    const columns = [...new Set(grouping)]
+      .map((id) => byId.get(id))
+      .filter((c): c is ResolvedColumn<TData, TContent> => c?.groupable === true);
+    const totalled = [...byId.values()].filter((c) => c.aggregate !== undefined);
+    // A new `columns` or `grouping` array with the same contents keeps the groups:
+    // a column reading its values differently bumps `version` (new getValue
+    // functions come with every new `columns` array).
+    const key = [
+      filtered,
+      version,
+      ...columns.map((c) => c.id),
+      '|',
+      ...totalled.flatMap((c) => [c.id, c.aggregate]),
+    ];
+    const same = prev?.key.length === key.length && prev.key.every((part, i) => part === key[i]);
+    const grouped = same
+      ? prev.grouped
+      : columns.length
+        ? this.#buildGroups(filtered, columns, totalled)
+        : undefined;
+    this.#groups = { grouping, byId, filtered, version, key, grouped };
+    return grouped;
+  }
+
+  #buildGroups(
+    filtered: readonly number[],
+    columns: readonly ResolvedColumn<TData, TContent>[],
+    totalled: readonly ResolvedColumn<TData, TContent>[],
+  ): GroupedRows<TData> {
+    const { data, getRowId } = this.#options();
+    let cached = this.#dataIds;
+    if (cached?.data !== data || cached.getRowId !== getRowId) {
+      const ids = new Array<string>(data.length);
+      for (let i = 0; i < ids.length; i++) ids[i] = this.#flatId(i);
+      cached = this.#dataIds = { data, getRowId, ids };
+    }
+    const ids = cached;
+    return buildGroups(data, filtered, columns, totalled, ids.ids, (id) => {
+      ids.map ??= new Map(ids.ids.map((rowId, i) => [rowId, i]));
+      return ids.map.get(id);
+    });
+  }
+
+  /** The tree the shown rows are laid out from: the data's own, or the grouped rows. */
+  shape(): RowTree<TData> | undefined {
+    return this.#flat() ? undefined : (this.tree() ?? this.groups());
+  }
+
+  /**
+   * Whether the rows have neither a tree nor grouping: decided once per options
+   * object, since per-row and per-cell reads ask.
+   */
+  #flat(): boolean {
+    const options = this.#options();
+    if (options === this.#flatOptions) return true;
+    const flat = !options.getSubRows && !options.getParentId && !options.grouping?.length;
+    if (flat) this.#flatOptions = options;
+    return flat;
+  }
+
+  /** The grouped rows laid out in sort order: groups by value, or by total in a totalled column. */
+  #groupSteps(grouped: GroupedRows<TData>): TreeSteps<TData> {
+    const { sorting } = this.#options();
+    const version = this.#version();
+    const prev = this.#groupLayout;
+    if (prev?.grouped === grouped && prev.sorting === sorting && prev.version === version) {
+      return prev.steps;
+    }
+    const byId = this.#byId();
+    // Siblings are all data rows or all group rows: each kind sorts on its own,
+    // with its own sort function. Data rows as a flat table sorts them (radix
+    // included); group rows by their keys (value, or total).
+    const rows = sortRows(grouped.rows, grouped.filtered, sorting, (id) => byId.get(id));
+    const groups = sortRows(grouped.rows, grouped.groupRows, sorting, (id) => {
+      const column = byId.get(id);
+      return (
+        column && {
+          sortable: column.sortable,
+          getValue: (_: TData, i: number) => grouped.key(i, id),
+        }
+      );
+    });
+    // Nothing sorts: the same order as before keeps its array (and the layout).
+    const plain = rows === grouped.filtered && groups === grouped.groupRows;
+    const sorted =
+      plain && prev?.grouped === grouped && prev.plain ? prev.sorted : rows.concat(groups);
+    if (prev?.grouped === grouped && prev.sorted === sorted) {
+      this.#groupLayout = { ...prev, sorting, version };
+      return prev.steps;
+    }
+    const layout = layoutTree(grouped, sorted);
+    const steps = {
+      tree: grouped,
+      layout,
+      roots: layout.children(-1).length,
+      holdsMatch: undefined,
+    };
+    this.#groupLayout = { grouped, sorting, version, sorted, plain, steps };
+    return steps;
+  }
+
   /** The rows by source index: the tree's, else `data`. */
   source(): readonly TData[] {
     return this.tree()?.rows ?? this.#options().data;
@@ -147,8 +312,11 @@ export class RowPipeline<TData, TContent> {
     return kept;
   }
 
-  /** The tree's kept rows laid out in sort order; `undefined` without a tree. */
+  /** The tree's (or the groups') kept rows laid out in sort order; `undefined` without either. */
   treeSteps(): TreeSteps<TData> | undefined {
+    if (this.#flat()) return undefined;
+    const grouped = this.groups();
+    if (grouped) return this.#groupSteps(grouped);
     const tree = this.tree();
     if (!tree) return undefined;
     const kept = this.#keptRows(tree);
@@ -214,7 +382,7 @@ export class RowPipeline<TData, TContent> {
   orderIndexOf(row: number): number {
     const current = this.rows();
     if (this.#orderIndex?.rows !== current) {
-      const at = new Int32Array(this.source().length).fill(-1);
+      const at = new Int32Array((this.shape()?.rows ?? this.source()).length).fill(-1);
       for (let k = 0; k < current.length; k++) at[current[k] ?? 0] = k;
       this.#orderIndex = { rows: current, at };
     }
@@ -269,7 +437,7 @@ export class RowPipeline<TData, TContent> {
 
   /** The id of the row at a data index (a source index with a tree). */
   rowId(dataIndex: number): string {
-    const tree = this.tree();
+    const tree = this.shape();
     return tree ? (tree.ids[dataIndex] ?? '') : this.#flatId(dataIndex);
   }
 
@@ -292,7 +460,7 @@ export class RowPipeline<TData, TContent> {
     const { remote } = this.#options();
     if (remote) return remote.indexOf(rowId);
     // A tree's ids are mapped once per tree, not once per shown order.
-    const tree = this.tree();
+    const tree = this.shape();
     if (tree) {
       const row = tree.indexOf(rowId);
       if (row === undefined) return undefined;

@@ -28,6 +28,7 @@ export const STORYBOOK_PAGES: Readonly<Record<string, string>> = {
   'features-pinned-columns': 'features/pinned-columns/',
   'features-pinned-rows': 'features/pinned-rows/',
   'features-resizing': 'features/resizing/',
+  'features-row-grouping': 'features/row-grouping/',
   'features-row-height': 'features/row-height/',
   'features-row-selection': 'features/selection/',
   'features-saved-state': 'features/saved-state/',

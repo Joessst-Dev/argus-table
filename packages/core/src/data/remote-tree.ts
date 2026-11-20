@@ -287,6 +287,13 @@ export class RemoteTree<TData> implements RemoteRows<TData>, RowStructure {
 
   readonly tree: boolean = true;
 
+  /** Not grouped (step 3 of row grouping brings a data source's groups). */
+  readonly grouped: boolean = false;
+
+  groupAt(): undefined {
+    return undefined;
+  }
+
   idAt(index: number): string | undefined {
     return this.entryAt(index)?.id;
   }

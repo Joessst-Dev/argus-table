@@ -6,6 +6,7 @@ import { notify } from './column-registry.js';
 import type {
   CellContent,
   CellContext,
+  ColumnAggregate,
   ColumnAlign,
   ColumnDef,
   ColumnMeta,
@@ -139,6 +140,21 @@ export class ArgusColumn<T = unknown> extends ReactiveElement {
   @property({ attribute: false })
   filterOptions?: readonly FilterValue[];
 
+  /** Whether the rows can be grouped by this column (`grouping`). Default: `false`. */
+  @property({ converter: flagConverter })
+  groupable?: boolean;
+
+  /**
+   * The total group rows show in this column: `sum`, `avg`, `min`, `max` or
+   * `count`, or (as a property) a function of the values and the rows' ids.
+   */
+  @property()
+  aggregate?: ColumnAggregate;
+
+  /** The content of this column's cell on a group row (`ColumnDef.groupCell`). Property only. */
+  @property({ attribute: false })
+  groupCell?: ColumnDef<T>['groupCell'];
+
   /** Fields for plugins and the app (`ColumnDef.meta`), such as `meta.export`. Property only. */
   @property({ attribute: false })
   meta?: ColumnMeta<T>;
@@ -210,6 +226,9 @@ export class ArgusColumn<T = unknown> extends ReactiveElement {
       filter: this.filter,
       filterFn: this.filterFn,
       filterOptions: this.filterOptions,
+      groupable: this.groupable,
+      aggregate: this.aggregate,
+      groupCell: this.groupCell,
       meta: this.meta,
     });
   }

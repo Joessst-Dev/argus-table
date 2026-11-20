@@ -1,4 +1,4 @@
-import type { ColumnAlign, ColumnDef, ColumnPin, FilterKind } from '../types.js';
+import type { ColumnAggregate, ColumnAlign, ColumnDef, ColumnPin, FilterKind } from '../types.js';
 
 /** Width used when a column sets none. */
 export const DEFAULT_WIDTH = 150;
@@ -47,9 +47,20 @@ export interface ResolvedColumn<TData, TContent> {
   filterOptions: ColumnDef<TData, TContent>['filterOptions'];
   align: ColumnAlign;
   wrap: boolean;
+  groupable: boolean;
+  /** A built-in name or a function; `undefined` for anything else. */
+  aggregate: ColumnAggregate | undefined;
+  groupCell: ColumnDef<TData, TContent>['groupCell'];
 }
 
 const FILTER_KINDS: readonly unknown[] = ['text', 'number', 'date', 'set'] satisfies FilterKind[];
+const AGGREGATES: readonly unknown[] = [
+  'sum',
+  'avg',
+  'min',
+  'max',
+  'count',
+] satisfies ColumnAggregate[];
 
 const pathCache = new Map<string, readonly string[]>();
 
@@ -142,6 +153,12 @@ export function resolveColumns<TData, TContent>(
       filterOptions: def.filterOptions,
       align: def.align ?? 'start',
       wrap: def.wrap === true,
+      groupable: def.groupable === true,
+      aggregate:
+        typeof def.aggregate === 'function' || AGGREGATES.includes(def.aggregate)
+          ? def.aggregate
+          : undefined,
+      groupCell: def.groupCell,
     };
   });
 }

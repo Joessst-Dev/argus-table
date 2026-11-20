@@ -171,6 +171,7 @@ export async function collect<T>(
   const el = host.element;
   const selected = options.rows === 'selected' ? new Set(el.selection) : undefined;
   const source = el.dataSource;
+  const grouped = source ? undefined : host.groupedRows();
   pinned('top');
   if (options.allRows && source) {
     const size = Math.max(1, source.pageSize ?? 100);
@@ -193,6 +194,13 @@ export async function collect<T>(
         rows.push(columns.map((c) => valueOf(host.readValue(row, c.id, index), c.id, () => row)));
       });
       if (page.length < size || (total !== undefined && start + size >= total)) break;
+    }
+  } else if (grouped) {
+    // Grouped rows: every data row, closed groups' too, in the grouped order.
+    for (const { index, id, row } of grouped) {
+      if (selected && !selected.has(id)) continue;
+      items.push({ row, rowId: id });
+      rows.push(columns.map((c) => valueOf(host.readValue(row, c.id, index), c.id, () => row)));
     }
   } else {
     for (let i = 0, n = host.rowCount(); i < n; i++) {

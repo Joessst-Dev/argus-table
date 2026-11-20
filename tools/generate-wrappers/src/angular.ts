@@ -47,6 +47,8 @@ const CONTENT_INPUTS: ContentTypes = {
   'ArgusColumnGroup.header': "AngularColumnGroup['header']",
   cell: '(row: T, context: CellContext<T>) => AngularCellContent',
   rowDetail: '(context: RowDetailContext<T>) => AngularCellContent',
+  // A group row's cell (`grouping`).
+  groupCell: "AngularColumnDef<T>['groupCell']",
   contentRenderer: null,
 };
 

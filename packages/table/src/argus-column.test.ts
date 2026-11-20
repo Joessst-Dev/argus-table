@@ -61,6 +61,17 @@ describe('<argus-column>', () => {
     expect(headers(el)[1]?.dataset.align).toBe('end');
   });
 
+  test('groupable and aggregate come from attributes, groupCell from the property', () => {
+    const c = document.createElement('argus-column');
+    c.setAttribute('column-id', 'amount');
+    c.setAttribute('groupable', '');
+    c.setAttribute('aggregate', 'sum');
+    const groupCell = () => 'total';
+    c.groupCell = groupCell;
+    document.body.append(c);
+    expect(c.toColumnDef()).toMatchObject({ groupable: true, aggregate: 'sum', groupCell });
+  });
+
   test('wrap: the attribute wraps the cells of its column', async () => {
     const el = await mount(`
       <argus-column column-id="name" header="Name" accessor="name" wrap></argus-column>

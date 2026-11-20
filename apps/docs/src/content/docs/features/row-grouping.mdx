@@ -1,0 +1,40 @@
+---
+title: Row grouping
+description: Group rows by the values of one or more columns, with a row count and totals per group.
+since: '1.4'
+---
+
+import FlavourTabs from '../../../components/FlavourTabs.astro';
+import ReactSales from '../../../examples/row-grouping/sales/react/Sales.tsx';
+import VueSales from '../../../examples/row-grouping/sales/vue/Sales.vue';
+import { SalesComponent } from '../../../examples/row-grouping/sales/angular/sales.component.ts';
+
+Rows can be grouped by the values of a column: sales by region, tickets by status, orders by customer. Each group shows as a row of its own, with the group's value and its number of rows in the first data column, and the group's rows under it once it's opened. Group by several columns and the groups nest: by region, then by status within each region.
+
+Mark the columns rows can be grouped by with `groupable: true`, and set `grouping` to their ids, outermost first. Give a column an `aggregate` and its cell on each group row shows a total of the rows in the group: `'sum'`, `'avg'`, `'min'`, `'max'`, `'count'` (values that aren't empty), or a function of the values. Here the amounts are summed, and the checkbox groups by status within each region.
+
+<FlavourTabs example="row-grouping/sales">
+  <ReactSales slot="react" client:visible />
+  <VueSales slot="vue" client:visible />
+  <SalesComponent slot="angular" client:visible />
+</FlavourTabs>
+
+A column's `groupCell` renders its cells on group rows, as `cell` does on the others: it gets the group's `value`, `count`, `depth`, its own column's `total`, and the group's `totals` by column. Here it formats the sum as money. Without it, the group row shows the value and the totals as text. Group rows never call `cell`, which takes a row.
+
+## Opening and closing groups
+
+Group rows open and close like the rows of a [tree](../tree-rows/): with their toggle, or with the arrow keys on the first data column, and also with Enter on any of their cells. Groups start closed. Which ones are open is `treeExpanded`, so `argus-tree-expanded-change` reports each change and `getState()` saves it. A group's id is `'\u0000g'` followed by the JSON of its path, each level's column id and value: `'\u0000g["region","Europe"]'`, `'\u0000g["region","Europe","status","Won"]'`. Dates are their time, and empty values (`undefined`, `null`, `''`) are `null` and form one group, shown as "(empty)" (`labels.emptyGroup`). Ids come from values, so an open group stays open through sorting, filtering and new `data`.
+
+## Sorting and filtering
+
+Groups are in the order of their values, the empty group last. Sorting by a column orders the rows within each group; sorting by a column with an `aggregate` also orders the groups by their totals, and sorting by a grouped column reverses its groups. Filters and the quick filter apply to the rows: each group's count and totals cover the rows that pass, and a group with none left goes away.
+
+## Selecting rows
+
+A group row's checkbox (`selectionMode: 'multi'` with `selectionCheckboxes`) ticks every row in the group, and shows part-ticked when some are; Space on a group row does the same. The group's own id never goes into `selection`. A click elsewhere on a group row makes its cell active and selects nothing, and group rows fire no click events. A Shift range that takes in a closed group selects its rows. Select-all selects every row, in closed groups too.
+
+## Changing the grouping
+
+`grouping` is state like `sorting`: unset, the table keeps it, and a plugin can change it (`PluginHost.setGrouping`); set, the table only fires `argus-grouping-change` with the proposed columns, and your code applies them. It binds two-way, and `getState()` saves it.
+
+Grouping isn't combined with [tree rows](../tree-rows/): with `getSubRows` or `getParentId` it's ignored, with a warning. With a `dataSource` it isn't supported yet, and is ignored with a warning too. [Export](../export/) writes every row of a grouped table, closed groups' too, group by group.

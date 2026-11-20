@@ -129,6 +129,7 @@ export const PROPERTIES = {
   rowExpandable: null,
   expanded: null,
   treeExpanded: null,
+  grouping: null,
   plugins: null,
   labels: null,
 };
@@ -147,6 +148,7 @@ export const CONTROLLABLES = [
   'selection',
   'expanded',
   'treeExpanded',
+  'grouping',
 ];
 
 /** The element's events. */
@@ -161,6 +163,7 @@ export const EVENTS = [
   'argus-selection-change',
   'argus-expanded-change',
   'argus-tree-expanded-change',
+  'argus-grouping-change',
   'argus-cell-click',
   'argus-row-click',
   'argus-range-change',
@@ -218,6 +221,9 @@ export const COLUMN_FIELDS = [
   'filterOptions',
   'align',
   'wrap',
+  'groupable',
+  'aggregate',
+  'groupCell',
   'meta',
 ];
 
@@ -227,7 +233,7 @@ export const COLUMN_GROUP_FIELDS = ['id', 'header', 'reorderable', 'columns'];
 /** Members of a `DataSource` (`hasChildren` and `getChildren` together make a tree). */
 export const DATA_SOURCE_MEMBERS = ['getRows', 'pageSize', 'hasChildren', 'getChildren'];
 
-/** Attributes of `<argus-column>` (`cell`, `filterFn`, `filterOptions` are properties only). */
+/** Attributes of `<argus-column>` (`cell`, `filterFn`, `filterOptions`, `groupCell` are properties only). */
 export const COLUMN_ATTRIBUTES = [
   'column-id',
   'header',
@@ -245,6 +251,8 @@ export const COLUMN_ATTRIBUTES = [
   'resizable',
   'reorderable',
   'filter',
+  'groupable',
+  'aggregate',
   'hidden',
 ];
 

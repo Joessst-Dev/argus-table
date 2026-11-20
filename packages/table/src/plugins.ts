@@ -8,6 +8,8 @@ import type {
   ColumnPin,
   FilterKind,
   FilterValue,
+  GroupingState,
+  GroupRowInfo,
   SortDirection,
 } from './types.js';
 
@@ -98,6 +100,8 @@ export interface ColumnInfo {
   pinnable: boolean;
   /** Whether the user may hide it (`hideable`). */
   hideable: boolean;
+  /** Whether the rows can be grouped by it (`groupable`). */
+  groupable: boolean;
   /** The pin in effect: `columnPinning`'s, else the column's own. */
   pin: ColumnPin | undefined;
   /** `true` while the column is hidden (`columnVisibility`, else the column's `hidden`). */
@@ -251,6 +255,26 @@ export interface PluginHost<T = unknown> {
    * with a `dataSource`.
    */
   sourceRow(index: number): T | undefined;
+  /** The columns the rows are grouped by (`grouping`), outermost first; `[]` when they aren't. */
+  grouping(): GroupingState;
+  /**
+   * Groups the rows by other columns, through the rules of a controlled or
+   * uncontrolled `grouping`: fires `argus-grouping-change` with `columnId`, the
+   * column added or removed. Ids of columns that aren't `groupable` are left
+   * out; nothing happens without a change.
+   */
+  setGrouping(grouping: GroupingState, columnId: string): void;
+  /**
+   * The group row at `index` in the body's current order; `undefined` for a
+   * data row, past the end, and without grouping.
+   */
+  group(index: number): GroupRowInfo | undefined;
+  /**
+   * While the rows are grouped: every data row the filters keep, in the grouped
+   * order, closed groups' rows too, with its source index (see `sourceRow()`)
+   * and id. `undefined` without grouping.
+   */
+  groupedRows(): readonly { index: number; id: string; row: T }[] | undefined;
   /**
    * The group header rows over the shown columns, top row first, each cell a
    * group or a filler; empty without column groups.

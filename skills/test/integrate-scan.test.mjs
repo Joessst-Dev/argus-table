@@ -51,10 +51,11 @@ describe('scan.mjs', () => {
     assert.equal(direct.kind, 'direct');
     assert.deepEqual(feature(direct, 'row-id').at, ['src/orders/OrdersTable.tsx:25']);
     assert.equal(feature(direct, 'virtualizer').fit, 'builtin');
-    // Expanded grouped rows: the grouping is the gap; expanding itself is treeExpanded or expanded.
+    // Grouped rows in memory: grouping and expanding them are partial (grouping, treeExpanded).
+    assert.equal(feature(direct, 'grouping').fit, 'partial');
     assert.equal(feature(direct, 'expanding').fit, 'partial');
-    assert.deepEqual(direct.summary.hardGaps, ['row-grouping']);
-    assert.equal(direct.summary.effort, 'high');
+    assert.deepEqual(direct.summary.hardGaps, []);
+    assert.equal(direct.summary.effort, 'medium');
     // The <table> TanStack renders isn't a plain table of its own.
     assert.ok(!report.usages.some((u) => u.library === 'html-table'));
   });
@@ -79,6 +80,8 @@ describe('scan.mjs', () => {
     assert.equal(feature(u, 'server-side-row-model').fit, 'partial');
     assert.deepEqual(feature(u, 'editing').at, ['app/orders/columns.ts:15']);
     assert.equal(feature(u, 'editing').fit, 'partial');
+    // Grouping is partial, but not on the server-side row model: a hard gap there.
+    assert.equal(feature(u, 'row-grouping').fit, 'partial');
     assert.deepEqual(u.summary.gaps, ['pagination', 'row-grouping', 'tool-panels']);
     assert.deepEqual(u.summary.hardGaps, ['row-grouping']);
   });

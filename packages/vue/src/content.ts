@@ -18,6 +18,7 @@ import type {
   ColumnDef,
   ColumnGroup,
   ContentRenderer,
+  GroupCellContext,
   GroupHeaderContext,
   HeaderContext,
   PluginHost,
@@ -78,6 +79,8 @@ export function vueRenderer(instance: ComponentInternalInstance): ContentRendere
 const CELL = 'cell-';
 const HEADER = 'header-';
 const GROUP = 'group-';
+/** A column's cells on group rows (`grouping`), after the rows' part (`row-group`). */
+const GROUP_CELL = 'row-group-';
 
 type Slots = Readonly<Record<string, ((props: never) => VNodeChild) | undefined>>;
 
@@ -89,6 +92,7 @@ export function slotKey(slots: Slots): string {
         name.startsWith(CELL) ||
         name.startsWith(HEADER) ||
         name.startsWith(GROUP) ||
+        name.startsWith(GROUP_CELL) ||
         name === DETAIL,
     )
     .sort()
@@ -131,8 +135,8 @@ const ArgusSlot = defineComponent({
 });
 
 /**
- * The plugin that turns `#cell-<id>` and `#header-<id>` slots into a column's `cell`
- * and `header`, and `#group-<id>` slots into a column group's `header`. First among the table's plugins, so `formulas()` and `headerMenu()`
+ * The plugin that turns `#cell-<id>`, `#header-<id>` and `#row-group-<id>` slots into a
+ * column's `cell`, `header` and `groupCell`, and `#group-<id>` slots into a column group's `header`. First among the table's plugins, so `formulas()` and `headerMenu()`
  * wrap what it gives. Each cell renders through `ArgusSlot`, which looks the slot up
  * when it renders, so the latest slot function always runs.
  */
@@ -155,11 +159,15 @@ export function slotPlugin(
         const id = def.id;
         const cell = slots[CELL + id] !== undefined;
         const header = slots[HEADER + id] !== undefined;
-        if (!cell && !header) return def;
+        const groupCell = slots[GROUP_CELL + id] !== undefined;
+        if (!cell && !header && !groupCell) return def;
         return {
           ...def,
           ...(cell && {
             cell: (_row: unknown, context: CellContext<unknown>) => render(CELL + id, context),
+          }),
+          ...(groupCell && {
+            groupCell: (context: GroupCellContext) => render(GROUP_CELL + id, context),
           }),
           // Text mode asks for the column's name: a slot has none, the definition's header may.
           ...(header && {

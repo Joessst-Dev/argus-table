@@ -36,6 +36,7 @@ The public API of `argus-table` 1.2 and its wrappers, for writing code. Types co
 | `rowExpandable`       |                        | `(row: T) => boolean`                        | every row       | Which rows get a chevron (`rowDetail`)                                                                                                                                         |
 | `expanded`            |                        | `string[]` (row ids)                         | uncontrolled    | Two-way: the rows whose panel is open. Several at once                                                                                                                         |
 | `treeExpanded`        |                        | `string[]` (row ids)                         | uncontrolled    | Two-way: the expanded rows of a tree. Since 1.4                                                                                                                                |
+| `grouping`            |                        | `string[]` (column ids)                      | uncontrolled    | Two-way: group the rows by these `groupable` columns, outermost first ([Row grouping](#row-grouping)). Since 1.4                                                               |
 | `plugins`             |                        | `ArgusPlugin<T>[]`                           | `[]`            | Add-ons: `[formulas(), headerMenu(), tableExport()]`, `formulas()` before `headerMenu()`. Keep the array stable                                                                |
 | `labels`              |                        | `Partial<TableLabels>`                       | English         | Built-in text (Retry, Select row, announcements). Since 1.1                                                                                                                    |
 
@@ -55,6 +56,7 @@ All bubble and are composed `CustomEvent`s. The wrappers' names: React `on<Name>
 | `argus-selection-change`         | `onSelectionChange`        | `selection-change`         | `selectionChange`        | `{ selection }`                                                                                                                                          |
 | `argus-expanded-change`          | `onExpandedChange`         | `expanded-change`          | `expandedChange`         | `{ expanded, rowId, open }`                                                                                                                              |
 | `argus-tree-expanded-change`     | `onTreeExpandedChange`     | `tree-expanded-change`     | `treeExpandedChange`     | `{ treeExpanded, rowId, open }`                                                                                                                          |
+| `argus-grouping-change`          | `onGroupingChange`         | `grouping-change`          | `groupingChange`         | `{ grouping, columnId }`                                                                                                                                 |
 | `argus-cell-click`               | `onCellClick`              | `cell-click`               | `cellClick`              | `{ row, rowId, index, columnId, value, pinned?, depth? }`; also Enter                                                                                    |
 | `argus-row-click`                | `onRowClick`               | `row-click`                | `rowClick`               | `{ row, rowId, index, pinned?, depth? }`; also Enter                                                                                                     |
 | `argus-range-change`             | `onRangeChange`            | `range-change`             | `rangeChange`            | `{ first, last }`: the rows in view, inclusive                                                                                                           |
@@ -79,29 +81,32 @@ Call them on the element: a React `ref`, Vue `ref` (the component exposes them),
 
 `ColumnDef<T>` (React: `ReactColumnDef<T>` when cells return JSX; Vue: `VueColumnDef<T>` for VNodes; Angular: `ColumnDef<T>`, templates through `argusCell`).
 
-| Field           | Type                                           | Default         | Notes                                                                            |
-| --------------- | ---------------------------------------------- | --------------- | -------------------------------------------------------------------------------- |
-| `id`            | `string`                                       | required        | Unique and stable: state, events and saved layouts use it                        |
-| `header`        | content, or `(context) => content`             | empty           | Text, a node, a template; JSX/VNodes in the wrappers. Always give one            |
-| `accessor`      | `'path.to.value'` or `(row, index) => unknown` | none            | What the column sorts, filters and exports. Without it, the value is `undefined` |
-| `cell`          | `(row, ctx) => content`                        | the value       | `ctx`: `{ row, rowId, index, columnId, value, pinned?, depth? }`                 |
-| `formula`       | `string`                                       |                 | Only with `formulas()`                                                           |
-| `width`         | `number \| 'auto' \| { flex: number }`         | `150`           | px; `'auto'` fits content once; `{ flex }` shares the free space                 |
-| `minWidth`      | `number`                                       | `40`            |                                                                                  |
-| `maxWidth`      | `number`                                       | none            |                                                                                  |
-| `pin`           | `'start' \| 'end'`                             | none            | Logical sides: start is left in LTR                                              |
-| `hidden`        | `boolean`                                      | `false`         | Not shown, still sorts and exports with `hiddenColumns`                          |
-| `sortable`      | `boolean`                                      | `false`         | Opt-in                                                                           |
-| `resizable`     | `boolean`                                      | `true`          |                                                                                  |
-| `reorderable`   | `boolean`                                      | `true`          | Drag the header to move the column                                               |
-| `pinnable`      | `boolean`                                      | `true`          | Whether the column menu offers pinning                                           |
-| `hideable`      | `boolean`                                      | `true`          | Whether the column menu offers hiding                                            |
-| `filter`        | `'text' \| 'number' \| 'date' \| 'set'`        | none            | The filter users can set from the column menu                                    |
-| `filterFn`      | `(value, filter, row) => boolean`              | built in        | Replaces the built-in test                                                       |
-| `filterOptions` | `FilterValue[]`                                | distinct values | The values a `'set'` filter offers; required with a `dataSource`                 |
-| `align`         | `'start' \| 'center' \| 'end'`                 | `'start'`       | Numbers: `'end'`                                                                 |
-| `wrap`          | `boolean`                                      | `false`         | Wraps text; rows grow only with `rowHeight: 'auto'`                              |
-| `meta`          | `ColumnMeta` (an object)                       | none            | Plugins' and the app's own fields, such as `meta.export`. Since 1.2              |
+| Field           | Type                                                                               | Default                    | Notes                                                                                                                    |
+| --------------- | ---------------------------------------------------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `id`            | `string`                                                                           | required                   | Unique and stable: state, events and saved layouts use it                                                                |
+| `header`        | content, or `(context) => content`                                                 | empty                      | Text, a node, a template; JSX/VNodes in the wrappers. Always give one                                                    |
+| `accessor`      | `'path.to.value'` or `(row, index) => unknown`                                     | none                       | What the column sorts, filters and exports. Without it, the value is `undefined`                                         |
+| `cell`          | `(row, ctx) => content`                                                            | the value                  | `ctx`: `{ row, rowId, index, columnId, value, pinned?, depth? }`                                                         |
+| `formula`       | `string`                                                                           |                            | Only with `formulas()`                                                                                                   |
+| `width`         | `number \| 'auto' \| { flex: number }`                                             | `150`                      | px; `'auto'` fits content once; `{ flex }` shares the free space                                                         |
+| `minWidth`      | `number`                                                                           | `40`                       |                                                                                                                          |
+| `maxWidth`      | `number`                                                                           | none                       |                                                                                                                          |
+| `pin`           | `'start' \| 'end'`                                                                 | none                       | Logical sides: start is left in LTR                                                                                      |
+| `hidden`        | `boolean`                                                                          | `false`                    | Not shown, still sorts and exports with `hiddenColumns`                                                                  |
+| `sortable`      | `boolean`                                                                          | `false`                    | Opt-in                                                                                                                   |
+| `resizable`     | `boolean`                                                                          | `true`                     |                                                                                                                          |
+| `reorderable`   | `boolean`                                                                          | `true`                     | Drag the header to move the column                                                                                       |
+| `pinnable`      | `boolean`                                                                          | `true`                     | Whether the column menu offers pinning                                                                                   |
+| `hideable`      | `boolean`                                                                          | `true`                     | Whether the column menu offers hiding                                                                                    |
+| `filter`        | `'text' \| 'number' \| 'date' \| 'set'`                                            | none                       | The filter users can set from the column menu                                                                            |
+| `filterFn`      | `(value, filter, row) => boolean`                                                  | built in                   | Replaces the built-in test                                                                                               |
+| `filterOptions` | `FilterValue[]`                                                                    | distinct values            | The values a `'set'` filter offers; required with a `dataSource`                                                         |
+| `align`         | `'start' \| 'center' \| 'end'`                                                     | `'start'`                  | Numbers: `'end'`                                                                                                         |
+| `wrap`          | `boolean`                                                                          | `false`                    | Wraps text; rows grow only with `rowHeight: 'auto'`                                                                      |
+| `groupable`     | `boolean`                                                                          | `false`                    | The rows can be grouped by it (`grouping`). Since 1.4                                                                    |
+| `aggregate`     | `'sum' \| 'avg' \| 'min' \| 'max' \| 'count' \| ((values, { rowIds }) => unknown)` | none                       | The total group rows show in this column. Since 1.4                                                                      |
+| `groupCell`     | `(context: GroupCellContext) => content`                                           | the value or total as text | The column's cell on group rows: `{ value, count, depth, total, totals, groupColumnId, columnId, index, id }`. Since 1.4 |
+| `meta`          | `ColumnMeta` (an object)                                                           | none                       | Plugins' and the app's own fields, such as `meta.export`. Since 1.2                                                      |
 
 A `header` function gets `{ columnId, text }` (a group's: `{ groupId, text }`). With `text: true` it returns the name as plain text: the column menu, exports and the table's announcements use it, where a JSX or template header would otherwise be named by its id. Since 1.2:
 
@@ -139,6 +144,24 @@ table.treeExpanded = ['a', 'a/2']; // optional; two-way, like expanded
 - With a `dataSource`, `getSubRows` and `getParentId` are ignored (with a console warning): use its `hasChildren` and `getChildren`.
 - Plugins read `host.rowDepth(index, section?)`, and `host.sourceRow(index)` for an index `host.filteredIndexes()` returns (nested children's are `data.length` and up).
 - Editing nested children: `applyEdit`'s fourth argument, [addons.md](addons.md#cell-editing-argus-tableediting).
+
+## Row grouping
+
+Since 1.4. Rows in memory (`data`) grouped by column values: a group row per value with its count, totals per column, nested for several columns.
+
+```ts
+table.columns = [
+  { id: 'region', accessor: 'region', groupable: true },
+  { id: 'amount', accessor: 'amount', aggregate: 'sum', groupCell: ({ total }) => money(total) },
+];
+table.grouping = ['region']; // two-way, like sorting
+```
+
+- Group rows open and close like tree rows (toggle, Right/Left, and Enter on any cell); their ids, `'\u0000g["region","EU"]'` (the path of column ids and values, JSON), go into `treeExpanded`. Groups start closed.
+- Groups are in value order (the empty group, `labels.emptyGroup`, last); sorting by a column with an `aggregate` orders them by their totals. Filters apply to the rows; counts and totals follow.
+- Group rows fire no click events and never call `cell`. In `multi` mode a group's checkbox (or Space) ticks its rows; a group id is never in `selection`.
+- Parts `row-group`, `cell-group`, `group-count` (label `groupCount`). Plugins: `host.grouping()`, `host.setGrouping(next, columnId)`, `host.group(index)`, `host.groupedRows()`.
+- Ignored with tree rows and, for now, with a `dataSource` (a console warning each).
 
 ## DataSource
 
@@ -192,7 +215,7 @@ const dataSource: DataSource<Folder> = {
 
 ## `<argus-column>` children
 
-Columns can be markup instead of `columns` (React `<ArgusColumn>`, Vue `<ArgusColumn>`, Angular `<argus-column>`): attributes `column-id`, `header`, `accessor` (a path), `formula`, `width` (`90`, `auto`, `2fr`), `min-width`, `max-width`, `pin`, `pinnable`, `hideable`, `align`, `wrap`, `sortable`, `resizable`, `reorderable`, `filter`, `hidden`; `cell`, `filterFn`, `filterOptions` and `meta` as properties; a `<template>` child as static cell content. `<argus-column-group group-id header>` groups them.
+Columns can be markup instead of `columns` (React `<ArgusColumn>`, Vue `<ArgusColumn>`, Angular `<argus-column>`): attributes `column-id`, `header`, `accessor` (a path), `formula`, `width` (`90`, `auto`, `2fr`), `min-width`, `max-width`, `pin`, `pinnable`, `hideable`, `align`, `wrap`, `sortable`, `resizable`, `reorderable`, `filter`, `groupable`, `aggregate`, `hidden`; `cell`, `filterFn`, `filterOptions`, `groupCell` and `meta` as properties; a `<template>` child as static cell content. `<argus-column-group group-id header>` groups them.
 
 ## Slots, parts and tokens
 

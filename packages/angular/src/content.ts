@@ -22,6 +22,7 @@ import type {
   ContentRenderer,
   GroupHeaderContext,
   HeaderContext,
+  GroupCellContext,
   PluginHost,
   RowPin,
 } from 'argus-table';
@@ -83,6 +84,34 @@ export class ArgusHeaderDirective {
     _directive: ArgusHeaderDirective,
     context: unknown,
   ): context is ArgusHeaderContext {
+    return true;
+  }
+  /* eslint-enable @typescript-eslint/no-unused-vars */
+}
+
+/**
+ * What an `argusGroupCell` template gets: the group row (`grouping`) as
+ * `let-group`, with the cell's column and its total.
+ */
+export interface ArgusGroupCellContext extends GroupCellContext {
+  $implicit: GroupCellContext;
+}
+
+/**
+ * A column's cells on group rows (`grouping`), as a template inside
+ * `<argus-table>`: `<ng-template argusGroupCell="amount" let-total="total">`.
+ */
+@Directive({ selector: 'ng-template[argusGroupCell]' })
+export class ArgusGroupCellDirective {
+  /** The id of the column whose group-row cells this renders. */
+  @Input({ required: true }) argusGroupCell!: string;
+  readonly template = inject<TemplateRef<ArgusGroupCellContext>>(TemplateRef);
+
+  /* eslint-disable @typescript-eslint/no-unused-vars -- Angular reads the guard's signature only. */
+  static ngTemplateContextGuard(
+    _directive: ArgusGroupCellDirective,
+    context: unknown,
+  ): context is ArgusGroupCellContext {
     return true;
   }
   /* eslint-enable @typescript-eslint/no-unused-vars */
@@ -249,6 +278,8 @@ export abstract class ArgusTableBase<T = unknown> implements AfterContentInit, O
   protected headerTemplates?: QueryList<ArgusHeaderDirective>;
   @ContentChildren(ArgusGroupHeaderDirective)
   protected groupTemplates?: QueryList<ArgusGroupHeaderDirective>;
+  @ContentChildren(ArgusGroupCellDirective)
+  protected groupCellTemplates?: QueryList<ArgusGroupCellDirective>;
   @ContentChildren(ArgusDetailDirective)
   protected detailTemplates?: QueryList<ArgusDetailDirective>;
   /** The `rowDetail` the `argusDetail` template gave, if it set one. */
@@ -282,7 +313,12 @@ export abstract class ArgusTableBase<T = unknown> implements AfterContentInit, O
   }
 
   ngAfterContentInit(): void {
-    for (const list of [this.cellTemplates, this.headerTemplates, this.groupTemplates]) {
+    for (const list of [
+      this.cellTemplates,
+      this.headerTemplates,
+      this.groupTemplates,
+      this.groupCellTemplates,
+    ]) {
       const subscription = list?.changes.subscribe(() => {
         this.#host?.invalidateColumns();
       });
@@ -343,7 +379,8 @@ export abstract class ArgusTableBase<T = unknown> implements AfterContentInit, O
     const id = def.id;
     const cell = this.cellTemplates?.find((t) => t.argusCell === id);
     const header = this.headerTemplates?.find((t) => t.argusHeader === id);
-    if (!cell && !header) return def;
+    const groupCell = this.groupCellTemplates?.find((t) => t.argusGroupCell === id);
+    if (!cell && !header && !groupCell) return def;
     return {
       ...def,
       ...(cell && {
@@ -358,6 +395,10 @@ export abstract class ArgusTableBase<T = unknown> implements AfterContentInit, O
             pinned: context.pinned,
             depth: context.depth,
           }),
+      }),
+      ...(groupCell && {
+        groupCell: (context: GroupCellContext) =>
+          argusTemplate(groupCell.template, { $implicit: context, ...context }),
       }),
       ...(header && {
         // Text mode asks for the column's name: a template has none, the definition's header may.

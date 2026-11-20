@@ -14,6 +14,8 @@ import type {
   ColumnSizingChangeDetail,
   ColumnVisibilityChangeDetail,
   ExpandedChangeDetail,
+  GroupCellContext,
+  GroupingChangeDetail,
   LoadErrorDetail,
   RangeChangeDetail,
   RowClickDetail,
@@ -62,6 +64,7 @@ export type ArgusTableElementProps<T = unknown> = Partial<
     | 'rowExpandable'
     | 'expanded'
     | 'treeExpanded'
+    | 'grouping'
     | 'plugins'
     | 'labels'
   >
@@ -107,6 +110,10 @@ export interface ArgusTableEventProps<T = unknown> {
   'onExpanded-change'?: (event: CustomEvent<ExpandedChangeDetail>) => void;
   /** `v-model:expanded`: the new `expanded` from `argus-expanded-change`. */
   'onUpdate:expanded'?: (value: ArgusTableElement<T>['expanded']) => void;
+  /** `argus-grouping-change`: `grouping` changed: a plugin (such as the column menu's "Group by") grouped or ungrouped the rows by a column. `detail: { grouping, columnId }`: `columnId` is the column added or removed. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
+  'onGrouping-change'?: (event: CustomEvent<GroupingChangeDetail>) => void;
+  /** `v-model:grouping`: the new `grouping` from `argus-grouping-change`. */
+  'onUpdate:grouping'?: (value: ArgusTableElement<T>['grouping']) => void;
   /** `argus-tree-expanded-change`: `treeExpanded` changed: a row of a tree was expanded or collapsed with its toggle (a click) or with Right or Left on its cell in the tree column; not for a row a filter keeps expanded. Only with `getSubRows`, `getParentId`, or a `dataSource` with `hasChildren` and `getChildren`. `detail: { treeExpanded, rowId, open }`: `open` is `true` when it was expanded. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
   'onTree-expanded-change'?: (event: CustomEvent<TreeExpandedChangeDetail>) => void;
   /** `v-model:treeExpanded`: the new `treeExpanded` from `argus-tree-expanded-change`. */
@@ -151,6 +158,8 @@ export interface ArgusTableEmit<T = unknown> {
   (event: 'update:selection', value: ArgusTableElement<T>['selection']): void;
   (event: 'expanded-change', payload: CustomEvent<ExpandedChangeDetail>): void;
   (event: 'update:expanded', value: ArgusTableElement<T>['expanded']): void;
+  (event: 'grouping-change', payload: CustomEvent<GroupingChangeDetail>): void;
+  (event: 'update:grouping', value: ArgusTableElement<T>['grouping']): void;
   (event: 'tree-expanded-change', payload: CustomEvent<TreeExpandedChangeDetail>): void;
   (event: 'update:treeExpanded', value: ArgusTableElement<T>['treeExpanded']): void;
   (event: 'cell-click', payload: CustomEvent<CellClickDetail<T>>): void;
@@ -187,6 +196,8 @@ export interface ArgusTableSlots<T = unknown> {
   [slot: `header-${string}`]: ((props: HeaderSlotProps) => VNodeChild) | undefined;
   /** `#group-<group id>`: a column group's header. */
   [slot: `group-${string}`]: ((props: GroupSlotProps) => VNodeChild) | undefined;
+  /** `#row-group-<column id>`: a column's cells on group rows (`grouping`). Gets the group row and the column's total. */
+  [slot: `row-group-${string}`]: ((props: GroupCellContext) => VNodeChild) | undefined;
   /** `#detail`: a row's detail panel (`rowDetail`). Gets the row and its context. */
   detail?(props: RowDetailContext<T>): VNodeChild;
 }
@@ -232,6 +243,7 @@ export const ArgusTable = defineWrapper({
     'rowExpandable',
     'expanded',
     'treeExpanded',
+    'grouping',
     'plugins',
     'labels',
   ],
@@ -279,6 +291,11 @@ export const ArgusTable = defineWrapper({
       model: { property: 'expanded', detailKey: 'expanded' },
     },
     {
+      name: 'argus-grouping-change',
+      emit: 'grouping-change',
+      model: { property: 'grouping', detailKey: 'grouping' },
+    },
+    {
       name: 'argus-tree-expanded-change',
       emit: 'tree-expanded-change',
       model: { property: 'treeExpanded', detailKey: 'treeExpanded' },
@@ -322,11 +339,14 @@ export type ArgusColumnElementProps<T = unknown> = Partial<
     | 'filter'
     | 'filterFn'
     | 'filterOptions'
+    | 'groupable'
+    | 'aggregate'
     | 'meta'
   >
 > & {
   header?: VueColumnDef<T>['header'];
   cell?: (row: T, context: CellContext<T>) => VueCellContent;
+  groupCell?: VueColumnDef<T>['groupCell'];
 };
 
 /** Props of `<ArgusColumn>`: element properties. Other attributes go to the element. */
@@ -376,9 +396,12 @@ export const ArgusColumn = defineWrapper({
     'filter',
     'filterFn',
     'filterOptions',
+    'groupable',
+    'aggregate',
+    'groupCell',
     'meta',
   ],
-  booleans: ['pinnable', 'hideable', 'wrap', 'sortable', 'resizable', 'reorderable'],
+  booleans: ['pinnable', 'hideable', 'wrap', 'sortable', 'resizable', 'reorderable', 'groupable'],
   events: [],
   methods: [],
 }) as unknown as <T = unknown>(

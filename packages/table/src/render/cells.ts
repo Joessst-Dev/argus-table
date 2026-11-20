@@ -1,6 +1,13 @@
 import { html, render, type RootPart } from 'lit';
 import { repeat } from 'lit/directives/repeat.js';
-import type { ColumnView, HeaderGroupCell, RowPin, TableModel } from '@argus-table/core';
+import type {
+  ColumnView,
+  GroupRowInfo,
+  HeaderGroupCell,
+  RowPin,
+  TableModel,
+} from '@argus-table/core';
+import { firstDataColumn } from './body.js';
 import type { RenderedColumn } from '../controllers/column-window.js';
 import type { WindowRow } from '../controllers/virtual-controller.js';
 import type { CellContent } from '../types.js';
@@ -30,9 +37,14 @@ export function renderLightDom<T>(
   groups: readonly (readonly HeaderGroupCell<CellContent>[])[],
   renderBefore: ChildNode,
   details: readonly WindowRow[] = [],
+  emptyGroup = '',
 ): RootPart {
   // The selection column renders its checkboxes in the shadow root: no content here.
   const columns = rendered.filter((c) => c.kind === 'data');
+  // Group rows (`grouping`): their value in the tree column, totals in the others.
+  const { rows: structure } = model;
+  const grouped = structure.grouped;
+  const treeColumn = grouped ? firstDataColumn(model.columns) : undefined;
   const groupCells = groups.flat().filter((g) => g.kind === 'group');
   return render(
     html`${repeat(
@@ -46,12 +58,19 @@ export function renderLightDom<T>(
     )}${pinnedContent(model, columns, 'top')}${repeat(
       rows,
       (r) => r.slot,
-      (r) =>
-        repeat(
+      (r) => {
+        const group = grouped ? structure.groupAt(r.row) : undefined;
+        return repeat(
           columns,
           (c) => c.key,
-          (c) => html`<div slot=${cellSlot(r.slot, c.slot)}>${cellContent(model, r.row, c)}</div>`,
-        ),
+          (c) => {
+            const value = group
+              ? groupCellContent(group, r.row, c, c.id === treeColumn, emptyGroup)
+              : cellContent(model, r.row, c);
+            return html`<div slot=${cellSlot(r.slot, c.slot)}>${value}</div>`;
+          },
+        );
+      },
     )}${pinnedContent(model, columns, 'bottom')}${repeat(
       details,
       (r) => r.slot,
@@ -150,6 +169,26 @@ function pinnedCell<T>(
     return context ? content(column.cell(context.row, context)) : '';
   }
   return column.hasAccessor ? formatValue(model.pinnedValueAt(side, index, column.id)) : '';
+}
+
+/**
+ * A group row's cell: the column's `groupCell`, else the group's value in the
+ * tree column (`emptyGroup` for the group of empty values) and the column's
+ * total in the others.
+ */
+function groupCellContent<T>(
+  group: GroupRowInfo,
+  index: number,
+  column: Column<T>,
+  tree: boolean,
+  emptyGroup: string,
+) {
+  const total = group.totals[column.id];
+  if (column.groupCell) {
+    return content(column.groupCell({ ...group, index, columnId: column.id, total }));
+  }
+  if (!tree) return formatValue(total);
+  return group.value === undefined ? emptyGroup : formatValue(group.value);
 }
 
 function cellContent<T>(model: TableModel<T, CellContent>, index: number, column: Column<T>) {
