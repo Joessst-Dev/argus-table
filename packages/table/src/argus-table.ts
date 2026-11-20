@@ -12,6 +12,7 @@ import {
   controllable,
   RowLayout,
   type ColumnView,
+  type Controllable,
   type GridRow,
   type TableModel,
 } from '@argus-table/core';
@@ -1649,14 +1650,12 @@ export class ArgusTable<T = unknown> extends LitElement {
 
   /** Opens or closes a body row's panel (a data index), through the controlled/uncontrolled rules. */
   #toggle(index: number): void {
-    const id = this.#table.model.rowAt(index)?.id;
+    const model = this.#table.model;
+    const id = model.rowAt(index)?.id;
     if (id === undefined) return;
-    const open = !this.#expanded.value.includes(id);
-    const next = this.#table.model.nextExpanded(id, open, this.#expanded.value);
-    if (!next) return;
-    this.#events.change('expanded', this.#expanded, next, EXPANDED_CHANGE, [
-      [id, { rowId: id, open }],
-    ]);
+    this.#requestExpanded('expanded', this.#expanded, EXPANDED_CHANGE, id, (rowId, open, base) =>
+      model.nextExpanded(rowId, open, base),
+    );
   }
 
   /**
@@ -1671,13 +1670,31 @@ export class ArgusTable<T = unknown> extends LitElement {
     const info = model.treeRow(index);
     // A row a filter keeps open stays so until the filter clears: nothing changes invisibly.
     if (id === undefined || !info || info.forced) return;
-    // From the latest requested value, like `#toggle`: two toggles before an update don't cancel out.
-    const open = !this.#treeExpanded.value.includes(id);
-    const next = model.nextTreeExpanded(id, open, this.#treeExpanded.value);
-    if (!next) return;
-    this.#events.change('treeExpanded', this.#treeExpanded, next, TREE_EXPANDED_CHANGE, [
-      [id, { rowId: id, open }],
-    ]);
+    this.#requestExpanded(
+      'treeExpanded',
+      this.#treeExpanded,
+      TREE_EXPANDED_CHANGE,
+      id,
+      (rowId, open, base) => model.nextTreeExpanded(rowId, open, base),
+    );
+  }
+
+  /**
+   * Flips a row id's membership in an expand state (`expanded` or `treeExpanded`)
+   * through the controlled/uncontrolled rules, when `next` allows it. From the
+   * latest requested value: two toggles before an update don't cancel out.
+   */
+  #requestExpanded(
+    name: 'expanded' | 'treeExpanded',
+    state: Controllable<readonly string[]>,
+    event: typeof EXPANDED_CHANGE | typeof TREE_EXPANDED_CHANGE,
+    id: string,
+    next: (rowId: string, open: boolean, base: readonly string[]) => readonly string[] | undefined,
+  ): void {
+    const open = !state.value.includes(id);
+    const value = next(id, open, state.value);
+    if (!value) return;
+    this.#events.change(name, state, value, event, [[id, { rowId: id, open }]]);
   }
 
   /** `treegrid` while the rows form a tree, else `grid`; a `role` the page set stays. */
