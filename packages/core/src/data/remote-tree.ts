@@ -63,6 +63,15 @@ interface Known<TData> {
   has: boolean;
 }
 
+/** Where a shown index is (`RemoteTree.#at`): a top-level index, or open row `m`'s descendant `node`. */
+interface At<TData> {
+  position: number;
+  version: number;
+  top: number | undefined;
+  m: number;
+  node: Node<TData> | undefined;
+}
+
 /** A row under an open top-level row: a loaded child, or a placeholder for children loading or failed. */
 interface Node<TData> {
   /** `undefined` for a placeholder. */
@@ -133,6 +142,8 @@ export class RemoteTree<TData> implements RemoteRows<TData>, RowStructure {
   readonly #children = new Map<string, Children<TData>>();
   readonly #known = new Map<string, Known<TData>>();
   readonly #seen = new Map<string, Seen<TData>>();
+  /** `hasChildren` of loaded top-level rows, asked once per row. */
+  readonly #hasTop = new WeakMap<CachedRow<TData>, boolean>();
   readonly #subtrees = new Map<string, Subtree<TData>>();
   /** Top-level ids whose subtree changed since it was built. */
   readonly #dirty = new Set<string>();
@@ -142,6 +153,8 @@ export class RemoteTree<TData> implements RemoteRows<TData>, RowStructure {
   #built = -1;
   #index: OpenIndex<TData> = { tops: [], subtrees: [], before: [0], byId: new Map(), wanted: [] };
   #order: object = Object.freeze({});
+  /** The last shown index looked up: a rendered row is read once per cell. */
+  #last: At<TData> | undefined;
   /** The loaded rows as a forest, and the version it was built for. */
   #forest: { version: number; forest: RemoteForest } | undefined;
 
@@ -176,9 +189,8 @@ export class RemoteTree<TData> implements RemoteRows<TData>, RowStructure {
   }
 
   entryAt(index: number): CachedRow<TData> | undefined {
-    const top = this.topIndexOf(index);
-    if (top !== undefined) return this.cache.entryAt(top);
-    return this.#nodeAt(index)?.entry;
+    const { top, node } = this.#at(index);
+    return top === undefined ? node?.entry : this.cache.entryAt(top);
   }
 
   indexOf(rowId: string): number | undefined {
@@ -210,18 +222,17 @@ export class RemoteTree<TData> implements RemoteRows<TData>, RowStructure {
 
   /** Top-level rows: the cache's state; placeholders: their parent's children's state. */
   stateAt(index: number): RowState {
-    const top = this.topIndexOf(index);
-    if (top !== undefined) return this.cache.stateAt(top);
-    return this.#nodeAt(index)?.state ?? 'loading';
+    const { top, node } = this.#at(index);
+    return top === undefined ? (node?.state ?? 'loading') : this.cache.stateAt(top);
   }
 
   /** Where a loaded row sits in the tree; `undefined` for rows not loaded and placeholders. */
   treeRow(index: number): TreeRowInfo | undefined {
-    const top = this.topIndexOf(index);
+    const { top, m, node } = this.#at(index);
     if (top !== undefined) {
       const entry = this.cache.entryAt(top);
       if (!entry) return undefined;
-      const hasChildren = this.#hasChildren(entry.row) && !this.#empty(entry.id);
+      const hasChildren = this.#hasEntry(entry) && !this.#empty(entry.id);
       return {
         depth: 0,
         hasChildren,
@@ -232,8 +243,6 @@ export class RemoteTree<TData> implements RemoteRows<TData>, RowStructure {
         posInSet: top + 1,
       };
     }
-    const m = this.#openAbove(index);
-    const node = this.#nodeAt(index);
     if (!node?.entry) return undefined;
     const start = this.#positionOfOpen(m);
     return {
@@ -252,8 +261,8 @@ export class RemoteTree<TData> implements RemoteRows<TData>, RowStructure {
    * the parent's depth plus one for children and placeholders; `undefined` out of range.
    */
   depthAt(index: number): number | undefined {
-    if (this.topIndexOf(index) !== undefined) return 0;
-    return this.#nodeAt(index)?.depth;
+    const { top, node } = this.#at(index);
+    return top === undefined ? node?.depth : 0;
   }
 
   /** Whether a row can open: loaded, `hasChildren`, and not known to have no children. */
@@ -348,10 +357,7 @@ export class RemoteTree<TData> implements RemoteRows<TData>, RowStructure {
 
   /** The top-level index at a shown index, or `undefined` for a descendant (or out of range). */
   topIndexOf(position: number): number | undefined {
-    if (!Number.isInteger(position) || position < 0 || position >= this.rowCount) return undefined;
-    const m = this.#openAbove(position);
-    if (m !== -1 && position <= this.#positionOfOpen(m) + this.#sizeOf(m)) return undefined;
-    return position - (this.#index.before[m + 1] ?? 0);
+    return this.#at(position).top;
   }
 
   /**
@@ -375,8 +381,7 @@ export class RemoteTree<TData> implements RemoteRows<TData>, RowStructure {
 
   /** For a loaded child or a placeholder: its parent's id. */
   parentIdAt(index: number): string | undefined {
-    if (this.topIndexOf(index) !== undefined) return undefined;
-    return this.#nodeAt(index)?.parentId;
+    return this.#at(index).node?.parentId;
   }
 
   /** The expanded ids (`treeExpanded`). Ids of rows not loaded yet open once they load. */
@@ -601,7 +606,13 @@ export class RemoteTree<TData> implements RemoteRows<TData>, RowStructure {
     if (known) return known.has;
     const top = this.cache.indexOf(id);
     const entry = top === undefined ? undefined : this.cache.entryAt(top);
-    return entry && this.#hasChildren(entry.row);
+    return entry && this.#hasEntry(entry);
+  }
+
+  #hasEntry(entry: CachedRow<TData>): boolean {
+    let has = this.#hasTop.get(entry);
+    if (has === undefined) this.#hasTop.set(entry, (has = this.#hasChildren(entry.row)));
+    return has;
   }
 
   /** Rows shown under a shown child row (its open subtree); `undefined` when it isn't shown. */
@@ -845,20 +856,27 @@ export class RemoteTree<TData> implements RemoteRows<TData>, RowStructure {
     return this.#openWhile((top, before) => top + before < position) - 1;
   }
 
-  /** The descendant at a shown index (`topIndexOf` is `undefined` there). */
-  #nodeAt(position: number): Node<TData> | undefined {
+  /**
+   * Where a shown index is: a top-level index (`top`), or a descendant (`node`)
+   * of open row `m` (the last one above it); neither out of range.
+   */
+  #at(position: number): At<TData> {
+    const version = this.version;
+    const last = this.#last;
+    if (last?.position === position && last.version === version) return last;
+    const inRange = Number.isInteger(position) && position >= 0 && position < this.rowCount;
     const m = this.#openAbove(position);
-    if (m === -1) return undefined;
-    return this.#index.subtrees[m]?.nodes[position - this.#positionOfOpen(m) - 1];
-  }
-
-  #sizeOf(m: number): number {
-    return this.#index.subtrees[m]?.nodes.length ?? 0;
+    const node = inRange
+      ? this.#index.subtrees[m]?.nodes[position - this.#positionOfOpen(m) - 1]
+      : undefined;
+    const top = inRange && !node ? position - (this.#index.before[m + 1] ?? 0) : undefined;
+    return (this.#last = { position, version, top, m, node });
   }
 
   /** The top-level index at a shown index, or its top-level ancestor's for a descendant. */
   #topOrRoot(position: number): number {
-    return this.topIndexOf(position) ?? this.#index.tops[this.#openAbove(position)] ?? 0;
+    const { top, m } = this.#at(position);
+    return top ?? this.#index.tops[m] ?? 0;
   }
 }
 
