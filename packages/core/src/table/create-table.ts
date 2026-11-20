@@ -10,7 +10,7 @@ import { resolveColumns, type ResolvedColumn } from '../columns/resolve-columns.
 import { distinctValues, rowPredicate } from '../filters/filter.js';
 import { buildAllViews, buildViews, hiddenIn, pinIn, sizingOf } from './column-views.js';
 import { RowPipeline } from './row-pipeline.js';
-import { LocalRows, PagedRows, type RowStructure } from './row-structure.js';
+import { ModelRows, type RowStructure } from './row-structure.js';
 import { keepWithAncestors, type TreeForest, type TreeLayout } from './tree-order.js';
 import type { BranchCheck, BranchTree } from '../state/selection.js';
 import type {
@@ -128,20 +128,10 @@ export function createTableModel<TData, TContent>(
     () => valueVersion,
   );
   const rows = () => pipeline.rows();
-  // How the shown rows are arranged: `data`'s rows, a remote that arranges its
-  // own (`RemoteTree`), or a flat remote (kept per remote and id function).
-  const local = new LocalRows<TData, TContent>(pipeline, () => options);
-  let paged: { remote: object; reserved: boolean; rows: PagedRows<TData> } | undefined;
-  const structure = (): RowStructure => {
-    const { remote } = options;
-    if (!remote) return local;
-    if (remote.structure) return remote.structure;
-    const reserved = Boolean(options.getRowId);
-    if (paged?.remote !== remote || paged.reserved !== reserved) {
-      paged = { remote, reserved, rows: new PagedRows(remote, reserved) };
-    }
-    return paged.rows;
-  };
+  // How the shown rows are arranged: a remote that arranges its own (`RemoteTree`),
+  // else the model's own reading of `data` or a flat remote.
+  const local = new ModelRows<TData, TContent>(pipeline, () => options);
+  const structure = (): RowStructure => options.remote?.structure ?? local;
   const pinned = (side: RowPin): readonly TData[] => options.pinnedRows?.[side] ?? [];
 
   let allViews: ColumnView<TData, TContent>[] | undefined;
@@ -381,29 +371,8 @@ export function createTableModel<TData, TContent>(
       return structure().shownAncestor(rowId);
     },
 
-    stateAt(index) {
-      return structure().stateAt(index);
-    },
-
-    idAt(index) {
-      const rows = structure();
-      return rows.idAt(index) ?? rows.standInId(index);
-    },
-
-    standIn(rowId) {
-      return structure().standIn(rowId);
-    },
-
-    parentAt(index) {
-      return structure().parentAt(index);
-    },
-
-    depthAt(index) {
-      return structure().depthAt(index);
-    },
-
-    toggleId(index) {
-      return structure().toggleId(index);
+    get rows() {
+      return structure();
     },
 
     sourceRow(index) {

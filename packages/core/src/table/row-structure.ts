@@ -1,5 +1,5 @@
 import type { RowState } from '../data/page-cache.js';
-import type { RemoteRows, TableModelOptions, TreeRowInfo } from './model-types.js';
+import type { TableModelOptions, TreeRowInfo } from './model-types.js';
 import type { RowPipeline } from './row-pipeline.js';
 import type { TreeForest } from './tree-order.js';
 
@@ -20,8 +20,8 @@ export interface StandIn {
  * index is a shown index (the body's data indexes, what `TableModel.rowAt`
  * takes). The model reads its rows' arrangement only through this, so a new
  * arrangement (row grouping) is a new implementation, not a branch in each
- * caller. Implemented by `LocalRows` (`data`), `PagedRows` (a flat data
- * source) and `RemoteTree` (a data source's tree).
+ * caller. Implemented by `ModelRows` (`data`, and a flat data source) and
+ * `RemoteTree` (a data source's tree).
  */
 export interface RowStructure {
   /** Whether the rows form a tree. */
@@ -69,75 +69,13 @@ export function plainStandIn(id: string, reserved: boolean): StandIn | undefined
 }
 
 /**
- * A flat data source's rows (`PageCache`, or any `RemoteRows` without a
- * `structure` of its own). `reserved`: whether ids come from `getRowId`.
- */
-export class PagedRows<TData> implements RowStructure {
-  readonly #remote: RemoteRows<TData>;
-  readonly #reserved: boolean;
-
-  constructor(remote: RemoteRows<TData>, reserved: boolean) {
-    this.#remote = remote;
-    this.#reserved = reserved;
-  }
-
-  readonly tree: boolean = false;
-
-  stateAt(index: number): RowState {
-    return this.#remote.stateAt?.(index) ?? 'loaded';
-  }
-
-  idAt(index: number): string | undefined {
-    return this.#remote.entryAt(index)?.id;
-  }
-
-  standInId(index: number): string {
-    return plainStandInId(index, this.#reserved);
-  }
-
-  standIn(id: string): StandIn | undefined {
-    return plainStandIn(id, this.#reserved);
-  }
-
-  parentAt(): undefined {
-    return undefined;
-  }
-
-  treeRow(): undefined {
-    return undefined;
-  }
-
-  depthAt(): undefined {
-    return undefined;
-  }
-
-  toggleId(): undefined {
-    return undefined;
-  }
-
-  mayToggle(): boolean {
-    return false;
-  }
-
-  shownAncestor(): undefined {
-    return undefined;
-  }
-
-  forest(): undefined {
-    return undefined;
-  }
-
-  forestRow(): undefined {
-    return undefined;
-  }
-}
-
-/**
- * Rows from `data`, flat or as a tree (`getSubRows`, `getParentId`), every one
- * loaded. Reads the pipeline's memoized steps; a shown index is a position in
+ * The rows the model arranges itself: `data`, flat or as a tree (`getSubRows`,
+ * `getParentId`), and a flat data source's rows (`PageCache`, or any
+ * `RemoteRows` without a `structure`), which are never a tree. Reads the
+ * pipeline's memoized steps; for `data`, a shown index is a position in
  * `rows()`, whose entries are source indexes.
  */
-export class LocalRows<TData, TContent> implements RowStructure {
+export class ModelRows<TData, TContent> implements RowStructure {
   readonly #pipeline: RowPipeline<TData, TContent>;
   readonly #options: () => TableModelOptions<TData, TContent>;
 
@@ -153,11 +91,13 @@ export class LocalRows<TData, TContent> implements RowStructure {
     return this.#pipeline.tree() !== undefined;
   }
 
-  stateAt(): RowState {
-    return 'loaded';
+  stateAt(index: number): RowState {
+    return this.#options().remote?.stateAt?.(index) ?? 'loaded';
   }
 
   idAt(index: number): string | undefined {
+    const { remote } = this.#options();
+    if (remote) return remote.entryAt(index)?.id;
     const row = this.#pipeline.rows()[index];
     return row === undefined ? undefined : this.#pipeline.rowId(row);
   }

@@ -4,7 +4,7 @@ import { RemoteTree } from '../data/remote-tree.js';
 import type { ColumnDef } from '../types.js';
 import { createTableModel } from './create-table.js';
 import type { TableModelOptions } from './model-types.js';
-import { PagedRows, plainStandIn, plainStandInId } from './row-structure.js';
+import { plainStandIn, plainStandInId, type RowStructure } from './row-structure.js';
 
 // The row structures, through the model members that delegate to them: one
 // contract for `data`'s rows (flat and a tree), a flat data source and a data
@@ -15,6 +15,10 @@ interface Item {
   kids?: Item[];
   count?: number;
 }
+
+/** A row's id, loaded or not, as the table reads it. */
+const idAt = (m: { rows: RowStructure }, index: number) =>
+  m.rows.idAt(index) ?? m.rows.standInId(index);
 
 const columns: ColumnDef<Item, string>[] = [{ id: 'name', accessor: 'name' }];
 
@@ -77,14 +81,14 @@ describe('row structures: shared contract', () => {
       const m = make();
       for (let i = 0; i < m.rowCount; i++) {
         const id = m.rowAt(i)?.id;
-        if (id !== undefined) expect(m.idAt(i)).toBe(id);
+        if (id !== undefined) expect(idAt(m, i)).toBe(id);
       }
     });
 
     it('round-trips a stand-in id of a row not loaded', () => {
       const m = make();
-      expect(m.standIn(m.idAt(unloaded))).toEqual({ index: unloaded, same: true, moves });
-      expect(m.standIn('nope')).toBeUndefined();
+      expect(m.rows.standIn(idAt(m, unloaded))).toEqual({ index: unloaded, same: true, moves });
+      expect(m.rows.standIn('nope')).toBeUndefined();
     });
   });
 });
@@ -93,26 +97,26 @@ describe('row structures: data', () => {
   it('flat rows are loaded and not a tree', () => {
     const m = model({ data: flatData });
     expect(m.tree).toBe(false);
-    expect(m.stateAt(0)).toBe('loaded');
-    expect(m.depthAt(0)).toBeUndefined();
-    expect(m.parentAt(0)).toBeUndefined();
-    expect(m.toggleId(0)).toBeUndefined();
-    expect(m.idAt(5)).toBe('5');
+    expect(m.rows.stateAt(0)).toBe('loaded');
+    expect(m.rows.depthAt(0)).toBeUndefined();
+    expect(m.rows.parentAt(0)).toBeUndefined();
+    expect(m.rows.toggleId(0)).toBeUndefined();
+    expect(idAt(m, 5)).toBe('5');
   });
 
   it('reserves stand-in ids when ids come from getRowId', () => {
     const m = model({ data: flatData, getRowId: (row) => row.name });
-    expect(m.idAt(0)).toBe('A');
-    expect(m.idAt(5)).toBe('\u00005');
+    expect(idAt(m, 0)).toBe('A');
+    expect(idAt(m, 5)).toBe('\u00005');
   });
 
   it('a tree gives parents, depths and toggle ids', () => {
     const m = model({ data: treeData, getSubRows: (row) => row.kids, treeExpanded: ['0'] });
-    expect(m.parentAt(1)).toBe(0);
-    expect(m.parentAt(0)).toBeUndefined();
-    expect(m.depthAt(1)).toBe(1);
-    expect(m.depthAt(3)).toBe(0);
-    expect(m.toggleId(0)).toBe('0');
+    expect(m.rows.parentAt(1)).toBe(0);
+    expect(m.rows.parentAt(0)).toBeUndefined();
+    expect(m.rows.depthAt(1)).toBe(1);
+    expect(m.rows.depthAt(3)).toBe(0);
+    expect(m.rows.toggleId(0)).toBe('0');
     // B's child B1 is under a collapsed row: B stands for it.
     expect(m.shownAncestor('1.0')).toBe(3);
   });
@@ -124,7 +128,7 @@ describe('row structures: data', () => {
       columnFilters: { name: { kind: 'text', op: 'equals', value: 'A1' } },
     });
     expect(m.treeRow(0)).toMatchObject({ forced: true });
-    expect(m.toggleId(0)).toBeUndefined();
+    expect(m.rows.toggleId(0)).toBeUndefined();
     expect(m.nextTreeExpanded('0', false, ['0'])).toEqual([]);
   });
 });
@@ -133,10 +137,10 @@ describe('row structures: a flat data source', () => {
   it('reads row states from the cache, with no tree', () => {
     const m = model({ remote: pagedCache() });
     expect(m.tree).toBe(false);
-    expect(m.stateAt(0)).toBe('loaded');
-    expect(m.stateAt(6)).toBe('loading');
-    expect(m.idAt(6)).toBe('6');
-    for (const read of [m.treeRow(0), m.depthAt(0), m.parentAt(0), m.toggleId(0)]) {
+    expect(m.rows.stateAt(0)).toBe('loaded');
+    expect(m.rows.stateAt(6)).toBe('loading');
+    expect(idAt(m, 6)).toBe('6');
+    for (const read of [m.treeRow(0), m.rows.depthAt(0), m.rows.parentAt(0), m.rows.toggleId(0)]) {
       expect(read).toBeUndefined();
     }
     expect(m.nextTreeExpanded('0', true, [])).toBeUndefined();
@@ -152,15 +156,14 @@ describe('row structures: a flat data source', () => {
         loadedIds: () => [],
       },
     });
-    expect(m.stateAt(1)).toBe('loaded');
+    expect(m.rows.stateAt(1)).toBe('loaded');
     expect(m.tree).toBe(false);
   });
 
   it('reserves stand-in ids with getRowId', () => {
     const cache = pagedCache();
-    expect(new PagedRows(cache, true).standInId(7)).toBe('\u00007');
-    expect(new PagedRows(cache, false).standInId(7)).toBe('7');
-    expect(model({ remote: cache, getRowId: (row) => row.name }).idAt(7)).toBe('\u00007');
+    expect(idAt(model({ remote: cache }), 7)).toBe('7');
+    expect(idAt(model({ remote: cache, getRowId: (row) => row.name }), 7)).toBe('\u00007');
   });
 });
 
@@ -170,15 +173,15 @@ describe("row structures: a data source's tree", () => {
     tree.setExpanded(['1']);
     tree.beginChildren('1');
     tree.resolveChildren('1', [{ name: 'B1' }, { name: 'B2' }]);
-    expect(m.parentAt(2)).toBe(1);
-    expect(m.depthAt(2)).toBe(1);
+    expect(m.rows.parentAt(2)).toBe(1);
+    expect(m.rows.depthAt(2)).toBe(1);
     tree.setExpanded(['1', '3']);
     tree.beginChildren('3');
     // A, B, B1, B2, C, D, D's loading row.
-    expect(m.stateAt(6)).toBe('loading');
+    expect(m.rows.stateAt(6)).toBe('loading');
     expect(m.treeRow(6)).toBeUndefined();
-    expect(m.parentAt(6)).toBe(5);
-    expect(m.depthAt(6)).toBe(1);
+    expect(m.rows.parentAt(6)).toBe(5);
+    expect(m.rows.depthAt(6)).toBe(1);
   });
 
   it("keeps a loading child row's stand-in as rows load above it", () => {
@@ -186,28 +189,28 @@ describe("row structures: a data source's tree", () => {
     tree.setExpanded(['3']);
     tree.beginChildren('3');
     // A, B, C, D, D's loading row.
-    const id = m.idAt(4);
+    const id = idAt(m, 4);
     expect(id.startsWith('\u0000c')).toBe(true);
     tree.setExpanded(['3', '1']);
     tree.beginChildren('1');
     tree.resolveChildren('1', [{ name: 'B1' }, { name: 'B2' }]);
-    expect(m.standIn(id)).toEqual({ index: 6, same: true, moves: true });
+    expect(m.rows.standIn(id)).toEqual({ index: 6, same: true, moves: true });
     // Its children came: the stand-in now holds the loaded child.
     tree.resolveChildren('3', [{ name: 'D1' }]);
-    expect(m.standIn(id)).toEqual({ index: 6, same: true, moves: true });
-    expect(m.idAt(6)).toBe('3.0');
+    expect(m.rows.standIn(id)).toEqual({ index: 6, same: true, moves: true });
+    expect(idAt(m, 6)).toBe('3.0');
     // Collapsed: its parent stands for it.
     tree.setExpanded(['1']);
-    expect(m.standIn(id)).toEqual({ index: 5, same: false, moves: true });
+    expect(m.rows.standIn(id)).toEqual({ index: 5, same: false, moves: true });
   });
 
   it('names an unloaded top-level row by its top-level index', () => {
     const { tree, m } = remoteTree();
-    expect(m.idAt(5)).toBe('\u0000t5');
+    expect(idAt(m, 5)).toBe('\u0000t5');
     tree.setExpanded(['1']);
     tree.beginChildren('1');
     tree.resolveChildren('1', [{ name: 'B1' }, { name: 'B2' }]);
-    expect(m.standIn('\u0000t5')).toEqual({ index: 7, same: true, moves: true });
+    expect(m.rows.standIn('\u0000t5')).toEqual({ index: 7, same: true, moves: true });
   });
 
   it('toggles rows with children, and closes ids not loaded', () => {
@@ -215,9 +218,9 @@ describe("row structures: a data source's tree", () => {
     tree.setExpanded(['1']);
     tree.beginChildren('1');
     tree.resolveChildren('1', [{ name: 'B1' }]);
-    expect(m.toggleId(1)).toBe('1');
+    expect(m.rows.toggleId(1)).toBe('1');
     // A leaf's toggle changes nothing.
-    expect(m.toggleId(2)).toBe('1.0');
+    expect(m.rows.toggleId(2)).toBe('1.0');
     expect(m.nextTreeExpanded('1.0', true, [])).toBeUndefined();
     expect(m.nextTreeExpanded('99', false, ['99'])).toEqual([]);
     expect(m.nextTreeExpanded('0', true, [])).toBeUndefined();

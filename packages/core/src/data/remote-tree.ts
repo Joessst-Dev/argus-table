@@ -274,9 +274,7 @@ export class RemoteTree<TData> implements RemoteRows<TData>, RowStructure {
   }
 
   /** The rows arrange themselves: the model reads them through this tree. */
-  get structure(): RowStructure {
-    return this;
-  }
+  readonly structure: RowStructure = this;
 
   readonly tree: boolean = true;
 

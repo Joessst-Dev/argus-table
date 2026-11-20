@@ -8,7 +8,6 @@ import {
   type DataSource,
   type KeptCount,
   type LoadErrorDetail,
-  type RowState,
   type SortState,
   type TreeExpandedState,
 } from '@argus-table/core';
@@ -66,8 +65,8 @@ export class DataController<T> implements ReactiveController {
   #cache: PageCache<T> | undefined;
   /** The rows as a tree, while the source has `hasChildren` and `getChildren`. */
   #tree: RemoteTree<T> | undefined;
-  /** The source's `getChildren`, bound, while there is a tree. */
-  #getChildren: DataSource<T>['getChildren'];
+  /** Loads a parent's children, while there is a tree (`getChildrenLoader`). */
+  #loadChildren: LoadChildren<T> | undefined;
   readonly #requests = new Map<number, AbortController>();
   /** In-flight `getChildren` calls, by parent id. */
   readonly #childRequests = new Map<string, AbortController>();
@@ -102,11 +101,6 @@ export class DataController<T> implements ReactiveController {
    */
   get rows(): PageCache<T> | RemoteTree<T> | undefined {
     return this.#tree ?? this.#cache;
-  }
-
-  /** The tree, while a data source with `hasChildren` and `getChildren` is set. */
-  get tree(): RemoteTree<T> | undefined {
-    return this.#tree;
   }
 
   /** The page cache of the (top-level) rows, while a data source is set. */
@@ -159,9 +153,20 @@ export class DataController<T> implements ReactiveController {
     this.#host.requestUpdate();
   }
 
-  /** The state of the row at a shown index. */
-  stateAt(index: number): RowState {
-    return this.rows?.stateAt(index) ?? 'loaded';
+  /**
+   * The page of the top-level row at a shown index; `undefined` for a tree's
+   * child rows and placeholders, and without a data source.
+   */
+  pageAt(index: number): number | undefined {
+    const cache = this.#cache;
+    const top = this.#tree ? this.#tree.topIndexOf(index) : index;
+    return top === undefined ? undefined : cache?.pageOf(top);
+  }
+
+  /** The shown index of a top-level row (by its top-level index): later in a tree with rows open above it. */
+  shownOfTop(top: number): number {
+    const tree = this.#tree;
+    return tree ? (tree.positionOfTop(top) ?? tree.rowCount) : top;
   }
 
   /**
@@ -237,9 +242,9 @@ export class DataController<T> implements ReactiveController {
           })
         : undefined;
     const hasChildren = source?.hasChildren?.bind(source);
-    this.#getChildren = source?.getChildren?.bind(source);
+    this.#loadChildren = source && getChildrenLoader(source);
     this.#tree =
-      this.#cache && hasChildren && this.#getChildren
+      this.#cache && hasChildren && this.#loadChildren
         ? new RemoteTree<T>(this.#cache, {
             hasChildren,
             getRowId,
@@ -336,23 +341,14 @@ export class DataController<T> implements ReactiveController {
     );
   }
 
-  /** Loads the children of an open, loaded row (one `wanted` lists) with one `getChildren` call. */
+  /** Loads the children of an open, loaded row (one `wanted` lists) with one `#loadChildren` call. */
   #fetchChildren(tree: RemoteTree<T>, parentId: string): void {
     tree.beginChildren(parentId);
     const controller = new AbortController();
     this.#childRequests.set(parentId, controller);
     const current = () => !controller.signal.aborted && tree === this.#tree;
-    const request: ChildrenRequest<T> = {
-      // Loaded: `wanted` lists loaded rows only.
-      parent: tree.childRow(parentId) as T,
-      parentId,
-      sorting: this.#config.sorting,
-      filters: this.#config.filters,
-      quickFilter: this.#config.quickFilter,
-      signal: controller.signal,
-    };
     settle(
-      () => this.#getChildren?.(request),
+      () => this.#loadChildren?.(tree, parentId, controller.signal, this.#config),
       (response) => {
         if (!current()) return;
         const { rows } = (response ?? {}) as { rows?: unknown };
@@ -380,6 +376,36 @@ export class DataController<T> implements ReactiveController {
       },
     );
   }
+}
+
+/**
+ * Loads one parent's children for a tree: the one place that knows how a
+ * parent's children are asked for, so another kind of parent (a server's group
+ * row) can bring its own request.
+ */
+type LoadChildren<T> = (
+  tree: RemoteTree<T>,
+  parentId: string,
+  signal: AbortSignal,
+  config: DataConfig<T>,
+) => unknown;
+
+/** A source's `getChildren` as a `LoadChildren`; `undefined` without one. */
+function getChildrenLoader<T>(source: DataSource<T>): LoadChildren<T> | undefined {
+  const getChildren = source.getChildren?.bind(source);
+  if (!getChildren) return undefined;
+  return (tree, parentId, signal, { sorting, filters, quickFilter }) => {
+    const request: ChildrenRequest<T> = {
+      // Loaded: `wanted` lists loaded rows only.
+      parent: tree.childRow(parentId) as T,
+      parentId,
+      sorting,
+      filters,
+      quickFilter,
+      signal,
+    };
+    return getChildren(request);
+  };
 }
 
 /**

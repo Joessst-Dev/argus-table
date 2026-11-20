@@ -45,11 +45,11 @@ export interface TreeRows {
   /** Where the row at a data index sits in the tree; `undefined` for a row not loaded. */
   row: (index: number) => TreeRowInfo | undefined;
   /**
-   * With a data source, the depth of a row not loaded (a page loading, or a
-   * placeholder for children loading or failed), so it carries its level and
-   * sits indented under its parent.
+   * The depth of a row, loaded or not: a data source's row not loaded (a page
+   * loading, or a placeholder for children loading or failed) carries its level
+   * and sits indented under its parent.
    */
-  depth?: (index: number) => number | undefined;
+  depth: (index: number) => number | undefined;
   expandLabel: string;
   collapseLabel: string;
   /** Click handler of the toggles; the button carries the row's data index in `data-row`. */
@@ -234,7 +234,7 @@ function renderRow<T>(
   const retryCol = retry === undefined ? undefined : firstDataColumn(columns);
   const node = idle || state !== 'loaded' ? undefined : tree?.row(index);
   // A row not loaded has only a level: no toggle state, no place among its siblings yet.
-  const depth = node ? node.depth : idle || state === 'loaded' ? undefined : tree?.depth?.(index);
+  const depth = node ? node.depth : idle || state === 'loaded' ? undefined : tree?.depth(index);
   return html`<div
     part=${idle ? nothing : parts}
     class="row"

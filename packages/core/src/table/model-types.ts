@@ -2,7 +2,7 @@ import type { HeaderGroupCell } from '../columns/column-groups.js';
 import type { OrderUnit, SiblingUnit } from '../columns/column-order.js';
 import type { TreeForest } from './tree-order.js';
 import type { RowState } from '../data/page-cache.js';
-import type { RowStructure, StandIn } from './row-structure.js';
+import type { RowStructure } from './row-structure.js';
 import type {
   CellContext,
   ColumnAlign,
@@ -172,7 +172,7 @@ export interface RemoteRows<TData> {
   /**
    * For rows the remote arranges itself (a data source's tree, `RemoteTree`):
    * their structure. The model reads the rows as a tree when it says so;
-   * without it, they're flat (`PagedRows`).
+   * without it, they're flat (the model's `ModelRows`).
    */
   readonly structure?: RowStructure;
 }
@@ -367,25 +367,12 @@ export interface TableModel<TData, TContent> {
    * For a remote tree, the remote's answer (rows it has loaded).
    */
   shownAncestor(rowId: string): number | undefined;
-  /** The state of the row at an index: `'loaded'` for `data`, a data source's page or children state otherwise. */
-  stateAt(index: number): RowState;
   /**
-   * The id of the row at an index, loaded or not, without building a row view: its
-   * id once loaded, else a stand-in that holds its place as rows load above it
-   * (`RowStructure.standInId`).
+   * How the shown rows are arranged (`RowStructure`): row states, ids that hold
+   * a row's place before it loads, parents and depths, the tree toggle's id.
+   * Read rows' arrangement here rather than from where they come from.
    */
-  idAt(index: number): string;
-  /** The row a stand-in id from `idAt` holds; `undefined` for any other id. */
-  standIn(rowId: string): StandIn | undefined;
-  /**
-   * The index of the row's parent, for loaded rows and a data source's loading or
-   * failed child rows; `undefined` at the top level or without a tree.
-   */
-  parentAt(index: number): number | undefined;
-  /** The depth of the row at an index, loaded or not; `undefined` without a tree. */
-  depthAt(index: number): number | undefined;
-  /** The id a click on the row's tree toggle changes; `undefined` when it can't (a filter keeps it open). */
-  toggleId(index: number): string | undefined;
+  readonly rows: RowStructure;
   /**
    * The row object at a source index: `data[index]` without a tree or with flat
    * data, and nested children from `data.length` on (see `getSubRows`).

@@ -831,14 +831,10 @@ export class ArgusTable<T = unknown> extends LitElement {
     },
     readValue: (row, columnId, index) => this.#table.model.readValue(row, columnId, index),
     rowDepth: (index, section = 'body') => {
-      if (section !== 'body') return 0;
       // A data source's tree knows the depth of rows not loaded too (children loading).
-      const remote = this.#data.tree;
-      if (remote) return remote.depthAt(index) ?? 0;
-      return this.#table.model.treeRow(index)?.depth ?? 0;
+      return section === 'body' ? (this.#table.model.rows.depthAt(index) ?? 0) : 0;
     },
-    // A data source's rows have no source indexes (`data` isn't read).
-    sourceRow: (index) => (this.#data.rows ? undefined : this.#table.model.sourceRow(index)),
+    sourceRow: (index) => this.#table.model.sourceRow(index),
     headerGroups: () =>
       this.#table.model.headerGroups.map((cells) =>
         cells.map(({ groupId, columns }) => ({ groupId, columns })),
@@ -912,7 +908,7 @@ export class ArgusTable<T = unknown> extends LitElement {
       const shown = model.display.at(at.index);
       // Panels always; data rows only with `rowHeight: 'auto'`, once loaded.
       if (shown?.kind === 'detail') return at.index;
-      return shown && this.rowHeight === 'auto' && this.#data.stateAt(shown.index) === 'loaded'
+      return shown && this.rowHeight === 'auto' && model.rows.stateAt(shown.index) === 'loaded'
         ? at.index
         : undefined;
     },
@@ -936,7 +932,6 @@ export class ArgusTable<T = unknown> extends LitElement {
       insets: (layout) => this.#bodyInsets(layout),
       measured: () => this.#measuring,
     },
-    () => this.#data.tree,
   );
   /** Column widths: resize handles, Alt+Arrow and fits. */
   readonly #resize = new ColumnResize<T>(this, () => this.#table.model, this.#events);
@@ -1470,9 +1465,7 @@ export class ArgusTable<T = unknown> extends LitElement {
                 this.#window.totalSize,
                 activeIn('body'),
                 firstIndex('body'),
-                this.#data.rows
-                  ? loadingState(this.#data.rows, this.#window, model, labels, this.#onRetry)
-                  : undefined,
+                loadingState(model, this.#data, this.#window, labels, this.#onRetry),
                 this.#select.selectedAt(),
                 this.#selectionColumn ? this.#select.checkboxes(labels.selectRow) : undefined,
                 auto,
@@ -1483,7 +1476,7 @@ export class ArgusTable<T = unknown> extends LitElement {
                   ? { rows: this.#window.details, colspan: columns.length }
                   : undefined,
                 edges,
-                treeRows(model, labels, this.#onTreeToggle, this.#data.tree),
+                treeRows(model, labels, this.#onTreeToggle),
               )
         }
         ${renderPinnedRows('bottom', layout.bottom, rendered, firstIndex('bottom'), activeIn('bottom'))}
@@ -1666,10 +1659,9 @@ export class ArgusTable<T = unknown> extends LitElement {
    */
   #toggleTree(index: number): void {
     const model = this.#table.model;
-    const id = model.rowAt(index)?.id;
-    const info = model.treeRow(index);
-    // A row a filter keeps open stays so until the filter clears: nothing changes invisibly.
-    if (id === undefined || !info || info.forced) return;
+    // Not for a row a filter keeps open: it stays so until the filter clears.
+    const id = model.rows.toggleId(index);
+    if (id === undefined) return;
     this.#requestExpanded(
       'treeExpanded',
       this.#treeExpanded,
