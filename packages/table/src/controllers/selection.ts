@@ -100,9 +100,15 @@ export class SelectionController<T> {
     return rows.grouped && rows.groupAt(index) !== undefined;
   }
 
-  /** A row's id for ranges: group rows are skipped (their rows join through their own ids). */
+  /**
+   * A row's id for ranges. An open group row is skipped (its rows in the range
+   * join through their own ids); a closed one stands for its rows, as a
+   * collapsed tree row does (branch rules never select its own id).
+   */
   #rangeId(index: number): string | undefined {
-    return this.#isGroup(index) ? undefined : this.#model().rows.idAt(index);
+    const model = this.#model();
+    if (this.#isGroup(index) && model.treeRow(index)?.open) return undefined;
+    return model.rows.idAt(index);
   }
 
   /**
@@ -145,10 +151,11 @@ export class SelectionController<T> {
     const ids = this.#selected();
     const model = this.#model();
     const { rows } = model;
+    const { grouped } = rows;
     // A group row is selected when its rows are; it can't be selected alone.
-    const check = rows.grouped && this.#branches() ? model.branchCheck(ids) : undefined;
+    const check = grouped && this.#branches() ? model.branchCheck(ids) : undefined;
     return (index) => {
-      if (rows.grouped && rows.groupAt(index)) return check ? check(index) === 'all' : undefined;
+      if (grouped && rows.groupAt(index)) return check ? check(index) === 'all' : undefined;
       const id = rows.idAt(index);
       return id === undefined ? undefined : ids.has(id);
     };

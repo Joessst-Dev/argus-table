@@ -156,6 +156,9 @@ describe('cellEditing', () => {
     await press(el, '{Enter}');
     expect(editor(el)).toBeNull();
     expect(el.treeExpanded).toEqual(['\u0000g["status","done"]']);
+    await userEvent.dblClick(cellOf(el, 0, 'name'));
+    await settle(el);
+    expect(editor(el)).toBeNull();
   });
 
   test('Enter opens the editor with the value; Enter commits and moves down', async () => {

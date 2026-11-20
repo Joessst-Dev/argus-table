@@ -326,4 +326,32 @@ describe('grouping: keys, clicks and selection', () => {
     await settle(el);
     expect(el.selection).toEqual([]);
   });
+
+  test('Shift+Down onto a closed group selects its rows, as onto a collapsed tree row', async () => {
+    const el = await mount({
+      grouping: ['region'],
+      treeExpanded: ['\u0000g["region","APAC"]'],
+      selectionMode: 'multi',
+    });
+    await userEvent.click(cellIn(rowOf(el, 's4'), 'amount'));
+    await userEvent.keyboard('{Shift>}{ArrowDown}{/Shift}');
+    await settle(el);
+    expect([...el.selection].sort()).toEqual(['s1', 's3', 's4', 's5']);
+  });
+
+  test('a group row’s toggle opens it; with rowDetail it has no chevron, and Enter there opens it', async () => {
+    const el = await mount({ grouping: ['region'], rowDetail: () => 'detail' });
+    const eu = rowOf(el, 'EU');
+    expect(eu.querySelector('[part~="expand-toggle"]')).toBeNull();
+    eu.querySelector<HTMLButtonElement>('[part~="tree-toggle"]')?.click();
+    await settle(el);
+    expect(el.treeExpanded).toEqual([EU]);
+    // Data rows still get their chevrons.
+    expect(rowOf(el, 's1').querySelector('[part~="expand-toggle"]')).not.toBeNull();
+    cellIn(rowOf(el, 'EU'), '--argus-expand').focus();
+    await userEvent.keyboard('{Enter}');
+    await settle(el);
+    expect(el.treeExpanded).toEqual([]);
+    expect(el.expanded).toEqual([]);
+  });
 });

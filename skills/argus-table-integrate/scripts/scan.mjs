@@ -13,7 +13,7 @@ import { dirname, extname, join, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
 import { PACKAGES } from './lib/api.mjs';
-import { GAPS, HARD_GAPS, LIBRARIES, describeArgus } from './lib/libraries.mjs';
+import { GAPS, HARD_GAPS, LIBRARIES, SERVER_GROUPING, describeArgus } from './lib/libraries.mjs';
 import {
   argusPackages,
   dependencies,
@@ -492,6 +492,16 @@ function buildUsage(library, file, anchor, anchors, ctx) {
   const counts = { maps: 0, partial: 0, builtin: 0, gap: 0 };
   for (const feature of features) counts[feature.fit]++;
   const gaps = [...new Set(features.filter((f) => f.fit === 'gap').map((f) => f.gap))];
+  // Grouping on server data isn't supported (rows in memory only).
+  const has = (ids) => features.some((f) => ids.includes(f.id));
+  if (
+    has(SERVER_GROUPING.server) &&
+    has(SERVER_GROUPING.grouping) &&
+    !gaps.includes('row-grouping')
+  ) {
+    gaps.push('row-grouping');
+    gaps.sort((a, b) => GAPS.indexOf(a) - GAPS.indexOf(b));
+  }
   const hardGaps = gaps.filter((g) => HARD_GAPS.includes(g));
   const columnsApprox = [...scope].reduce(
     (n, p) => n + countMatches(library.columnKey, fileOf(p).text),

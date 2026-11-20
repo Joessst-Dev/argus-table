@@ -127,9 +127,13 @@ export class KeyboardRouter<T> {
       const at = gridRowOfCell(cell, layoutOf(model));
       const index = at?.section === 'body' ? dataIndexOf(model, at.index) : undefined;
       if (index === undefined) return;
-      event.preventDefault();
-      this.#toggle(index);
-      return;
+      // A group row has no panel: its keys do what they do on its other cells
+      // (Enter opens or closes the group, Space ticks its rows).
+      if (!(model.rows.grouped && model.rows.groupAt(index))) {
+        event.preventDefault();
+        this.#toggle(index);
+        return;
+      }
     }
     const pluginTarget =
       id === SELECTION_COLUMN_ID || id === EXPAND_COLUMN_ID

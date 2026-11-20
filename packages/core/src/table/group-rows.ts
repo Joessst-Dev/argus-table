@@ -18,8 +18,10 @@ export interface GroupedRows<TData> extends RowTree<TData> {
   readonly size: number;
   /** The number of group rows. */
   readonly groups: number;
-  /** The filtered data rows and every group row, ascending: what sorting starts from. */
-  readonly kept: readonly number[];
+  /** The filtered data rows, ascending: what sorting starts from. */
+  readonly filtered: readonly number[];
+  /** The group rows' source indexes, ascending (each level's groups in value order). */
+  readonly groupRows: readonly number[];
   /** A group row's information; `undefined` for other indexes. */
   info(row: number): GroupRowInfo | undefined;
   /**
@@ -50,24 +52,34 @@ function groupKey(value: unknown): unknown {
   return isEmptyValue(value) ? null : value;
 }
 
-/** A key as it goes into a group's id: objects by their text. */
+/**
+ * A key as it goes into a group's id (JSON): numbers JSON can't hold
+ * (`Infinity`) and bigints as their text, objects by their text (they group by
+ * identity; their ids may then collide: group by primitive values or dates).
+ */
 const idKey = (key: unknown) =>
-  // Objects group by identity; their id is the best text there is.
-  // eslint-disable-next-line @typescript-eslint/no-base-to-string
-  typeof key === 'object' && key !== null ? String(key) : key;
+  (typeof key === 'number' && !Number.isFinite(key)) || typeof key === 'bigint'
+    ? String(key)
+    : typeof key === 'object' && key !== null
+      ? // eslint-disable-next-line @typescript-eslint/no-base-to-string
+        String(key)
+      : key;
 
 /**
  * Groups the filtered rows of `data` by `grouping`, outermost first, with each
  * level's groups in ascending order of their values (the empty group last), and
  * totals the `totalled` columns per group over the rows under it. Reads each
- * grouping value once per row and each totalled value once per row.
+ * grouping value once per row and each totalled value once per row. `dataIds`
+ * are the data rows' ids (by data index) and `dataIndexOf` finds one, both kept
+ * by the caller per `data`, so a regroup (a filter) doesn't redo them.
  */
 export function buildGroups<TData>(
   data: readonly TData[],
   filtered: readonly number[],
   grouping: readonly Column<TData>[],
   totalled: readonly Column<TData>[],
-  rowId: (dataIndex: number) => string,
+  dataIds: readonly string[],
+  dataIndexOf: (id: string) => number | undefined,
 ): GroupedRows<TData> {
   const size = data.length;
   const groups: Group[] = [];
@@ -124,11 +136,10 @@ export function buildGroups<TData>(
   const g = groups.length;
   const total = size + 2 * g;
   const rows = data.concat(new Array<TData>(2 * g));
-  const ids = new Array<string>(total);
+  const ids = dataIds.concat(new Array<string>(2 * g));
   const parent = new Int32Array(total).fill(-1);
   const depth = new Int32Array(total);
   const childCount = new Int32Array(total);
-  for (let i = 0; i < size; i++) ids[i] = rowId(i);
   const leafDepth = grouping.length;
   for (const { group, members } of level) {
     for (const i of members) {
@@ -166,7 +177,7 @@ export function buildGroups<TData>(
   }
 
   let byId: Map<string, number> | undefined;
-  const kept = filtered.concat(Array.from({ length: g }, (_, k) => size + k));
+  const groupRows = Array.from({ length: g }, (_, k) => size + k);
   return {
     rows,
     ids,
@@ -175,9 +186,12 @@ export function buildGroups<TData>(
     childCount,
     size,
     groups: g,
-    kept,
+    filtered,
+    groupRows,
     indexOf(id) {
-      byId ??= new Map(ids.map((rowId, i) => [rowId, i]));
+      if (!id.startsWith('\u0000')) return dataIndexOf(id);
+      // Group rows and their hidden children: the only reserved ids here.
+      byId ??= new Map(ids.slice(size).map((rowId, k) => [rowId, size + k]));
       return byId.get(id);
     },
     info: (row) => groups[row - size]?.info,

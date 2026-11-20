@@ -31,7 +31,7 @@ Groups are in the order of their values, the empty group last. Sorting by a colu
 
 ## Selecting rows
 
-A group row's checkbox (`selectionMode: 'multi'` with `selectionCheckboxes`) ticks every row in the group, and shows part-ticked when some are; Space on a group row does the same. The group's own id never goes into `selection`. A click elsewhere on a group row makes its cell active and selects nothing, and group rows fire no click events. Select-all selects every row, in closed groups too.
+A group row's checkbox (`selectionMode: 'multi'` with `selectionCheckboxes`) ticks every row in the group, and shows part-ticked when some are; Space on a group row does the same. The group's own id never goes into `selection`. A click elsewhere on a group row makes its cell active and selects nothing, and group rows fire no click events. A Shift range that takes in a closed group selects its rows. Select-all selects every row, in closed groups too.
 
 ## Changing the grouping
 

@@ -80,9 +80,10 @@ describe('scan.mjs', () => {
     assert.equal(feature(u, 'server-side-row-model').fit, 'partial');
     assert.deepEqual(feature(u, 'editing').at, ['app/orders/columns.ts:15']);
     assert.equal(feature(u, 'editing').fit, 'partial');
+    // Grouping is partial, but not on the server-side row model: a hard gap there.
     assert.equal(feature(u, 'row-grouping').fit, 'partial');
-    assert.deepEqual(u.summary.gaps, ['pagination', 'tool-panels']);
-    assert.deepEqual(u.summary.hardGaps, []);
+    assert.deepEqual(u.summary.gaps, ['pagination', 'row-grouping', 'tool-panels']);
+    assert.deepEqual(u.summary.hardGaps, ['row-grouping']);
   });
 
   it('reads MUI X with server-side paging', async () => {

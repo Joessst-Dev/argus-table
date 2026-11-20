@@ -103,6 +103,41 @@ describe('grouping', () => {
     expect(shown(asc)).toEqual(['[EU]', 'e', 'c', 'a', '[APAC]', 'b', 'd']);
   });
 
+  it('a count of a text column sorts groups as numbers, not as text', () => {
+    const counted = columns.map((c) =>
+      c.id === 'name' ? { ...c, aggregate: 'count' as const } : c,
+    );
+    const many: Sale[] = [
+      ...Array.from({ length: 12 }, (_, i) => ({
+        name: `x${String(i)}`,
+        region: 'Big',
+        status: 'Open',
+        amount: 1,
+      })),
+      ...Array.from({ length: 9 }, (_, i) => ({
+        name: `y${String(i)}`,
+        region: 'Small',
+        status: 'Open',
+        amount: 1,
+      })),
+    ];
+    const m = model({ columns: counted, data: many, sorting: [{ id: 'name', desc: true }] });
+    expect(shown(m)).toEqual(['[Big]', '[Small]']);
+    m.update({ sorting: [{ id: 'name', desc: false }] });
+    expect(shown(m)).toEqual(['[Small]', '[Big]']);
+  });
+
+  it('new columns or grouping arrays with the same contents keep the groups and the order', () => {
+    const m = model({ treeExpanded: [EU] });
+    const order = m.rowOrder;
+    m.update({ columns: [...columns], grouping: ['region'] });
+    expect(m.rowOrder).toBe(order);
+    // A new getRowId gives the rows new ids.
+    m.update({ getRowId: (row) => row.name.toUpperCase() });
+    expect(m.rowOrder).not.toBe(order);
+    expect(m.rows.idAt(2)).toBe('A');
+  });
+
   it('sorting by a column without a total keeps groups in value order', () => {
     const m = model({ treeExpanded: [APAC, EU], sorting: [{ id: 'plain', desc: true }] });
     expect(shown(m)).toEqual(['[APAC]', 'd', 'b', '[EU]', 'a', 'c', 'e']);

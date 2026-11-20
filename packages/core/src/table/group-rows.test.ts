@@ -24,11 +24,23 @@ const column = (id: keyof Sale, aggregate?: 'sum') => ({
 });
 
 const all = sales.map((_, i) => i);
-const ids = (i: number) => String(i);
+/** Groups with data ids that are the indexes. */
+const build = (
+  data: readonly Sale[],
+  filtered: readonly number[],
+  grouping: Parameters<typeof buildGroups<Sale>>[2],
+  totalled: Parameters<typeof buildGroups<Sale>>[3],
+) => {
+  const ids = data.map((_, i) => String(i));
+  return buildGroups(data, filtered, grouping, totalled, ids, (id) => {
+    const i = ids.indexOf(id);
+    return i === -1 ? undefined : i;
+  });
+};
 
 describe('buildGroups', () => {
   it('one level: groups by value, ascending, the empty group last', () => {
-    const g = buildGroups(sales, all, [column('region')], [], ids);
+    const g = build(sales, all, [column('region')], []);
     expect(g.size).toBe(6);
     expect(g.groups).toBe(3);
     const infos = [6, 7, 8].map((row) => g.info(row));
@@ -47,11 +59,12 @@ describe('buildGroups', () => {
     expect([...g.parent.slice(0, 6)]).toEqual([7, 6, 7, 8, 6, 8]);
     expect([...g.depth.slice(0, 9)]).toEqual([1, 1, 1, 1, 1, 1, 0, 0, 0]);
     expect(g.info(0)).toBeUndefined();
-    expect(g.kept).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(g.filtered).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(g.groupRows).toEqual([6, 7, 8]);
   });
 
   it('two levels: nested groups, ids along the path, counts of every row under', () => {
-    const g = buildGroups(sales, all, [column('region'), column('status')], [], ids);
+    const g = build(sales, all, [column('region'), column('status')], []);
     // APAC, EU, empty, then APAC's Done and Open, EU's Done and Open, empty's Done and Open.
     expect(g.groups).toBe(9);
     const eu = g.indexOf('\u0000g["region","EU"]') ?? -1;
@@ -66,13 +79,14 @@ describe('buildGroups', () => {
   });
 
   it('only filtered rows: groups with none left don’t exist, counts and totals cover the rest', () => {
-    const g = buildGroups(sales, [0, 1, 2], [column('region')], [column('amount', 'sum')], ids);
+    const g = build(sales, [0, 1, 2], [column('region')], [column('amount', 'sum')]);
     expect(g.groups).toBe(2);
     expect(g.info(6)).toMatchObject({ value: 'APAC', count: 1, totals: { amount: 5 } });
     expect(g.info(7)).toMatchObject({ value: 'EU', count: 2, totals: { amount: 17 } });
     // Rows the filters drop have no parent and aren't kept.
     expect(g.parent[3]).toBe(-1);
-    expect(g.kept).toEqual([0, 1, 2, 6, 7]);
+    expect(g.filtered).toEqual([0, 1, 2]);
+    expect(g.groupRows).toEqual([6, 7]);
   });
 
   it('dates group by time; undefined, null and empty text share the empty group', () => {
@@ -81,17 +95,17 @@ describe('buildGroups', () => {
       { status: 'b', amount: 0, day: new Date(2026, 0, 1) },
       { status: 'c', amount: 0, region: null },
     ];
-    const byDay = buildGroups(rows, [0, 1], [column('day')], [], ids);
+    const byDay = build(rows, [0, 1], [column('day')], []);
     expect(byDay.groups).toBe(1);
     expect(byDay.info(3)?.id).toBe(`\u0000g["day",${String(new Date(2026, 0, 1).getTime())}]`);
     expect(byDay.info(3)?.value).toBeInstanceOf(Date);
-    const byRegion = buildGroups(sales, [3, 5], [column('region')], [], ids);
+    const byRegion = build(sales, [3, 5], [column('region')], []);
     expect(byRegion.groups).toBe(1);
     expect(byRegion.info(6)).toMatchObject({ value: undefined, count: 2 });
   });
 
   it('each group has one hidden child that keeps its id out of branch selection', () => {
-    const g = buildGroups(sales, all, [column('region')], [], ids);
+    const g = build(sales, all, [column('region')], []);
     const apac = 6;
     const hidden = 6 + 3;
     expect(g.parent[hidden]).toBe(apac);
@@ -103,7 +117,7 @@ describe('buildGroups', () => {
   });
 
   it('sort keys: the value in its own column, the total in a totalled one', () => {
-    const g = buildGroups(sales, all, [column('region')], [column('amount', 'sum')], ids);
+    const g = build(sales, all, [column('region')], [column('amount', 'sum')]);
     expect(g.key(6, 'region')).toBe('APAC');
     expect(g.key(6, 'amount')).toBe(8);
     expect(g.key(6, 'status')).toBeUndefined();
@@ -113,14 +127,25 @@ describe('buildGroups', () => {
   it('reads each grouping and each totalled value once per row', () => {
     const region = vi.fn((row: Sale) => row.region);
     const amount = vi.fn((row: Sale) => row.amount);
-    buildGroups(
+    build(
       sales,
       all,
       [{ id: 'region', getValue: region, aggregate: undefined }],
       [{ id: 'amount', getValue: amount, aggregate: 'sum' }],
-      ids,
     );
     expect(region).toHaveBeenCalledTimes(6);
     expect(amount).toHaveBeenCalledTimes(6);
+  });
+
+  it('ids hold values JSON can’t: Infinity apart from the empty group', () => {
+    const rows: Sale[] = [
+      { status: 'a', amount: Infinity },
+      { status: 'b', amount: Number.NaN },
+    ];
+    const g = build(rows, [0, 1], [column('amount')], []);
+    expect([g.info(2)?.id, g.info(3)?.id]).toEqual([
+      '\u0000g["amount","Infinity"]',
+      '\u0000g["amount",null]',
+    ]);
   });
 });

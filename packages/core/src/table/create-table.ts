@@ -166,6 +166,9 @@ export function createTableModel<TData, TContent>(
     }
     return family;
   };
+  // `groupedOrder()`'s rows, per layout.
+  let groupedOrder:
+    { layout: TreeLayout; rows: readonly { index: number; id: string }[] } | undefined;
   // A row's children in the whole tree, when the filters hide some.
   const fullKids = (tree: TreeForest['tree'], layout: TreeLayout, row: number) => {
     if ((layout.keptChildren[row] ?? 0) === (tree.childCount[row] ?? 0)) return undefined;
@@ -194,8 +197,6 @@ export function createTableModel<TData, TContent>(
    * rows count for nothing else: not as unselected rows of their ancestors'
    * branches, not for the select-all checkbox.
    */
-  let groupedOrder:
-    { layout: TreeLayout; rows: readonly { index: number; id: string }[] } | undefined;
   const checksFor = (selected: ReadonlySet<string>) => {
     const steps = structure().forest();
     const layout = steps?.layout;
@@ -423,9 +424,10 @@ export function createTableModel<TData, TContent>(
 
     selectableIds() {
       if (options.remote) return options.remote.loadedIds();
-      const size = pipeline.source().length;
-      // Not group rows: their ids are never selected.
-      return rows().flatMap((r) => (r < size ? [pipeline.rowId(r)] : []));
+      const ids = rows().map((r) => pipeline.rowId(r));
+      // Not group rows (after the data rows): their ids are never selected.
+      const grouped = pipeline.groups();
+      return grouped ? ids.filter((_, k) => (rows()[k] ?? 0) < grouped.size) : ids;
     },
 
     branchSelectAll(current, selected = new Set(current)) {
@@ -536,7 +538,7 @@ export function createTableModel<TData, TContent>(
       const row = rows()[index];
       const column = byId.get(columnId);
       const tree = pipeline.shape();
-      const source = pipeline.source();
+      const source = tree ? pipeline.source() : options.data;
       // A group row's cells are `groupCell`'s.
       if (row === undefined || !column || row >= source.length) return undefined;
       const original = source[row] as TData;

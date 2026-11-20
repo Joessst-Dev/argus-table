@@ -263,7 +263,6 @@ export const baseStyles = css`
     [data-align='center'] > :is([part~='tree-toggle'], .tree-spacer) ~ slot::slotted(*) {
       margin-inline-end: auto;
     }
-    /* A row a filter keeps expanded: its toggle does nothing until the filter clears. */
     /* A group row (grouping): its value and totals stand out; its count follows the value. */
     [part~='row-group'] {
       font-weight: 600;
@@ -274,6 +273,7 @@ export const baseStyles = css`
       font-weight: normal;
       opacity: 0.7;
     }
+    /* A row a filter keeps expanded: its toggle does nothing until the filter clears. */
     [part~='tree-toggle-disabled'] {
       opacity: 0.4;
       cursor: default;
