@@ -74,6 +74,18 @@ describe('row structures: shared contract', () => {
       moves: false,
     },
     { name: "a data source's tree", make: () => remoteTree().m, unloaded: 5, moves: true },
+    {
+      name: 'data, grouped',
+      make: () =>
+        model({
+          data: flatData,
+          columns: [{ id: 'name', accessor: 'name', groupable: true }],
+          grouping: ['name'],
+          treeExpanded: ['\u0000g["name","A"]'],
+        }),
+      unloaded: 7,
+      moves: false,
+    },
   ];
 
   describe.each(fixtures)('$name', ({ make, unloaded, moves }) => {

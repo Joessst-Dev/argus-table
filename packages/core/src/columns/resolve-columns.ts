@@ -1,10 +1,4 @@
-import type {
-  ColumnAggregate,
-  ColumnAlign,
-  ColumnDef,
-  ColumnPin,
-  FilterKind,
-} from '../types.js';
+import type { ColumnAggregate, ColumnAlign, ColumnDef, ColumnPin, FilterKind } from '../types.js';
 
 /** Width used when a column sets none. */
 export const DEFAULT_WIDTH = 150;
@@ -60,7 +54,13 @@ export interface ResolvedColumn<TData, TContent> {
 }
 
 const FILTER_KINDS: readonly unknown[] = ['text', 'number', 'date', 'set'] satisfies FilterKind[];
-const AGGREGATES: readonly unknown[] = ['sum', 'avg', 'min', 'max', 'count'] satisfies ColumnAggregate[];
+const AGGREGATES: readonly unknown[] = [
+  'sum',
+  'avg',
+  'min',
+  'max',
+  'count',
+] satisfies ColumnAggregate[];
 
 const pathCache = new Map<string, readonly string[]>();
 

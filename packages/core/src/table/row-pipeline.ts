@@ -1,6 +1,7 @@
 import type { ResolvedColumn } from '../columns/resolve-columns.js';
 import type { RowPredicate } from '../filters/filter.js';
 import { DisplayRows } from './display-rows.js';
+import { buildGroups, type GroupedRows } from './group-rows.js';
 import type { TableModelOptions } from './model-types.js';
 import { buildRowTree, type RowTree } from './row-tree.js';
 import { sortRows } from './sorted-row-model.js';
@@ -15,6 +16,7 @@ import type { SortState, TreeExpandedState } from '../types.js';
 
 /** A tree's layout with what its rows need from it. */
 export interface TreeSteps<TData> {
+  /** The data's tree, or the grouped rows (`GroupedRows`). */
   tree: RowTree<TData>;
   layout: TreeLayout;
   /** The kept top-level rows. */
@@ -74,6 +76,25 @@ export class RowPipeline<TData, TContent> {
         steps: TreeSteps<TData>;
       }
     | undefined;
+  #groups:
+    | {
+        grouping: readonly string[];
+        byId: unknown;
+        filtered: readonly number[];
+        version: number;
+        grouped: GroupedRows<TData> | undefined;
+      }
+    | undefined;
+  #groupLayout:
+    | {
+        grouped: GroupedRows<TData>;
+        sorting: SortState;
+        version: number;
+        sorted: readonly number[];
+        steps: TreeSteps<TData>;
+      }
+    | undefined;
+  #warnedGrouping = false;
   #expandedSet: { state: TreeExpandedState | undefined; set: ReadonlySet<string> } | undefined;
   #shown:
     { steps: TreeSteps<TData>; expanded: ReadonlySet<string>; rows: readonly number[] } | undefined;
@@ -131,6 +152,90 @@ export class RowPipeline<TData, TContent> {
     return tree;
   }
 
+  /**
+   * The rows grouped by `grouping` (its `groupable` columns, in order), built
+   * over the filtered rows; `undefined` (nothing allocated) without grouping.
+   * Ignored, with one warning, with tree rows or remote rows.
+   */
+  groups(): GroupedRows<TData> | undefined {
+    const options = this.#options();
+    const { grouping } = options;
+    if (!grouping?.length) return undefined;
+    if (options.remote || options.getSubRows || options.getParentId) {
+      if (!this.#warnedGrouping) {
+        this.#warnedGrouping = true;
+        console.warn(
+          options.remote
+            ? "argus-table: grouping with a dataSource isn't supported yet; it is ignored."
+            : 'argus-table: grouping is ignored with tree rows (getSubRows, getParentId).',
+        );
+      }
+      return undefined;
+    }
+    const byId = this.#byId();
+    const filtered = this.#filteredRows();
+    const version = this.#version();
+    const prev = this.#groups;
+    if (
+      prev?.grouping === grouping &&
+      prev.byId === byId &&
+      prev.filtered === filtered &&
+      prev.version === version
+    ) {
+      return prev.grouped;
+    }
+    const columns = [...new Set(grouping)]
+      .map((id) => byId.get(id))
+      .filter((c): c is ResolvedColumn<TData, TContent> => c?.groupable === true);
+    const totalled = [...byId.values()].filter((c) => c.aggregate !== undefined);
+    const grouped = columns.length
+      ? buildGroups(options.data, filtered, columns, totalled, (i) => this.#flatId(i))
+      : undefined;
+    this.#groups = { grouping, byId, filtered, version, grouped };
+    return grouped;
+  }
+
+  /** The tree the shown rows are laid out from: the data's own, or the grouped rows. */
+  shape(): RowTree<TData> | undefined {
+    return this.tree() ?? this.groups();
+  }
+
+  /** The grouped rows laid out in sort order: groups by value, or by total in a totalled column. */
+  #groupSteps(grouped: GroupedRows<TData>): TreeSteps<TData> {
+    const { sorting } = this.#options();
+    const version = this.#version();
+    const prev = this.#groupLayout;
+    if (prev?.grouped === grouped && prev.sorting === sorting && prev.version === version) {
+      return prev.steps;
+    }
+    const byId = this.#byId();
+    const { size } = grouped;
+    // Group rows sort by their key; data rows by their values, within their groups.
+    const sorted = sortRows(grouped.rows, grouped.kept, sorting, (id) => {
+      const column = byId.get(id);
+      return (
+        column && {
+          sortable: column.sortable,
+          getValue: (row: TData, i: number) =>
+            i < size ? column.getValue(row, i) : grouped.key(i, id),
+        }
+      );
+    });
+    if (prev?.grouped === grouped && prev.sorted === sorted) {
+      this.#groupLayout = { ...prev, sorting, version };
+      return prev.steps;
+    }
+    const layout = layoutTree(grouped, sorted);
+    const steps = {
+      tree: grouped,
+      layout,
+      roots: layout.children(-1).length,
+      holdsMatch: undefined,
+    };
+    this.#groupLayout = { grouped, sorting, version, sorted, steps };
+    return steps;
+  }
+
   /** The rows by source index: the tree's, else `data`. */
   source(): readonly TData[] {
     return this.tree()?.rows ?? this.#options().data;
@@ -147,8 +252,10 @@ export class RowPipeline<TData, TContent> {
     return kept;
   }
 
-  /** The tree's kept rows laid out in sort order; `undefined` without a tree. */
+  /** The tree's (or the groups') kept rows laid out in sort order; `undefined` without either. */
   treeSteps(): TreeSteps<TData> | undefined {
+    const grouped = this.groups();
+    if (grouped) return this.#groupSteps(grouped);
     const tree = this.tree();
     if (!tree) return undefined;
     const kept = this.#keptRows(tree);
@@ -214,7 +321,7 @@ export class RowPipeline<TData, TContent> {
   orderIndexOf(row: number): number {
     const current = this.rows();
     if (this.#orderIndex?.rows !== current) {
-      const at = new Int32Array(this.source().length).fill(-1);
+      const at = new Int32Array((this.shape()?.rows ?? this.source()).length).fill(-1);
       for (let k = 0; k < current.length; k++) at[current[k] ?? 0] = k;
       this.#orderIndex = { rows: current, at };
     }
@@ -269,7 +376,7 @@ export class RowPipeline<TData, TContent> {
 
   /** The id of the row at a data index (a source index with a tree). */
   rowId(dataIndex: number): string {
-    const tree = this.tree();
+    const tree = this.shape();
     return tree ? (tree.ids[dataIndex] ?? '') : this.#flatId(dataIndex);
   }
 
@@ -292,7 +399,7 @@ export class RowPipeline<TData, TContent> {
     const { remote } = this.#options();
     if (remote) return remote.indexOf(rowId);
     // A tree's ids are mapped once per tree, not once per shown order.
-    const tree = this.tree();
+    const tree = this.shape();
     if (tree) {
       const row = tree.indexOf(rowId);
       if (row === undefined) return undefined;

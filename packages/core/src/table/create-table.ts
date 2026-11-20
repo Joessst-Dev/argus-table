@@ -194,6 +194,7 @@ export function createTableModel<TData, TContent>(
    * rows count for nothing else: not as unselected rows of their ancestors'
    * branches, not for the select-all checkbox.
    */
+  let groupedOrder: { layout: TreeLayout; rows: readonly number[] } | undefined;
   const checksFor = (selected: ReadonlySet<string>) => {
     const steps = structure().forest();
     const layout = steps?.layout;
@@ -212,6 +213,9 @@ export function createTableModel<TData, TContent>(
       const { parent, ids } = tree;
       const { order } = steps.layout;
       const marks = new Uint8Array(parent.length);
+      // Group rows (after the data rows): their own ids are never selected, so
+      // they count as checked when their rows are.
+      const groupsFrom = options.remote ? Infinity : (pipeline.groups()?.size ?? Infinity);
       for (let k = order.length - 1; k >= 0; k--) {
         const row = order[k] ?? 0;
         // Its kept descendants' marks, before its own joins them.
@@ -223,7 +227,7 @@ export function createTableModel<TData, TContent>(
         let mark = below;
         if (!own && !(below & LIVE) && out()) mark |= DEAD;
         else {
-          mark |= LIVE | (own ? PICKED : MISSED);
+          mark |= LIVE | (own ? PICKED : row >= groupsFrom ? 0 : MISSED);
           // Checked (as `toggleBranch` decides): every row below that can be
           // ticked is, and its own id selected, or kept out with something
           // below to tick.
@@ -349,13 +353,15 @@ export function createTableModel<TData, TContent>(
         return entry && { id: entry.id, index, original: entry.row };
       }
       const row = rows()[index];
-      if (row === undefined) return undefined;
-      return { id: pipeline.rowId(row), index, original: pipeline.source()[row] as TData };
+      const source = pipeline.source();
+      // Group rows (after the data rows) have no row object.
+      if (row === undefined || row >= source.length) return undefined;
+      return { id: pipeline.rowId(row), index, original: source[row] as TData };
     },
 
     get tree() {
       // Asked first: it warns about tree functions ignored with remote rows.
-      return pipeline.tree() !== undefined || structure().tree;
+      return pipeline.shape() !== undefined || structure().tree;
     },
 
     treeRow(index) {
@@ -380,6 +386,18 @@ export function createTableModel<TData, TContent>(
       return options.remote ? undefined : pipeline.source()[index];
     },
 
+    groupedOrder() {
+      const grouped = pipeline.groups();
+      const layout = grouped && pipeline.treeSteps()?.layout;
+      if (!grouped || !layout) return undefined;
+      if (groupedOrder?.layout !== layout) {
+        const rows: number[] = [];
+        for (const row of layout.order) if (row < grouped.size) rows.push(row);
+        groupedOrder = { layout, rows };
+      }
+      return groupedOrder.rows;
+    },
+
     indexOf(rowId) {
       return pipeline.indexOf(rowId);
     },
@@ -402,7 +420,9 @@ export function createTableModel<TData, TContent>(
 
     selectableIds() {
       if (options.remote) return options.remote.loadedIds();
-      return rows().map((r) => pipeline.rowId(r));
+      const size = pipeline.source().length;
+      // Not group rows: their ids are never selected.
+      return rows().flatMap((r) => (r < size ? [pipeline.rowId(r)] : []));
     },
 
     branchSelectAll(current, selected = new Set(current)) {
@@ -482,9 +502,11 @@ export function createTableModel<TData, TContent>(
         return entry && byId.get(columnId)?.getValue(entry.row, index);
       }
       const row = rows()[index];
-      return row === undefined
+      const source = pipeline.source();
+      // A group row has no row to read.
+      return row === undefined || row >= source.length
         ? undefined
-        : byId.get(columnId)?.getValue(pipeline.source()[row] as TData, row);
+        : byId.get(columnId)?.getValue(source[row] as TData, row);
     },
 
     readValue(row, columnId, index) {
@@ -510,9 +532,11 @@ export function createTableModel<TData, TContent>(
       }
       const row = rows()[index];
       const column = byId.get(columnId);
-      if (row === undefined || !column) return undefined;
-      const tree = pipeline.tree();
-      const original = (tree ? tree.rows : options.data)[row] as TData;
+      const tree = pipeline.shape();
+      const source = pipeline.source();
+      // A group row's cells are `groupCell`'s.
+      if (row === undefined || !column || row >= source.length) return undefined;
+      const original = source[row] as TData;
       const context: CellContext<TData> = {
         row: original,
         rowId: pipeline.rowId(row),

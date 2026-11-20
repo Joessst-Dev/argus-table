@@ -1,4 +1,5 @@
 import type { RowState } from '../data/page-cache.js';
+import type { GroupRowInfo } from '../types.js';
 import type { TableModelOptions, TreeRowInfo } from './model-types.js';
 import type { RowPipeline } from './row-pipeline.js';
 import type { TreeForest } from './tree-order.js';
@@ -55,6 +56,10 @@ export interface RowStructure {
   forest(): TreeForest | undefined;
   /** The forest row of the row at a shown index; `undefined` for rows not loaded. */
   forestRow(index: number): number | undefined;
+  /** Whether the rows are grouped (`grouping`): read it once per render before asking `groupAt`. */
+  readonly grouped: boolean;
+  /** The group row at a shown index; `undefined` for a data row, or without grouping. */
+  groupAt(index: number): GroupRowInfo | undefined;
 }
 
 /** A stand-in id that is the index itself, or a reserved string when ids could look like one. */
@@ -69,8 +74,8 @@ export function plainStandIn(id: string, reserved: boolean): StandIn | undefined
 }
 
 /**
- * The rows the model arranges itself: `data`, flat or as a tree (`getSubRows`,
- * `getParentId`), and a flat data source's rows (`PageCache`, or any
+ * The rows the model arranges itself: `data`, flat, as a tree (`getSubRows`,
+ * `getParentId`) or grouped (`grouping`, as a tree of group rows), and a flat data source's rows (`PageCache`, or any
  * `RemoteRows` without a `structure`), which are never a tree. Reads the
  * pipeline's memoized steps; for `data`, a shown index is a position in
  * `rows()`, whose entries are source indexes.
@@ -88,7 +93,17 @@ export class ModelRows<TData, TContent> implements RowStructure {
   }
 
   get tree(): boolean {
-    return this.#pipeline.tree() !== undefined;
+    return this.#pipeline.shape() !== undefined;
+  }
+
+  get grouped(): boolean {
+    return this.#pipeline.groups() !== undefined;
+  }
+
+  groupAt(index: number): GroupRowInfo | undefined {
+    const groups = this.#pipeline.groups();
+    const row = groups && this.#pipeline.rows()[index];
+    return row === undefined ? undefined : groups?.info(row);
   }
 
   stateAt(index: number): RowState {
@@ -136,7 +151,7 @@ export class ModelRows<TData, TContent> implements RowStructure {
   }
 
   depthAt(index: number): number | undefined {
-    const tree = this.#pipeline.tree();
+    const tree = this.#pipeline.shape();
     const row = tree && this.#pipeline.rows()[index];
     return row === undefined ? undefined : (tree?.depth[row] ?? 0);
   }
@@ -149,14 +164,14 @@ export class ModelRows<TData, TContent> implements RowStructure {
 
   /** Any row with children in the whole tree: filters aren't applied. */
   mayToggle(rowId: string): boolean {
-    const tree = this.#pipeline.tree();
+    const tree = this.#pipeline.shape();
     const row = tree?.indexOf(rowId);
     return row !== undefined && (tree?.childCount[row] ?? 0) > 0;
   }
 
   shownAncestor(rowId: string): number | undefined {
     const pipeline = this.#pipeline;
-    const tree = pipeline.tree();
+    const tree = pipeline.shape();
     let row = tree?.indexOf(rowId);
     if (!tree || row === undefined) return undefined;
     while (row !== -1) {
