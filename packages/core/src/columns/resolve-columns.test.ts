@@ -141,4 +141,20 @@ describe('resolveColumns', () => {
     expect(() => resolveColumns([{ id: '' }])).toThrow(/non-empty string id/);
     expect(() => resolveColumns([{ id: 'a' }, { id: 'a' }])).toThrow(/'a' is used more than once/);
   });
+
+  it('keeps grouping options: groupable, a known aggregate, groupCell', () => {
+    const groupCell = () => 'x';
+    const total = () => 0;
+    const [plain, grouped, custom, unknown] = resolveColumns<object, string>([
+      { id: 'a' },
+      { id: 'b', groupable: true, aggregate: 'sum', groupCell },
+      { id: 'c', aggregate: total },
+      // A name that isn't a built-in, from untyped code.
+      { id: 'd', aggregate: 'median' as 'sum' },
+    ]);
+    expect(plain).toMatchObject({ groupable: false, aggregate: undefined, groupCell: undefined });
+    expect(grouped).toMatchObject({ groupable: true, aggregate: 'sum', groupCell });
+    expect(custom?.aggregate).toBe(total);
+    expect(unknown?.aggregate).toBeUndefined();
+  });
 });
