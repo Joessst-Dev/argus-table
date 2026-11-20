@@ -161,7 +161,7 @@ table.grouping = ['region']; // two-way, like sorting
 - Groups are in value order (the empty group, `labels.emptyGroup`, last); sorting by a column with an `aggregate` orders them by their totals. Filters apply to the rows; counts and totals follow.
 - Group rows fire no click events and never call `cell`. In `multi` mode a group's checkbox (or Space) ticks its rows; a group id is never in `selection`.
 - Parts `row-group`, `cell-group`, `group-count` (label `groupCount`). Plugins: `host.grouping()`, `host.setGrouping(next, columnId)`, `host.group(index)`, `host.groupedRows()`.
-- Ignored with tree rows and, for now, with a `dataSource` (a console warning each).
+- With a `dataSource` the server groups: `getRows` gets `grouping` and `groupPath`, and answers a group level with `groups` (`{ value, count, totals }`), the deepest with `rows` ([server-data.md](server-data.md#grouped-on-the-server)). Ignored with tree rows (a console warning).
 
 ## DataSource
 

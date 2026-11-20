@@ -8,6 +8,9 @@ import FlavourTabs from '../../../components/FlavourTabs.astro';
 import ReactSales from '../../../examples/row-grouping/sales/react/Sales.tsx';
 import VueSales from '../../../examples/row-grouping/sales/vue/Sales.vue';
 import { SalesComponent } from '../../../examples/row-grouping/sales/angular/sales.component.ts';
+import ReactServer from '../../../examples/row-grouping/server/react/Server.tsx';
+import VueServer from '../../../examples/row-grouping/server/vue/Server.vue';
+import { ServerComponent } from '../../../examples/row-grouping/server/angular/server.component.ts';
 
 Rows can be grouped by the values of a column: sales by region, tickets by status, orders by customer. Each group shows as a row of its own, with the group's value and its number of rows in the first data column, and the group's rows under it once it's opened. Group by several columns and the groups nest: by region, then by status within each region.
 
@@ -37,4 +40,21 @@ A group row's checkbox (`selectionMode: 'multi'` with `selectionCheckboxes`) tic
 
 `grouping` is state like `sorting`: unset, the table keeps it, and users change it from the [column menu](../header-menu/) (Group by this column, Ungroup; on `groupable` columns) or another plugin (`PluginHost.setGrouping`); set, the table only fires `argus-grouping-change` with the proposed columns, and your code applies them. It binds two-way, and `getState()` saves it.
 
-Grouping isn't combined with [tree rows](../tree-rows/): with `getSubRows` or `getParentId` it's ignored, with a warning. With a `dataSource` it isn't supported yet, and is ignored with a warning too. [Export](../export/) writes every row of a grouped table, closed groups' too, group by group.
+Grouping isn't combined with [tree rows](../tree-rows/): with `getSubRows`, `getParentId`, or a `dataSource` with `hasChildren` and `getChildren`, it's ignored, with a warning. [Export](../export/) writes every row of a grouped table, closed groups' too, group by group.
+
+## With a data source
+
+With a [`dataSource`](../infinite-loading/), the server groups. Every `getRows` request then carries `grouping` (the `groupable` columns of `grouping`, in order) and `groupPath`, the group it fills, outermost level first:
+
+- `groupPath: []` asks for the top-level groups, and a path shorter than `grouping` for the groups inside that group. Answer with `groups` (and `rows: []`): one `{ value, count, totals }` per group, in the order to show them, and `total`, the number of groups at that level. `count` is the number of rows under the group; `totals` holds its totals by column id, which the group row shows (`groupCell` gets them as `total`). A column's `aggregate` isn't used: the server totals.
+- A path as long as `grouping` asks for that group's rows: answer with `rows` and `total`, as without grouping.
+
+`start` and `end` count the groups or rows of that level, and every level loads page by page as it scrolls into view: top-level groups, the groups inside an open group, and an open group's rows. Pages far from view are dropped and load again when they come back. A group that holds groups shows one loading row until its first page arrives; a group of rows shows its `count` of loading rows right away. The sort order, filters and quick filter go along with every request, as without grouping; a change of any of them, or of `grouping`, loads everything again, and the groups that were open open again as they arrive. An answer of the wrong kind (rows where groups belong) fails that page, like a rejection: a Retry button, and `argus-load-error` with the request's `groupPath`.
+
+Group ids are the same as for rows in memory (each level's column id and the group's `value`), and rows inside a group without `getRowId` get the group's id, a dot and their index in the group: give `getRowId` so selected rows keep their ids when the grouping changes. A group's checkbox ticks the rows of it that have loaded.
+
+<FlavourTabs example="row-grouping/server">
+  <ReactServer slot="react" client:visible />
+  <VueServer slot="vue" client:visible />
+  <ServerComponent slot="angular" client:visible />
+</FlavourTabs>

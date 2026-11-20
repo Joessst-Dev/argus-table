@@ -952,23 +952,6 @@ export const GAPS = [
   'viewport',
 ];
 
-/**
- * Grouping on server data: argus-table groups rows in memory only, so a usage
- * with one of the `server` features and one of the `grouping` features (any
- * library's ids) has the `row-grouping` gap, though grouping alone is partial.
- */
-export const SERVER_GROUPING = {
-  server: [
-    'server-side',
-    'server-side-row-model',
-    'server-side-tree',
-    'server-mode',
-    'lazy',
-    'server',
-  ],
-  grouping: ['grouping', 'row-grouping', 'row-group', 'group'],
-};
-
 /** Gaps that usually decide whether a screen can move (shown first, and make the effort `high`). */
 export const HARD_GAPS = ['row-grouping', 'range-selection'];
 

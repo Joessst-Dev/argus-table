@@ -24,3 +24,12 @@ Row grouping was one of the integrate skill's two hard gaps: a screen in AG Grid
 - An ungrouped table does no grouping work per row or per cell: renderers read `rows.grouped` once per render.
 - Grouping with a `dataSource` is ignored with a warning until step 2, so no server gets group requests it doesn't expect.
 - Export writes every data row of a grouped table in grouped order (`groupedRows()`), closed groups' too; group rows themselves come with grouped export later.
+
+## Step 2: grouping with a data source
+
+Accepted (20 November 2026). Plan: `docs/superpowers/plans/2026-11-20-row-grouping-server.md`.
+
+- **The server groups, counts and totals.** `getRows` gets `grouping` (the effective `groupable` columns) and `groupPath` (the group being filled, `[]` for the top level), both always set and optional in the type so apps constructing a `RowsRequest` keep compiling. A level of groups answers `{ rows: [], groups, total }` (`GroupData`: `value`, `count`, `totals`); the deepest level answers rows. `rows` stays required in `RowsResponse` (making it optional would break apps reading their own responses). A wrong-kind answer fails the page.
+- **Every level pages** (`RemoteGroups`, beside `RemoteTree`, which stays as it is): one `PageCache` per level shown. A group of groups shows one loading row until its first page gives the level's `total`; a group of rows knows its size from `count`. Pages far from view are evicted per level; a closed group's level is dropped. A new source, sort, filters, quick filter, grouping, `getRowId` or `refresh()` starts over, and open ids reopen as their groups arrive.
+- **Group rows have no row object** and data rows in a group default to `<group id>.<index>` ids; `isGroupId` tells the two apart where group rows are recognised by id (branch selection's marks).
+- **Selection** ticks a group's loaded rows (as a data-source tree's branch selection does); the group's id is never selected.

@@ -25,3 +25,20 @@ for (const flavour of FLAVOURS) {
     await expectAccessible(page, example);
   });
 }
+
+for (const flavour of FLAVOURS) {
+  test(`${flavour}: a server groups the rows, and an open group loads its groups`, async ({
+    page,
+  }) => {
+    await page.goto('features/row-grouping/');
+    const example = await openFlavour(page, 'row-grouping/server', flavour);
+    const table = example.locator('argus-table');
+    await expect.poll(() => cellText(table, 2, 'customer')).toBe('Africa');
+    await expect(table.locator('[part~="row-group"] [part~="group-count"]').first()).toHaveText(
+      '(400)',
+    );
+    await table.locator('[part~="row-group"]').first().locator('[part~="tree-toggle"]').click();
+    await expect.poll(() => cellText(table, 3, 'customer')).toBe('Lost');
+    await expectAccessible(page, example);
+  });
+}
