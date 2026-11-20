@@ -17,7 +17,7 @@ const plugins = [headerMenu<Order>()];
 
 A button in each header opens a menu: sort ascending / descending / clear, Filter… (for columns with a `filter` kind), pin to start / end, fit width, hide, and "Hidden columns" to show them again. Items follow the columns' `sortable`, `filter`, `pinnable`, `hideable` and `resizable`.
 
-- `headerMenu({ sort, fitWidth, pin, hide, filter, labels })`: each `false` turns that item off (all default to `true`; `sort` and `fitWidth` since 1.1).
+- `headerMenu({ sort, fitWidth, pin, hide, filter, group, labels })`: each `false` turns that item off (all default to `true`; `sort` and `fitWidth` since 1.1, `group` since 1.4: Group by this column / Ungroup on `groupable` columns).
 - Pinning, hiding and filtering go through `columnPinning`, `columnVisibility` and `columnFilters`: controlled or not, as you bind them.
 - Keyboard: Alt+ArrowDown or the context-menu key on a header.
 - This is the argus-table way to give users column filters, hiding and pinning. There's no filter row under the header.

@@ -66,10 +66,14 @@ const menuLabels = {
   filter: 'Filtern…',
   clearFilter: 'Filter entfernen',
   fitWidth: 'Breite anpassen',
+  groupBy: 'Nach dieser Spalte gruppieren',
+  ungroup: 'Gruppierung aufheben',
   hideColumn: 'Spalte ausblenden',
   hiddenColumns: 'Ausgeblendete Spalten',
   showColumn: ({ column }) => `${column} einblenden`,
   showAll: 'Alle einblenden',
+  grouped: ({ column }) => `Nach ${column} gruppiert`,
+  ungrouped: ({ column }) => `Nicht mehr nach ${column} gruppiert`,
   pinned: ({ column, pin }) =>
     pin === false
       ? `${column} gelöst`

@@ -34,6 +34,7 @@ interface TableState<T> {
     pin: boolean;
     hide: boolean;
     filter: boolean;
+    group: boolean;
     labels: HeaderMenuLabels;
   };
   /** The open filter form, if any (never at the same time as a menu). */
@@ -61,6 +62,12 @@ export interface HeaderMenuOptions {
    * filter, and Clear filter on a filtered column. Default: `true`.
    */
   filter?: boolean;
+  /**
+   * Group by this column on a column with `groupable` that the rows aren't
+   * grouped by (it becomes the innermost level of `grouping`), and Ungroup on
+   * one they are. Not with tree rows or a `dataSource`. Default: `true`.
+   */
+  group?: boolean;
   /**
    * The menu's text in another language: its items, the filter form and its
    * announcements. Keys left out stay English. Text with values in it is a
@@ -126,8 +133,8 @@ const ICON = html`<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
 /**
  * A column menu for `<argus-table>`: a button in each header opens a menu to
  * sort the column ascending or descending, clear its sort, filter it or clear
- * its filter, pin it to a side or unpin it, fit its width to its content, hide
- * it, and show hidden columns again. Items that don't apply to a column are left out.
+ * its filter, group the rows by it or ungroup them, pin it to a side or unpin
+ * it, fit its width to its content, hide it, and show hidden columns again. Items that don't apply to a column are left out.
  *
  * ```ts
  * import { headerMenu } from '@argus-table/header-menu';
@@ -147,6 +154,7 @@ export function headerMenu<T = unknown>(options: HeaderMenuOptions = {}): ArgusP
     pin: options.pin !== false,
     hide: options.hide !== false,
     filter: options.filter !== false,
+    group: options.group !== false,
     labels: resolveLabels(options.labels),
   };
 
@@ -264,6 +272,21 @@ const canFilter = <T>(state: TableState<T>, column: ColumnInfo) =>
     state.host.element.dataSource === undefined ||
     state.host.filterValues(column.id) !== undefined);
 
+/**
+ * Whether the menu can group the rows by this column: it allows it, the column
+ * is `groupable`, and the table can group (no tree rows, no `dataSource` yet).
+ */
+const canGroup = <T>(state: TableState<T>, column: ColumnInfo) => {
+  const table = state.host.element;
+  return (
+    state.options.group &&
+    column.groupable &&
+    !table.dataSource &&
+    !table.getSubRows &&
+    !table.getParentId
+  );
+};
+
 /** The columns shown and hidden, when the menu hides and shows columns. */
 function visibility<T>(state: TableState<T>): { shown: ColumnInfo[]; hidden: ColumnInfo[] } {
   const { host } = state;
@@ -277,14 +300,15 @@ const canHide = (column: ColumnInfo, shown: readonly ColumnInfo[]) =>
   column.hideable && shown.length > 1;
 
 /**
- * Columns with something in the menu: sortable, resizable, pinnable, filterable or
- * hideable ones (as far as the options allow those items), every column while some
+ * Columns with something in the menu: sortable, groupable, resizable, pinnable,
+ * filterable or hideable ones (as far as the options allow those items), every column while some
  * are hidden (to show them), and columns with items from other plugins.
  */
 function hasMenu<T>(state: TableState<T>, column: ColumnInfo | undefined): column is ColumnInfo {
   if (column === undefined) return false;
   if (
     canSort(state, column) ||
+    canGroup(state, column) ||
     canFit(state, column) ||
     canPin(state, column) ||
     canFilter(state, column)
@@ -415,6 +439,16 @@ function menu<T>(
           : nothing,
       ]
     : undefined;
+  const grouping = state.host.grouping();
+  const grouped = grouping.includes(id);
+  const groupItem = canGroup(state, column)
+    ? menuItem(grouped ? labels.ungroup : labels.groupBy, () => {
+        close(state, id);
+        state.host.setGrouping(grouped ? grouping.filter((c) => c !== id) : [...grouping, id], id);
+        const change = { column: labelOf(state, id) };
+        state.host.announce(grouped ? labels.ungrouped(change) : labels.grouped(change));
+      })
+    : undefined;
   const { shown, hidden } = visibility(state);
   const hide = canHide(column, shown)
     ? menuItem(labels.hideColumn, () => {
@@ -483,7 +517,7 @@ function menu<T>(
         close(state, undefined);
     }}
   >
-    ${[sortItems, filterItems, pinItems, fit, hide, showGroup, ...groups]
+    ${[sortItems, groupItem, filterItems, pinItems, fit, hide, showGroup, ...groups]
       .filter((section) => section !== undefined)
       .map((section, i) => (i ? [html`<div role="separator"></div>`, section] : section))}
   </div>`;
