@@ -11,7 +11,7 @@ const byStatus = /** @type {HTMLInputElement} */ (
 
 table.columns = saleColumns;
 table.data = sales;
-table.getRowId = (sale) => sale.id;
+table.getRowId = (/** @type {Sale} */ sale) => sale.id;
 // One group row per region, with its count and the sum of its amounts.
 table.grouping = byRegion;
 byStatus.addEventListener('change', () => {
