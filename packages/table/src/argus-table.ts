@@ -1604,7 +1604,7 @@ export class ArgusTable<T = unknown> extends LitElement {
    * renders once more.
    */
   #measureAutoWidths(model: TableModel<T, CellContent>): void {
-    const loaded = this.#window.rows.some((r) => !r.idle && model.rowAt(r.row) !== undefined);
+    const loaded = this.#window.rows.some((r) => !r.idle && model.rows.idAt(r.row) !== undefined);
     if (!loaded && model.rowCount > 0) return;
     if (this.#autoWidths.measure(this.renderRoot, model.columns, loaded)) this.requestUpdate();
   }
@@ -1644,7 +1644,7 @@ export class ArgusTable<T = unknown> extends LitElement {
   /** Opens or closes a body row's panel (a data index), through the controlled/uncontrolled rules. */
   #toggle(index: number): void {
     const model = this.#table.model;
-    const id = model.rowAt(index)?.id;
+    const id = model.rows.idAt(index);
     if (id === undefined) return;
     this.#requestExpanded('expanded', this.#expanded, EXPANDED_CHANGE, id, (rowId, open, base) =>
       model.nextExpanded(rowId, open, base),

@@ -609,7 +609,7 @@ export class NavigationController<T> {
       const owner = rowIdOfPanel(rowId);
       const found = model.indexOf(owner ?? rowId);
       const data = dataIndexOf(model, index);
-      const unloaded = data !== undefined && model.rowAt(data) === undefined;
+      const unloaded = data !== undefined && model.rows.idAt(data) === undefined;
       // A row not loaded yet keeps its stand-in id, which holds its data index:
       // its position follows panels that appear above it.
       const held = found === undefined ? model.rows.standIn(rowId) : undefined;
@@ -620,7 +620,7 @@ export class NavigationController<T> {
         // A data source tree's row: where it is now (rows may have loaded above
         // it), with its id once it has loaded; or its replacement.
         index = display.positionOf(held.index);
-        const loaded = model.rowAt(held.index)?.id;
+        const loaded = model.rows.idAt(held.index);
         if (loaded !== undefined || !held.same) {
           rowId = loaded ?? idAt(model, held.index);
         }
@@ -630,7 +630,7 @@ export class NavigationController<T> {
       } else if (
         held !== undefined &&
         held.index < model.rowCount &&
-        model.rowAt(held.index) === undefined
+        model.rows.idAt(held.index) === undefined
       ) {
         index = display.positionOf(held.index);
       } else if (found !== undefined) {
