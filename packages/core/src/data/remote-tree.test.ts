@@ -718,4 +718,39 @@ describe('RemoteTree', () => {
     // Generous: linear lookups would take seconds here.
     expect(elapsed).toBeLessThan(200);
   });
+  it('asks hasChildren once per loaded top-level row', () => {
+    const cache = new PageCache<Row>({ pageSize: 4 });
+    load(cache, 0, 4);
+    const asked = vi.fn(hasChildren);
+    const tree = new RemoteTree(cache, { hasChildren: asked });
+    for (let pass = 0; pass < 3; pass++) {
+      for (let i = 0; i < 4; i++) tree.treeRow(i);
+      tree.canExpand('2');
+    }
+    expect(asked).toHaveBeenCalledTimes(4);
+    // Rows of another page: asked as they're read.
+    load(cache, 1, 4, 8);
+    tree.treeRow(4);
+    tree.treeRow(4);
+    expect(asked).toHaveBeenCalledTimes(5);
+  });
+
+  it('an index read again after a change reads the new row', () => {
+    const { cache, tree } = setup();
+    expect(tree.entryAt(2)?.id).toBe('2');
+    expect(tree.depthAt(2)).toBe(0);
+    expect(tree.stateAt(5)).toBe('loading');
+    tree.setExpanded(['1']);
+    expect(tree.stateAt(2)).toBe('loading');
+    expect(tree.entryAt(2)).toBeUndefined();
+    answer(tree, '1', children('1', 2));
+    expect(tree.entryAt(2)?.id).toBe('1.0');
+    expect(tree.depthAt(2)).toBe(1);
+    expect(tree.treeRow(2)?.parent).toBe(1);
+    load(cache, 1, 4, 8);
+    expect(tree.stateAt(6)).toBe('loaded');
+    tree.setExpanded([]);
+    expect(tree.entryAt(2)?.id).toBe('2');
+    expect(tree.depthAt(2)).toBe(0);
+  });
 });
