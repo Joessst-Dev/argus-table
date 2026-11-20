@@ -17,3 +17,4 @@ Decisions contributors will ask about, with the evidence behind them. One file p
 | [0011](0011-displayed-rows.md)                 | Displayed rows: positions inside, data indexes outside            | Accepted |
 | [0012](0012-formula-trees-for-data-sources.md) | Formula trees for data sources                                    | Accepted |
 | [0013](0013-tree-rows.md)                      | Tree rows inside the row pipeline, by source index                | Accepted |
+| [0014](0014-row-grouping.md) | Row grouping as a tree of group rows | Accepted |

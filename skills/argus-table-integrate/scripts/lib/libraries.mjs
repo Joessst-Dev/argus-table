@@ -180,9 +180,8 @@ export const LIBRARIES = [
       f(
         'grouping',
         /\bgetGroupedRowModel\b|\bcreateGroupedRowModel\b|\b(?:column)?[gG]roupingFeature\b|\browAggregationFeature\b|\baggregationFn\b|\baggregatedCell\b/,
-        'gap',
-        {},
-        { gap: 'row-grouping' },
+        'partial',
+        { props: ['grouping', 'treeExpanded'], column: ['groupable', 'aggregate', 'groupCell'] },
       ),
       f(
         'sub-rows',
@@ -338,11 +337,11 @@ export const LIBRARIES = [
       ),
       f(
         'row-grouping',
-        /\browGroup\s*:|\benableRowGroup\b|\baggFunc\b|\bgroupDisplayType\b|\bpivot(?:Mode)?\s*:/,
-        'gap',
-        {},
-        { gap: 'row-grouping' },
+        /\browGroup\s*:|\benableRowGroup\b|\baggFunc\b|\bgroupDisplayType\b/,
+        'partial',
+        { props: ['grouping', 'treeExpanded'], column: ['groupable', 'aggregate', 'groupCell'] },
       ),
+      f('pivot', /\bpivot(?:Mode)?\s*:/, 'gap', {}, { gap: 'row-grouping' }),
       f(
         'tree-data',
         /\btreeData\b|\bgetDataPath\b|\btreeDataChildrenField\b|\btreeDataParentIdField\b/,
@@ -554,13 +553,10 @@ export const LIBRARIES = [
         'partial',
         { addons: ['@argus-table/editing'], events: ['argus-cell-edit'] },
       ),
-      f(
-        'grouping',
-        /\browGroupingModel\b|\baggregationModel\b/,
-        'gap',
-        {},
-        { gap: 'row-grouping' },
-      ),
+      f('grouping', /\browGroupingModel\b|\baggregationModel\b/, 'partial', {
+        props: ['grouping', 'treeExpanded'],
+        column: ['groupable', 'aggregate', 'groupCell'],
+      }),
       f('tree-data', /\btreeData\b|\bgetTreeDataPath\b/, 'partial', {
         props: ['getParentId', 'getRowId', 'treeExpanded'],
         events: ['argus-tree-expanded-change'],
@@ -690,7 +686,10 @@ export const LIBRARIES = [
         addons: ['@argus-table/editing'],
         events: ['argus-cell-edit'],
       }),
-      f('row-group', /\browGroupMode\b|\bgroupRowsBy\b/, 'gap', {}, { gap: 'row-grouping' }),
+      f('row-group', /\browGroupMode\b|\bgroupRowsBy\b/, 'partial', {
+        props: ['grouping', 'treeExpanded'],
+        column: ['groupable', 'aggregate', 'groupCell'],
+      }),
       f('expansion', /\bexpandedRow\b|\bpRowToggler\b|\bexpandedRowKeys\b/, 'partial', {
         props: ['rowDetail', 'expanded'],
       }),
@@ -751,7 +750,10 @@ export const LIBRARIES = [
       f('expand', /\bshow-expand\b|#expanded-row\b/, 'partial', {
         props: ['rowDetail', 'expanded'],
       }),
-      f('group', /\bgroup-by\b/, 'gap', {}, { gap: 'row-grouping' }),
+      f('group', /\bgroup-by\b/, 'partial', {
+        props: ['grouping', 'treeExpanded'],
+        column: ['groupable', 'aggregate', 'groupCell'],
+      }),
       f('density', /\bdensity\s*=/, 'maps', { props: ['density'] }),
       f('virtual', /<v-data-table-virtual\b|<VDataTableVirtual\b/, 'builtin'),
       f('row-click', /@click:row\b/, 'maps', { events: ['argus-row-click'] }),
