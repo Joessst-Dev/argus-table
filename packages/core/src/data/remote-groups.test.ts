@@ -28,7 +28,7 @@ function answer(
   response: { rows?: unknown; groups?: GroupData[]; total?: number },
 ) {
   const level = levelOf(groups, key);
-  groups.begin(level, page);
+  groups.cacheOf(level)?.begin(page);
   return groups.resolve(level, page, response);
 }
 
@@ -184,7 +184,7 @@ describe('RemoteGroups', () => {
     expect(g.levels().map((l) => l.key)).toEqual(['']);
     g.setExpanded([EU]);
     const level = levelOf(g, EU);
-    expect(g.missingPages(level, 0, 3)).toEqual([0, 1]);
+    expect(g.cacheOf(level)?.missingPages(0, 3)).toEqual([0, 1]);
   });
 
   it('an answer for a closed level is stale', () => {
@@ -192,7 +192,7 @@ describe('RemoteGroups', () => {
     top(g);
     g.setExpanded([EU]);
     const level = levelOf(g, EU);
-    g.begin(level, 0);
+    g.cacheOf(level)?.begin(0);
     g.setExpanded([]);
     expect(g.resolve(level, 0, { rows: [{ id: 'a' }] })).toBe('stale');
   });
@@ -201,14 +201,14 @@ describe('RemoteGroups', () => {
     const g = new RemoteGroups<Sale>({ grouping: ['region'], pageSize: 1, expanded: [EU] });
     // 40 top-level groups, EU first with 30 rows.
     const level = levelOf(g, '');
-    g.begin(level, 0);
+    g.cacheOf(level)?.begin(0);
     g.resolve(level, 0, { rows: [], groups: [{ value: 'EU', count: 30 }], total: 40 });
     for (let i = 0; i < 30; i++) answer(g, EU, i, { rows: [{ id: `r${String(i)}` }] });
     expect(g.rowCount).toBe(70);
     // Far below EU: its pages and the first top-level page go.
     g.evict(60, 70);
     const eu = levelOf(g, EU);
-    expect(g.missingPages(eu, 0, 30).length).toBeGreaterThanOrEqual(19);
+    expect(g.cacheOf(eu)?.missingPages(0, 30).length).toBeGreaterThanOrEqual(19);
     expect(g.stateAt(0)).toBe('loading');
     // EU stays open where it was: its rows still follow its row.
     expect(g.rowCount).toBe(70);
@@ -221,12 +221,12 @@ describe('RemoteGroups', () => {
     top(g);
     g.setExpanded([EU]);
     const level = levelOf(g, EU);
-    g.begin(level, 1);
-    g.fail(level, 1);
+    g.cacheOf(level)?.begin(1);
+    g.cacheOf(level)?.fail(1);
     expect(g.stateAt(3)).toBe('error');
     expect(g.pageSpan(3)).toEqual({ key: `${EU}\u00011`, start: 3, end: 4 });
     expect(g.retry(3)).toBe(true);
-    expect(g.missingPages(level, 0, 3)).toEqual([0, 1]);
+    expect(g.cacheOf(level)?.missingPages(0, 3)).toEqual([0, 1]);
     expect(g.retry(3)).toBe(false);
   });
 
@@ -280,5 +280,57 @@ describe('RemoteGroups', () => {
     expect(g.mayToggle(EU, true)).toBe(true);
     expect(g.mayToggle('row', true)).toBe(false);
     expect(g.mayToggle('row', false)).toBe(true);
+  });
+
+  it('groups the server sent twice (null and empty text) open once', () => {
+    const g = setup(['region']);
+    const NONE = '\u0000g["region",null]';
+    g.setExpanded([NONE]);
+    answer(g, '', 0, {
+      rows: [],
+      groups: [
+        { value: null, count: 2 },
+        { value: '', count: 3 },
+      ],
+      total: 2,
+    });
+    // One level (under the last of them, where the id points), counted once.
+    expect(g.levels().filter((l) => l.key === NONE)).toHaveLength(1);
+    expect(g.rowCount).toBe(2 + 3);
+  });
+
+  it('an open group whose row loads elsewhere moves with it; another group in its place doesn’t take its rows', () => {
+    const g = new RemoteGroups<Sale>({ grouping: ['region'], pageSize: 1, expanded: [EU] });
+    const root = levelOf(g, '');
+    g.cacheOf(root)?.begin(0);
+    g.resolve(root, 0, { rows: [], groups: [{ value: 'EU', count: 1 }], total: 2 });
+    answer(g, EU, 0, { rows: [{ id: 'a' }] });
+    expect(shown(g)).toEqual(['[EU]', 'a', 'loading']);
+    // The page reloads with a new group in front: EU is now second.
+    g.evict(10_000, 10_001);
+    g.cacheOf(root)?.begin(0);
+    g.resolve(root, 0, { rows: [], groups: [{ value: 'AA', count: 1 }], total: 2 });
+    expect(shown(g)).toEqual(['[AA]', 'loading']);
+    g.cacheOf(root)?.begin(1);
+    g.resolve(root, 1, { rows: [], groups: [{ value: 'EU', count: 1 }], total: 2 });
+    expect(shown(g)).toEqual(['[AA]', '[EU]', 'a']);
+  });
+
+  it('a row of a group just closed finds its group row (an active cell moves there)', () => {
+    const g = setup(['region']);
+    top(g);
+    g.setExpanded([EU]);
+    answer(g, EU, 0, { rows: [{ id: 'a' }, { id: 'b' }] });
+    g.setExpanded([]);
+    expect(g.shownAncestor(`${EU}.1`)).toBe(0);
+  });
+
+  it('empty groups at the deepest level are fine; groups without a count are wrong', () => {
+    const g = setup(['region']);
+    top(g);
+    g.setExpanded([EU]);
+    expect(answer(g, EU, 0, { rows: [{ id: 'a' }], groups: [] })).toBe('stored');
+    const h = setup(['region']);
+    expect(answer(h, '', 0, { rows: [], groups: [null as unknown as GroupData] })).toBe('wrong');
   });
 });

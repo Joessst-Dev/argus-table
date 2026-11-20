@@ -280,13 +280,11 @@ const canFilter = <T>(state: TableState<T>, column: ColumnInfo) =>
 const canGroup = <T>(state: TableState<T>, column: ColumnInfo) => {
   const table = state.host.element;
   const source = table.dataSource;
-  return (
-    state.options.group &&
-    column.groupable &&
-    !(source?.hasChildren && source.getChildren) &&
-    !table.getSubRows &&
-    !table.getParentId
-  );
+  // A data source ignores `getSubRows` and `getParentId`; its own tree can't group.
+  const tree = source
+    ? source.hasChildren !== undefined && source.getChildren !== undefined
+    : table.getSubRows !== undefined || table.getParentId !== undefined;
+  return state.options.group && column.groupable && !tree;
 };
 
 /** The columns shown and hidden, when the menu hides and shows columns. */

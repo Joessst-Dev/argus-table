@@ -26,14 +26,13 @@ export interface GroupLevel {
 }
 
 interface Level extends GroupLevel {
-  /** The id path of the open group (column ids and keys, for `groupId`). */
-  readonly ids: readonly unknown[];
   /** The depth of the level's rows: `0` for the top-level groups. */
   readonly depth: number;
   readonly cache: PageCache<unknown>;
   /** The parent level's key and the open group's index in it; `undefined` for the top level. */
   readonly parent: string | undefined;
-  readonly at: number;
+  /** The open group's index in its parent level: found again when its row loads elsewhere. */
+  at: number;
 }
 
 /** A level as shown: its open child levels and where its rows are. */
@@ -85,6 +84,8 @@ export class RemoteGroups<TData> implements RemoteRows<TData>, RowStructure {
   #layout = '';
   #order: object = Object.freeze({});
   #last: At | undefined;
+  /** The loaded rows of the levels the last `setExpanded` closed, by their group's id. */
+  #dropped = new Map<string, string>();
   /** The forest, and the loaded data rows' ids in row order, per version. */
   #forest: { version: number; forest: RemoteForest; data: string[] } | undefined;
 
@@ -93,7 +94,7 @@ export class RemoteGroups<TData> implements RemoteRows<TData>, RowStructure {
     this.#pageSize = options.pageSize;
     this.#getRowId = options.getRowId;
     this.#expanded = new Set(options.expanded);
-    const root = this.#level('', [], [], -1, undefined, 0, undefined);
+    const root = this.#level('', [], -1, undefined, 0, undefined);
     this.root = root.cache;
   }
 
@@ -117,9 +118,13 @@ export class RemoteGroups<TData> implements RemoteRows<TData>, RowStructure {
     const old = this.#expanded;
     if (next.size === old.size && [...next].every((id) => old.has(id))) return;
     this.#expanded = next;
-    // A closed group's level goes, and the levels inside it.
-    for (const key of [...this.#levels.keys()]) {
-      if (key !== '' && !this.#shownLevel(key)) this.#levels.delete(key);
+    // A closed group's level goes, and the levels inside it; their loaded rows
+    // remember their group, so an active cell there finds it (`shownAncestor`).
+    this.#dropped = new Map();
+    for (const [key, level] of [...this.#levels]) {
+      if (key === '' || this.#shownLevel(key)) continue;
+      for (const id of level.cache.loadedIds()) this.#dropped.set(id, key);
+      this.#levels.delete(key);
     }
     this.#version++;
   }
@@ -138,18 +143,13 @@ export class RemoteGroups<TData> implements RemoteRows<TData>, RowStructure {
     return out;
   }
 
-  missingPages(level: GroupLevel, start: number, end: number): number[] {
-    return this.#current(level)?.cache.missingPages(start, end) ?? [];
-  }
-
-  inFlightOutside(level: GroupLevel, start: number, end: number): number[] {
-    return this.#current(level)?.cache.inFlightOutside(start, end) ?? [];
-  }
-
-  begin(level: GroupLevel, page: number): { start: number; end: number } {
-    const current = this.#current(level);
-    if (!current) return { start: 0, end: 0 };
-    return current.cache.begin(page);
+  /**
+   * A level's page cache while the level is shown: for paging requests
+   * (`missingPages`, `begin`, `inFlightOutside`, `cancel`, `fail`). Stores go
+   * through `resolve`, and a closed level's cache is `undefined`.
+   */
+  cacheOf(level: GroupLevel): PageCache<unknown> | undefined {
+    return this.#current(level)?.cache;
   }
 
   /**
@@ -165,23 +165,20 @@ export class RemoteGroups<TData> implements RemoteRows<TData>, RowStructure {
     const current = this.#current(level);
     if (!current) return 'stale';
     const list = current.groups ? response.groups : response.rows;
-    if (!Array.isArray(list) || (!current.groups && response.groups !== undefined)) return 'wrong';
+    // Groups at the deepest level, or a group without its count, are the wrong kind.
+    const other = (current.groups ? list : response.groups) as (GroupData | null)[] | undefined;
+    if (
+      !Array.isArray(list) ||
+      (current.groups ? other?.some((group) => typeof group?.count !== 'number') : other?.length)
+    ) {
+      return 'wrong';
+    }
     const { total } = response;
     if (!current.cache.resolve(page, list, typeof total === 'number' ? total : undefined)) {
       return 'stale';
     }
     this.#version++;
     return 'stored';
-  }
-
-  fail(level: GroupLevel, page: number): boolean {
-    const failed = this.#current(level)?.cache.fail(page) ?? false;
-    if (failed) this.#version++;
-    return failed;
-  }
-
-  cancel(level: GroupLevel, page: number): void {
-    this.#current(level)?.cache.cancel(page);
   }
 
   /** Lets the failed page of the row at a shown index load again; `false` when it didn't fail. */
@@ -202,14 +199,17 @@ export class RemoteGroups<TData> implements RemoteRows<TData>, RowStructure {
    */
   evict(start: number, end: number): void {
     const covered = new Map(this.ranges(start, end).map((r) => [r.level.key, r]));
+    let dropped = false;
     for (const node of this.#ensure().values()) {
       const { cache, key } = node.level;
+      const before = cache.version;
       const range = covered.get(key);
       if (range) cache.evictOutside(range.start, range.end);
       else if (node.start + node.size <= start) cache.evictOutside(cache.rowCount, cache.rowCount);
       else cache.evictOutside(0, 0);
+      dropped ||= cache.version !== before;
     }
-    this.#version++;
+    if (dropped) this.#version++;
   }
 
   /** The shown rows of a level's page, `start` to `end` (exclusive). */
@@ -294,7 +294,8 @@ export class RemoteGroups<TData> implements RemoteRows<TData>, RowStructure {
     const i = Number(id.slice(STAND_IN.length, split));
     const key = id.slice(split + 1);
     const node = this.#ensure().get(key);
-    if (node && Number.isInteger(i) && i < node.level.cache.rowCount) {
+    // Not a number (a malformed id): no row.
+    if (node && i < node.level.cache.rowCount) {
       return { index: this.#position(node, i), same: true, moves: true };
     }
     const index = key === '' ? undefined : this.shownAncestor(key);
@@ -391,7 +392,6 @@ export class RemoteGroups<TData> implements RemoteRows<TData>, RowStructure {
   #level(
     key: string,
     path: readonly GroupPathItem[],
-    ids: readonly unknown[],
     depth: number,
     parent: string | undefined,
     at: number,
@@ -405,7 +405,12 @@ export class RemoteGroups<TData> implements RemoteRows<TData>, RowStructure {
       ? new PageCache<unknown>({
           pageSize: this.#pageSize,
           rowCount: 1,
-          getRowId: (group) => groupId([...ids, column, groupingKey((group as GroupData).value)]),
+          getRowId: (group) =>
+            groupId([
+              ...path.flatMap((p) => [p.columnId, groupingKey(p.value)]),
+              column,
+              groupingKey((group as GroupData | null)?.value),
+            ]),
         })
       : new PageCache<unknown>({
           pageSize: this.#pageSize,
@@ -413,7 +418,7 @@ export class RemoteGroups<TData> implements RemoteRows<TData>, RowStructure {
           totalKnown: true,
           getRowId: (row, i) => (getRowId ? getRowId(row as TData, i) : `${key}.${String(i)}`),
         });
-    const level: Level = { key, path, ids, depth: rowsDepth, groups, cache, parent, at };
+    const level: Level = { key, path, depth: rowsDepth, groups, cache, parent, at };
     this.#levels.set(key, level);
     return level;
   }
@@ -443,7 +448,7 @@ export class RemoteGroups<TData> implements RemoteRows<TData>, RowStructure {
     for (const level of this.#levels.values()) {
       if (!level.groups && level.cache.indexOf(id) !== undefined) return level.key;
     }
-    return undefined;
+    return this.#dropped.get(id);
   }
 
   /** Opens the levels of open groups whose rows have loaded, and lays out the shown levels. */
@@ -453,19 +458,21 @@ export class RemoteGroups<TData> implements RemoteRows<TData>, RowStructure {
     const nodes = new Map<string, Node>();
     const build = (level: Level, start: number): Node => {
       const { cache } = level;
-      const children: Level[] = [];
+      // An id the server sent twice (groups whose values share a key) opens once.
+      const children = new Set<Level>();
       if (level.groups) {
         for (const id of cache.loadedIds()) {
           if (!this.#expanded.has(id)) continue;
           const at = cache.indexOf(id) ?? 0;
           const group = cache.entryAt(at)?.row as GroupData;
           const column = this.#grouping[level.depth] ?? '';
-          children.push(
-            this.#levels.get(id) ??
+          const open = this.#levels.get(id);
+          if (open) open.at = at;
+          children.add(
+            open ??
               this.#level(
                 id,
                 [...level.path, { columnId: column, value: group.value }],
-                [...level.ids, column, groupingKey(group.value)],
                 level.depth,
                 level.key,
                 at,
@@ -473,12 +480,15 @@ export class RemoteGroups<TData> implements RemoteRows<TData>, RowStructure {
               ),
           );
         }
-        // Open levels whose group row was evicted keep their place.
+        // Open levels whose group row was evicted keep their place, unless
+        // another group has loaded there.
         for (const other of this.#levels.values()) {
-          if (other.parent === level.key && !children.includes(other)) children.push(other);
+          if (other.parent === level.key && cache.entryAt(other.at) === undefined) {
+            children.add(other);
+          }
         }
       }
-      const shown = children
+      const shown = [...children]
         .filter((c) => c.at < cache.rowCount && this.#expanded.has(c.key))
         .sort((a, b) => a.at - b.at);
       const node: Node = { level, open: [], before: [0], size: cache.rowCount, start };
@@ -496,9 +506,7 @@ export class RemoteGroups<TData> implements RemoteRows<TData>, RowStructure {
     const root = this.#levels.get('');
     if (root) build(root, 0);
     this.#nodes = nodes;
-    const layout = [...nodes.values()]
-      .map((n) => `${n.level.key}\u0001${String(n.start)}\u0001${String(n.size)}`)
-      .join('\u0002');
+    const layout = JSON.stringify([...nodes.values()].map((n) => [n.level.key, n.start, n.size]));
     if (layout !== this.#layout) {
       this.#layout = layout;
       this.#order = Object.freeze({});
@@ -537,28 +545,25 @@ export class RemoteGroups<TData> implements RemoteRows<TData>, RowStructure {
 
   /** The last open level whose group row is above shown row `r` of a node, or `-1`. */
   #openAbove(node: Node, r: number): number {
+    return this.#openWhile(node, (at, before) => at + before < r) - 1;
+  }
+
+  /** How many of a node's open levels, from the first, `test` holds for (a prefix): a binary search. */
+  #openWhile(node: Node, test: (at: number, before: number) => boolean): number {
     const { open, before } = node;
     let low = 0;
     let high = open.length;
     while (low < high) {
       const mid = (low + high) >> 1;
-      if ((open[mid]?.level.at ?? 0) + (before[mid] ?? 0) < r) low = mid + 1;
+      if (test(open[mid]?.level.at ?? 0, before[mid] ?? 0)) low = mid + 1;
       else high = mid;
     }
-    return low - 1;
+    return low;
   }
 
   /** The shown index of a level's row. */
   #position(node: Node, i: number): number {
-    const { open, before } = node;
-    let low = 0;
-    let high = open.length;
-    while (low < high) {
-      const mid = (low + high) >> 1;
-      if ((open[mid]?.level.at ?? 0) < i) low = mid + 1;
-      else high = mid;
-    }
-    return node.start + i + (before[low] ?? 0);
+    return node.start + i + (node.before[this.#openWhile(node, (at) => at < i)] ?? 0);
   }
 
   /** The level ranges a shown range covers in a level and the open levels under it. */

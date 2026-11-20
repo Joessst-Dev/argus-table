@@ -66,7 +66,7 @@ const remoteGroups = () => {
   ) => {
     const level = groups.levels().find((l) => l.key === key);
     if (!level) throw new Error(`no level ${key}`);
-    groups.begin(level, page);
+    groups.cacheOf(level)?.begin(page);
     groups.resolve(level, page, response);
   };
   answer('', 0, {

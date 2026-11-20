@@ -39,6 +39,8 @@ export interface DataConfig<T> {
 interface Request {
   controller: AbortController;
   cancel: () => void;
+  /** While grouped: the level the page fills (a closed level's requests are aborted). */
+  level?: GroupLevel;
 }
 
 /** What a reset keeps: the row count and, for a tree, open rows' child counts. */
@@ -126,7 +128,7 @@ export class DataController<T> implements ReactiveController {
     return this.#groups ?? this.#tree ?? this.#cache;
   }
 
-  /** The page cache of the (top-level) rows, while a data source is set. */
+  /** The page cache of the (top-level) rows, while a data source is set; the top-level groups' while grouped (its rows are `GroupData` then). */
   get cache(): PageCache<T> | undefined {
     return this.#cache;
   }
@@ -430,16 +432,14 @@ export class DataController<T> implements ReactiveController {
    */
   #requestGroups(groups: RemoteGroups<T>, start: number, end: number): void {
     const ranges = groups.ranges(start, end);
-    const key = ranges
-      .map((r) => `${r.level.key}\u0001${String(r.start)}\u0001${String(r.end)}`)
-      .join('\u0002');
+    const key = JSON.stringify(ranges.map((r) => [r.level.key, r.start, r.end]));
     const moved = key !== this.#rangesKey;
     this.#range = { start, end };
     this.#rangesKey = key;
     if (moved) clearTimeout(this.#timer);
     else if (
       this.#timer !== undefined ||
-      ranges.every((r) => groups.missingPages(r.level, r.start, r.end).length === 0)
+      ranges.every((r) => !groups.cacheOf(r.level)?.missingPages(r.start, r.end).length)
     ) {
       return;
     }
@@ -460,16 +460,21 @@ export class DataController<T> implements ReactiveController {
     const ranges = groups.ranges(range.start, range.end);
     const covered = new Map(ranges.map((r) => [r.level.key, r]));
     const margin = groups.root.pageSize;
-    for (const level of groups.levels()) {
+    const levels = groups.levels();
+    // Pages of levels closed since: their answers would be dropped.
+    for (const [key, request] of [...this.#requests]) {
+      if (request.level && !levels.includes(request.level)) this.#abort(key);
+    }
+    for (const level of levels) {
       const r = covered.get(level.key);
       const outside = r
-        ? groups.inFlightOutside(level, r.start - margin, r.end + margin)
-        : groups.inFlightOutside(level, Infinity, Infinity);
-      for (const page of outside) this.#abort(`${level.key}\u0001${String(page)}`);
+        ? groups.cacheOf(level)?.inFlightOutside(r.start - margin, r.end + margin)
+        : groups.cacheOf(level)?.inFlightOutside(Infinity, Infinity);
+      for (const page of outside ?? []) this.#abort(`${level.key}\u0001${String(page)}`);
     }
     groups.evict(range.start, range.end);
     for (const r of ranges) {
-      for (const page of groups.missingPages(r.level, r.start, r.end)) {
+      for (const page of groups.cacheOf(r.level)?.missingPages(r.start, r.end) ?? []) {
         this.#fetchLevel(groups, r.level, page);
       }
     }
@@ -479,16 +484,23 @@ export class DataController<T> implements ReactiveController {
   #fetchLevel(groups: RemoteGroups<T>, level: GroupLevel, page: number): void {
     const source = this.#config.source;
     if (!source) return;
-    const { start, end } = groups.begin(level, page);
+    const cache = groups.cacheOf(level);
+    if (!cache) return;
+    const { start, end } = cache.begin(page);
     const controller = new AbortController();
     const key = `${level.key}\u0001${String(page)}`;
     this.#requests.set(key, {
       controller,
       cancel: () => {
-        groups.cancel(level, page);
+        cache.cancel(page);
       },
+      level,
     });
     const current = () => !controller.signal.aborted && groups === this.#groups;
+    // A level closed and opened again asks again under the same key: only this request's entry goes.
+    const done = () => {
+      if (this.#requests.get(key)?.controller === controller) this.#requests.delete(key);
+    };
     settle(
       () =>
         source.getRows({
@@ -506,16 +518,17 @@ export class DataController<T> implements ReactiveController {
         const result = groups.resolve(level, page, response ?? {});
         if (result === 'wrong') {
           throw new TypeError(
-            'argus-table: getRows() answers groups for a groupPath shorter than grouping, else rows.',
+            'argus-table: getRows() answered rows for groups, or groups for rows.',
           );
         }
-        this.#requests.delete(key);
+        done();
         this.#host.requestUpdate();
       },
       (error) => {
         if (!current()) return;
-        this.#requests.delete(key);
-        groups.fail(level, page);
+        done();
+        // Nothing to report for a level closed meanwhile.
+        if (groups.cacheOf(level) !== cache || !cache.fail(page)) return;
         const span = groups.span(level, page);
         this.#errors.push({ error, start: span.start, end: span.end, groupPath: level.path });
         this.#host.requestUpdate();

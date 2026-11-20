@@ -199,4 +199,80 @@ describe('grouping with a data source', () => {
     expect(requests[0]?.grouping).toEqual([]);
     expect(warn.mock.calls.filter(([m]) => String(m).includes('grouping'))).toHaveLength(1);
   });
+
+  test('a failed page inside a group reports its groupPath and shown rows', async () => {
+    const { source } = server();
+    const failing: DataSource<Sale> = {
+      ...source,
+      getRows: (request) =>
+        request.groupPath?.length ? Promise.reject(new Error('down')) : source.getRows(request),
+    };
+    const errors: LoadErrorDetail[] = [];
+    const el = await fixture<Sale>({
+      columns,
+      data: [],
+      dataSource: failing,
+      grouping: ['region'],
+      treeExpanded: [EU],
+    });
+    el.addEventListener('argus-load-error', (e) => errors.push(e.detail));
+    await loaded(el);
+    // APAC, EU, then EU's three rows (failed).
+    expect(errors).toEqual([
+      expect.objectContaining({
+        start: 2,
+        end: 5,
+        groupPath: [{ columnId: 'region', value: 'EU' }],
+      }),
+    ]);
+  });
+
+  test('a group closed while its page loads reports nothing when the page fails', async () => {
+    const { source } = server();
+    let fail: (() => void) | undefined;
+    const slow: DataSource<Sale> = {
+      ...source,
+      getRows: (request) =>
+        request.groupPath?.length
+          ? new Promise((_, reject) => {
+              fail = () => {
+                reject(new Error('late'));
+              };
+            })
+          : source.getRows(request),
+    };
+    const errors: LoadErrorDetail[] = [];
+    const el = await fixture<Sale>({
+      columns,
+      data: [],
+      dataSource: slow,
+      grouping: ['region'],
+      treeExpanded: [EU],
+    });
+    el.addEventListener('argus-load-error', (e) => errors.push(e.detail));
+    await loaded(el);
+    el.treeExpanded = [];
+    await settle(el);
+    fail?.();
+    await loaded(el);
+    expect(errors).toEqual([]);
+    expect(texts(el).map((t) => t[0])).toEqual(['APAC', 'EU', 'US']);
+  });
+
+  test('refresh() loads every level again', async () => {
+    const { source, requests } = server();
+    const el = await fixture<Sale>({
+      columns,
+      data: [],
+      dataSource: source,
+      grouping: ['region'],
+      treeExpanded: [EU],
+    });
+    await loaded(el);
+    const before = requests.length;
+    void el.refresh();
+    await loaded(el);
+    expect(requests.slice(before).map((r) => r.groupPath?.length)).toEqual([0, 1]);
+    expect(texts(el).map((t) => t[0])).toContain('s3');
+  });
 });

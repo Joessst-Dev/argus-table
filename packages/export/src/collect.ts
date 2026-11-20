@@ -184,6 +184,9 @@ export async function collect<T>(
         sorting: el.sorting,
         filters: el.columnFilters,
         quickFilter: el.quickFilter,
+        // Every row, ungrouped.
+        grouping: [],
+        groupPath: [],
         signal,
       });
       page.forEach((row, k) => {

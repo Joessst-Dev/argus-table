@@ -239,7 +239,7 @@ describe('grouping with a data source', () => {
     ) => {
       const level = groups.levels().find((l) => l.key === key);
       if (!level) throw new Error(`no level ${key}`);
-      groups.begin(level, 0);
+      groups.cacheOf(level)?.begin(0);
       groups.resolve(level, 0, response);
     };
     answer('', {
