@@ -28,6 +28,10 @@ export interface HeaderMenuLabels {
   clearFilter: string;
   /** Default: `Fit width`. */
   fitWidth: string;
+  /** Groups the rows by the column (`grouping`). Default: `Group by this column`. */
+  groupBy: string;
+  /** Stops grouping the rows by the column. Default: `Ungroup`. */
+  ungroup: string;
   /** Default: `Hide column`. */
   hideColumn: string;
   /** Heading of the group that shows hidden columns again. Default: `Hidden columns`. */
@@ -39,6 +43,10 @@ export interface HeaderMenuLabels {
 
   /** Announced when a column is pinned or unpinned. Default: `Price pinned to the start`, `Price unpinned`. */
   pinned: (change: { column: string; pin: 'start' | 'end' | false }) => string;
+  /** Announced when the rows are grouped by a column. Default: `Grouped by Region`. */
+  grouped: (change: { column: string }) => string;
+  /** Announced when the rows are no longer grouped by a column. Default: `No longer grouped by Region`. */
+  ungrouped: (change: { column: string }) => string;
   /** Announced when a column is hidden. Default: `Price hidden`. */
   columnHidden: (change: { column: string }) => string;
   /** Announced when one hidden column is shown again. Default: `Price shown`. */
@@ -106,11 +114,15 @@ const DEFAULT_LABELS: HeaderMenuLabels = {
   filter: 'Filter…',
   clearFilter: 'Clear filter',
   fitWidth: 'Fit width',
+  groupBy: 'Group by this column',
+  ungroup: 'Ungroup',
   hideColumn: 'Hide column',
   hiddenColumns: 'Hidden columns',
   showColumn: ({ column }) => `Show ${column}`,
   showAll: 'Show all',
   pinned: ({ column, pin }) => `${column} ${pin ? PINNED[pin] : 'unpinned'}`,
+  grouped: ({ column }) => `Grouped by ${column}`,
+  ungrouped: ({ column }) => `No longer grouped by ${column}`,
   columnHidden: ({ column }) => `${column} hidden`,
   columnShown: ({ column }) => `${column} shown`,
   columnsShown: ({ count }) => `${String(count)} columns shown`,

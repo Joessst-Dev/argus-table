@@ -81,7 +81,7 @@ export const ADDONS = {
   '@argus-table/header-menu': {
     factory: 'headerMenu',
     exports: ['headerMenu'],
-    options: ['sort', 'fitWidth', 'pin', 'hide', 'filter', 'labels'],
+    options: ['sort', 'fitWidth', 'pin', 'hide', 'filter', 'group', 'labels'],
     peers: ['argus-table', 'lit'],
   },
 };

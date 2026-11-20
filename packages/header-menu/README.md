@@ -1,6 +1,6 @@
 # @argus-table/header-menu
 
-A column menu for [`<argus-table>`](https://www.npmjs.com/package/argus-table). It's a plugin: each column gets a button in its header that opens a menu to sort the column, clear its sort, filter it, pin it to a side, fit its width to its content, or hide it, and to show hidden columns again.
+A column menu for [`<argus-table>`](https://www.npmjs.com/package/argus-table). It's a plugin: each column gets a button in its header that opens a menu to sort the column, clear its sort, filter it, group the rows by it, pin it to a side, fit its width to its content, or hide it, and to show hidden columns again.
 
 **[Docs and live examples](https://joessst-dev.github.io/argus-table/)** · [GitHub](https://github.com/Joessst-Dev/argus-table)
 
@@ -34,7 +34,7 @@ One `headerMenu()` can serve several tables.
 
 ### Options
 
-`headerMenu({ sort: false })` leaves out the sort items, `headerMenu({ fitWidth: false })` Fit width, `headerMenu({ pin: false })` the pin items, `headerMenu({ hide: false })` the hide and show items, and `headerMenu({ filter: false })` the filter items; all default to `true`. A column gets a menu only if something is left in it, so with all five off only columns with items from other plugins get one. Without the sort items a click on the header still sorts: that's the table's own, turned off per column with `sortable: false`. To keep a single column out, set `pinnable: false` or `hideable: false` on it, or leave out its `filter`.
+`headerMenu({ sort: false })` leaves out the sort items, `headerMenu({ fitWidth: false })` Fit width, `headerMenu({ pin: false })` the pin items, `headerMenu({ hide: false })` the hide and show items, `headerMenu({ filter: false })` the filter items, and `headerMenu({ group: false })` Group by this column and Ungroup (for columns with `groupable`: the column becomes the innermost level of the table's `grouping`; not with tree rows or a `dataSource`); all default to `true`. A column gets a menu only if something is left in it, so with all six off only columns with items from other plugins get one. Without the sort items a click on the header still sorts: that's the table's own, turned off per column with `sortable: false`. To keep a single column out, set `pinnable: false` or `hideable: false` on it, or leave out its `filter`.
 
 ## What it does
 

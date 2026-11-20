@@ -1127,3 +1127,68 @@ describe('labels', () => {
     expect(texts(form, '.argus-header-filter-values label')).toContain('(Leer)');
   });
 });
+
+describe('group items', () => {
+  const grouping = () =>
+    columns.map((c) => (c.id === 'note' || c.id === 'age' ? { ...c, groupable: true } : c));
+  const labels = (menu: HTMLElement) => items(menu).map((i) => i.textContent.trim());
+  const item = (menu: HTMLElement, label: string) => {
+    const found = items(menu).find((i) => i.textContent.trim() === label);
+    if (!found) throw new Error(`no item ${label}`);
+    return found;
+  };
+  const announced = async () => {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    return document.querySelector('[data-argus-announcer]')?.textContent;
+  };
+
+  test('Group by this column groups the rows by it, innermost; Ungroup stops', async () => {
+    const el = await fixture({ columns: grouping() });
+    const seen: unknown[] = [];
+    el.addEventListener('argus-grouping-change', (e) => seen.push(e.detail));
+    // A groupable column that can neither sort nor resize gets a menu for it.
+    buttonOf(el, 'note')?.click();
+    let menu = await opened(el);
+    expect(labels(menu)).toEqual(['Group by this column']);
+    item(menu, 'Group by this column').click();
+    await settle(el);
+    expect(el.grouping).toEqual(['note']);
+    expect(await announced()).toBe('Grouped by Note');
+
+    buttonOf(el, 'age')?.click();
+    menu = await opened(el);
+    // After the sort items.
+    expect(labels(menu).slice(3)).toEqual(['Group by this column', 'Fit width']);
+    item(menu, 'Group by this column').click();
+    await settle(el);
+    expect(el.grouping).toEqual(['note', 'age']);
+
+    buttonOf(el, 'note')?.click();
+    item(await opened(el), 'Ungroup').click();
+    await settle(el);
+    expect(el.grouping).toEqual(['age']);
+    expect(await announced()).toBe('No longer grouped by Note');
+    expect(seen).toEqual([
+      { grouping: ['note'], columnId: 'note' },
+      { grouping: ['note', 'age'], columnId: 'age' },
+      { grouping: ['age'], columnId: 'note' },
+    ]);
+  });
+
+  test('not for columns without groupable, with group: false, or with a dataSource', async () => {
+    const el = await fixture({
+      columns: grouping(),
+      plugins: [headerMenu<Row>({ group: false, pin: false, hide: false })],
+    });
+    expect(buttonOf(el, 'note') ?? null).toBeNull();
+    buttonOf(el, 'name')?.click();
+    expect(labels(await opened(el))).not.toContain('Group by this column');
+    document.body.replaceChildren();
+    const remote = await fixture({
+      columns: grouping(),
+      data: [],
+      dataSource: { getRows: () => Promise.resolve({ rows: data, total: data.length }) },
+    });
+    expect(buttonOf(remote, 'note') ?? null).toBeNull();
+  });
+});
