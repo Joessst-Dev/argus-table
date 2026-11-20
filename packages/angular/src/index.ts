@@ -6,6 +6,7 @@ import {
 import {
   ArgusCellDirective,
   ArgusDetailDirective,
+  ArgusGroupCellDirective,
   ArgusGroupHeaderDirective,
   ArgusHeaderDirective,
 } from './content.js';
@@ -14,6 +15,7 @@ export { ArgusColumnComponent, ArgusColumnGroupComponent, ArgusTableComponent };
 export {
   ArgusCellDirective,
   ArgusDetailDirective,
+  ArgusGroupCellDirective,
   ArgusGroupHeaderDirective,
   ArgusHeaderDirective,
   ArgusTableBase,
@@ -23,6 +25,7 @@ export {
   type AngularColumnGroup,
   type ArgusCellContext,
   type ArgusDetailContext,
+  type ArgusGroupCellContext,
   type ArgusGroupHeaderContext,
   type ArgusHeaderContext,
   type ArgusTemplate,
@@ -32,7 +35,7 @@ export {
 export type { CellEditDetail } from './cell-edit-events.js';
 export type { FormulaColumnChangeDetail, FormulaColumnDetail } from './formula-events.js';
 
-/** The table, its columns and column groups, and the cell, header, group header and detail template directives, for a standalone component's `imports`. */
+/** The table, its columns and column groups, and the cell, header, group header, group cell and detail template directives, for a standalone component's `imports`. */
 export const ARGUS_TABLE = [
   ArgusTableComponent,
   ArgusColumnComponent,
@@ -40,6 +43,7 @@ export const ARGUS_TABLE = [
   ArgusCellDirective,
   ArgusHeaderDirective,
   ArgusGroupHeaderDirective,
+  ArgusGroupCellDirective,
   ArgusDetailDirective,
 ] as const;
 
@@ -58,6 +62,7 @@ export type {
   CellTarget,
   ChildrenRequest,
   ChildrenResponse,
+  ColumnAggregate,
   ColumnAlign,
   ColumnDef,
   ColumnFilter,
@@ -87,7 +92,11 @@ export type {
   Density,
   FilterKind,
   FilterValue,
+  GroupCellContext,
   GroupHeaderContext,
+  GroupingChangeDetail,
+  GroupingState,
+  GroupRowInfo,
   HeaderContext,
   HeaderGroupInfo,
   LoadErrorDetail,

@@ -213,14 +213,14 @@
 **Files:**
 
 - Modify: `packages/react/src/generated/elements.ts`, `packages/vue/src/generated/*`, `packages/angular/src/generated/*` (regenerated)
-- Modify: `packages/vue/src/content.ts` (slot `#group-cell-<id>` → `groupCell`), `packages/angular/src/content.ts` (`ArgusGroupCellDirective`, `ng-template[argusGroupCell]="<column id>"` → `groupCell`), `packages/angular/src/index.ts` (export the directive)
+- Modify: `packages/vue/src/content.ts` (slot `#row-group-<id>` → `groupCell`), `packages/angular/src/content.ts` (`ArgusGroupCellDirective`, `ng-template[argusGroupCell]="<column id>"` → `groupCell`), `packages/angular/src/index.ts` (export the directive)
 - Test: `packages/react/src/*.test.tsx`, `packages/vue/src/test/Declarative.vue` + its test, `packages/angular/src/test/*`
 
 **Interfaces:**
 
 - Consumes: `ColumnDef.groupCell` (Task 1), the `grouping` property and `argus-grouping-change` event (Task 4).
 
-- [ ] **Step 1: Write failing tests** per wrapper: `grouping` binds (two-way where the wrapper derives it from `argus-grouping-change`), and a group cell renders framework content: React `groupCell` returning JSX, Vue `<template #group-cell-amount="{ total }">`, Angular `<ng-template argusGroupCell="amount" let-ctx>`.
+- [ ] **Step 1: Write failing tests** per wrapper: `grouping` binds (two-way where the wrapper derives it from `argus-grouping-change`), and a group cell renders framework content: React `groupCell` returning JSX, Vue `<template #row-group-amount="{ total }">`, Angular `<ng-template argusGroupCell="amount" let-ctx>`.
 - [ ] **Step 2: Build** `pnpm nx build argus-table` and run the three `generate` scripts — expect the generated files to change; run the wrapper tests — expect FAIL until the content plugins learn `groupCell`.
 - [ ] **Step 3: Implement** the Vue slot and the Angular directive alongside the existing `#cell-<id>` / `argusCell` handling.
 - [ ] **Step 4: Run** `pnpm nx run-many -t test lint typecheck -p react vue angular generate-wrappers` — expect PASS.

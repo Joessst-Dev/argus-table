@@ -152,6 +152,41 @@ describe('React content in cells and headers', () => {
     expect(cells(el, 'id')[0]?.textContent).toBe('o0');
   });
 
+  test('renders JSX from groupCell on group rows, and binds grouping', async () => {
+    const grouped: ReactColumnDef<Order>[] = [
+      { id: 'id', header: 'Order', accessor: 'id' },
+      {
+        id: 'bucket',
+        header: 'Bucket',
+        accessor: (o: Order) => (o.total < 50 ? 'low' : 'high'),
+        groupable: true,
+      },
+      {
+        id: 'total',
+        header: 'Total',
+        accessor: 'total',
+        aggregate: 'sum',
+        groupCell: ({ total }) => <b className="sum">{String(total)} CHF</b>,
+      },
+    ];
+    const seen: unknown[] = [];
+    const el = await mount(
+      <ArgusTable<Order>
+        style={size}
+        columns={grouped}
+        data={orders(3)}
+        grouping={['bucket']}
+        onGroupingChange={(e) => seen.push(e.detail)}
+      />,
+    );
+    expect(cells(el, 'id').map((c) => c?.textContent)).toEqual(['high', 'low']);
+    // 74 high; 0 + 37 low.
+    expect(cells(el, 'total')[0]?.querySelector('b.sum')?.textContent).toBe('74 CHF');
+    expect(cells(el, 'total')[1]?.textContent).toBe('37 CHF');
+    expect(el.grouping).toEqual(['bucket']);
+    expect(seen).toEqual([]);
+  });
+
   test('renders JSX in column group headers, from columnGroups and <ArgusColumnGroup>', async () => {
     const groupOf = (el: ArgusTableElement) =>
       el.shadowRoot

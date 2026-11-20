@@ -32,6 +32,8 @@ const CONTENT_PROPS: ContentTypes = {
   'ArgusColumnGroup.header': "VueColumnGroup['header']",
   cell: '(row: T, context: CellContext<T>) => VueCellContent',
   rowDetail: '(context: RowDetailContext<T>) => VueCellContent',
+  // A group row's cell (`grouping`).
+  groupCell: "VueColumnDef<T>['groupCell']",
   contentRenderer: null,
 };
 
@@ -57,7 +59,9 @@ function component(el: ElementInfo): string {
   /** \`#header-<column id>\`: a column's header. */
   [slot: \`header-\${string}\`]: ((props: HeaderSlotProps) => VNodeChild) | undefined;
   /** \`#group-<group id>\`: a column group's header. */
-  [slot: \`group-\${string}\`]: ((props: GroupSlotProps) => VNodeChild) | undefined;${
+  [slot: \`group-\${string}\`]: ((props: GroupSlotProps) => VNodeChild) | undefined;
+  /** \`#row-group-<column id>\`: a column's cells on group rows (\`grouping\`). Gets the group row and the column's total. */
+  [slot: \`row-group-\${string}\`]: ((props: GroupCellContext) => VNodeChild) | undefined;${
     el.properties.some((p) => p.name === 'rowDetail')
       ? `
   /** \`#detail\`: a row's detail panel (\`rowDetail\`). Gets the row and its context. */
@@ -180,7 +184,11 @@ export const ${name} = defineWrapper(${JSON.stringify(spec)}) as unknown as ${tp
 export function emitVue(elements: readonly ElementInfo[]): string {
   const classes = elements.map((el) => `${el.className} as ${el.className}Element`);
   const usesContent = usesContentTypes(elements, CONTENT_PROPS);
-  const types = [...classes, ...argusTypes(elements, usesContent)].join(', ');
+  // The `#row-group-<id>` slots' props.
+  const slotTypes = elements.some(rendersContent) ? ['GroupCellContext'] : [];
+  const types = [...classes, ...[...argusTypes(elements, usesContent), ...slotTypes].sort()].join(
+    ', ',
+  );
   const vue = usesContent ? 'PublicProps, VNode, VNodeChild' : 'PublicProps, VNode';
   const contentTypes = [
     ...(elements.some(rendersContent) ? ['GroupSlotProps', 'HeaderSlotProps'] : []),

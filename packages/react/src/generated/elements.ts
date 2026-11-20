@@ -17,6 +17,7 @@ import type {
   ColumnSizingChangeDetail,
   ColumnVisibilityChangeDetail,
   ExpandedChangeDetail,
+  GroupingChangeDetail,
   LoadErrorDetail,
   RangeChangeDetail,
   RowClickDetail,
@@ -64,6 +65,7 @@ export type ArgusTableElementProps<T = unknown> = Partial<
     | 'rowExpandable'
     | 'expanded'
     | 'treeExpanded'
+    | 'grouping'
     | 'plugins'
     | 'labels'
   >
@@ -93,6 +95,8 @@ export interface ArgusTableEventProps<T = unknown> {
   onSelectionChange?: (event: CustomEvent<SelectionChangeDetail>) => void;
   /** `argus-expanded-change`: `expanded` changed: a row's detail panel was opened or closed with its chevron (a click, or Enter or Space on the chevron cell). Only with `rowDetail`. `detail: { expanded, rowId, open }`: `open` is `true` when it was opened. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
   onExpandedChange?: (event: CustomEvent<ExpandedChangeDetail>) => void;
+  /** `argus-grouping-change`: `grouping` changed: a plugin (such as the column menu's "Group by") grouped or ungrouped the rows by a column. `detail: { grouping, columnId }`: `columnId` is the column added or removed. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
+  onGroupingChange?: (event: CustomEvent<GroupingChangeDetail>) => void;
   /** `argus-tree-expanded-change`: `treeExpanded` changed: a row of a tree was expanded or collapsed with its toggle (a click) or with Right or Left on its cell in the tree column; not for a row a filter keeps expanded. Only with `getSubRows`, `getParentId`, or a `dataSource` with `hasChildren` and `getChildren`. `detail: { treeExpanded, rowId, open }`: `open` is `true` when it was expanded. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
   onTreeExpandedChange?: (event: CustomEvent<TreeExpandedChangeDetail>) => void;
   /** `argus-cell-click`: A body or pinned-row cell was clicked, or Enter was pressed on it. `detail: { row, rowId, index, columnId, value, pinned?, depth? }`; `pinned` is `'top'` or `'bottom'` for a pinned row, and `index` is then its index in its list. `depth` is a body row's level in a tree (`0` for a top-level row), set only when the rows form one. Fires before `argus-row-click`. */
@@ -141,6 +145,7 @@ export const ArgusTable = withContent(
         onColumnFiltersChange: 'argus-column-filters-change',
         onSelectionChange: 'argus-selection-change',
         onExpandedChange: 'argus-expanded-change',
+        onGroupingChange: 'argus-grouping-change',
         onTreeExpandedChange: 'argus-tree-expanded-change',
         onCellClick: 'argus-cell-click',
         onRowClick: 'argus-row-click',
@@ -163,6 +168,7 @@ export const ArgusTable = withContent(
       'onColumnFiltersChange',
       'onSelectionChange',
       'onExpandedChange',
+      'onGroupingChange',
       'onTreeExpandedChange',
       'onCellClick',
       'onRowClick',
@@ -199,11 +205,14 @@ export type ArgusColumnElementProps<T = unknown> = Partial<
     | 'filter'
     | 'filterFn'
     | 'filterOptions'
+    | 'groupable'
+    | 'aggregate'
     | 'meta'
   >
 > & {
   header?: ReactColumnDef<T>['header'];
   cell?: (row: T, context: CellContext<T>) => ReactCellContent;
+  groupCell?: ReactColumnDef<T>['groupCell'];
 };
 
 /** Props of `<ArgusColumn>`: element properties and the usual HTML attributes. */

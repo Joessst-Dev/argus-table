@@ -548,3 +548,43 @@ describe('Angular tree rows', () => {
     ]);
   });
 });
+
+@Component({
+  imports: [ARGUS_TABLE],
+  template: `
+    <output class="grouping">{{ grouping().join(',') }}</output>
+    <argus-table style="${SIZE}" [columns]="columns" [data]="rows" [(grouping)]="grouping">
+      <ng-template argusGroupCell="total" let-total="total" let-group>
+        <b class="sum">{{ total }} {{ currency() }} / {{ group.count }}</b>
+      </ng-template>
+    </argus-table>
+  `,
+})
+class Grouped {
+  readonly rows = orders(3);
+  readonly currency = signal('EUR');
+  readonly grouping = signal<readonly string[]>(['bucket']);
+  readonly columns: AngularColumnDef<Order>[] = [
+    { id: 'id', header: 'Order', accessor: 'id' },
+    {
+      id: 'bucket',
+      header: 'Bucket',
+      accessor: (o: Order) => (o.total < 50 ? 'low' : 'high'),
+      groupable: true,
+    },
+    { id: 'total', header: 'Total', accessor: 'total', aggregate: 'sum' },
+  ];
+}
+
+describe('group rows', () => {
+  test('renders argusGroupCell templates on group rows, with the host’s state', async () => {
+    const { fixture, el, host } = await mount(Grouped);
+    expect(cells(el, 'id')).toEqual(['high', 'low']);
+    // 74 high; 0 + 37 low.
+    expect(cells(el, 'total')).toEqual(['74 EUR / 1', '37 EUR / 2']);
+    host.currency.set('CHF');
+    await settle(fixture, el);
+    expect(cells(el, 'total')).toEqual(['74 CHF / 1', '37 CHF / 2']);
+    expect(el.grouping).toEqual(['bucket']);
+  });
+});

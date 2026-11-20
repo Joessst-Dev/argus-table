@@ -23,6 +23,7 @@ import type {
   ColumnSizingChangeDetail,
   ColumnVisibilityChangeDetail,
   ExpandedChangeDetail,
+  GroupingChangeDetail,
   LoadErrorDetail,
   RangeChangeDetail,
   RowClickDetail,
@@ -57,6 +58,7 @@ import { setProperty } from '../set-property.js';
     '(argus-column-filters-change)': 'handleColumnFiltersChange($event)',
     '(argus-selection-change)': 'handleSelectionChange($event)',
     '(argus-expanded-change)': 'handleExpandedChange($event)',
+    '(argus-grouping-change)': 'handleGroupingChange($event)',
     '(argus-tree-expanded-change)': 'handleTreeExpandedChange($event)',
     '(argus-cell-click)': 'handleCellClick($event)',
     '(argus-row-click)': 'handleRowClick($event)',
@@ -223,6 +225,11 @@ export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
     setProperty(this.element, 'treeExpanded', undefined, value);
   }
 
+  /** The columns to group the rows by, outermost first, e.g. `['region', 'status']`; `[]` when the rows aren't grouped. Each group shows as a row with the group's value and its number of rows in the first column, and the totals of columns with an `aggregate` in theirs. Group rows open and close like the rows of a tree: their ids go into `treeExpanded`, and are `'\u0000g'` followed by the JSON of the group's path, each level's column id and value (dates as their time, empty values as `null`): `'\u0000g["region","EU","status","Open"]'`. Groups start closed, are in the order of their values (sorting by a column with a total orders them by it), and hold the rows the filters keep. Only columns with `groupable: true` count; group by values such as text, numbers and dates. Ignored with tree rows (`getSubRows`, `getParentId`) and, for now, with a `dataSource`. Uncontrolled until set, like `sorting`: once set, a change a plugin asks for only fires `argus-grouping-change` with the proposed columns. `undefined` hands it back. */
+  @Input() set grouping(value: ArgusTableElement<T>['grouping'] | null | undefined) {
+    setProperty(this.element, 'grouping', undefined, value);
+  }
+
   /** Add-ons, such as `headerMenu()` from `@argus-table/header-menu`. Each one can change the column definitions, handle keys on a focused header or cell, and use the table through a small API. They run in array order. Replace the array to change them; an array with the same plugins in the same order changes nothing. `null` or `undefined` means `[]`. */
   @Input() set plugins(value: ArgusTableElement<T>['plugins'] | null | undefined) {
     this.setPlugins(value);
@@ -265,6 +272,9 @@ export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
 
   /** `argus-expanded-change`, for `[(expanded)]`: the new `expanded`. Bind `(argus-expanded-change)` for the whole event. `expanded` changed: a row's detail panel was opened or closed with its chevron (a click, or Enter or Space on the chevron cell). Only with `rowDetail`. `detail: { expanded, rowId, open }`: `open` is `true` when it was opened. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
   @Output() readonly expandedChange = new EventEmitter<ArgusTableElement<T>['expanded']>();
+
+  /** `argus-grouping-change`, for `[(grouping)]`: the new `grouping`. Bind `(argus-grouping-change)` for the whole event. `grouping` changed: a plugin (such as the column menu's "Group by") grouped or ungrouped the rows by a column. `detail: { grouping, columnId }`: `columnId` is the column added or removed. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
+  @Output() readonly groupingChange = new EventEmitter<ArgusTableElement<T>['grouping']>();
 
   /** `argus-tree-expanded-change`, for `[(treeExpanded)]`: the new `treeExpanded`. Bind `(argus-tree-expanded-change)` for the whole event. `treeExpanded` changed: a row of a tree was expanded or collapsed with its toggle (a click) or with Right or Left on its cell in the tree column; not for a row a filter keeps expanded. Only with `getSubRows`, `getParentId`, or a `dataSource` with `hasChildren` and `getChildren`. `detail: { treeExpanded, rowId, open }`: `open` is `true` when it was expanded. The new value fires after the update that applied it; when the property is controlled, the proposed value fires right away and nothing changes until the host sets it. */
   @Output() readonly treeExpandedChange = new EventEmitter<ArgusTableElement<T>['treeExpanded']>();
@@ -397,6 +407,12 @@ export class ArgusTableComponent<T = unknown> extends ArgusTableBase<T> {
     // Events bubble: skip those of a table nested in a cell.
     if (event.target !== this.element) return;
     this.expandedChange.emit((event as CustomEvent<ExpandedChangeDetail>).detail.expanded);
+  }
+
+  protected handleGroupingChange(event: Event): void {
+    // Events bubble: skip those of a table nested in a cell.
+    if (event.target !== this.element) return;
+    this.groupingChange.emit((event as CustomEvent<GroupingChangeDetail>).detail.grouping);
   }
 
   protected handleTreeExpandedChange(event: Event): void {
@@ -583,6 +599,23 @@ export class ArgusColumnComponent<T = unknown> {
   /** The values a `set` filter offers; needed with a `dataSource`. Property only. */
   @Input() set filterOptions(value: ArgusColumnElement<T>['filterOptions'] | null | undefined) {
     setProperty(this.element, 'filterOptions', undefined, value);
+  }
+
+  /** Whether the rows can be grouped by this column (`grouping`). Default: `false`. */
+  @Input() set groupable(
+    value: ArgusColumnElement<T>['groupable'] | '' | 'true' | 'false' | null | undefined,
+  ) {
+    setProperty(this.element, 'groupable', 'groupable', value);
+  }
+
+  /** The total group rows show in this column: `sum`, `avg`, `min`, `max` or `count`, or (as a property) a function of the values and the rows' ids. */
+  @Input() set aggregate(value: ArgusColumnElement<T>['aggregate'] | null | undefined) {
+    setProperty(this.element, 'aggregate', 'aggregate', value);
+  }
+
+  /** The content of this column's cell on a group row (`ColumnDef.groupCell`). Property only. */
+  @Input() set groupCell(value: AngularColumnDef<T>['groupCell'] | null | undefined) {
+    setProperty(this.element, 'groupCell', undefined, value);
   }
 
   /** Fields for plugins and the app (`ColumnDef.meta`), such as `meta.export`. Property only. */
