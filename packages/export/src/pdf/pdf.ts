@@ -31,8 +31,16 @@ const FOOTER = 8;
 /** How far detail rows are indented, in pt. */
 const DETAIL_INDENT = 16;
 
-/** A line of a page: a row of the table, a detail rows' header, or a detail row. */
-type Line = { kind: 'row' | 'detail'; values: ExportValue[] } | { kind: 'detail-header' };
+/** How far a grouped row's first cell moves right per level (`outline`), in pt. */
+const GROUP_INDENT = 12;
+
+/**
+ * A line of a page: a row of the table (with its depth and whether it is a
+ * group row, while grouped), a detail rows' header, or a detail row.
+ */
+type Line =
+  | { kind: 'row' | 'detail'; values: ExportValue[]; depth?: number; group?: boolean }
+  | { kind: 'detail-header' };
 /** CSS px to pt, the most a column is scaled. */
 const PX = 0.75;
 const ELLIPSIS = 0x85;
@@ -212,13 +220,10 @@ export async function toPdf(
     Math.max(0, Math.min(detailWidths[i] ?? 0, width - MARGIN - (detailStarts[i] ?? 0)));
   const lines: Line[] = rows.flatMap((values, i): Line[] => {
     const under = detail?.rows[i];
+    const row: Line = { kind: 'row', values, ...sheet.outline?.[i] };
     return under?.length
-      ? [
-          { kind: 'row', values },
-          { kind: 'detail-header' },
-          ...under.map((v): Line => ({ kind: 'detail', values: v })),
-        ]
-      : [{ kind: 'row', values }];
+      ? [row, { kind: 'detail-header' }, ...under.map((v): Line => ({ kind: 'detail', values: v }))]
+      : [row];
   });
 
   const top = height - MARGIN;
@@ -246,13 +251,16 @@ export async function toPdf(
     for (const line of pageRows) {
       y -= ROW;
       if (line.kind === 'row') {
+        // A group row is shaded and bold; a grouped row's first cell moves in by its depth.
+        if (line.group) fill(MARGIN, y, tableWidth);
+        const indent = (line.depth ?? 0) * GROUP_INDENT;
         line.values.forEach((value, i) => {
           cellText(
             display(value, text.locale),
-            starts[i] ?? MARGIN,
-            widths[i] ?? 0,
+            (starts[i] ?? MARGIN) + (i ? 0 : indent),
+            (widths[i] ?? 0) - (i ? 0 : indent),
             y,
-            false,
+            line.group === true,
             columns[i]?.align ?? 'start',
           );
         });

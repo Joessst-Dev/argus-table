@@ -167,3 +167,40 @@ describe('detail rows', () => {
     expect(xmlText).toContain('<col min="4" max="4"');
   });
 });
+
+describe('grouped rows', () => {
+  const sheet = (): ExportSheet => ({
+    columns: [column('name'), column('amount', { align: 'end' })],
+    groups: [],
+    rows: [
+      ['EU (2)', 30],
+      ['Open (1)', 10],
+      ['Ann', 10],
+      ['Done (1)', 20],
+      ['Bob', 20],
+    ],
+    outline: [
+      { depth: 0, group: true },
+      { depth: 1, group: true },
+      { depth: 2, group: false },
+      { depth: 1, group: true },
+      { depth: 2, group: false },
+    ],
+    detail: { columns: [column('p')], rows: [undefined, undefined, [['x']], undefined, []] },
+  });
+
+  test('rows sit at their depth’s outline level; a group row’s name is bold, its total a number', async () => {
+    const { sheet: xmlText } = await sheetXml(sheet());
+    expect(xmlText).toContain(
+      '<row r="2"><c r="A2" s="3" t="inlineStr"><is><t xml:space="preserve">EU (2)</t>',
+    );
+    expect(xmlText).toContain('<row r="3" outlineLevel="1"><c r="A3" s="3"');
+    expect(xmlText).toContain('<c r="B2" s="2"><v>30</v></c>');
+    expect(xmlText).toContain('<row r="4" outlineLevel="2"><c r="A4" s="0"');
+    // Ann's detail rows, a level deeper than Ann.
+    expect(xmlText).toContain('<row r="5" outlineLevel="3"><c r="B5"');
+    expect(xmlText).toContain('<sheetFormatPr defaultRowHeight="15" outlineLevelRow="3"/>');
+    expect(xmlText).toContain('<outlinePr summaryBelow="0"/>');
+    expect(xmlText).not.toContain('<autoFilter');
+  });
+});
