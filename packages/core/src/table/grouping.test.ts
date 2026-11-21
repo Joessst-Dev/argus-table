@@ -59,7 +59,7 @@ describe('grouping', () => {
     expect(m.rows.grouped).toBe(true);
     expect(shown(m)).toEqual(['[APAC]', '[EU]']);
     expect(m.rows.groupAt(0)).toEqual({
-      id: APAC,
+      rowId: APAC,
       groupColumnId: 'region',
       value: 'APAC',
       count: 2,
@@ -89,7 +89,7 @@ describe('grouping', () => {
     const m = model({ grouping: ['region', 'status'], treeExpanded: [EU, open] });
     expect(shown(m)).toEqual(['[APAC]', '[EU]', '[Done]', '[Open]', 'a', 'e']);
     expect(m.rows.groupAt(3)).toMatchObject({
-      id: open,
+      rowId: open,
       depth: 1,
       count: 2,
       totals: { amount: 11 },

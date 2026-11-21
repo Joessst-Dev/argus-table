@@ -24,6 +24,7 @@ export const FALLBACKS: Readonly<Record<string, string>> = {
   '--argus-row-hover-bg': 'var(--argus-row-odd-bg)',
   '--argus-row-selected-bg': 'color-mix(in srgb, Highlight 22%, var(--argus-bg))',
   '--argus-row-pinned-bg': 'var(--argus-bg)',
+  '--argus-row-group-bg': 'var(--argus-bg)',
   '--argus-resize-handle-color': 'light-dark(#9ca3af, #6b7280)',
   '--argus-drop-indicator-color': 'Highlight',
   '--argus-focus-ring': '2px solid Highlight',

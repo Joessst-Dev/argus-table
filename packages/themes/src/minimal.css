@@ -44,6 +44,7 @@ argus-table {
   --argus-filter-indicator-color: light-dark(#b45309, #f0b35b);
   --argus-skeleton-bg: light-dark(#eceef1, #23262b);
   --argus-row-pinned-bg: var(--argus-bg);
+  --argus-row-group-bg: light-dark(#f7f8f9, #16181c);
 
   /* Add-ons: plain surfaces, the accent for actions and functions, red for errors. */
   --argus-menu-bg: var(--argus-bg);

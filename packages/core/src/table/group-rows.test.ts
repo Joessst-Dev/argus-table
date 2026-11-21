@@ -47,14 +47,14 @@ describe('buildGroups', () => {
     expect(infos.map((i) => i?.value)).toEqual(['APAC', 'EU', undefined]);
     expect(infos.map((i) => i?.count)).toEqual([2, 2, 2]);
     expect(infos[0]).toEqual({
-      id: '\u0000g["region","APAC"]',
+      rowId: '\u0000g["region","APAC"]',
       groupColumnId: 'region',
       value: 'APAC',
       count: 2,
       depth: 0,
       totals: {},
     });
-    expect(g.info(8)?.id).toBe('\u0000g["region",null]');
+    expect(g.info(8)?.rowId).toBe('\u0000g["region",null]');
     // Data rows sit under their group, one level down.
     expect([...g.parent.slice(0, 6)]).toEqual([7, 6, 7, 8, 6, 8]);
     expect([...g.depth.slice(0, 9)]).toEqual([1, 1, 1, 1, 1, 1, 0, 0, 0]);
@@ -97,7 +97,7 @@ describe('buildGroups', () => {
     ];
     const byDay = build(rows, [0, 1], [column('day')], []);
     expect(byDay.groups).toBe(1);
-    expect(byDay.info(3)?.id).toBe(`\u0000g["day",${String(new Date(2026, 0, 1).getTime())}]`);
+    expect(byDay.info(3)?.rowId).toBe(`\u0000g["day",${String(new Date(2026, 0, 1).getTime())}]`);
     expect(byDay.info(3)?.value).toBeInstanceOf(Date);
     const byRegion = build(sales, [3, 5], [column('region')], []);
     expect(byRegion.groups).toBe(1);
@@ -143,7 +143,7 @@ describe('buildGroups', () => {
       { status: 'b', amount: Number.NaN },
     ];
     const g = build(rows, [0, 1], [column('amount')], []);
-    expect([g.info(2)?.id, g.info(3)?.id]).toEqual([
+    expect([g.info(2)?.rowId, g.info(3)?.rowId]).toEqual([
       '\u0000g["amount","Infinity"]',
       '\u0000g["amount",null]',
     ]);

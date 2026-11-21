@@ -272,7 +272,7 @@ export class RemoteGroups<TData> implements RemoteRows<TData>, RowStructure {
     if (!level || !entry) return undefined;
     const group = entry.row as GroupData;
     return {
-      id: entry.id,
+      rowId: entry.id,
       groupColumnId: this.#grouping[level.depth] ?? '',
       value: groupingKey(group.value) === null ? undefined : group.value,
       count: group.count,

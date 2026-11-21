@@ -257,9 +257,10 @@ export interface GroupRowInfo {
    * The group's id, as `treeExpanded` lists it while the group is open: `'\u0000g'`
    * followed by the JSON of its path, each level's column id and value, outermost
    * first (`'\u0000g["region","EU","status","Open"]'`). Dates are their time,
-   * and empty values (`undefined`, `null`, `''`) `null`.
+   * and empty values (`undefined`, `null`, `''`) `null`. Named like
+   * `CellContext.rowId`: a group row is a row, and this is its id.
    */
-  id: string;
+  rowId: string;
   /** The column this group's rows share a value of. */
   groupColumnId: string;
   /** That value, as the column's `accessor` reads it; `undefined` for the group of empty values. */
