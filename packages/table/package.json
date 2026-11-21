@@ -1,6 +1,6 @@
 {
   "name": "argus-table",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "A framework-agnostic data table web component built with Lit.",
   "license": "MIT",
   "repository": {

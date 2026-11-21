@@ -1,5 +1,39 @@
 # @argus-table/formulas
 
+## 1.4.0
+
+### Minor Changes
+
+- c3f6611: Formula columns can sort and filter with a `dataSource`: turn it on with `formulas({ server: true })`, and send each formula's syntax tree from `getRows` with `formulaTrees(table)`, so your server sorts and filters by it. The Formulas page documents the tree format and what the browser computes. When a formula the current sort or filters use changes, the table loads its rows again. Formula columns now also stop or start sorting as soon as a `dataSource` is set or removed, without setting `columns` again. The plugin grows by 0.50 kB min+gzip.
+
+### Patch Changes
+
+- ae76b1f: Row grouping with a `dataSource`: the server groups. `getRows` now gets `grouping` and `groupPath` (the group a request fills: `[]` for the top-level groups); answer a level of groups with `groups` (each `{ value, count, totals }`, and `rows: []`) and a group's rows with `rows`, as before. Top-level groups, the groups inside an open group and an open group's rows all load page by page as they scroll into view, with Retry on a failed page and `groupPath` in `argus-load-error`. New types `GroupData` and `GroupPathItem`. The column menu's Group by this column is offered with a `dataSource` too (not with `hasChildren` and `getChildren`). With a `dataSource`, formula columns can be grouped by only with `formulas({ server: true })`, like sorting and filtering, and changing such a column's formula while the rows are grouped by it reloads them.
+- c2a7b25: Whole columns (`[[name]]`) include the child rows of a tree (`getSubRows` or `getParentId`), whether their parents are expanded or not, and are computed again when `getSubRows` or `getParentId` changes.
+- Updated dependencies [8b2eae8]
+- Updated dependencies [cae43e9]
+- Updated dependencies [2579957]
+- Updated dependencies [e221ebc]
+- Updated dependencies [471c332]
+- Updated dependencies [6c95cdc]
+- Updated dependencies [8379a67]
+- Updated dependencies [ae76b1f]
+- Updated dependencies [6d8f676]
+- Updated dependencies [1c85328]
+- Updated dependencies [97b07e5]
+- Updated dependencies [c2a7b25]
+- Updated dependencies [de99bdf]
+- Updated dependencies [b99de54]
+- Updated dependencies [9b43ccd]
+- Updated dependencies [2e5bf03]
+- Updated dependencies [8714311]
+- Updated dependencies [8e8cec0]
+- Updated dependencies [8523ab5]
+- Updated dependencies [7cbe470]
+- Updated dependencies [c2a7b25]
+- Updated dependencies [5f230e2]
+  - argus-table@1.4.0
+
 ## 1.3.0
 
 ### Patch Changes
