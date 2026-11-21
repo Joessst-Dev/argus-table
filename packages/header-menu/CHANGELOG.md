@@ -1,5 +1,39 @@
 # @argus-table/header-menu
 
+## 1.4.0
+
+### Minor Changes
+
+- 25bb060: The column menu groups rows: Group by this column on a column with `groupable` makes it the innermost level of the table's `grouping`, and Ungroup removes it, announced through the new `grouped` and `ungrouped` labels (`groupBy` and `ungroup` name the items). `headerMenu({ group: false })` leaves them out. Not offered with tree rows or a `dataSource`.
+
+### Patch Changes
+
+- 22332bd: A column menu or filter form too tall for the room below and above its button no longer runs off the screen: it takes the side with more room and scrolls, and the focused item stays in view as you move through it.
+- ae76b1f: Row grouping with a `dataSource`: the server groups. `getRows` now gets `grouping` and `groupPath` (the group a request fills: `[]` for the top-level groups); answer a level of groups with `groups` (each `{ value, count, totals }`, and `rows: []`) and a group's rows with `rows`, as before. Top-level groups, the groups inside an open group and an open group's rows all load page by page as they scroll into view, with Retry on a failed page and `groupPath` in `argus-load-error`. New types `GroupData` and `GroupPathItem`. The column menu's Group by this column is offered with a `dataSource` too (not with `hasChildren` and `getChildren`). With a `dataSource`, formula columns can be grouped by only with `formulas({ server: true })`, like sorting and filtering, and changing such a column's formula while the rows are grouped by it reloads them.
+- Updated dependencies [8b2eae8]
+- Updated dependencies [cae43e9]
+- Updated dependencies [2579957]
+- Updated dependencies [e221ebc]
+- Updated dependencies [471c332]
+- Updated dependencies [6c95cdc]
+- Updated dependencies [8379a67]
+- Updated dependencies [ae76b1f]
+- Updated dependencies [6d8f676]
+- Updated dependencies [1c85328]
+- Updated dependencies [97b07e5]
+- Updated dependencies [c2a7b25]
+- Updated dependencies [de99bdf]
+- Updated dependencies [b99de54]
+- Updated dependencies [9b43ccd]
+- Updated dependencies [2e5bf03]
+- Updated dependencies [8714311]
+- Updated dependencies [8e8cec0]
+- Updated dependencies [8523ab5]
+- Updated dependencies [7cbe470]
+- Updated dependencies [c2a7b25]
+- Updated dependencies [5f230e2]
+  - argus-table@1.4.0
+
 ## 1.3.0
 
 ### Patch Changes

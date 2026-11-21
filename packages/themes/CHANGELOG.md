@@ -1,5 +1,11 @@
 # @argus-table/themes
 
+## 1.4.0
+
+### Patch Changes
+
+- 071522c: The README links the theme creator and the API reference on the new docs site.
+
 ## 1.3.0
 
 No changes in this release.

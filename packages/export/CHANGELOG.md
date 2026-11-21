@@ -1,5 +1,39 @@
 # @argus-table/export
 
+## 1.4.0
+
+### Minor Changes
+
+- 1d4a21a: Exports can carry each row's detail rows, an order's lines say, through the new `detail` option: their `columns` and `rows(row, { rowId, signal })`, which returns a row's detail rows or a promise of them. Excel writes them under their row, one column in, grouped so they collapse; PDF indents them under their row; CSV writes one line per detail row with the row's values repeated. The data comes from your app, whether or not the table shows `rowDetail` panels. With `detail` in `tableExport()`, the column menu offers Export and Export with details (`labels.withDetails`); `detail: false` leaves the detail rows out of one export.
+
+### Patch Changes
+
+- 6d8f676: Grouped tables (`grouping`): export writes every row in grouped order, rows of closed groups too; cell editing leaves group rows alone, so Enter opens or closes them.
+- 7cbe470: The README describes exports of tree rows from a `dataSource` with `hasChildren` and `getChildren`: without `allRows`, an export holds the rows shown (the loaded top-level rows and the loaded children of expanded rows); with `allRows`, the top-level rows only, the rows `getRows` returns.
+- Updated dependencies [8b2eae8]
+- Updated dependencies [cae43e9]
+- Updated dependencies [2579957]
+- Updated dependencies [e221ebc]
+- Updated dependencies [471c332]
+- Updated dependencies [6c95cdc]
+- Updated dependencies [8379a67]
+- Updated dependencies [ae76b1f]
+- Updated dependencies [6d8f676]
+- Updated dependencies [1c85328]
+- Updated dependencies [97b07e5]
+- Updated dependencies [c2a7b25]
+- Updated dependencies [de99bdf]
+- Updated dependencies [b99de54]
+- Updated dependencies [9b43ccd]
+- Updated dependencies [2e5bf03]
+- Updated dependencies [8714311]
+- Updated dependencies [8e8cec0]
+- Updated dependencies [8523ab5]
+- Updated dependencies [7cbe470]
+- Updated dependencies [c2a7b25]
+- Updated dependencies [5f230e2]
+  - argus-table@1.4.0
+
 ## 1.3.0
 
 ### Patch Changes
