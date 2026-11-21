@@ -40,7 +40,7 @@ A group row's checkbox (`selectionMode: 'multi'` with `selectionCheckboxes`) tic
 
 `grouping` is state like `sorting`: unset, the table keeps it, and users change it from the [column menu](../header-menu/) (Group by this column, Ungroup; on `groupable` columns) or another plugin (`PluginHost.setGrouping`); set, the table only fires `argus-grouping-change` with the proposed columns, and your code applies them. It binds two-way, and `getState()` saves it.
 
-Grouping isn't combined with [tree rows](../tree-rows/): with `getSubRows`, `getParentId`, or a `dataSource` with `hasChildren` and `getChildren`, it's ignored, with a warning. [Export](../export/) writes every row of a grouped table, closed groups' too, group by group (with a `dataSource`, the rows the table has loaded, or with `allRows` every row, ungrouped).
+Grouping isn't combined with [tree rows](../tree-rows/): with `getSubRows`, `getParentId`, or a `dataSource` with `hasChildren` and `getChildren`, it's ignored, with a warning. [Export](../export/) writes a grouped table's group rows (value, count and totals) with its rows: every group and row of rows in memory, closed groups' too; with a `dataSource`, what the table has loaded, or with `allRows` the top-level groups. Excel collapses them as outlines, PDF shades them.
 
 ## With a data source
 

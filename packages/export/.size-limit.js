@@ -17,7 +17,7 @@ export default [
     import: '{ tableExport, exportTable, downloadTable }',
     ignore: ['argus-table'],
     gzip: true,
-    limit: '3.0 kB',
+    limit: '3.4 kB',
     modifyEsbuildConfig: (config) => ({
       ...config,
       plugins: [...(config.plugins ?? []), lazyWriters],
@@ -28,7 +28,7 @@ export default [
     path: 'dist/xlsx/xlsx.js',
     import: '{ toXlsx }',
     gzip: true,
-    limit: '3.3 kB',
+    limit: '3.4 kB',
   },
   {
     name: 'Collecting detail rows, loaded on first use (min+gzip)',
@@ -42,6 +42,6 @@ export default [
     path: 'dist/pdf/pdf.js',
     import: '{ toPdf }',
     gzip: true,
-    limit: '3.1 kB',
+    limit: '3.2 kB',
   },
 ];
