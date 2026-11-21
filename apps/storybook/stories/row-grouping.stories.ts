@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/web-components-vite';
 import { html } from 'lit';
 import { expect, userEvent, waitFor } from 'storybook/test';
-import type { ArgusTable, ColumnDef } from 'argus-table';
+import type { ArgusTable, ColumnDef, DataSource, GroupData } from 'argus-table';
 import 'argus-table';
 
 const meta = {
@@ -153,5 +153,51 @@ export const Selection: Story = {
     if (!box) throw new Error('no checkbox');
     await userEvent.click(box);
     await waitFor(() => expect([...table.selection].sort()).toEqual(['s1', 's3', 's6']));
+  },
+};
+
+/** A pretend server: groups `sales` by the request's grouping and path, and sums the amounts. */
+const salesServer: DataSource<Sale> = {
+  pageSize: 50,
+  getRows({ start, end, grouping = [], groupPath = [] }) {
+    const rows = sales.filter((sale) =>
+      groupPath.every(({ columnId, value }) => sale[columnId as keyof Sale] === value),
+    );
+    if (groupPath.length === grouping.length) {
+      return Promise.resolve({ rows: rows.slice(start, end), total: rows.length });
+    }
+    const column = grouping[groupPath.length] as keyof Sale;
+    const values = [...new Set(rows.map((sale) => sale[column]))].sort();
+    const groups: GroupData[] = values.map((value) => {
+      const inGroup = rows.filter((sale) => sale[column] === value);
+      const amount = inGroup.reduce((sum, sale) => sum + sale.amount, 0);
+      return { value, count: inGroup.length, totals: { amount } };
+    });
+    return Promise.resolve({ rows: [], groups: groups.slice(start, end), total: groups.length });
+  },
+};
+
+/**
+ * Grouped on the server (`dataSource`): `getRows` gets `grouping` and the
+ * `groupPath` of the level it fills, and answers with groups (their `count`
+ * and `totals`) or a group's rows. Each level loads page by page.
+ */
+export const Server: Story = {
+  render: () =>
+    html`<argus-table
+      aria-label="Sales on the server"
+      style="block-size: 420px"
+      .columns=${columns}
+      .getRowId=${idOf}
+      .grouping=${['region']}
+      .dataSource=${salesServer}
+    ></argus-table>`,
+  play: async ({ canvasElement }) => {
+    const table = await tableIn(canvasElement);
+    await waitFor(() => expect(textAt(table, 2, 'customer')).toBe('Americas'));
+    await expect(textAt(table, 2, 'amount')).toBe('€41,850.00');
+    cellAt(table, 4, 'amount').focus();
+    await userEvent.keyboard('{Enter}');
+    await waitFor(() => expect(textAt(table, 5, 'customer')).toBe('Aurora Labs'));
   },
 };

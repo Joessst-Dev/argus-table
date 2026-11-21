@@ -165,20 +165,19 @@ export class RowPipeline<TData, TContent> {
   /**
    * The rows grouped by `grouping` (its `groupable` columns, in order), built
    * over the filtered rows; `undefined` (nothing allocated) without grouping.
-   * Ignored, with one warning, with tree rows or remote rows.
+   * Ignored, with one warning, with tree rows; with remote rows the remote groups
+   * them (`RemoteGroups`).
    */
   groups(): GroupedRows<TData> | undefined {
     const options = this.#options();
     const { grouping } = options;
     if (!grouping?.length) return undefined;
-    if (options.remote || options.getSubRows || options.getParentId) {
+    // A data source's rows group on the server (`RemoteGroups`).
+    if (options.remote) return undefined;
+    if (options.getSubRows || options.getParentId) {
       if (!this.#warnedGrouping) {
         this.#warnedGrouping = true;
-        console.warn(
-          options.remote
-            ? "argus-table: grouping with a dataSource isn't supported yet; it is ignored."
-            : 'argus-table: grouping is ignored with tree rows (getSubRows, getParentId).',
-        );
+        console.warn('argus-table: grouping is ignored with tree rows (getSubRows, getParentId).');
       }
       return undefined;
     }

@@ -118,7 +118,7 @@ function rowsKey<T>(host: PluginHost<T>, compiled: ReadonlyMap<string, Compiled<
 }
 
 /** The table's properties whose change makes a data source load its rows afresh. */
-const RESTARTS = ['dataSource', 'sorting', 'columnFilters', 'quickFilter'];
+const RESTARTS = ['dataSource', 'sorting', 'columnFilters', 'quickFilter', 'grouping'];
 
 /** The table's properties the rows of whole columns depend on (see `rowsKey`). */
 const ROW_PROPERTIES = [
@@ -160,8 +160,8 @@ const errorContent = (error: FormulaError) =>
  * Formulas are compiled once, never evaluated as code, and results are cached
  * per row. With `headerMenu()` (list `formulas()` first), the column menu views
  * or edits formulas (see `editing`); the editor loads when it first opens. One
- * plugin can serve several tables. With a `dataSource`, formula columns sort and
- * filter only with `server: true`, on a server that evaluates `formulaTrees(table)`.
+ * plugin can serve several tables. With a `dataSource`, formula columns sort,
+ * filter and group only with `server: true`, on a server that evaluates `formulaTrees(table)`.
  */
 export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPlugin<T> {
   const functions = functionTable(options.functions);
@@ -195,6 +195,7 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPl
       !state.restarting &&
       (el.sorting.some((sort) => ids.includes(sort.id)) ||
         Object.keys(el.columnFilters).some((id) => ids.includes(id)) ||
+        el.grouping.some((id) => ids.includes(id)) ||
         el.quickFilter.trim())
     ) {
       void el.updateComplete.then(() => el.refresh());
@@ -407,6 +408,8 @@ export function formulas<T = unknown>(options: FormulasOptions = {}): FormulasPl
           header: marker || anchor ? headerFor(def, marker, anchor, host) : def.header,
           sortable: remote && !Object.hasOwn(known, def.id) ? false : def.sortable,
           filter: remote && !Object.hasOwn(known, def.id) ? undefined : def.filter,
+          // The server groups too: only by what it can compute.
+          groupable: remote && !Object.hasOwn(known, def.id) ? false : def.groupable,
         };
       });
     },

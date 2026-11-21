@@ -43,6 +43,7 @@ export {
 } from './table/create-table.js';
 export { RowLayout, type GridRow, type GridSection } from './grid/row-layout.js';
 export { DisplayRows, type DisplayRow } from './table/display-rows.js';
+export { GROUP_ID_PREFIX, groupId, groupingKey, isGroupId } from './table/group-rows.js';
 export { controllable, type Controllable } from './state/controllable.js';
 export {
   clickSelection,
@@ -78,4 +79,5 @@ export {
   type RowState,
 } from './data/page-cache.js';
 export { RemoteTree, type KeptCount, type RemoteTreeOptions } from './data/remote-tree.js';
+export { RemoteGroups, type GroupLevel, type RemoteGroupsOptions } from './data/remote-groups.js';
 export { type RowStructure, type StandIn } from './table/row-structure.js';

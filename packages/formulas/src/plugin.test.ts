@@ -737,6 +737,27 @@ describe('with a dataSource and server: true', () => {
     expect(seen.at(-1)?.trees.timeZone).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone);
   });
 
+  test('formula columns stay groupable, and lose it without server: true', async () => {
+    const { got, plugin } = grabHost();
+    const columns = withFormulas({ id: 'total', formula: '[price] * [qty]', groupable: true });
+    await fixture({
+      data: undefined,
+      dataSource: remote(),
+      columns,
+      plugins: [formulas({ server: true }), plugin],
+    });
+    expect(got.host?.column('total')?.groupable).toBe(true);
+    document.body.replaceChildren();
+    const other = grabHost();
+    await fixture({
+      data: undefined,
+      dataSource: remote(),
+      columns,
+      plugins: [formulas(), other.plugin],
+    });
+    expect(other.got.host?.column('total')?.groupable).toBe(false);
+  });
+
   test('formula columns keep their filter', async () => {
     const { got, plugin } = grabHost();
     await fixture({

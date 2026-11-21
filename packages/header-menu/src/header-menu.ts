@@ -65,7 +65,7 @@ export interface HeaderMenuOptions {
   /**
    * Group by this column on a column with `groupable` that the rows aren't
    * grouped by (it becomes the innermost level of `grouping`), and Ungroup on
-   * one they are. Not with tree rows or a `dataSource`. Default: `true`.
+   * one they are. Not with tree rows. Default: `true`.
    */
   group?: boolean;
   /**
@@ -274,17 +274,17 @@ const canFilter = <T>(state: TableState<T>, column: ColumnInfo) =>
 
 /**
  * Whether the menu can group the rows by this column: it allows it, the column
- * is `groupable`, and the table can group (no tree rows, no `dataSource` yet).
+ * is `groupable`, and the table can group (no tree rows, from `data` or a
+ * `dataSource` with `hasChildren` and `getChildren`).
  */
 const canGroup = <T>(state: TableState<T>, column: ColumnInfo) => {
   const table = state.host.element;
-  return (
-    state.options.group &&
-    column.groupable &&
-    !table.dataSource &&
-    !table.getSubRows &&
-    !table.getParentId
-  );
+  const source = table.dataSource;
+  // A data source ignores `getSubRows` and `getParentId`; its own tree can't group.
+  const tree = source
+    ? source.hasChildren !== undefined && source.getChildren !== undefined
+    : table.getSubRows !== undefined || table.getParentId !== undefined;
+  return state.options.group && column.groupable && !tree;
 };
 
 /** The columns shown and hidden, when the menu hides and shows columns. */

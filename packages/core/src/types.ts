@@ -652,14 +652,50 @@ export interface RowsRequest {
   filters: ColumnFilterState;
   /** The `quickFilter` text to match in any column. `''` when unset. */
   quickFilter: string;
+  /**
+   * The columns the rows are grouped by (`grouping`, its `groupable` columns),
+   * outermost first; `[]` when they aren't. The table always sets it.
+   */
+  grouping?: readonly string[];
+  /**
+   * While grouped, the group this request fills, outermost level first: `[]`
+   * for the top-level groups; a path shorter than `grouping` for the groups
+   * inside that group; a path as long as `grouping` for that group's rows.
+   * `start` and `end` count that level's groups or rows. The table always sets
+   * it (`[]` without grouping).
+   */
+  groupPath?: readonly GroupPathItem[];
   /** Aborted when the rows are no longer needed: scrolled far away, or the source was reset. */
   signal: AbortSignal;
 }
 
+/** One level of a group's path (`RowsRequest.groupPath`): the column and the group's value there. */
+export interface GroupPathItem {
+  columnId: string;
+  /** The `value` of the group, as the server sent it in `GroupData`. */
+  value: unknown;
+}
+
+/** A group a server sends (`RowsResponse.groups`), when the rows are grouped. */
+export interface GroupData {
+  /** The value the group's rows share in its column; `null` (or `undefined`) for empty values. Shown in the group row. */
+  value: unknown;
+  /** The rows under the group, nested groups included: the group row's count, and at the deepest level the number of its rows. */
+  count: number;
+  /** The group's totals by column id, shown in those columns' cells of the group row (`groupCell` gets them as `total`). */
+  totals?: Record<string, unknown>;
+}
+
 /** What `getRows()` resolves to. */
 export interface RowsResponse<TData> {
-  /** The rows from `start`, at most `end - start` of them. */
+  /** The rows from `start`, at most `end - start` of them; `[]` when answering with `groups`. */
   rows: readonly TData[];
+  /**
+   * When the request's `groupPath` is shorter than its `grouping`: the groups
+   * from `start` at that level, at most `end - start`, in the order to show
+   * them. `total` is then the number of groups at that level.
+   */
+  groups?: readonly GroupData[];
   /**
    * Total number of rows, if known. Without it, the table grows as pages arrive,
    * and a page with fewer rows than asked for marks the end.
@@ -714,7 +750,12 @@ export interface DataSource<TData> {
   /**
    * Loads one page of rows. Reject (or throw) to show the page as failed, with a
    * Retry button. With `getChildren`, the top-level rows only: `start` and `end`
-   * count top-level rows.
+   * count top-level rows. While the table is grouped (`grouping`), each request
+   * fills one level: answer `groupPath: []` and a path shorter than `grouping`
+   * with `groups` (and `rows: []`), the server's groups with their `count` and
+   * `totals`; a full path with that group's rows. Groups and rows load page by
+   * page, each level as it scrolls into view. An answer of the other kind fails
+   * the page.
    */
   getRows(request: RowsRequest): Promise<RowsResponse<TData>>;
   /** Rows per request. Default: 100. */
@@ -757,4 +798,6 @@ export interface LoadErrorDetail {
   end: number;
   /** Set when `getChildren()` failed: the id of the row whose children didn't load. */
   parentId?: string;
+  /** While grouped (`grouping`), the `groupPath` of the request that failed (`[]` for the top-level groups). */
+  groupPath?: readonly GroupPathItem[];
 }

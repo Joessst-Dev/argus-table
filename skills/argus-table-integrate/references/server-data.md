@@ -116,6 +116,46 @@ export const foldersSource: DataSource<Folder> = {
 
 The rest (ids, indexes, `depth`, selection, export): [api.md](api.md#children-from-the-server).
 
+## Grouped on the server
+
+Since 1.4. With `grouping` (on `groupable` columns) and a `dataSource`, the server groups, counts and totals; the table pages every level:
+
+```ts
+table.grouping = ['region', 'status'];
+table.dataSource = {
+  async getRows({
+    start,
+    end,
+    sorting,
+    filters,
+    quickFilter,
+    grouping = [],
+    groupPath = [],
+    signal,
+  }) {
+    if (groupPath.length < grouping.length) {
+      // The groups of column grouping[groupPath.length] inside groupPath.
+      const { groups, total } = await api.groups({
+        by: grouping[groupPath.length],
+        path: groupPath,
+        start,
+        end,
+        signal,
+      });
+      return { rows: [], groups, total }; // groups: [{ value, count, totals: { amount } }]
+    }
+    const { rows, total } = await api.rows({ path: groupPath, start, end, sorting, signal });
+    return { rows, total };
+  },
+};
+```
+
+- `groupPath` is `[{ columnId, value }]`, outermost first: `[]` for the top-level groups. `start`/`end` count that level's groups or rows.
+- `count` is the group's row count (and at the deepest level the number of rows it holds); `totals` by column id show in the group row (`groupCell` gets `total`). `aggregate` isn't used with a `dataSource`.
+- Rows without `getRowId` get `<group id>.<index>`: give `getRowId` so selection survives a regrouping. A group's checkbox ticks its loaded rows.
+- Mapping: AG Grid's server-side row model (`request.groupKeys` with `rowGroupCols`) → `groupPath` (zip the keys with the grouped columns' ids); MUI X's data source (`params.groupKeys`) the same; `getChildCount` / `getGroupKey` → `count` and the group's `value`.
+- An answer of the wrong kind fails the page (`argus-load-error` with `groupPath`). Not with `hasChildren` / `getChildren` (ignored, with a warning).
+
 ## From paginated tables
 
 Paginated grids (MUI `paginationMode="server"`, AG Grid `pagination`, TanStack `manualPagination`, PrimeNG `lazy`, Vuetify `v-data-table-server`, Ant Design `onChange` with `pagination`) usually call the API with a page and a page size. Keep the API; change the caller:

@@ -133,18 +133,6 @@ describe('grouping', () => {
     expect(controlled.grouping).toEqual([]);
   });
 
-  test('with a dataSource, grouping is ignored with one warning', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const el = await mount({
-      data: [],
-      dataSource: { getRows: () => Promise.resolve({ rows: sales, total: sales.length }) },
-      grouping: ['region'],
-    });
-    await settle(el);
-    expect(el.getAttribute('role')).toBe('grid');
-    expect(warn.mock.calls.filter(([m]) => String(m).includes('grouping'))).toHaveLength(1);
-  });
-
   test('a group row: its parts, value, count and totals', async () => {
     const el = await mount({ grouping: ['region'], treeExpanded: [EU] });
     const [apac, eu, row] = rowsInOrder(el);

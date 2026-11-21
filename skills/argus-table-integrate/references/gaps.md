@@ -1,6 +1,6 @@
 # Gaps
 
-Features of other tables that argus-table doesn't have. For each: what to tell the user, and what you can offer. Name them before any edit (workflow B2). If a screen depends on one of the hard gaps (pivoting or server-side row grouping, range selection), recommend keeping the old table on that screen and migrating the others.
+Features of other tables that argus-table doesn't have. For each: what to tell the user, and what you can offer. Name them before any edit (workflow B2). If a screen depends on one of the hard gaps (pivoting, range selection), recommend keeping the old table on that screen and migrating the others.
 
 ## pagination
 
@@ -12,9 +12,8 @@ argus-table scrolls instead of paging: it virtualizes rows, so 100k rows scroll 
 
 ## row-grouping
 
-Rows in memory (`data`) group by column values, with counts and totals per group (`grouping`, `groupable`, `aggregate`, `groupCell`; Since 1.4). Missing: grouping with a `dataSource` (server-side grouping), pivoting, a drag-to-group panel, grouping combined with tree rows, and selecting or editing a group row itself.
+Rows group by column values, with counts and totals per group (`grouping`, `groupable`, `aggregate`, `groupCell`; Since 1.4), in memory or on the server through a `dataSource` ([server-data.md](server-data.md#grouped-on-the-server)). Missing: pivoting, a drag-to-group panel, grouping combined with tree rows, and selecting or editing a group row itself.
 
-- **Server-side grouping:** if the rows fit in memory, load them as `data` and group in the table; otherwise keep the old grid on that screen for now.
 - **Pivoting:** compute the pivoted rows in the app and show them as ordinary rows and columns.
 - **A grand total:** one row in `pinnedRows.bottom`.
 

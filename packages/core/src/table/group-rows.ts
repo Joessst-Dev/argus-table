@@ -43,11 +43,21 @@ interface Group {
   path: unknown[];
 }
 
+/** The start of every group row's id (`groupId`): reserved, so no row id has it. */
+export const GROUP_ID_PREFIX = '\u0000g';
+
+/**
+ * Whether an id is a group row's: the prefix and a JSON path. A data source's
+ * rows in a group get `<group id>.<index>` by default, which starts the same.
+ */
+export const isGroupId = (id: string): boolean =>
+  id.startsWith(GROUP_ID_PREFIX) && id.endsWith(']');
+
 /**
  * The value a row is grouped by: a date's time (an invalid date is empty), and
  * `null` for empty values; others as they are, compared like `Map` keys.
  */
-function groupKey(value: unknown): unknown {
+export function groupingKey(value: unknown): unknown {
   if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value.getTime();
   return isEmptyValue(value) ? null : value;
 }
@@ -64,6 +74,15 @@ const idKey = (key: unknown) =>
       ? // eslint-disable-next-line @typescript-eslint/no-base-to-string
         String(key)
       : key;
+
+/**
+ * A group's id from its path, each level's column id and key (`groupingKey`),
+ * outermost first: `'\u0000g'` and the path as JSON. The same for rows in
+ * memory and a data source's groups.
+ */
+export function groupId(path: readonly unknown[]): string {
+  return GROUP_ID_PREFIX + JSON.stringify(path.map((part, i) => (i % 2 ? idKey(part) : part)));
+}
 
 /**
  * Groups the filtered rows of `data` by `grouping`, outermost first, with each
@@ -93,7 +112,7 @@ export function buildGroups<TData>(
       const buckets = new Map<unknown, { value: unknown; members: number[] }>();
       for (const i of parent.members) {
         const value = column.getValue(data[i] as TData, i);
-        const key = groupKey(value);
+        const key = groupingKey(value);
         let bucket = buckets.get(key);
         if (!bucket)
           buckets.set(key, (bucket = { value: key === null ? undefined : value, members: [] }));
@@ -112,11 +131,11 @@ export function buildGroups<TData>(
             : compare(sortable(x.value), sortable(y.value)),
       );
       for (const [key, { value, members }] of entries) {
-        const path = [...parent.path, column.id, idKey(key)];
+        const path = [...parent.path, column.id, key];
         const row = size + groups.length;
         groups.push({
           info: {
-            id: `\u0000g${JSON.stringify(path)}`,
+            id: groupId(path),
             groupColumnId: column.id,
             value,
             count: members.length,

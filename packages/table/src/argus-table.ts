@@ -683,8 +683,12 @@ export class ArgusTable<T = unknown> extends LitElement {
    * `'\u0000g["region","EU","status","Open"]'`. Groups start closed, are in the
    * order of their values (sorting by a column with a total orders them by it),
    * and hold the rows the filters keep. Only columns with `groupable: true`
-   * count; group by values such as text, numbers and dates. Ignored with tree
-   * rows (`getSubRows`, `getParentId`) and, for now, with a `dataSource`.
+   * count; group by values such as text, numbers and dates. With a
+   * `dataSource` the server groups: `getRows` gets `grouping` and the
+   * `groupPath` of the level it fills, and answers with the groups (their
+   * `count` and `totals`) or a group's rows; every level loads page by page.
+   * Ignored with tree rows (`getSubRows`, `getParentId`, or a `dataSource`
+   * with `hasChildren` and `getChildren`).
    * Uncontrolled until set, like `sorting`: once set, a change a plugin asks for
    * only fires `argus-grouping-change` with the proposed columns. `undefined`
    * hands it back.
@@ -767,6 +771,8 @@ export class ArgusTable<T = unknown> extends LitElement {
   readonly #expanded = controllable<ExpandedState>([]);
   readonly #treeExpanded = controllable<TreeExpandedState>([]);
   readonly #grouping = controllable<GroupingState>([]);
+  /** The columns the data source was last asked to group by. */
+  #serverGrouping: readonly string[] = [];
   /** The `role` attribute the table set itself (`grid` or `treegrid`); a page's own role wins. */
   #roleAttribute: string | undefined;
   #quickFilter = '';
@@ -1260,11 +1266,23 @@ export class ArgusTable<T = unknown> extends LitElement {
     this.#groupsChanged = groups !== this.#groups;
     this.#groups = groups;
     const filtersChanged = changed.has('columnFilters') || changed.has('quickFilter');
+    // The columns a data source groups by: `grouping`'s groupable ones, once each.
+    const grouping = this.dataSource
+      ? this.#grouping.value.filter(
+          (id, i, all) =>
+            all.indexOf(id) === i && columns.some((c) => c.id === id && c.groupable === true),
+        )
+      : [];
+    const pushed = this.#serverGrouping;
+    const groupingChanged =
+      grouping.length !== pushed.length || grouping.some((id, i) => id !== pushed[i]);
+    if (groupingChanged) this.#serverGrouping = grouping;
     const sourceChanged =
       changed.has('dataSource') ||
       changed.has('sorting') ||
       changed.has('getRowId') ||
-      filtersChanged;
+      filtersChanged ||
+      groupingChanged;
     // Expanded rows matter to a data source's tree only.
     if (sourceChanged || (changed.has('treeExpanded') && this.dataSource)) {
       this.#data.configure({
@@ -1274,11 +1292,16 @@ export class ArgusTable<T = unknown> extends LitElement {
         quickFilter: this.#quickFilter,
         getRowId: this.getRowId,
         treeExpanded: this.#treeExpanded.value,
+        grouping: this.#serverGrouping,
       });
     }
     if (sourceChanged) {
       // A new order or filter starts over from the first row, so show it.
-      if (this.dataSource && this.hasUpdated && (changed.has('sorting') || filtersChanged)) {
+      if (
+        this.dataSource &&
+        this.hasUpdated &&
+        (changed.has('sorting') || filtersChanged || groupingChanged)
+      ) {
         this.#scrollToTop = !changed.has('dataSource');
       }
       // Other rows: a position restored for the old ones no longer applies.

@@ -16,7 +16,7 @@ export default [
     import: '{ formulas }',
     ignore: ['lit', 'argus-table'],
     gzip: true,
-    limit: '12.8 kB',
+    limit: '12.9 kB',
     modifyEsbuildConfig: (config) => ({
       ...config,
       plugins: [...(config.plugins ?? []), lazyEditor],

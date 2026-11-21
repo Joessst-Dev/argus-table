@@ -9,6 +9,7 @@ import { moveUnit, normalizeOrder, siblingUnits } from '../columns/column-order.
 import { resolveColumns, type ResolvedColumn } from '../columns/resolve-columns.js';
 import { distinctValues, rowPredicate } from '../filters/filter.js';
 import { buildAllViews, buildViews, hiddenIn, pinIn, sizingOf } from './column-views.js';
+import { isGroupId } from './group-rows.js';
 import { RowPipeline } from './row-pipeline.js';
 import { ModelRows, type RowStructure } from './row-structure.js';
 import { keepWithAncestors, type TreeForest, type TreeLayout } from './tree-order.js';
@@ -215,9 +216,6 @@ export function createTableModel<TData, TContent>(
       const { parent, ids } = tree;
       const { order } = steps.layout;
       const marks = new Uint8Array(parent.length);
-      // Group rows (after the data rows): their own ids are never selected, so
-      // they count as checked when their rows are.
-      const groupsFrom = options.remote ? Infinity : (pipeline.groups()?.size ?? Infinity);
       for (let k = order.length - 1; k >= 0; k--) {
         const row = order[k] ?? 0;
         // Its kept descendants' marks, before its own joins them.
@@ -229,7 +227,9 @@ export function createTableModel<TData, TContent>(
         let mark = below;
         if (!own && !(below & LIVE) && out()) mark |= DEAD;
         else {
-          mark |= LIVE | (own ? PICKED : row >= groupsFrom ? 0 : MISSED);
+          // A group row's own id is never selected: it counts as checked when its rows are.
+          const group = isGroupId(ids[row] ?? '');
+          mark |= LIVE | (own ? PICKED : group ? 0 : MISSED);
           // Checked (as `toggleBranch` decides): every row below that can be
           // ticked is, and its own id selected, or kept out with something
           // below to tick.

@@ -20,9 +20,10 @@ export interface StandIn {
  * How the shown rows are arranged: flat or as a tree, loaded or not. Every
  * index is a shown index (the body's data indexes, what `TableModel.rowAt`
  * takes). The model reads its rows' arrangement only through this, so a new
- * arrangement (row grouping) is a new implementation, not a branch in each
- * caller. Implemented by `ModelRows` (`data`, and a flat data source) and
- * `RemoteTree` (a data source's tree).
+ * arrangement is a new implementation, not a branch in each caller.
+ * Implemented by `ModelRows` (`data`, flat, as a tree or grouped, and a flat
+ * data source), `RemoteTree` (a data source's tree) and `RemoteGroups` (a data
+ * source's groups).
  */
 export interface RowStructure {
   /** Whether the rows form a tree. */

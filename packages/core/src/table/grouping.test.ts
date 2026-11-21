@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { RemoteGroups } from '../data/remote-groups.js';
 import { sameSelection, toggleBranch } from '../state/selection.js';
 import type { ColumnDef } from '../types.js';
 import { createTableModel, type TableModelOptions } from './create-table.js';
@@ -220,5 +221,55 @@ describe('grouping', () => {
     expect(m.rows.groupAt(0)).toBeUndefined();
     expect(m.tree).toBe(false);
     expect(m.rowCount).toBe(5);
+  });
+});
+
+describe('grouping with a data source', () => {
+  /** EU open with its two rows loaded, US closed. */
+  const remote = () => {
+    const groups = new RemoteGroups<Sale>({
+      grouping: ['region'],
+      pageSize: 10,
+      expanded: [EU],
+      getRowId: (row) => row.name,
+    });
+    const answer = (
+      key: string,
+      response: { rows: unknown[]; groups?: unknown[]; total?: number },
+    ) => {
+      const level = groups.levels().find((l) => l.key === key);
+      if (!level) throw new Error(`no level ${key}`);
+      groups.cacheOf(level)?.begin(0);
+      groups.resolve(level, 0, response);
+    };
+    answer('', {
+      rows: [],
+      groups: [
+        { value: 'EU', count: 2 },
+        { value: 'US', count: 1 },
+      ],
+      total: 2,
+    });
+    answer(EU, { rows: [sales[0], sales[2]] });
+    return model({ data: [], remote: groups });
+  };
+
+  it('reads the remote as grouped rows', () => {
+    const m = remote();
+    expect(m.tree).toBe(true);
+    expect(m.rows.grouped).toBe(true);
+    expect(m.rowCount).toBe(4);
+    expect(m.rowAt(0)).toBeUndefined();
+    expect(m.cellContext(0, 'name')).toBeUndefined();
+    expect(m.cellContext(1, 'name')).toMatchObject({ row: sales[0], rowId: 'a', depth: 1 });
+    expect(m.rows.groupAt(3)).toMatchObject({ value: 'US', count: 1, depth: 0 });
+  });
+
+  it('selects by group over the loaded rows; a group is checked when they are', () => {
+    const m = remote();
+    expect(m.branchSelectAll([])).toEqual(['a', 'c']);
+    expect(m.branchCheck(new Set(['a', 'c']))(0)).toBe('all');
+    expect(m.branchCheck(new Set(['a']))(0)).toBe('some');
+    expect(m.nextTreeExpanded('\u0000g["region","US"]', true)).toEqual(['\u0000g["region","US"]']);
   });
 });
