@@ -91,6 +91,11 @@ export interface CellTarget {
   rowId: string | undefined;
 }
 
+/** A row of `PluginHost.groupedRows()`: a data row with its object, or a group row with its info. */
+export type GroupedRow<T> = { id: string; depth: number } & (
+  { index: number; row: T; group?: undefined } | { group: GroupRowInfo; row?: undefined }
+);
+
 /** A column as the table resolved it. */
 export interface ColumnInfo {
   id: string;
@@ -270,11 +275,14 @@ export interface PluginHost<T = unknown> {
    */
   group(index: number): GroupRowInfo | undefined;
   /**
-   * While the rows are grouped: every data row the filters keep, in the grouped
-   * order, closed groups' rows too, with its source index (see `sourceRow()`)
-   * and id. `undefined` without grouping.
+   * While rows in memory are grouped: every group row and every row the
+   * filters keep, in the grouped order with every group open (closed groups'
+   * rows too), each with its id and depth; a data row with its source index
+   * (see `sourceRow()`) and object, a group row with its info. `undefined`
+   * without grouping, and with a `dataSource` (read its loaded rows with
+   * `group()` and `row()`).
    */
-  groupedRows(): readonly { index: number; id: string; row: T }[] | undefined;
+  groupedRows(): readonly GroupedRow<T>[] | undefined;
   /**
    * The group header rows over the shown columns, top row first, each cell a
    * group or a filler; empty without column groups.

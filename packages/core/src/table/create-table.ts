@@ -20,6 +20,7 @@ import type {
   ColumnOrderState,
   ColumnPin,
   ColumnSizingState,
+  GroupRowInfo,
   RowPin,
 } from '../types.js';
 import type { ColumnView, TableModel, TableModelOptions } from './model-types.js';
@@ -169,7 +170,16 @@ export function createTableModel<TData, TContent>(
   };
   // `groupedOrder()`'s rows, per layout.
   let groupedOrder:
-    { layout: TreeLayout; rows: readonly { index: number; id: string }[] } | undefined;
+    | {
+        layout: TreeLayout;
+        rows: readonly {
+          index: number;
+          id: string;
+          depth: number;
+          group: GroupRowInfo | undefined;
+        }[];
+      }
+    | undefined;
   // A row's children in the whole tree, when the filters hide some.
   const fullKids = (tree: TreeForest['tree'], layout: TreeLayout, row: number) => {
     if ((layout.keptChildren[row] ?? 0) === (tree.childCount[row] ?? 0)) return undefined;
@@ -393,10 +403,12 @@ export function createTableModel<TData, TContent>(
       const layout = grouped && pipeline.treeSteps()?.layout;
       if (!grouped || !layout) return undefined;
       if (groupedOrder?.layout !== layout) {
-        const rows: { index: number; id: string }[] = [];
-        for (const row of layout.order) {
-          if (row < grouped.size) rows.push({ index: row, id: grouped.ids[row] ?? '' });
-        }
+        const rows = Array.from(layout.order, (row) => ({
+          index: row,
+          id: grouped.ids[row] ?? '',
+          depth: grouped.depth[row] ?? 0,
+          group: grouped.info(row),
+        }));
         groupedOrder = { layout, rows };
       }
       return groupedOrder.rows;

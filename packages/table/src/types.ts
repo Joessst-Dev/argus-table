@@ -29,6 +29,7 @@ export type {
   ArgusPlugin,
   CellTarget,
   ColumnInfo,
+  GroupedRow,
   HeaderGroupInfo,
   PluginHost,
   RowSection,

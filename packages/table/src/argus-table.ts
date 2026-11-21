@@ -888,7 +888,9 @@ export class ArgusTable<T = unknown> extends LitElement {
       const model = this.#table.model;
       return model
         .groupedOrder()
-        ?.map(({ index, id }) => ({ index, id, row: model.sourceRow(index) as T }));
+        ?.map(({ index, id, depth, group }) =>
+          group ? { id, depth, group } : { index, id, depth, row: model.sourceRow(index) as T },
+        );
     },
     headerGroups: () =>
       this.#table.model.headerGroups.map((cells) =>

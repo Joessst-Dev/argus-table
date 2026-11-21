@@ -197,8 +197,9 @@ export async function collect<T>(
     }
   } else if (grouped) {
     // Grouped rows: every data row, closed groups' too, in the grouped order.
-    for (const { index, id, row } of grouped) {
-      if (selected && !selected.has(id)) continue;
+    for (const entry of grouped) {
+      if (entry.group || (selected && !selected.has(entry.id))) continue;
+      const { index, id, row } = entry;
       items.push({ row, rowId: id });
       rows.push(columns.map((c) => valueOf(host.readValue(row, c.id, index), c.id, () => row)));
     }
