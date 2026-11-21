@@ -1,6 +1,8 @@
 import type { ColumnAlign, PluginHost, RowSection } from 'argus-table';
+import type { ExportLabels } from './labels.js';
 import type { DetailItem } from './detail.js';
 import {
+  plainText,
   toValue,
   type ExportColumn,
   type ExportHeaderCell,
@@ -109,6 +111,7 @@ export async function collect<T>(
   host: PluginHost<T>,
   headers: HeaderTexts,
   options: CollectOptions<T> = {},
+  labels: Pick<ExportLabels, 'groupRow' | 'emptyGroup'>,
 ): Promise<ExportSheet> {
   const own: Record<string, ExportColumnOptions<T> | undefined> = {};
   for (const c of host.columns()) {
@@ -158,12 +161,33 @@ export async function collect<T>(
   const rows: ExportValue[][] = [];
   // The body row and its id behind each entry of `rows`, for its detail rows.
   const items: (DetailItem<T> | undefined)[] = [];
+  // Each entry's depth and kind while grouped; dropped when no group row was written.
+  const outline: { depth: number; group: boolean }[] = [];
+  const pushRow = (values: ExportValue[], item: DetailItem<T> | undefined, depth = 0) => {
+    rows.push(values);
+    items.push(item);
+    outline.push({ depth, group: false });
+  };
+  /** A group row: its value and count in the first column, its totals in the others. */
+  const pushGroup = (
+    group: { value: unknown; count: number; totals?: Readonly<Record<string, unknown>> },
+    depth: number,
+  ) => {
+    const value =
+      group.value === undefined || group.value === null || group.value === ''
+        ? labels.emptyGroup
+        : plainText(toValue(group.value));
+    const first = labels.groupRow({ value, count: group.count });
+    rows.push(columns.map((c, i) => (i ? toValue(group.totals?.[c.id]) : first)));
+    items.push(undefined);
+    outline.push({ depth, group: true });
+  };
   const pinned = (section: RowSection) => {
     if (!(options.pinnedRows ?? options.rows !== 'selected')) return;
     for (let i = 0, n = host.rowCount(section); i < n; i++) {
-      items.push(undefined);
-      rows.push(
+      pushRow(
         columns.map((c) => valueOf(host.value(i, c.id, section), c.id, () => host.row(i, section))),
+        undefined,
       );
     }
   };
@@ -171,56 +195,89 @@ export async function collect<T>(
   const el = host.element;
   const selected = options.rows === 'selected' ? new Set(el.selection) : undefined;
   const source = el.dataSource;
-  const grouped = source ? undefined : host.groupedRows();
+  const inMemory = source ? undefined : host.groupedRows();
+  // A grouped data source: its first row is a group row. Selected rows go flat.
+  const remoteGroups = source && !selected && host.rowCount() > 0 && host.group(0) !== undefined;
   pinned('top');
   if (options.allRows && source) {
     const size = Math.max(1, source.pageSize ?? 100);
     const signal = options.signal ?? new AbortController().signal;
+    // Grouped on the server: the top-level groups.
+    const grouping = remoteGroups ? host.grouping().filter((id) => host.column(id)?.groupable) : [];
     for (let start = 0; ; start += size) {
       signal.throwIfAborted();
-      const { rows: page, total } = await source.getRows({
+      const response = await source.getRows({
         start,
         end: start + size,
         sorting: el.sorting,
         filters: el.columnFilters,
         quickFilter: el.quickFilter,
+        grouping,
+        groupPath: [],
         signal,
       });
+      const { rows: page, total } = response;
+      const groupsPage = grouping.length ? (response.groups ?? []) : [];
+      for (const group of groupsPage) pushGroup(group, 0);
       page.forEach((row, k) => {
+        if (grouping.length) return;
         const index = start + k;
         const rowId = el.getRowId ? el.getRowId(row, index) : String(index);
         if (selected && !selected.has(rowId)) return;
-        items.push({ row, rowId });
-        rows.push(columns.map((c) => valueOf(host.readValue(row, c.id, index), c.id, () => row)));
+        pushRow(
+          columns.map((c) => valueOf(host.readValue(row, c.id, index), c.id, () => row)),
+          { row, rowId },
+        );
       });
-      if (page.length < size || (total !== undefined && start + size >= total)) break;
+      const got = grouping.length ? groupsPage.length : page.length;
+      if (got < size || (total !== undefined && start + size >= total)) break;
     }
-  } else if (grouped) {
-    // Grouped rows: every data row, closed groups' too, in the grouped order.
-    for (const entry of grouped) {
-      if (entry.group || (selected && !selected.has(entry.id))) continue;
+  } else if (inMemory) {
+    // Grouped rows in memory: every group and every row, closed groups' too, in
+    // the grouped order; selected rows without their groups.
+    for (const entry of inMemory) {
+      if (entry.group) {
+        if (!selected) pushGroup(entry.group, entry.depth);
+        continue;
+      }
+      if (selected && !selected.has(entry.id)) continue;
       const { index, id, row } = entry;
-      items.push({ row, rowId: id });
-      rows.push(columns.map((c) => valueOf(host.readValue(row, c.id, index), c.id, () => row)));
+      pushRow(
+        columns.map((c) => valueOf(host.readValue(row, c.id, index), c.id, () => row)),
+        { row, rowId: id },
+        selected ? 0 : entry.depth,
+      );
     }
   } else {
     for (let i = 0, n = host.rowCount(); i < n; i++) {
+      const group = remoteGroups ? host.group(i) : undefined;
+      if (group) {
+        pushGroup(group, group.depth);
+        continue;
+      }
       const id = host.rowId(i);
       // A dataSource row that isn't loaded.
       if (id === undefined || (selected && !selected.has(id))) continue;
-      items.push({ row: host.row(i) as T, rowId: id });
-      rows.push(columns.map((c) => valueOf(host.value(i, c.id), c.id, () => host.row(i))));
+      pushRow(
+        columns.map((c) => valueOf(host.value(i, c.id), c.id, () => host.row(i))),
+        { row: host.row(i) as T, rowId: id },
+        remoteGroups ? host.rowDepth(i) : 0,
+      );
     }
   }
   pinned('bottom');
-  const detail = options.detail;
-  if (!detail) return { columns, groups, rows };
-  // Loaded on first use, like the Excel and PDF writers: most exports have no detail rows.
-  const { collectDetails } = await import('./detail.js');
-  return {
+  const sheet: ExportSheet = {
     columns,
     groups,
     rows,
+    ...(outline.some((o) => o.group) ? { outline } : {}),
+  };
+  const detail = options.detail;
+  if (!detail) return sheet;
+  // Loaded on first use, like the Excel and PDF writers: most exports have no detail rows.
+  const { collectDetails } = await import('./detail.js');
+  return {
+    ...sheet,
     detail: {
       columns: detail.columns.map((c) => ({
         id: c.id,

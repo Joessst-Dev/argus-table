@@ -165,7 +165,7 @@ async function run<T>(table: ArgusTable<T>, format: ExportFormat, options: Expor
   await table.updateComplete;
   const merged = { ...(state.options as TableExportOptions<T>), ...options };
   const host = state.host as PluginHost<T>;
-  const sheet = await collect(host, headerTexts(host, state), merged);
+  const sheet = await collect(host, headerTexts(host, state), merged, state.labels);
   merged.signal?.throwIfAborted();
   let blob: Blob;
   if (format === 'csv') {

@@ -33,6 +33,12 @@ export interface ExportSheet {
    * detail rows; `undefined` for pinned rows and rows without any.
    */
   detail?: { columns: ExportColumn[]; rows: (ExportValue[][] | undefined)[] };
+  /**
+   * While the table is grouped (`grouping`): each entry of `rows`' depth (`0` for
+   * the top-level groups and pinned rows) and whether it is a group row (its
+   * value and count first, then its totals).
+   */
+  outline?: { depth: number; group: boolean }[];
 }
 
 /**

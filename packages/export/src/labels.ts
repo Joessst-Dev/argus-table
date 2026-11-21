@@ -28,6 +28,10 @@ export interface ExportLabels {
   exported: (item: { rows: number; format: ExportFormat }) => string;
   /** Announced when an export from the column menu fails. Default: `Export failed`. */
   failed: string;
+  /** A group row's first cell (`grouping`): its value and number of rows. Default: `EU (12)`. */
+  groupRow: (group: { value: string; count: number }) => string;
+  /** The value of the group of rows with an empty value. Default: `(empty)`. */
+  emptyGroup: string;
 }
 
 const DEFAULT_LABELS: ExportLabels = {
@@ -39,6 +43,8 @@ const DEFAULT_LABELS: ExportLabels = {
   page: ({ page, pages }) => `Page ${String(page)} of ${String(pages)}`,
   exported: ({ rows }) => `Exported ${String(rows)} ${rows === 1 ? 'row' : 'rows'}`,
   failed: 'Export failed',
+  groupRow: ({ value, count }) => `${value} (${String(count)})`,
+  emptyGroup: '(empty)',
 };
 
 /** The labels given, over the English defaults. */
