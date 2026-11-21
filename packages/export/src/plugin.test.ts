@@ -378,6 +378,29 @@ describe('with a dataSource', () => {
     expect(requests[0]).toMatchObject({ grouping: ['city'], groupPath: [] });
   });
 
+  test('grouped on the server: allRows asks for groups before any row has loaded, and rejects rows', async () => {
+    const requests: RowsRequest[] = [];
+    let answer: 'groups' | 'rows' = 'groups';
+    const source: DataSource<Row> = {
+      getRows: (request) => {
+        requests.push(request);
+        return answer === 'rows' || request.groupPath?.length
+          ? Promise.resolve({ rows: data, total: data.length })
+          : Promise.resolve({ rows: [], groups: [{ value: 'Oslo', count: 1 }], total: 1 });
+      },
+    };
+    const el = await fixture({
+      data: undefined,
+      columns: columns.map((c) => (c.id === 'city' ? { ...c, groupable: true } : c)),
+      dataSource: source,
+      grouping: ['city', 'city'],
+    });
+    expect(await csv(el, { allRows: true })).toBe('Name,Age,City\r\nOslo (1),,\r\n');
+    expect(requests.at(-1)).toMatchObject({ grouping: ['city'], groupPath: [] });
+    answer = 'rows';
+    await expect(csv(el, { allRows: true })).rejects.toThrow(TypeError);
+  });
+
   test('exports the loaded rows, or every row with allRows', async () => {
     const { source, requests } = server();
     const el = await fixture({ data: undefined, dataSource: source, quickFilter: 'Row' });

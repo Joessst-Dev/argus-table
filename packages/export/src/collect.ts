@@ -1,4 +1,4 @@
-import type { ColumnAlign, PluginHost, RowSection } from 'argus-table';
+import type { ColumnAlign, GroupData, PluginHost, RowSection } from 'argus-table';
 import type { ExportLabels } from './labels.js';
 import type { DetailItem } from './detail.js';
 import {
@@ -110,8 +110,8 @@ export interface HeaderTexts {
 export async function collect<T>(
   host: PluginHost<T>,
   headers: HeaderTexts,
-  options: CollectOptions<T> = {},
   labels: Pick<ExportLabels, 'groupRow' | 'emptyGroup'>,
+  options: CollectOptions<T> = {},
 ): Promise<ExportSheet> {
   const own: Record<string, ExportColumnOptions<T> | undefined> = {};
   for (const c of host.columns()) {
@@ -173,10 +173,8 @@ export async function collect<T>(
     group: { value: unknown; count: number; totals?: Readonly<Record<string, unknown>> },
     depth: number,
   ) => {
-    const value =
-      group.value === undefined || group.value === null || group.value === ''
-        ? labels.emptyGroup
-        : plainText(toValue(group.value));
+    const plain = toValue(group.value);
+    const value = plain === null || plain === '' ? labels.emptyGroup : plainText(plain);
     const first = labels.groupRow({ value, count: group.count });
     rows.push(columns.map((c, i) => (i ? toValue(group.totals?.[c.id]) : first)));
     items.push(undefined);
@@ -196,14 +194,18 @@ export async function collect<T>(
   const selected = options.rows === 'selected' ? new Set(el.selection) : undefined;
   const source = el.dataSource;
   const inMemory = source ? undefined : host.groupedRows();
-  // A grouped data source: its first row is a group row. Selected rows go flat.
-  const remoteGroups = source && !selected && host.rowCount() > 0 && host.group(0) !== undefined;
+  // A data source the server groups (not a tree): the columns it groups by, as
+  // the table sends them. Selected rows go flat.
+  const grouping =
+    source && !selected && !(source.hasChildren && source.getChildren)
+      ? [...new Set(host.grouping())].filter((id) => host.column(id)?.groupable)
+      : [];
+  const remoteGroups = grouping.length > 0;
   pinned('top');
   if (options.allRows && source) {
     const size = Math.max(1, source.pageSize ?? 100);
     const signal = options.signal ?? new AbortController().signal;
     // Grouped on the server: the top-level groups.
-    const grouping = remoteGroups ? host.grouping().filter((id) => host.column(id)?.groupable) : [];
     for (let start = 0; ; start += size) {
       signal.throwIfAborted();
       const response = await source.getRows({
@@ -217,10 +219,17 @@ export async function collect<T>(
         signal,
       });
       const { rows: page, total } = response;
-      const groupsPage = grouping.length ? (response.groups ?? []) : [];
+      const groupsPage: readonly GroupData[] | undefined = remoteGroups ? response.groups : [];
+      // As the table does: groups without their counts are the wrong answer.
+      if (
+        !groupsPage ||
+        groupsPage.some((g) => typeof (g as Partial<GroupData> | null)?.count !== 'number')
+      ) {
+        throw new TypeError('argus-table export: getRows() answered rows for groups.');
+      }
       for (const group of groupsPage) pushGroup(group, 0);
       page.forEach((row, k) => {
-        if (grouping.length) return;
+        if (remoteGroups) return;
         const index = start + k;
         const rowId = el.getRowId ? el.getRowId(row, index) : String(index);
         if (selected && !selected.has(rowId)) return;
@@ -229,7 +238,7 @@ export async function collect<T>(
           { row, rowId },
         );
       });
-      const got = grouping.length ? groupsPage.length : page.length;
+      const got = remoteGroups ? groupsPage.length : page.length;
       if (got < size || (total !== undefined && start + size >= total)) break;
     }
   } else if (inMemory) {

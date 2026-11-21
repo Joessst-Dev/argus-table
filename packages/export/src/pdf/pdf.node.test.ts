@@ -244,4 +244,34 @@ describe('grouped rows', () => {
     // Header cells and the group row are filled.
     expect((contents[0] ?? '').match(/0\.93 g/g)?.length).toBe(3);
   });
+
+  test('detail rows follow their row in, 12 pt per level of their row', async () => {
+    const sheet: ExportSheet = {
+      columns: [column('name'), column('n', 60, 'end')],
+      groups: [],
+      rows: [['Ann', 1]],
+      outline: [{ depth: 2, group: false }],
+      detail: { columns: [column('product')], rows: [[['P0']]] },
+    };
+    const { contents } = await read(await toPdf(sheet, {}, { footer }));
+    const page = placed(contents[0] ?? '');
+    const name = page.find((t) => t.text === 'name');
+    const product = page.find((t) => t.text === 'product');
+    expect((product?.x ?? 0) - (name?.x ?? 0)).toBeCloseTo(16 + 24, 2);
+  });
+
+  test('the indent leaves a narrow first column room for its text', async () => {
+    const sheet: ExportSheet = {
+      columns: [column('a', 30), column('n', 60, 'end')],
+      groups: [],
+      rows: [['Ann', 1]],
+      outline: [{ depth: 2, group: false }],
+    };
+    const { contents } = await read(await toPdf(sheet, {}, { footer }));
+    const page = placed(contents[0] ?? '');
+    const header = page.find((t) => t.text === 'a');
+    const ann = page.find((t) => !t.bold && t.text !== '1' && t.x < 90);
+    // Less than the 24 pt two levels would take: the cell keeps room for its text.
+    expect((ann?.x ?? 0) - (header?.x ?? 0)).toBeLessThan(24);
+  });
 });

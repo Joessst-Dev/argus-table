@@ -32,11 +32,13 @@
 ### Task 1: Group rows in the grouped order
 
 **Files:**
+
 - Modify: `packages/core/src/table/create-table.ts`, `model-types.ts` (`groupedOrder()` lists group rows too)
 - Modify: `packages/table/src/plugins.ts` (`GroupedRow<T>` type; `groupedRows()` returns it), `packages/table/src/argus-table.ts`, `packages/table/src/types.ts` (re-export `GroupedRow`)
 - Test: `packages/core/src/table/grouping.test.ts`, `packages/table/src/grouping.test.ts`
 
 **Interfaces:**
+
 - Produces: `TableModel.groupedOrder(): readonly { index: number; id: string; depth: number; group: GroupRowInfo | undefined }[] | undefined` (group rows: `index` is their source index, `group` their info); `type GroupedRow<T> = { id: string; depth: number } & ({ index: number; row: T; group?: undefined } | { group: GroupRowInfo; row?: undefined })`; `PluginHost.groupedRows(): readonly GroupedRow<T>[] | undefined`.
 
 - [ ] **Step 1: Failing tests:** `groupedOrder()` for `grouping: ['region']` sorted by amount lists `[APAC group, d, b, EU group, a, c, e]` with depths `[0, 1, 1, 0, 1, 1, 1]`; `host.groupedRows()` gives group entries with `group.value` and data entries with `row`.
@@ -48,6 +50,7 @@
 ### Task 2: Collecting group rows
 
 **Files:**
+
 - Modify: `packages/export/src/sheet.ts` (`ExportSheet.outline?: { depth: number; group: boolean }[]`, one per entry of `rows`), `packages/export/src/collect.ts`, `packages/export/src/labels.ts` (`groupRow`, `emptyGroup`)
 - Test: `packages/export/src/plugin.test.ts`
 
@@ -60,6 +63,7 @@
 ### Task 3: Writers
 
 **Files:**
+
 - Modify: `packages/export/src/csv.ts` (nothing new to lay out: group rows are rows; check the doc comment), `packages/export/src/xlsx/xlsx.ts`, `packages/export/src/pdf/pdf.ts`
 - Test: `packages/export/src/xlsx/xlsx.node.test.ts`, `packages/export/src/pdf/pdf.node.test.ts`, `packages/export/src/csv.node.test.ts`
 
@@ -72,6 +76,7 @@
 ### Task 4: Docs, size and checks
 
 **Files:**
+
 - Modify: `packages/export/README.md` (grouped tables), `apps/docs/src/content/docs/features/row-grouping.mdx` (export sentence), `skills/argus-table-integrate/references/addons.md`, `CLAUDE.md` (`packages/export` paragraph), ADR 0014 (a line), `.changeset/row-grouping-export.md` (`@argus-table/export` minor; `argus-table` patch for `groupedRows`)
 - [ ] **Step 1:** Docs as listed; `pnpm nx run-many -t lint typecheck build -p docs` and `pnpm nx test skills` — PASS.
 - [ ] **Step 2:** `pnpm size`; report the export budgets to the maintainer and set only the limits they approve.

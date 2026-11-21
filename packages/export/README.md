@@ -114,7 +114,7 @@ Excel writes each row's detail rows under it, one column in, with a header row, 
 
 ### Grouped rows
 
-A grouped table (`grouping`) exports its group rows with its rows: each group row has the group's value and its number of rows in the first column (`labels.groupRow({ value, count })`, `labels.emptyGroup` for the group of empty values) and the group's totals in the others. With rows in memory every group and every row is written, closed groups' too, in the grouped order. With a `dataSource` the rows the table has loaded are written in their order, or with `allRows` the top-level groups. With `rows: 'selected'` only the selected rows, without group rows.
+A grouped table (`grouping`) exports its group rows with its rows: each group row has the group's value and its number of rows in the first column (`labels.groupRow({ value, count })`, `labels.emptyGroup` for the group of empty values) and the group's totals in the others. With rows in memory every group and every row is written, closed groups' too, in the grouped order. With a `dataSource` the rows the table has loaded are written in their order, or with `allRows` the top-level groups. With `rows: 'selected'` only the selected rows, without group rows. The group's value and count take the first exported column's place, so put a column with a total elsewhere; totals are written as the table computed them, without a column's `value` mapping.
 
 Excel puts each row at its group level's outline level, so the groups collapse (no filter on the header row then), with the group's name in bold. PDF shades group rows, makes them bold and moves each level's first cells in. CSV writes group rows as lines like the others. Detail rows stay under their row, a level deeper.
 

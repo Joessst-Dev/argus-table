@@ -194,6 +194,8 @@ export const exportLabels = {
   page: ({ page, pages }) => `Seite ${String(page)} von ${String(pages)}`,
   exported: ({ rows }) => `${count(rows, 'Zeile', 'Zeilen')} exportiert`,
   failed: 'Export fehlgeschlagen',
+  groupRow: ({ value, count }) => `${value} (${String(count)})`,
+  emptyGroup: '(leer)',
 } satisfies ExportLabels;
 
 /** The editing add-on's text in German. */

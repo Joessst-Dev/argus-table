@@ -203,4 +203,19 @@ describe('grouped rows', () => {
     expect(xmlText).toContain('<outlinePr summaryBelow="0"/>');
     expect(xmlText).not.toContain('<autoFilter');
   });
+
+  test('outline levels stop at Excel’s seven', async () => {
+    const deep: ExportSheet = {
+      columns: [column('name')],
+      groups: [],
+      rows: [['a'], ['b']],
+      outline: [
+        { depth: 6, group: true },
+        { depth: 9, group: false },
+      ],
+    };
+    const { sheet: xmlText } = await sheetXml(deep);
+    expect(xmlText).toContain('<row r="3" outlineLevel="7">');
+    expect(xmlText).toContain('outlineLevelRow="7"');
+  });
 });

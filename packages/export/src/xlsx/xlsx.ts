@@ -140,7 +140,9 @@ function worksheet(sheet: ExportSheet, name: string): { xml: string; filter: str
   const detailAligns = detail?.columns.map((c) => alignIndex[c.align]) ?? [];
   let next = headerRows + 1;
   let deepest = 0;
-  const level = (n: number) => {
+  const level = (depth: number) => {
+    // Excel's outline has seven levels.
+    const n = Math.min(7, depth);
     deepest = Math.max(deepest, n);
     return n ? ` outlineLevel="${String(n)}"` : '';
   };
