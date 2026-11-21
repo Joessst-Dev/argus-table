@@ -6,6 +6,7 @@ import type { RowStructure } from './row-structure.js';
 import type {
   CellContext,
   GroupingState,
+  GroupRowInfo,
   ColumnAlign,
   ColumnDef,
   ColumnGroup,
@@ -391,11 +392,14 @@ export interface TableModel<TData, TContent> {
    */
   sourceRow(index: number): TData | undefined;
   /**
-   * While grouped: every data row the filters keep, by source index and id,
-   * group by group in sort order, closed groups' rows too (what an export of
-   * the grouped rows lists). `undefined` without grouping.
+   * While grouped: every group row and every row the filters keep, in the
+   * grouped order with every group open (what an export of the grouped rows
+   * lists): its source index, id and depth, and a group row's info. `undefined`
+   * without grouping.
    */
-  groupedOrder(): readonly { index: number; id: string }[] | undefined;
+  groupedOrder():
+    | readonly { index: number; id: string; depth: number; group: GroupRowInfo | undefined }[]
+    | undefined;
   /** The index of a row id in the current row model (after filtering and sorting), or `undefined`. */
   indexOf(rowId: string): number | undefined;
   /**

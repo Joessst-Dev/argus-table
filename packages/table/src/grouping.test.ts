@@ -106,12 +106,19 @@ describe('grouping', () => {
       depth: 0,
       totals: { amount: 35 },
     });
-    expect(
-      host()
-        .groupedRows()
-        ?.map((r) => r.id),
-    ).toEqual(['s2', 's4', 's1', 's3', 's5']);
-    expect(host().groupedRows()?.[0]?.row).toBe(sales[1]);
+    const rows = host().groupedRows() ?? [];
+    expect(rows.map((r) => r.id)).toEqual([
+      '\u0000g["region","APAC"]',
+      's2',
+      's4',
+      EU,
+      's1',
+      's3',
+      's5',
+    ]);
+    expect(rows.map((r) => r.depth)).toEqual([0, 1, 1, 0, 1, 1, 1]);
+    expect(rows[0]?.group?.value).toBe('APAC');
+    expect(rows[1]?.row).toBe(sales[1]);
     expect(host().column('region')?.groupable).toBe(true);
   });
 

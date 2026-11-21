@@ -76,16 +76,50 @@ describe('exportTable', () => {
     );
   });
 
-  test('grouped rows: every data row, closed groups too, in the grouped order', async () => {
+  test('grouped rows: group rows with their counts and totals, then their rows, closed groups too', async () => {
+    const grouped = columns.map((c) =>
+      c.id === 'city'
+        ? { ...c, groupable: true }
+        : c.id === 'age'
+          ? { ...c, aggregate: 'sum' as const }
+          : c,
+    );
     const el = await fixture({
-      columns: columns.map((c) => (c.id === 'city' ? { ...c, groupable: true } : c)),
+      columns: grouped,
       data: [...data, { id: 'e', name: 'Eve', age: 50, city: 'Oslo' }],
       grouping: ['city'],
       sorting: [{ id: 'age', desc: true }],
+      pinnedRows: { top: [{ id: 'top', name: 'Pinned', age: 1, city: '' }] },
     });
-    // Group rows aren't written: their rows are, group by group.
+    // Sorting by Age, which has a total, orders the groups by it too.
     expect(await csv(el)).toBe(
-      "Name,Age,City\r\nDee,40,'=cmd\r\nCid,20,Lima\r\nEve,50,Oslo\r\nAnn,30,Oslo\r\nBob,10,Rome\r\n",
+      'Name,Age,City\r\nPinned,1,\r\nOslo (2),80,\r\nEve,50,Oslo\r\nAnn,30,Oslo\r\n' +
+        "'=cmd (1),40,\r\nDee,40,'=cmd\r\nLima (1),20,\r\nCid,20,Lima\r\nRome (1),10,\r\nBob,10,Rome\r\n",
+    );
+    // Selected rows: no group rows, in the grouped order.
+    el.selectionMode = 'multi';
+    el.selection = ['a', 'e'];
+    await settle(el);
+    expect(await csv(el, { rows: 'selected' })).toBe(
+      'Name,Age,City\r\nEve,50,Oslo\r\nAnn,30,Oslo\r\n',
+    );
+  });
+
+  test('a group of empty values and a group of a date are named by their text', async () => {
+    const el = await fixture({
+      columns: [
+        { id: 'name', header: 'Name', accessor: 'name' },
+        {
+          id: 'day',
+          header: 'Day',
+          accessor: (r: Row) => (r.age > 15 ? new Date(2026, 10, 20) : undefined),
+          groupable: true,
+        },
+      ],
+      grouping: ['day'],
+    });
+    expect(await csv(el)).toBe(
+      'Name,Day\r\n2026-11-20 (3),\r\nAnn,2026-11-20\r\nCid,2026-11-20\r\nDee,2026-11-20\r\n(empty) (1),\r\nBob,\r\n',
     );
   });
 
@@ -306,6 +340,66 @@ describe('with a dataSource', () => {
     };
     return { source, requests };
   };
+
+  test('grouped on the server: group rows and loaded rows; with allRows the top-level groups', async () => {
+    const requests: RowsRequest[] = [];
+    const source: DataSource<Row> = {
+      getRows: (request) => {
+        requests.push(request);
+        if (request.groupPath?.length) {
+          const rows = data.filter((r) => r.city === request.groupPath?.[0]?.value);
+          return Promise.resolve({ rows, total: rows.length });
+        }
+        const cities = [...new Set(data.map((r) => r.city))].sort();
+        const groups = cities.map((city) => ({
+          value: city,
+          count: data.filter((r) => r.city === city).length,
+          totals: { age: data.filter((r) => r.city === city).reduce((n, r) => n + r.age, 0) },
+        }));
+        return Promise.resolve({ rows: [], groups, total: groups.length });
+      },
+    };
+    const el = await fixture({
+      data: undefined,
+      columns: columns.map((c) => (c.id === 'city' ? { ...c, groupable: true } : c)),
+      dataSource: source,
+      grouping: ['city'],
+      treeExpanded: ['\u0000g["city","Oslo"]'],
+    });
+    await vi.waitFor(async () => {
+      expect(await csv(el)).toBe(
+        "Name,Age,City\r\n'=cmd (1),40,\r\nLima (1),20,\r\nOslo (1),30,\r\nAnn,30,Oslo\r\nRome (1),10,\r\n",
+      );
+    });
+    requests.length = 0;
+    expect(await csv(el, { allRows: true })).toBe(
+      "Name,Age,City\r\n'=cmd (1),40,\r\nLima (1),20,\r\nOslo (1),30,\r\nRome (1),10,\r\n",
+    );
+    expect(requests[0]).toMatchObject({ grouping: ['city'], groupPath: [] });
+  });
+
+  test('grouped on the server: allRows asks for groups before any row has loaded, and rejects rows', async () => {
+    const requests: RowsRequest[] = [];
+    let answer: 'groups' | 'rows' = 'groups';
+    const source: DataSource<Row> = {
+      getRows: (request) => {
+        requests.push(request);
+        return answer === 'rows' || request.groupPath?.length
+          ? Promise.resolve({ rows: data, total: data.length })
+          : Promise.resolve({ rows: [], groups: [{ value: 'Oslo', count: 1 }], total: 1 });
+      },
+    };
+    const el = await fixture({
+      data: undefined,
+      columns: columns.map((c) => (c.id === 'city' ? { ...c, groupable: true } : c)),
+      dataSource: source,
+      grouping: ['city', 'city'],
+    });
+    expect(await csv(el, { allRows: true })).toBe('Name,Age,City\r\nOslo (1),,\r\n');
+    expect(requests.at(-1)).toMatchObject({ grouping: ['city'], groupPath: [] });
+    answer = 'rows';
+    await expect(csv(el, { allRows: true })).rejects.toThrow(TypeError);
+  });
 
   test('exports the loaded rows, or every row with allRows', async () => {
     const { source, requests } = server();

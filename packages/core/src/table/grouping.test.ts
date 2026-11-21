@@ -208,10 +208,12 @@ describe('grouping', () => {
     expect(open.branchSelectAll([])).toEqual(['b', 'd', 'a', 'c', 'e']);
   });
 
-  it('groupedOrder lists every kept data row, closed groups’ too, in sort order', () => {
+  it('groupedOrder lists group rows and every kept row, closed groups’ too, in sort order', () => {
     const order = model({ sorting: [{ id: 'amount', desc: true }] }).groupedOrder();
-    expect(order?.map((r) => r.index)).toEqual([3, 1, 0, 2, 4]);
-    expect(order?.map((r) => r.id)).toEqual(['d', 'b', 'a', 'c', 'e']);
+    expect(order?.map((r) => r.id)).toEqual([APAC, 'd', 'b', EU, 'a', 'c', 'e']);
+    expect(order?.map((r) => r.depth)).toEqual([0, 1, 1, 0, 1, 1, 1]);
+    expect(order?.filter((r) => !r.group).map((r) => r.index)).toEqual([3, 1, 0, 2, 4]);
+    expect(order?.[0]?.group).toMatchObject({ value: 'APAC', count: 2, totals: { amount: 35 } });
     expect(model({ grouping: [] }).groupedOrder()).toBeUndefined();
   });
 

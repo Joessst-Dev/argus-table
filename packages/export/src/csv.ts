@@ -20,7 +20,8 @@ const FORMULA_START = /^[=+\-@\t\r]/;
  * The sheet as CSV (RFC 4180): the group header rows (a group's text in its
  * first column), the column headers, then the rows; CRLF line ends. Detail rows
  * flatten: their columns follow the table's, and a row is written once per detail
- * row (once, with the detail columns empty, when it has none).
+ * row (once, with the detail columns empty, when it has none). Group rows
+ * (`outline`) are lines like the others: their value and count, then their totals.
  */
 export function toCsv(sheet: ExportSheet, options: CsvOptions = {}): string {
   const { delimiter = ',', bom = true, escapeFormulas = true } = options;

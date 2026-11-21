@@ -31,8 +31,16 @@ const FOOTER = 8;
 /** How far detail rows are indented, in pt. */
 const DETAIL_INDENT = 16;
 
-/** A line of a page: a row of the table, a detail rows' header, or a detail row. */
-type Line = { kind: 'row' | 'detail'; values: ExportValue[] } | { kind: 'detail-header' };
+/** How far a grouped row's first cell moves right per level (`outline`), in pt. */
+const GROUP_INDENT = 12;
+
+/**
+ * A line of a page: a row of the table (with its depth and whether it is a
+ * group row, while grouped), a detail rows' header, or a detail row.
+ */
+type Line =
+  | { kind: 'row' | 'detail'; values: ExportValue[]; depth?: number; group?: boolean }
+  | { kind: 'detail-header'; depth?: number };
 /** CSS px to pt, the most a column is scaled. */
 const PX = 0.75;
 const ELLIPSIS = 0x85;
@@ -207,18 +215,22 @@ export async function toPdf(
   const detailStarts = detailWidths.map(
     (_, i) => detailStart + detailWidths.slice(0, i).reduce((n, w) => n + w, 0),
   );
-  /** A detail column's width, cut at the page's margin. */
-  const detailWidth = (i: number) =>
-    Math.max(0, Math.min(detailWidths[i] ?? 0, width - MARGIN - (detailStarts[i] ?? 0)));
+  /** A detail column's width from `x`, cut at the page's margin. */
+  const detailWidth = (i: number, x: number) =>
+    Math.max(0, Math.min(detailWidths[i] ?? 0, width - MARGIN - x));
   const lines: Line[] = rows.flatMap((values, i): Line[] => {
     const under = detail?.rows[i];
+    const o = sheet.outline?.[i];
+    const row: Line = { kind: 'row', values, ...o };
+    // Detail rows follow their row in, as deep as it is.
+    const depth = o?.depth;
     return under?.length
       ? [
-          { kind: 'row', values },
-          { kind: 'detail-header' },
-          ...under.map((v): Line => ({ kind: 'detail', values: v })),
+          row,
+          { kind: 'detail-header', depth },
+          ...under.map((v): Line => ({ kind: 'detail', values: v, depth })),
         ]
-      : [{ kind: 'row', values }];
+      : [row];
   });
 
   const top = height - MARGIN;
@@ -229,7 +241,9 @@ export async function toPdf(
   for (let at = 0; at < lines.length || pages.length === 0;) {
     const count = fits(pages.length ? top : firstTop);
     // A detail block that goes on from the last page starts with its header again.
-    const page: Line[] = lines[at]?.kind === 'detail' ? [{ kind: 'detail-header' }] : [];
+    const next = lines[at];
+    const page: Line[] =
+      next?.kind === 'detail' ? [{ kind: 'detail-header', depth: next.depth }] : [];
     let take = Math.max(1, count - page.length);
     // A detail header goes with the rows under it, not alone at the bottom of a page.
     while (take > 1 && lines[at + take - 1]?.kind === 'detail-header') take--;
@@ -246,38 +260,50 @@ export async function toPdf(
     for (const line of pageRows) {
       y -= ROW;
       if (line.kind === 'row') {
+        // A group row is shaded and bold; a grouped row's first cell moves in by its depth.
+        if (line.group) fill(MARGIN, y, tableWidth);
+        // Never past the first column's room for text.
+        const indent = Math.min(
+          (line.depth ?? 0) * GROUP_INDENT,
+          Math.max(0, (widths[0] ?? 0) - 2 * PAD - 1),
+        );
         line.values.forEach((value, i) => {
           cellText(
             display(value, text.locale),
-            starts[i] ?? MARGIN,
-            widths[i] ?? 0,
+            (starts[i] ?? MARGIN) + (i ? 0 : indent),
+            (widths[i] ?? 0) - (i ? 0 : indent),
             y,
-            false,
+            line.group === true,
             columns[i]?.align ?? 'start',
           );
         });
         rule(y, 0.85, 0.25);
-      } else if (line.kind === 'detail-header') {
-        detail?.columns.forEach((c, i) => {
-          const x = detailStarts[i] ?? detailStart;
-          const w = detailWidth(i);
-          if (w <= 2 * PAD) return;
-          fill(x, y, w);
-          cellText(c.header, x, w, y, true, c.align);
-        });
       } else {
-        line.values.forEach((value, i) => {
-          // Past the page's edge: nothing, not an ellipsis in the margin.
-          if (detailWidth(i) <= 2 * PAD) return;
-          cellText(
-            display(value, text.locale),
-            detailStarts[i] ?? detailStart,
-            detailWidth(i),
-            y,
-            false,
-            detail?.columns[i]?.align ?? 'start',
-          );
-        });
+        // Detail rows: as far in as their row is, beyond DETAIL_INDENT.
+        const shift = (line.depth ?? 0) * GROUP_INDENT;
+        const at = (i: number) => (detailStarts[i] ?? detailStart) + shift;
+        if (line.kind === 'detail-header') {
+          detail?.columns.forEach((c, i) => {
+            const w = detailWidth(i, at(i));
+            if (w <= 2 * PAD) return;
+            fill(at(i), y, w);
+            cellText(c.header, at(i), w, y, true, c.align);
+          });
+        } else {
+          line.values.forEach((value, i) => {
+            const w = detailWidth(i, at(i));
+            // Past the page's edge: nothing, not an ellipsis in the margin.
+            if (w <= 2 * PAD) return;
+            cellText(
+              display(value, text.locale),
+              at(i),
+              w,
+              y,
+              false,
+              detail?.columns[i]?.align ?? 'start',
+            );
+          });
+        }
       }
     }
     const foot = winAnsi(text.footer({ page: p + 1, pages: pages.length }));

@@ -134,30 +134,39 @@ function worksheet(sheet: ExportSheet, name: string): { xml: string; filter: str
   out.push(
     `<row r="${h}">${columns.map((c, i) => text(`${columnName(i)}${h}`, HEADER * 3 + (aligns[i] ?? 0), c.header)).join('')}</row>`,
   );
-  // Detail rows go under their row, one column in, at outline level 1.
+  // Grouped rows (`outline`) sit at their depth's outline level, a group row's
+  // name in bold; detail rows go under their row, one column in, a level deeper.
   const detail = sheet.detail;
   const detailAligns = detail?.columns.map((c) => alignIndex[c.align]) ?? [];
   let next = headerRows + 1;
-  let outlined = false;
+  let deepest = 0;
+  const level = (depth: number) => {
+    // Excel's outline has seven levels.
+    const n = Math.min(7, depth);
+    deepest = Math.max(deepest, n);
+    return n ? ` outlineLevel="${String(n)}"` : '';
+  };
   for (const [index, values] of rows.entries()) {
     const r = String(next++);
+    const { depth = 0, group = false } = sheet.outline?.[index] ?? {};
     out.push(
-      `<row r="${r}">${values.map((v, i) => cell(`${columnName(i)}${r}`, v, aligns[i] ?? 0)).join('')}</row>`,
+      `<row r="${r}"${level(depth)}>${values.map((v, i) => (group && !i ? text(`A${r}`, HEADER * 3 + (aligns[0] ?? 0), String(v)) : cell(`${columnName(i)}${r}`, v, aligns[i] ?? 0))).join('')}</row>`,
     );
     const lines = detail?.rows[index];
     if (!detail || !lines?.length) continue;
-    outlined = true;
     const d = String(next++);
+    const under = level(depth + 1);
     out.push(
-      `<row r="${d}" outlineLevel="1">${detail.columns.map((c, i) => text(`${columnName(i + 1)}${d}`, HEADER * 3 + (detailAligns[i] ?? 0), c.header)).join('')}</row>`,
+      `<row r="${d}"${under}>${detail.columns.map((c, i) => text(`${columnName(i + 1)}${d}`, HEADER * 3 + (detailAligns[i] ?? 0), c.header)).join('')}</row>`,
     );
     for (const line of lines) {
       const n = String(next++);
       out.push(
-        `<row r="${n}" outlineLevel="1">${line.map((v, i) => cell(`${columnName(i + 1)}${n}`, v, detailAligns[i] ?? 0)).join('')}</row>`,
+        `<row r="${n}"${under}>${line.map((v, i) => cell(`${columnName(i + 1)}${n}`, v, detailAligns[i] ?? 0)).join('')}</row>`,
       );
     }
   }
+  const outlined = deepest > 0;
 
   // Freeze the header rows and the columns pinned to the start.
   const pinned = columns.findIndex((c) => c.pin !== 'start');
@@ -179,11 +188,11 @@ function worksheet(sheet: ExportSheet, name: string): { xml: string; filter: str
       return `<col min="${n}" max="${n}" width="${String(width)}" customWidth="1"/>`;
     })
     .join('');
-  // A filter would take detail rows for rows of the table: none with detail rows.
+  // A filter would take detail rows or group rows for rows of the table: none while outlined.
   const range =
     columns.length && !outlined ? `A${h}:${last}${String(headerRows + rows.length)}` : undefined;
   const outline = outlined ? '<sheetPr><outlinePr summaryBelow="0"/></sheetPr>' : '';
-  const xmlText = `${HEAD}<worksheet xmlns="${MAIN}" xmlns:r="${REL}">${outline}<sheetViews><sheetView workbookViewId="0">${pane}</sheetView></sheetViews><sheetFormatPr defaultRowHeight="15"${outlined ? ' outlineLevelRow="1"' : ''}/>${cols ? `<cols>${cols}</cols>` : ''}<sheetData>${out.join('')}</sheetData>${range ? `<autoFilter ref="${range}"/>` : ''}${merges.length ? `<mergeCells count="${String(merges.length)}">${merges.map((m) => `<mergeCell ref="${m}"/>`).join('')}</mergeCells>` : ''}</worksheet>`;
+  const xmlText = `${HEAD}<worksheet xmlns="${MAIN}" xmlns:r="${REL}">${outline}<sheetViews><sheetView workbookViewId="0">${pane}</sheetView></sheetViews><sheetFormatPr defaultRowHeight="15"${outlined ? ` outlineLevelRow="${String(deepest)}"` : ''}/>${cols ? `<cols>${cols}</cols>` : ''}<sheetData>${out.join('')}</sheetData>${range ? `<autoFilter ref="${range}"/>` : ''}${merges.length ? `<mergeCells count="${String(merges.length)}">${merges.map((m) => `<mergeCell ref="${m}"/>`).join('')}</mergeCells>` : ''}</worksheet>`;
   // The defined name Excel keeps for an auto filter, with absolute references.
   const filter = range
     ? `'${name.replaceAll("'", "''")}'!${range.replace(/([A-Z]+)(\d+)/g, '$$$1$$$2')}`

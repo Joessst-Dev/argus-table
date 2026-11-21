@@ -212,3 +212,66 @@ describe('detail rows', () => {
     expect(shown(contents[0] ?? '')).not.toContain('\x85');
   });
 });
+
+describe('grouped rows', () => {
+  const placed = (content: string) =>
+    [...content.matchAll(/\/F(\d) [\d.]+ Tf ([\d.]+) [\d.]+ Td <([0-9a-f]*)> Tj/g)].map((m) => ({
+      bold: m[1] === '2',
+      x: Number(m[2]),
+      text: String.fromCharCode(...(m[3]?.match(/../g) ?? []).map((h) => parseInt(h, 16))),
+    }));
+
+  test('a group row is bold on a fill; first cells move in 12pt per level', async () => {
+    const sheet: ExportSheet = {
+      columns: [column('name'), column('n', 60, 'end')],
+      groups: [],
+      rows: [
+        ['EU (1)', 3],
+        ['Ann', 3],
+      ],
+      outline: [
+        { depth: 0, group: true },
+        { depth: 1, group: false },
+      ],
+    };
+    const { contents } = await read(await toPdf(sheet, {}, { footer }));
+    const page = placed(contents[0] ?? '');
+    const eu = page.find((t) => t.text === 'EU (1)');
+    const ann = page.find((t) => t.text === 'Ann');
+    expect(eu?.bold).toBe(true);
+    expect(ann?.bold).toBe(false);
+    expect((ann?.x ?? 0) - (eu?.x ?? 0)).toBeCloseTo(12, 2);
+    // Header cells and the group row are filled.
+    expect((contents[0] ?? '').match(/0\.93 g/g)?.length).toBe(3);
+  });
+
+  test('detail rows follow their row in, 12 pt per level of their row', async () => {
+    const sheet: ExportSheet = {
+      columns: [column('name'), column('n', 60, 'end')],
+      groups: [],
+      rows: [['Ann', 1]],
+      outline: [{ depth: 2, group: false }],
+      detail: { columns: [column('product')], rows: [[['P0']]] },
+    };
+    const { contents } = await read(await toPdf(sheet, {}, { footer }));
+    const page = placed(contents[0] ?? '');
+    const name = page.find((t) => t.text === 'name');
+    const product = page.find((t) => t.text === 'product');
+    expect((product?.x ?? 0) - (name?.x ?? 0)).toBeCloseTo(16 + 24, 2);
+  });
+
+  test('the indent leaves a narrow first column room for its text', async () => {
+    const sheet: ExportSheet = {
+      columns: [column('a', 30), column('n', 60, 'end')],
+      groups: [],
+      rows: [['Ann', 1]],
+      outline: [{ depth: 2, group: false }],
+    };
+    const { contents } = await read(await toPdf(sheet, {}, { footer }));
+    const page = placed(contents[0] ?? '');
+    const header = page.find((t) => t.text === 'a');
+    const ann = page.find((t) => !t.bold && t.text !== '1' && t.x < 90);
+    // Less than the 24 pt two levels would take: the cell keeps room for its text.
+    expect((ann?.x ?? 0) - (header?.x ?? 0)).toBeLessThan(24);
+  });
+});

@@ -61,6 +61,7 @@ export type {
   FilterValue,
   GroupCellContext,
   GroupData,
+  GroupedRow,
   GroupHeaderContext,
   GroupingChangeDetail,
   GroupingState,

@@ -33,3 +33,7 @@ Accepted (20 November 2026). Plan: `docs/superpowers/plans/2026-11-20-row-groupi
 - **Every level pages** (`RemoteGroups`, beside `RemoteTree`, which stays as it is): one `PageCache` per level shown. A group of groups shows one loading row until its first page gives the level's `total`; a group of rows knows its size from `count`. Pages far from view are evicted per level; a closed group's level is dropped. A new source, sort, filters, quick filter, grouping, `getRowId` or `refresh()` starts over, and open ids reopen as their groups arrive.
 - **Group rows have no row object** and data rows in a group default to `<group id>.<index>` ids; `isGroupId` tells the two apart where group rows are recognised by id (branch selection's marks).
 - **Selection** ticks a group's loaded rows (as a data-source tree's branch selection does); the group's id is never selected.
+
+## Step 3: grouped export
+
+Accepted (21 November 2026). Plan: `docs/superpowers/plans/2026-11-21-row-grouping-export.md`. `PluginHost.groupedRows()` (unreleased until 1.4) lists group rows too, with each row's depth; `@argus-table/export` writes group rows (value and count, then totals) with `ExportSheet.outline`: Excel outline levels by depth, PDF shaded bold rows indented per level, CSV lines. With a grouped `dataSource`: the loaded rows, or with `allRows` the top-level groups. Budgets raised with the maintainer's approval: plugin 3.0 → 3.4 kB, Excel writer 3.3 → 3.4 kB, PDF writer 3.1 → 3.2 kB.
