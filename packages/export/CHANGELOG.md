@@ -1,5 +1,41 @@
 # @argus-table/export
 
+## 1.4.0
+
+### Minor Changes
+
+- 1d4a21a: Exports can carry each row's detail rows, an order's lines say, through the new `detail` option: their `columns` and `rows(row, { rowId, signal })`, which returns a row's detail rows or a promise of them. Excel writes them under their row, one column in, grouped so they collapse; PDF indents them under their row; CSV writes one line per detail row with the row's values repeated. The data comes from your app, whether or not the table shows `rowDetail` panels. With `detail` in `tableExport()`, the column menu offers Export and Export with details (`labels.withDetails`); `detail: false` leaves the detail rows out of one export.
+- 013cd4b: Grouped export: a grouped table's group rows are exported with its rows, each with the group's value and number of rows in the first column (new labels `groupRow` and `emptyGroup`) and its totals in the others. Excel puts every row at its group's outline level so the groups collapse, PDF shades group rows and indents each level, CSV writes them as lines. With a `dataSource`: the loaded rows, or with `allRows` the top-level groups. Plugins get every row of a grouped table, group rows included, with each row's depth from `PluginHost.groupedRows()`.
+
+### Patch Changes
+
+- 7cbe470: The README describes exports of tree rows from a `dataSource` with `hasChildren` and `getChildren`: without `allRows`, an export holds the rows shown (the loaded top-level rows and the loaded children of expanded rows); with `allRows`, the top-level rows only, the rows `getRows` returns.
+- Updated dependencies [8b2eae8]
+- Updated dependencies [cae43e9]
+- Updated dependencies [2579957]
+- Updated dependencies [24e1c42]
+- Updated dependencies [e221ebc]
+- Updated dependencies [471c332]
+- Updated dependencies [6c95cdc]
+- Updated dependencies [8379a67]
+- Updated dependencies [013cd4b]
+- Updated dependencies [ae76b1f]
+- Updated dependencies [6d8f676]
+- Updated dependencies [1c85328]
+- Updated dependencies [97b07e5]
+- Updated dependencies [c2a7b25]
+- Updated dependencies [de99bdf]
+- Updated dependencies [b99de54]
+- Updated dependencies [9b43ccd]
+- Updated dependencies [2e5bf03]
+- Updated dependencies [8714311]
+- Updated dependencies [8e8cec0]
+- Updated dependencies [8523ab5]
+- Updated dependencies [7cbe470]
+- Updated dependencies [c2a7b25]
+- Updated dependencies [5f230e2]
+  - argus-table@1.4.0
+
 ## 1.3.0
 
 ### Patch Changes
