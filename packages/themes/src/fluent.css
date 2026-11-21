@@ -48,6 +48,7 @@ argus-table {
   --argus-skeleton-bg: light-dark(#e6e6e6, #575757);
   /* neutralBackground2 */
   --argus-row-pinned-bg: light-dark(#fafafa, #212121);
+  --argus-row-group-bg: var(--argus-row-pinned-bg);
 
   /* Add-ons: a Menu (shadow16) and a Dialog (shadow64) on neutralBackground1. */
   --argus-menu-bg: var(--argus-bg);

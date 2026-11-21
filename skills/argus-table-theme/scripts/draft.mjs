@@ -79,6 +79,7 @@ export const TOKENS = [
   '--argus-drop-indicator-color',
   '--argus-row-hover-bg',
   '--argus-row-pinned-bg',
+  '--argus-row-group-bg',
   '--argus-skeleton-bg',
   '--argus-tree-indent',
   '--argus-detail-max-height',

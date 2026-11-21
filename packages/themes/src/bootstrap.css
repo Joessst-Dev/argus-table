@@ -46,6 +46,7 @@ argus-table {
   /* secondary-bg */
   --argus-skeleton-bg: light-dark(#e9ecef, #343a40);
   --argus-row-pinned-bg: var(--argus-bg);
+  --argus-row-group-bg: light-dark(#f8f9fa, #2b3035);
 
   /* Add-ons: a .dropdown-menu and a .modal. */
   --argus-menu-bg: var(--argus-bg);

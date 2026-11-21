@@ -99,7 +99,7 @@ describe('grouping', () => {
     const { plugin, host } = hostOf();
     await mount({ plugins: [plugin], grouping: ['region'] });
     expect(host().group(0)).toEqual({
-      id: '\u0000g["region","APAC"]',
+      rowId: '\u0000g["region","APAC"]',
       groupColumnId: 'region',
       value: 'APAC',
       count: 2,
@@ -162,6 +162,14 @@ describe('grouping', () => {
     expect(row?.getAttribute('aria-level')).toBe('2');
   });
 
+  test('group rows take their background from --argus-row-group-bg', async () => {
+    const el = await mount({ grouping: ['region'], treeExpanded: [EU] });
+    el.style.setProperty('--argus-row-group-bg', 'rgb(1, 2, 3)');
+    const [apac, , row] = rowsInOrder(el);
+    expect(getComputedStyle(apac ?? el).backgroundColor).toBe('rgb(1, 2, 3)');
+    expect(getComputedStyle(row ?? el).backgroundColor).not.toBe('rgb(1, 2, 3)');
+  });
+
   test('groupCell renders a column’s group cells from its context', async () => {
     const seen: unknown[] = [];
     const el = await mount({
@@ -182,7 +190,7 @@ describe('grouping', () => {
     });
     expect(rowText(rowsInOrder(el)[0] ?? el)).toEqual(['APAC: 2', '', '', '35 €']);
     expect(seen[0]).toEqual({
-      id: '\u0000g["region","APAC"]',
+      rowId: '\u0000g["region","APAC"]',
       groupColumnId: 'region',
       value: 'APAC',
       count: 2,

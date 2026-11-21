@@ -32,6 +32,7 @@ argus-table {
   --argus-filter-indicator-color: light-dark(#2f5bd3, #8aa6f2);
   --argus-skeleton-bg: light-dark(#e6e9ee, #2a303a);
   --argus-row-pinned-bg: var(--argus-header-bg);
+  --argus-row-group-bg: var(--argus-row-pinned-bg);
 
   /* Add-ons: the column menu (@argus-table/header-menu) and the formula editor (@argus-table/formulas). */
   --argus-menu-bg: var(--argus-bg);

@@ -230,6 +230,7 @@ function attachGridInternals(host: HTMLElement): ElementInternals {
  * @cssprop [--argus-drop-indicator-color=Highlight] - Colour of the line that marks where a dragged column would land.
  * @cssprop [--argus-row-hover-bg] - Background of the hovered row. Default: no change.
  * @cssprop [--argus-row-pinned-bg=var(--argus-bg)] - Background of the pinned rows, pinned columns included.
+ * @cssprop [--argus-row-group-bg=var(--argus-bg)] - Background of group rows (`grouping`), pinned columns included.
  * @cssprop [--argus-skeleton-bg] - Colour of the skeleton bars in rows still loading. Default: the text colour at low opacity.
  * @cssprop [--argus-tree-indent=1.25rem] - The indent per level of a tree row (`getSubRows`, `getParentId`, or a `dataSource` with `hasChildren` and `getChildren`), before the toggle in the first data column.
  * @cssprop [--argus-detail-max-height=400px] - The tallest a detail panel (`rowDetail`) is; its content scrolls past it. Style the panel itself (background, padding) through the `detail` part.

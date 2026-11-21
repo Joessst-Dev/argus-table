@@ -302,6 +302,12 @@ const DERIVATIONS: Derivation[] = [
         : 'var(--argus-header-bg)',
   },
   {
+    // Group rows (grouping) read like the pinned rows.
+    token: '--argus-row-group-bg',
+    deps: () => ['header.style'],
+    value: () => 'var(--argus-row-pinned-bg)',
+  },
+  {
     token: '--argus-skeleton-bg',
     deps: () => ['surface', 'text'],
     value: (_, c) => perScheme(c, (x) => mix(x.bg, x.fg, 0.1)),

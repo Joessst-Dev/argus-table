@@ -135,7 +135,7 @@ export function buildGroups<TData>(
         const row = size + groups.length;
         groups.push({
           info: {
-            id: groupId(path),
+            rowId: groupId(path),
             groupColumnId: column.id,
             value,
             count: members.length,
@@ -169,8 +169,8 @@ export function buildGroups<TData>(
   groups.forEach(({ info, up, members }, k) => {
     const row = size + k;
     const hidden = size + g + k;
-    ids[row] = info.id;
-    ids[hidden] = `\u0000${info.id}`;
+    ids[row] = info.rowId;
+    ids[hidden] = `\u0000${info.rowId}`;
     parent[row] = up;
     depth[row] = info.depth;
     parent[hidden] = row;

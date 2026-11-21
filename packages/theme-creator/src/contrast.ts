@@ -60,6 +60,13 @@ export const CHECKS: readonly ContrastCheck[] = [
     min: 4.5,
   },
   {
+    id: 'group-row',
+    label: 'Text on group rows',
+    fg: '--argus-fg',
+    bg: '--argus-row-group-bg',
+    min: 4.5,
+  },
+  {
     id: 'header',
     label: 'Header text',
     fg: '--argus-header-fg',

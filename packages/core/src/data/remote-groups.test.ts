@@ -64,7 +64,7 @@ describe('RemoteGroups', () => {
     expect(top(g)).toBe('stored');
     expect(shown(g)).toEqual(['[EU]', '[US]']);
     expect(g.groupAt(0)).toEqual({
-      id: EU,
+      rowId: EU,
       groupColumnId: 'region',
       value: 'EU',
       count: 3,

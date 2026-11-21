@@ -133,6 +133,10 @@ export const baseStyles = css`
     [part~='row']:hover {
       --_row-surface: var(--argus-row-hover-bg, var(--_row-bg));
     }
+    /* A group row (grouping), set off from its rows; selected still wins. */
+    [part~='row-group'] {
+      --_row-bg: var(--argus-row-group-bg, var(--argus-bg, Canvas));
+    }
     /* Selected wins over stripes and hover. */
     [part~='row-selected'],
     [part~='row-selected']:hover {
