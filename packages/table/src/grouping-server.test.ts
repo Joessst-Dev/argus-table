@@ -73,6 +73,23 @@ function server(options: { pageSize?: number; wrong?: boolean } = {}) {
   return { source, requests };
 }
 
+/**
+ * `source` with every request held until `open()`. A test that listens for
+ * `argus-load-error` mounts the table, adds its listener, then opens: a page
+ * that fails (here after the 50 ms debounce) can't fail before the listener is
+ * there, however long mounting takes.
+ */
+function gated(source: DataSource<Sale>): { source: DataSource<Sale>; open: () => void } {
+  let open: () => void = () => undefined;
+  const gate = new Promise<void>((resolve) => {
+    open = resolve;
+  });
+  return {
+    source: { ...source, getRows: (request) => gate.then(() => source.getRows(request)) },
+    open,
+  };
+}
+
 /** Waits for the debounce, the answers and the updates they cause. */
 async function loaded(el: ArgusTable<Sale>) {
   for (let i = 0; i < 3; i++) {
@@ -148,10 +165,12 @@ describe('grouping with a data source', () => {
   });
 
   test('a server answering rows where groups belong fails the page, with Retry', async () => {
-    const { source, requests } = server({ wrong: true });
+    const { source: wrong, requests } = server({ wrong: true });
+    const { source, open } = gated(wrong);
     const errors: LoadErrorDetail[] = [];
     const el = await fixture<Sale>({ columns, data: [], dataSource: source, grouping: ['region'] });
     el.addEventListener('argus-load-error', (e) => errors.push(e.detail));
+    open();
     await loaded(el);
     expect(errors).toHaveLength(1);
     expect(errors[0]).toMatchObject({ start: 0, groupPath: [] });
@@ -207,15 +226,17 @@ describe('grouping with a data source', () => {
       getRows: (request) =>
         request.groupPath?.length ? Promise.reject(new Error('down')) : source.getRows(request),
     };
+    const { source: held, open } = gated(failing);
     const errors: LoadErrorDetail[] = [];
     const el = await fixture<Sale>({
       columns,
       data: [],
-      dataSource: failing,
+      dataSource: held,
       grouping: ['region'],
       treeExpanded: [EU],
     });
     el.addEventListener('argus-load-error', (e) => errors.push(e.detail));
+    open();
     await loaded(el);
     // APAC, EU, then EU's three rows (failed).
     expect(errors).toEqual([
@@ -241,15 +262,17 @@ describe('grouping with a data source', () => {
             })
           : source.getRows(request),
     };
+    const { source: held, open } = gated(slow);
     const errors: LoadErrorDetail[] = [];
     const el = await fixture<Sale>({
       columns,
       data: [],
-      dataSource: slow,
+      dataSource: held,
       grouping: ['region'],
       treeExpanded: [EU],
     });
     el.addEventListener('argus-load-error', (e) => errors.push(e.detail));
+    open();
     await loaded(el);
     el.treeExpanded = [];
     await settle(el);
