@@ -1,6 +1,6 @@
 # argus-table API
 
-The public API of `argus-table` 1.2 and its wrappers, for writing code. Types come from `argus-table` or the wrapper you use (they re-export every type). Full docs: the package READMEs and https://joessst-dev.github.io/argus-table/.
+The public API of `argus-table` 1.4 and its wrappers, for writing code. Types come from `argus-table` or the wrapper you use (they re-export every type). Full docs: the package READMEs and https://joessst-dev.github.io/argus-table/.
 
 ## Properties
 

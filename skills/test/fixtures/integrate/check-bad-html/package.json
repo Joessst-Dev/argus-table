@@ -1,1 +1,1 @@
-{ "name": "check-bad-html", "private": true, "type": "module", "dependencies": { "argus-table": "^1.3.0" } }
+{ "name": "check-bad-html", "private": true, "type": "module", "dependencies": { "argus-table": "^1.4.0" } }

@@ -5,19 +5,19 @@ importers:
   apps/web:
     dependencies:
       '@argus-table/react':
-        specifier: ^1.3.0
-        version: 1.3.0(react@19.1.0)
+        specifier: ^1.4.0
+        version: 1.4.0(react@19.1.0)
       argus-table:
         specifier: ^1.0.0
         version: 1.0.0
 
 packages:
 
-  '@argus-table/react@1.3.0':
+  '@argus-table/react@1.4.0':
     resolution: {integrity: sha512-x}
 
   argus-table@1.0.0:
     resolution: {integrity: sha512-y}
 
-  argus-table@1.3.0:
+  argus-table@1.4.0:
     resolution: {integrity: sha512-z}

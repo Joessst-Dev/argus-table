@@ -7,7 +7,7 @@ One section per `check.mjs` rule, with the same id. Each says what goes wrong an
 Every `argus-table` and `@argus-table/*` package is released together, at one version. A wrapper or add-on built for another version of the element can miss properties or register a second copy of it. Install them all at the same version: `setup.mjs` prints the command, or
 
 ```bash
-npm install argus-table@1.2.0 @argus-table/react@1.2.0 @argus-table/themes@1.2.0
+npm install argus-table@1.4.0 @argus-table/react@1.4.0 @argus-table/themes@1.4.0
 ```
 
 ## duplicate-argus-table
@@ -16,7 +16,7 @@ Two copies of `argus-table` in the bundle (a wrapper with its own nested copy, o
 
 ## version-below-minimum
 
-These references describe argus-table 1.2. With 1.1, a header function's `text` mode, `host.headerText()` and a column's `meta` (with `meta.export`) don't exist, and `tableExport()` has to come first in `plugins`. With 1.0, `labels`, `scrollToColumn()`, `scrollToRow()` options, `argus-column-resize-end`, the header menu's `sort` / `fitWidth` options, the formula events on the wrappers and `@argus-table/export` don't exist either. Upgrade every argus-table package together.
+These references describe argus-table 1.4. With 1.3, detail rows (`rowDetail`, `expanded`), tree rows (`getSubRows`, `getParentId`, `treeExpanded`, `selectBranches`, and a `dataSource` with `hasChildren` and `getChildren`), row grouping (`grouping`, `groupable`, `aggregate`, `groupCell`), `stretchColumns`, tables that fit their rows (`block-size: auto` with a `max-block-size`) and the export add-on's `detail` option don't exist. With 1.2, `@argus-table/editing` doesn't either. With 1.1, a header function's `text` mode, `host.headerText()` and a column's `meta` (with `meta.export`) don't exist, and `tableExport()` has to come first in `plugins`. With 1.0, `labels`, `scrollToColumn()`, `scrollToRow()` options, `argus-column-resize-end`, the header menu's `sort` / `fitWidth` options, the formula events on the wrappers and `@argus-table/export` don't exist either. Upgrade every argus-table package together.
 
 ## feature-needs-newer-version
 

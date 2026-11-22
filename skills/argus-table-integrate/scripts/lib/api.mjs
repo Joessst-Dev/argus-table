@@ -4,7 +4,7 @@
 // Custom Elements Manifest, the core types, the wrappers and the themes.
 
 /** The lowest release this skill's references are written for. */
-export const MIN_VERSION = '1.3.0';
+export const MIN_VERSION = '1.4.0';
 
 /** Every published package, released together at one version (changesets `fixed`). */
 export const PACKAGES = [
@@ -350,6 +350,32 @@ export const SINCE = [
       /\b(?:Group)?HeaderContext\b/,
       /\.headerText\s*\(/,
     ],
+  },
+  { feature: '@argus-table/editing', version: '1.3.0', patterns: [/@argus-table\/editing\b/] },
+  {
+    feature: 'detail rows (rowDetail)',
+    version: '1.4.0',
+    patterns: [/\browDetail\b|\browExpandable\b|\bargusDetail\b|argus-expanded-change/],
+  },
+  {
+    feature: 'tree rows',
+    version: '1.4.0',
+    patterns: [
+      /\btreeExpanded\b|\btree-expanded\b|\bselectBranches\b|\bgetParentId\s*[:=(]/,
+      /\bhasChildren\s*[:(][\s\S]{0,400}?\bgetChildren\s*[:(]/,
+    ],
+  },
+  {
+    feature: 'row grouping',
+    version: '1.4.0',
+    patterns: [
+      /\bgroupable\s*[:=]|\bgroupCell\b|\bargusGroupCell\b|#row-group-|argus-grouping-change/,
+    ],
+  },
+  {
+    feature: 'stretchColumns',
+    version: '1.4.0',
+    patterns: [/\bstretchColumns\b|\bstretch-columns\b/],
   },
 ];
 
