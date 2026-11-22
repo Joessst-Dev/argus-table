@@ -1,5 +1,15 @@
 # @argus-table/themes
 
+## 1.4.0
+
+### Minor Changes
+
+- 24e1c42: Group rows (`grouping`) get their own background: the new `--argus-row-group-bg` token, which every shipped theme sets (like its pinned rows, or a light tint). `GroupRowInfo` and `GroupCellContext` name the group's id `rowId`, like `CellContext`.
+
+### Patch Changes
+
+- 071522c: The README links the theme creator and the API reference on the new docs site.
+
 ## 1.3.0
 
 No changes in this release.

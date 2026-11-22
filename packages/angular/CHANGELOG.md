@@ -1,5 +1,62 @@
 # @argus-table/angular
 
+## 1.4.0
+
+### Minor Changes
+
+- cae43e9: Detail panels in the wrappers. React: `rowDetail` returns JSX. Vue: a `#detail` slot (it gets `{ row, rowId, index }`), or a `rowDetail` render function. Angular: `<ng-template argusDetail let-row>` (with `[argusDetailOf]` for typed rows; `ArgusDetailDirective` is in `ARGUS_TABLE`), or a `rowDetail` function returning `argusTemplate()`. `expanded` binds two-way: `onExpandedChange`, `v-model:expanded`, `[(expanded)]`. Panel content keeps its component state while it scrolls out of view and back.
+- 6d8f676: Row grouping in the wrappers: `grouping` binds two-way, and a column's cells on group rows can be framework content: React `groupCell` returning JSX, Vue `#row-group-<column id>` slots, Angular `<ng-template argusGroupCell="<column id>">` (`ArgusGroupCellDirective`, in `ARGUS_TABLE`).
+- 8523ab5: `stretchColumns` (attribute `stretch-columns`) makes the columns fill the table's width: when they're narrower than the table, they stretch in proportion to their widths, up to their `maxWidth`; when the table gets narrower, they shrink back to their own widths and the table scrolls sideways as usual. A column you resize keeps the width you give it, and the other columns share the space it frees; once every column has been resized, the last one takes the free space. Pinned columns and the checkbox and chevron columns keep their widths, and nothing stretches while a `{ flex }` column takes the space. `columnSizing`, `getState()` and the resize events hold each column's own width, never a stretched one, so a saved layout fits any width. Off by default.
+- 7cbe470: Tree rows from a `dataSource`: a row's children can load from the server when it's expanded. Give the data source `hasChildren(row)`, which says whether a row has children (it gets a toggle), and `getChildren({ parent, parentId, sorting, filters, quickFilter, signal })`, which resolves to `{ rows }` with all of the row's children, sorted and filtered like the rows. Both are needed; with only one the rows stay flat. `getRows` keeps returning the top-level rows (its `start`, `end` and `total` count those), and children can have children of their own, loaded the same way. Everything else works as for tree rows held in memory: `treeExpanded` and its event, the toggle, the keys, the treegrid ARIA, `depth` in cell functions and click events, and `scrollToRow()`, the click events and `argus-range-change` counting the rows shown.
+
+  Expanding a row calls `getChildren` once; until it answers, a loading row shows under the row. Children stay loaded when the row collapses. A new source, sort, filters, quick filter or `getRowId`, or `refresh()`, drops them (requests in flight are aborted through `signal`) and the expanded rows load theirs again; after a sort or `refresh()`, each shows as many loading rows as it showed rows under it, so the rows below don't jump. A `treeExpanded` restored with `setState()` opens rows as their pages load. Children that come back empty remove the row's toggle. Without `getRowId`, a child's id is its parent's id, a dot and its index among its siblings (`'3.0'`); with it, `getRowId` gets that index. The server filters at every level, so with a `dataSource` a filter opens no rows by itself.
+
+  When `getChildren` rejects, a row with a Retry button shows under the row (its accessible name is the new `retryChildren` label, "Retry loading child rows") and `argus-load-error` fires with the row's id as the new `parentId`, `start` its index among the rows shown (`-1` while a collapsed ancestor hides it) and `end` the next one. Retry, or expanding the row again, asks again. With tree rows, a failed page's `start` and `end` count the rows shown too.
+
+  With `selectBranches`, ticking a row selects the loaded rows under it, and children that load under a ticked row join the selection (with an `argus-selection-change`). While a filter or the quick filter is on, a row's own id isn't selected, since the server may not have sent all of its children, and a row whose children haven't loaded can't be ticked until they do.
+
+  The wrappers export the `ChildrenRequest` and `ChildrenResponse` types.
+
+- c2a7b25: Tree rows: rows can have child rows, such as a folder and its files or a manager and their team. Give the table `getSubRows`, which returns a row's children (`data` then holds the top-level rows), or, for flat data where each row names its parent, `getParentId`. A row with children gets a toggle in the first data column, and each level is indented under its parent. Child rows are rows like any other: they have cells in every column, and they sort among their siblings, filter, select, fire click events, open detail panels and scroll into view. A filter or the quick filter keeps the rows that match with their ancestors, so a match always shows in its place: those ancestors show expanded, with their toggles disabled until the filter clears.
+
+  `treeExpanded` (row ids, in `getState()` too) says which rows are expanded: uncontrolled until set, with `argus-tree-expanded-change` (`{ treeExpanded, rowId, open }`) for each change. Without `getRowId`, a child's id is its parent's id, a dot and its index among its siblings (`'3.0'`); top-level rows keep their index in `data`. `getRowId` and a column's `accessor` get a nested child's index counted from `data.length` on. Every other index (`scrollToRow`, click events, `argus-range-change`) counts the rows shown, so expanding a row moves the indexes below it. Cell functions, `rowDetail`, `argus-cell-click` and `argus-row-click` get the row's level as `depth`, set only when the rows form a tree. Plugins get `host.rowDepth()` and `host.sourceRow()`.
+
+  From the keyboard, on a cell of the first data column, ArrowRight expands a collapsed row and ArrowLeft collapses an expanded one or goes to the parent row (mirrored in right-to-left tables); Enter keeps its meaning. The table becomes a WAI-ARIA `treegrid`, and rows carry their level, whether they're expanded and their place among their siblings, for screen readers.
+
+  `selectBranches` (attribute `select-branches`, in `selectionMode: 'multi'`) selects whole branches: ticking a row selects it and every row under it that the filters keep, a row's id is in `selection` only while its whole branch is (rows a filter hides included, so under a filter a parent with unselected hidden children stays out and shows part-ticked), and a row with part of its branch selected shows a part-ticked checkbox. A row a filter keeps while hiding all its children has nothing to tick: its checkbox is disabled (`::part(selection-checkbox):disabled` styles it). Select-all then covers every row the filters keep, collapsed or not.
+
+  Styling: the toggle is the `tree-toggle` part (with `tree-toggle-disabled` while a filter keeps its row open), and `--argus-tree-indent` (1.25rem) sets the indent per level. New labels: `expandTreeRow`, `collapseTreeRow`. With a `dataSource`, `getSubRows` and `getParentId` are ignored (with a console warning): its `hasChildren` and `getChildren` load children instead.
+
+  In the wrappers, `treeExpanded` binds two-way (`onTreeExpandedChange`, `v-model:tree-expanded`, `[(treeExpanded)]`), Angular cell and detail templates get `depth`, and `TreeExpandedState` and `TreeExpandedChangeDetail` are exported.
+
+### Patch Changes
+
+- Updated dependencies [8b2eae8]
+- Updated dependencies [cae43e9]
+- Updated dependencies [2579957]
+- Updated dependencies [24e1c42]
+- Updated dependencies [e221ebc]
+- Updated dependencies [471c332]
+- Updated dependencies [6c95cdc]
+- Updated dependencies [8379a67]
+- Updated dependencies [013cd4b]
+- Updated dependencies [ae76b1f]
+- Updated dependencies [6d8f676]
+- Updated dependencies [1c85328]
+- Updated dependencies [97b07e5]
+- Updated dependencies [c2a7b25]
+- Updated dependencies [de99bdf]
+- Updated dependencies [b99de54]
+- Updated dependencies [9b43ccd]
+- Updated dependencies [2e5bf03]
+- Updated dependencies [8714311]
+- Updated dependencies [8e8cec0]
+- Updated dependencies [8523ab5]
+- Updated dependencies [7cbe470]
+- Updated dependencies [c2a7b25]
+- Updated dependencies [5f230e2]
+  - argus-table@1.4.0
+
 ## 1.3.0
 
 ### Minor Changes
