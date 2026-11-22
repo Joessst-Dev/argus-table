@@ -88,12 +88,16 @@ export class KeyboardRouter<T> {
   }
 
   /**
-   * Keys on a focused cell or header. The table's own come first: Shift+Tab out
-   * of the grid, plugins' keys, Right and Left in a tree's first data column
-   * (`#treeKey`), Alt+Arrow on a header (resize; with Shift, move), Enter or
-   * Space on a sortable header, Enter on a body cell (a click, or Retry on a
-   * failed row). The rest move the active cell (`NavigationController`).
-   * Keys from content inside a cell (an input, a button) are left to that content.
+   * Keys on a focused cell or header. The table's own come first, in this order:
+   * Escape from a detail panel's content back to its cell, Shift+Tab out of the
+   * grid, group headers' keys (`#groupKey`), a detail panel's cell (`#panelKey`),
+   * then on other cells (`#cellKey`): Enter or Space on the chevron column,
+   * plugins' keys, and a header's keys (`#headerKey`: Alt+Arrow resizes, with
+   * Shift moves, Enter or Space sorts) or a body cell's (`#treeKey`: Right and
+   * Left in a tree's first data column; `#bodyEnter`: a click, Retry on a failed
+   * row, or a group row's toggle). The rest move the active cell
+   * (`NavigationController`). Keys from content inside a cell (an input, a
+   * button) are left to that content.
    */
   readonly onKeydown = (event: KeyboardEvent) => {
     const path = event.composedPath();
