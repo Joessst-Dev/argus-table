@@ -1,54 +1,46 @@
-import {
-  cellOver,
-  headerGroupRows,
-  resolveColumnGroups,
-  type GroupTree,
-  type HeaderGroupCell,
-} from '../columns/column-groups.js';
+import { cellOver } from '../columns/column-groups.js';
 import { moveUnit, normalizeOrder, siblingUnits } from '../columns/column-order.js';
-import { resolveColumns, type ResolvedColumn } from '../columns/resolve-columns.js';
 import { distinctValues, rowPredicate } from '../filters/filter.js';
-import { buildAllViews, buildViews, hiddenIn, pinIn, sizingOf } from './column-views.js';
-import { isGroupId } from './group-rows.js';
+import { BranchSelection } from './branch-selection.js';
+import {
+  nextFilters,
+  nextPinning,
+  nextSizing,
+  nextSorting,
+  nextVisibility,
+} from './column-proposals.js';
+import { ColumnState } from './column-state.js';
+import { pinnedCellContext, pinnedCount, pinnedRowAt, pinnedValueAt } from './pinned-rows.js';
 import { RowPipeline } from './row-pipeline.js';
 import { ModelRows, type RowStructure } from './row-structure.js';
-import { keepWithAncestors, type TreeForest, type TreeLayout } from './tree-order.js';
-import type { BranchCheck, BranchTree } from '../state/selection.js';
-import type {
-  CellContext,
-  ColumnDef,
-  ColumnOrderState,
-  ColumnPin,
-  ColumnSizingState,
-  GroupRowInfo,
-  RowPin,
-} from '../types.js';
-import type { ColumnView, TableModel, TableModelOptions } from './model-types.js';
+import { keepWithAncestors, type TreeLayout } from './tree-order.js';
+import type { CellContext, GroupRowInfo } from '../types.js';
+import type { TableModel, TableModelOptions } from './model-types.js';
 
 export * from './model-types.js';
 
 /**
- * `branchCheck`'s marks of a subtree: some row the user can tick is selected
- * (`PICKED`) or isn't (`MISSED`), some row can be ticked (`LIVE`), some row is
- * blocked (`DEAD`: ticking it could select nothing), some row that can be
- * ticked doesn't count as checked (`UNMET`).
+ * Whether an update changes anything: a key of `next` whose value differs.
  */
-const PICKED = 1;
-const MISSED = 2;
-const LIVE = 4;
-const DEAD = 8;
-const UNMET = 16;
+function hasChanges<TData, TContent>(
+  options: TableModelOptions<TData, TContent>,
+  next: Partial<TableModelOptions<TData, TContent>>,
+): boolean {
+  return (Object.keys(next) as (keyof typeof next)[]).some((key) => next[key] !== options[key]);
+}
 
-/**
- * Ids of the columns kept from `before` whose accessor changed: a new function,
- * or a different path. A new column has nothing cached and isn't listed.
- */
-function changedAccessors<TData, TContent>(
-  before: readonly ColumnDef<TData, TContent>[],
-  after: readonly ColumnDef<TData, TContent>[],
-): string[] {
-  const old = new Map(before.map((c) => [c.id, c.accessor]));
-  return after.filter((c) => old.has(c.id) && old.get(c.id) !== c.accessor).map((c) => c.id);
+/** Whether rows are filtered again: the filters, the quick filter or what it reads changed. */
+function refilters<TData, TContent>(
+  prev: TableModelOptions<TData, TContent>,
+  next: TableModelOptions<TData, TContent>,
+): boolean {
+  return (
+    next.columns !== prev.columns ||
+    next.columnFilters !== prev.columnFilters ||
+    next.quickFilter !== prev.quickFilter ||
+    next.columnVisibility !== prev.columnVisibility ||
+    next.remote !== prev.remote
+  );
 }
 
 /**
@@ -63,46 +55,7 @@ export function createTableModel<TData, TContent>(
   initial: TableModelOptions<TData, TContent>,
 ): TableModel<TData, TContent> {
   let options = initial;
-  let resolved = resolveColumns(options.columns);
-  let byId = new Map(resolved.map((c) => [c.id, c]));
-  let views: ColumnView<TData, TContent>[] | undefined;
-  const treeOf = () =>
-    resolveColumnGroups(options.columnGroups, new Set(resolved.map((c) => c.id)));
-  let tree: GroupTree<TContent> = treeOf();
-  // The group header rows, kept while the tree and what they read of the views stay.
-  let groupRows:
-    | {
-        views: readonly ColumnView<TData, TContent>[];
-        tree: GroupTree<TContent>;
-        key: string;
-        rows: HeaderGroupCell<TContent>[][];
-      }
-    | undefined;
-  // The pin and visibility in effect: the state's, else the column's own.
-  const pinOf = (
-    column: ResolvedColumn<TData, TContent>,
-    pinning = options.columnPinning,
-  ): ColumnPin | undefined => pinIn(column, pinning);
-  const hiddenOf = (
-    column: ResolvedColumn<TData, TContent>,
-    visibility = options.columnVisibility,
-  ): boolean => hiddenIn(column, visibility);
-  const shown = (id: string) => {
-    const column = byId.get(id);
-    return column !== undefined && !hiddenOf(column);
-  };
-  // The sizing state in effect: measured auto widths and the widths of pinned flex columns
-  // under the resized ones. Kept stable between updates that don't touch them.
-  let sizing: ColumnSizingState | undefined;
-  const sizingState = (): ColumnSizingState => (sizing ??= sizingOf(options, resolved));
-  // What ordering needs, with the pin in effect.
-  const orderable = () =>
-    resolved.map((c) => ({ id: c.id, pin: pinOf(c), reorderable: c.reorderable }));
-  // The normalized order, kept stable between updates that touch neither columns,
-  // order nor pinning.
-  let order: ColumnOrderState | undefined;
-  const orderState = (): ColumnOrderState =>
-    (order ??= normalizeOrder(options.columnOrder ?? [], orderable(), tree));
+  const columns = new ColumnState<TData, TContent>(() => options);
   // The row test of the filters, the quick filter and the shown columns (which the quick
   // filter reads). Remote rows are filtered by their source.
   // `except`: columns whose filter is left out; with `quick`, their text is left out
@@ -111,10 +64,12 @@ export function createTableModel<TData, TContent>(
     options.remote
       ? undefined
       : rowPredicate(
-          byId,
+          columns.byId,
           options.columnFilters,
           options.quickFilter,
-          resolved.filter((c) => c.hasAccessor && !hiddenOf(c) && !(quick && except?.has(c.id))),
+          columns.resolved.filter(
+            (c) => c.hasAccessor && !columns.hiddenOf(c) && !(quick && except?.has(c.id)),
+          ),
           except,
         );
   let predicate = predicateFor();
@@ -125,7 +80,7 @@ export function createTableModel<TData, TContent>(
 
   const pipeline = new RowPipeline<TData, TContent>(
     () => options,
-    () => byId,
+    () => columns.byId,
     () => predicate,
     () => valueVersion,
   );
@@ -134,40 +89,17 @@ export function createTableModel<TData, TContent>(
   // else the model's own reading of `data` or a flat remote.
   const local = new ModelRows<TData, TContent>(pipeline, () => options);
   const structure = (): RowStructure => options.remote?.structure ?? local;
-  const pinned = (side: RowPin): readonly TData[] => options.pinnedRows?.[side] ?? [];
-
-  let allViews: ColumnView<TData, TContent>[] | undefined;
-
-  // Branch selection, kept per tree layout (a filter or sort result).
-  let branches: { layout: TreeLayout; tree: BranchTree } | undefined;
-  let checks:
-    | {
-        layout: TreeLayout | undefined;
-        selected: ReadonlySet<string>;
-        check: (index: number) => BranchCheck;
-        all: BranchCheck;
-      }
-    | undefined;
-  // Every row's children in the whole tree (filters not applied), by source
-  // index: `kids[start[i]]` up to `kids[start[i + 1]]`. Built per tree, the
-  // first time a filter hides some row's children.
-  let family: { tree: TreeForest['tree']; start: Int32Array; kids: Int32Array } | undefined;
-  const familyOf = (tree: TreeForest['tree']) => {
-    if (family?.tree !== tree) {
-      const { parent, childCount } = tree;
-      const n = parent.length;
-      const start = new Int32Array(n + 1);
-      for (let i = 0; i < n; i++) start[i + 1] = (start[i] ?? 0) + (childCount[i] ?? 0);
-      const kids = new Int32Array(start[n] ?? 0);
-      const fill = start.slice(0, n);
-      for (let i = 0; i < n; i++) {
-        const up = parent[i] ?? -1;
-        if (up !== -1) kids[(fill[up] = (fill[up] ?? 0) + 1) - 1] = i;
-      }
-      family = { tree, start, kids };
-    }
-    return family;
+  const branches = new BranchSelection(structure, () => Boolean(options.remote?.structure));
+  /**
+   * The source index of the local data row at a shown index; `-1` past the
+   * rows, or for a group row (group rows come after the data rows and have no
+   * row object).
+   */
+  const dataRow = (index: number): number => {
+    const row = rows()[index];
+    return row === undefined || row >= pipeline.source().length ? -1 : row;
   };
+
   // `groupedOrder()`'s rows, per layout.
   let groupedOrder:
     | {
@@ -180,143 +112,25 @@ export function createTableModel<TData, TContent>(
         }[];
       }
     | undefined;
-  // A row's children in the whole tree, when the filters hide some.
-  const fullKids = (tree: TreeForest['tree'], layout: TreeLayout, row: number) => {
-    if ((layout.keptChildren[row] ?? 0) === (tree.childCount[row] ?? 0)) return undefined;
-    const { start, kids } = familyOf(tree);
-    return kids.subarray(start[row] ?? 0, start[row + 1] ?? 0);
-  };
-  // Whether a row has a child the filters hide that isn't selected.
-  const missesHidden = (
-    tree: TreeForest['tree'],
-    layout: TreeLayout,
-    row: number,
-    selected: ReadonlySet<string>,
-  ) =>
-    fullKids(tree, layout, row)?.some(
-      (kid) => (layout.posInSet[kid] ?? 0) === 0 && !selected.has(tree.ids[kid] ?? ''),
-    ) ?? false;
-
-  /**
-   * Each kept row's checkbox for a selection, and the select-all checkbox's,
-   * in one pass over the kept rows, preorder backwards (every row comes after
-   * its descendants). Kept per selection `Set` and layout.
-   *
-   * A row is blocked when ticking it could select nothing: its id isn't
-   * selected, a descendant left unselected keeps it out (one the filters hide,
-   * or a blocked one), and none of its kept descendants can be ticked. Blocked
-   * rows count for nothing else: not as unselected rows of their ancestors'
-   * branches, not for the select-all checkbox.
-   */
-  const checksFor = (selected: ReadonlySet<string>) => {
-    const steps = structure().forest();
-    const layout = steps?.layout;
-    if (checks?.selected === selected && checks.layout === layout) return checks;
-    let check: (index: number) => BranchCheck = () => 'none';
-    let all: BranchCheck = 'none';
-    // Without a selection, only a filter can block rows. A remote tree with no
-    // rows loaded (reloading) shows nothing yet.
-    const count = steps?.layout.order.length ?? 0;
-    if (
-      steps &&
-      (count > 0 || !options.remote?.structure) &&
-      (selected.size > 0 || count < steps.tree.ids.length)
-    ) {
-      const { tree } = steps;
-      const { parent, ids } = tree;
-      const { order } = steps.layout;
-      const marks = new Uint8Array(parent.length);
-      for (let k = order.length - 1; k >= 0; k--) {
-        const row = order[k] ?? 0;
-        // Its kept descendants' marks, before its own joins them.
-        const below = marks[row] ?? 0;
-        const own = selected.has(ids[row] ?? '');
-        // Its own id kept out by a descendant left unselected.
-        const out = () =>
-          below & (MISSED | DEAD) || missesHidden(tree, steps.layout, row, selected);
-        let mark = below;
-        if (!own && !(below & LIVE) && out()) mark |= DEAD;
-        else {
-          // A group row's own id is never selected: it counts as checked when its rows are.
-          const group = isGroupId(ids[row] ?? '');
-          mark |= LIVE | (own ? PICKED : group ? 0 : MISSED);
-          // Checked (as `toggleBranch` decides): every row below that can be
-          // ticked is, and its own id selected, or kept out with something
-          // below to tick.
-          if (below & UNMET || !(own || (below & LIVE && out()))) mark |= UNMET;
-        }
-        marks[row] = mark;
-        const up = parent[row] ?? -1;
-        if (up !== -1) marks[up] = (marks[up] ?? 0) | mark;
-      }
-      // The top-level kept rows' marks hold every row's.
-      let top = 0;
-      for (const row of steps.layout.children(-1)) top |= marks[row] ?? 0;
-      check = (index) => {
-        const row = structure().forestRow(index);
-        const mark = row === undefined ? 0 : (marks[row] ?? 0);
-        if (row !== undefined && !(mark & LIVE)) return 'blocked';
-        return mark & PICKED ? (mark & MISSED ? 'some' : 'all') : 'none';
-      };
-      all = !(top & LIVE) ? 'blocked' : top & UNMET ? (top & PICKED ? 'some' : 'none') : 'all';
-    }
-    checks = { layout, selected, check, all };
-    return checks;
-  };
 
   return {
     update(next) {
+      if (!hasChanges(options, next)) return;
       const merged = { ...options, ...next };
-      const changed = (Object.keys(next) as (keyof typeof next)[]).some(
-        (key) => next[key] !== options[key],
-      );
-      if (!changed) return;
-      let reread: string[] = [];
-      if (next.columns && next.columns !== options.columns) {
-        reread = changedAccessors(options.columns, next.columns);
-        resolved = resolveColumns(next.columns);
-        byId = new Map(resolved.map((c) => [c.id, c]));
-      }
-      const columnsChanged = merged.columns !== options.columns;
-      const pinningChanged = merged.columnPinning !== options.columnPinning;
-      const groupsChanged = merged.columnGroups !== options.columnGroups;
-      if (
-        columnsChanged ||
-        merged.columnSizing !== options.columnSizing ||
-        merged.autoWidths !== options.autoWidths ||
-        pinningChanged
-      ) {
-        sizing = undefined;
-      }
-      if (
-        columnsChanged ||
-        groupsChanged ||
-        merged.columnOrder !== options.columnOrder ||
-        pinningChanged
-      ) {
-        order = undefined;
-      }
-      const refilter =
-        columnsChanged ||
-        merged.columnFilters !== options.columnFilters ||
-        merged.quickFilter !== options.quickFilter ||
-        merged.columnVisibility !== options.columnVisibility ||
-        merged.remote !== options.remote;
+      const reread = columns.update(next, merged);
+      const refilter = refilters(options, merged);
       options = merged;
-      if (columnsChanged || groupsChanged) tree = treeOf();
-      views = undefined;
-      allViews = undefined;
       if (refilter) predicate = predicateFor();
       // Columns that now read differently: filter and sort again.
       if (reread.length && !options.remote) valueVersion++;
     },
 
     get columns() {
-      return (views ??= buildViews(options, byId, orderState(), sizingState()));
+      return columns.views();
     },
 
     get allColumns() {
-      return (allViews ??= buildAllViews(options, byId, orderState(), sizingState(), this.columns));
+      return columns.allViews();
     },
 
     get rowCount() {
@@ -332,23 +146,7 @@ export function createTableModel<TData, TContent>(
     },
 
     get headerGroups() {
-      const current = this.columns;
-      if (groupRows?.views === current && groupRows.tree === tree) return groupRows.rows;
-      // Views are rebuilt on every update; the rows only change with what they read.
-      const key = tree.groups.size
-        ? current
-            .map(
-              (c) =>
-                `${c.id}\u0000${String(c.pin)}\u0000${String(c.offset)}\u0000${String(c.pinEdge)}\u0000${String(c.reorderable)}\u0000${String(c.resizable)}`,
-            )
-            .join('\u0001')
-        : '';
-      if (groupRows?.tree !== tree || groupRows.key !== key) {
-        groupRows = { views: current, tree, key, rows: headerGroupRows(tree, current) };
-      } else {
-        groupRows.views = current;
-      }
-      return groupRows.rows;
+      return columns.headerGroups();
     },
 
     get headerRows() {
@@ -364,11 +162,9 @@ export function createTableModel<TData, TContent>(
         const entry = options.remote.entryAt(index);
         return entry && { id: entry.id, index, original: entry.row };
       }
-      const row = rows()[index];
-      const source = pipeline.source();
-      // Group rows (after the data rows) have no row object.
-      if (row === undefined || row >= source.length) return undefined;
-      return { id: pipeline.rowId(row), index, original: source[row] as TData };
+      const row = dataRow(index);
+      if (row === -1) return undefined;
+      return { id: pipeline.rowId(row), index, original: pipeline.source()[row] as TData };
     },
 
     get tree() {
@@ -443,97 +239,39 @@ export function createTableModel<TData, TContent>(
     },
 
     branchSelectAll(current, selected = new Set(current)) {
-      const steps = structure().forest();
-      if (!steps) return [...current];
-      const { tree, layout } = steps;
-      const { parent, ids } = tree;
-      const { order } = layout;
-      // Per kept row, 1 when its branch can't end up whole: a descendant the
-      // filters hide isn't selected. Preorder backwards, children first.
-      const broken = new Uint8Array(parent.length);
-      const drop = new Set<string>();
-      for (let k = order.length - 1; k >= 0; k--) {
-        const row = order[k] ?? 0;
-        if (!broken[row] && missesHidden(tree, layout, row, selected)) broken[row] = 1;
-        if (!broken[row]) continue;
-        const up = parent[row] ?? -1;
-        if (up !== -1) broken[up] = 1;
-        // Selected against the rules: normalized, as `withBranches` does.
-        const id = ids[row] ?? '';
-        if (selected.has(id)) drop.add(id);
-      }
-      const all = drop.size === 0 ? [...current] : current.filter((id) => !drop.has(id));
-      for (const row of order) {
-        const id = ids[row] ?? '';
-        if (!broken[row] && !selected.has(id)) all.push(id);
-      }
-      return all;
+      return branches.selectAll(current, selected);
     },
 
     branchTree() {
-      const steps = structure().forest();
-      if (!steps) return undefined;
-      const { tree, layout } = steps;
-      if (branches?.layout === layout) return branches.tree;
-      const idsOf = (kids: Int32Array): string[] => {
-        const out = new Array<string>(kids.length);
-        for (let k = 0; k < kids.length; k++) out[k] = tree.ids[kids[k] ?? 0] ?? '';
-        return out;
-      };
-      const children = (id: string): string[] => {
-        const row = tree.indexOf(id);
-        // Rows the filters drop have no kept children.
-        if (row === undefined || (layout.keptChildren[row] ?? 0) === 0) return [];
-        return idsOf(layout.children(row));
-      };
-      const branchTree: BranchTree = {
-        children,
-        allChildren(id) {
-          const row = tree.indexOf(id);
-          const kids = row === undefined ? undefined : fullKids(tree, layout, row);
-          return kids ? idsOf(kids) : children(id);
-        },
-        parent(id) {
-          const row = tree.indexOf(id);
-          // Only kept rows have a position among their siblings.
-          if (row === undefined || (layout.posInSet[row] ?? 0) === 0) return undefined;
-          const up = tree.parent[row] ?? -1;
-          return up === -1 ? undefined : tree.ids[up];
-        },
-      };
-      branches = { layout, tree: branchTree };
-      return branchTree;
+      return branches.tree();
     },
 
     branchCheck(selected) {
-      return checksFor(selected).check;
+      return branches.checks(selected).check;
     },
 
     branchCheckAll(selected) {
-      return checksFor(selected).all;
+      return branches.checks(selected).all;
     },
 
     valueAt(index, columnId) {
       if (options.remote) {
         const entry = options.remote.entryAt(index);
-        return entry && byId.get(columnId)?.getValue(entry.row, index);
+        return entry && columns.byId.get(columnId)?.getValue(entry.row, index);
       }
-      const row = rows()[index];
-      const source = pipeline.source();
-      // A group row has no row to read.
-      return row === undefined || row >= source.length
-        ? undefined
-        : byId.get(columnId)?.getValue(source[row] as TData, row);
+      const row = dataRow(index);
+      if (row === -1) return undefined;
+      return columns.byId.get(columnId)?.getValue(pipeline.source()[row] as TData, row);
     },
 
     readValue(row, columnId, index) {
-      return byId.get(columnId)?.getValue(row, index);
+      return columns.byId.get(columnId)?.getValue(row, index);
     },
 
     cellContext(index, columnId) {
       if (options.remote) {
         const entry = options.remote.entryAt(index);
-        const column = byId.get(columnId);
+        const column = columns.byId.get(columnId);
         if (!entry || !column) return undefined;
         const context: CellContext<TData> = {
           row: entry.row,
@@ -548,8 +286,9 @@ export function createTableModel<TData, TContent>(
         return context;
       }
       const row = rows()[index];
-      const column = byId.get(columnId);
+      const column = columns.byId.get(columnId);
       const tree = pipeline.shape();
+      // Without a tree or groups, straight from `data` (read per cell).
       const source = tree ? pipeline.source() : options.data;
       // A group row's cells are `groupCell`'s.
       if (row === undefined || !column || row >= source.length) return undefined;
@@ -567,62 +306,43 @@ export function createTableModel<TData, TContent>(
     },
 
     nextSorting(columnId) {
-      if (byId.get(columnId)?.sortable !== true) return undefined;
-      const current = options.sorting.find((s) => s.id === columnId);
-      if (!current) return [{ id: columnId, desc: false }];
-      return current.desc ? [] : [{ id: columnId, desc: true }];
+      return nextSorting(columns.byId, options.sorting, columnId);
     },
 
     nextSizing(columnId, width) {
-      const column = byId.get(columnId);
-      if (!column?.resizable || !Number.isFinite(width)) return undefined;
-      const clamped = Math.round(Math.min(column.maxWidth, Math.max(column.minWidth, width)));
-      return { ...options.columnSizing, [columnId]: clamped };
+      return nextSizing(columns.byId, options.columnSizing, columnId, width);
     },
 
     orderOf(base) {
-      return base === undefined ? orderState() : normalizeOrder(base, orderable(), tree);
+      return base === undefined
+        ? columns.orderState()
+        : normalizeOrder(base, columns.orderable(), columns.tree);
     },
 
     siblingUnits(unit, base) {
-      return siblingUnits(base ?? orderState(), orderable(), tree, unit, shown);
+      const order = base ?? columns.orderState();
+      return siblingUnits(order, columns.orderable(), columns.tree, unit, columns.shown);
     },
 
     nextMove(unit, to, base) {
-      return moveUnit(base ?? orderState(), orderable(), tree, unit, to, shown);
+      const order = base ?? columns.orderState();
+      return moveUnit(order, columns.orderable(), columns.tree, unit, to, columns.shown);
     },
 
     nextPinning(columnId, pin, base = options.columnPinning) {
-      const column = byId.get(columnId);
-      if (!column?.pinnable || (pinOf(column, base) ?? false) === pin) return undefined;
-      return { ...base, [columnId]: pin };
+      return nextPinning(columns.byId, columnId, pin, base);
     },
 
     nextVisibility(columnId, hidden, base = options.columnVisibility) {
-      const column = byId.get(columnId);
-      if (!column || hiddenOf(column, base) === hidden) return undefined;
-      const othersShown = resolved.some((c) => c !== column && !hiddenOf(c, base));
-      if (hidden && (!column.hideable || !othersShown)) return undefined;
-      return { ...base, [columnId]: !hidden };
+      return nextVisibility(columns.resolved, columns.byId, columnId, hidden, base);
     },
 
     nextFilters(columnId, filter, base = options.columnFilters ?? {}) {
-      const column = byId.get(columnId);
-      if (!column) return undefined;
-      const current = base[columnId];
-      if (filter === undefined) {
-        if (current === undefined) return undefined;
-        const next = { ...base };
-        Reflect.deleteProperty(next, columnId);
-        return next;
-      }
-      if (column.filter === undefined) return undefined;
-      if (current && JSON.stringify(current) === JSON.stringify(filter)) return undefined;
-      return { ...base, [columnId]: filter };
+      return nextFilters(columns.byId, columnId, filter, base);
     },
 
     filterValues(columnId, limit = 1000) {
-      const column = byId.get(columnId);
+      const column = columns.byId.get(columnId);
       if (!column) return undefined;
       if (column.filterOptions) return { values: [...column.filterOptions], truncated: false };
       if (options.remote) return undefined;
@@ -644,33 +364,19 @@ export function createTableModel<TData, TContent>(
     },
 
     pinnedCount(side) {
-      return pinned(side).length;
+      return pinnedCount(options, side);
     },
 
     pinnedRowAt(side, index) {
-      if (index < 0 || index >= pinned(side).length) return undefined;
-      const row = pinned(side)[index] as TData;
-      const id = options.getRowId ? options.getRowId(row, index) : `${side}-${String(index)}`;
-      return { id, index, original: row };
+      return pinnedRowAt(options, side, index);
     },
 
     pinnedValueAt(side, index, columnId) {
-      if (index < 0 || index >= pinned(side).length) return undefined;
-      return byId.get(columnId)?.getValue(pinned(side)[index] as TData, index);
+      return pinnedValueAt(options, columns.byId.get(columnId), side, index);
     },
 
     pinnedCellContext(side, index, columnId) {
-      const row = this.pinnedRowAt(side, index);
-      const column = byId.get(columnId);
-      if (!row || !column) return undefined;
-      return {
-        row: row.original,
-        rowId: row.id,
-        index,
-        columnId,
-        value: column.getValue(row.original, index),
-        pinned: side,
-      };
+      return pinnedCellContext(options, columns.byId.get(columnId), side, index, columnId);
     },
   };
 }
