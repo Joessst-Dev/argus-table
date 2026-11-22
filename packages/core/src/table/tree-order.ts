@@ -104,12 +104,35 @@ export function layoutTree(
   tree: Pick<RowTree<unknown>, 'parent' | 'rows'>,
   sorted: readonly number[],
 ): TreeLayout {
-  const { parent } = tree;
-  const n = tree.rows.length;
-  const total = sorted.length;
+  const buckets = bucketByParent(tree.parent, sorted, tree.rows.length);
+  const { start, slots, keptChildren, posInSet, roots } = buckets;
+  const children = (row: number): Int32Array => {
+    if (row === -1) return slots.subarray(0, roots);
+    const from = start[row] ?? 0;
+    return slots.subarray(from, from + (keptChildren[row] ?? 0));
+  };
+  const order = preorderOf(buckets, sorted.length);
+  return { order, keptChildren, posInSet, children };
+}
 
-  // Bucket the rows by parent: count each group, give each group its start in
-  // `slots` (the top-level rows first), then fill the groups in `sorted`'s order.
+/** `sorted`'s rows bucketed by parent, in `sorted`'s order within each bucket. */
+interface Buckets {
+  /** Each row's children's start in `slots`. */
+  start: Int32Array;
+  /** The top-level rows (`roots` of them), then each row's children. */
+  slots: Int32Array;
+  keptChildren: Int32Array;
+  /** Each kept row's position among its siblings, from 1. */
+  posInSet: Int32Array;
+  roots: number;
+}
+
+/**
+ * Buckets the rows by parent: counts each group, gives each group its start in
+ * `slots` (the top-level rows first), then fills the groups in `sorted`'s order.
+ */
+function bucketByParent(parent: Int32Array, sorted: readonly number[], n: number): Buckets {
+  const total = sorted.length;
   const start = new Int32Array(n);
   let roots = 0;
   for (let k = 0; k < total; k++) {
@@ -142,15 +165,15 @@ export function layoutTree(
       posInSet[row] = filled + 1;
     }
   }
+  return { start, slots, keptChildren, posInSet, roots };
+}
 
-  const children = (row: number): Int32Array => {
-    if (row === -1) return slots.subarray(0, roots);
-    const from = start[row] ?? 0;
-    return slots.subarray(from, from + (keptChildren[row] ?? 0));
-  };
-
-  // Depth-first, preorder: each group goes on the stack in reverse so it comes
-  // off in order.
+/**
+ * The bucketed rows depth-first, in preorder: each group goes on the stack in
+ * reverse so it comes off in order. Shorter than `total` only when `sorted`
+ * held a row without its parent: that row is left out.
+ */
+function preorderOf({ start, slots, keptChildren, roots }: Buckets, total: number): Int32Array {
   const order = new Int32Array(total);
   const stack = new Int32Array(total);
   let top = 0;
@@ -162,14 +185,7 @@ export function layoutTree(
     const from = start[row] ?? 0;
     for (let k = from + (keptChildren[row] ?? 0) - 1; k >= from; k--) stack[top++] = slots[k] ?? 0;
   }
-
-  return {
-    // Shorter only when `sorted` holds a row without its parent: that row is left out.
-    order: placed === total ? order : order.slice(0, placed),
-    keptChildren,
-    posInSet,
-    children,
-  };
+  return placed === total ? order : order.slice(0, placed);
 }
 
 /**

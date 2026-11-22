@@ -101,36 +101,57 @@ export function buildGroups<TData>(
   dataIndexOf: (id: string) => number | undefined,
 ): GroupedRows<TData> {
   const size = data.length;
+  const { groups, innermost } = groupLevels(data, filtered, grouping);
+  const tree = groupTree(data, dataIds, groups, innermost, grouping.length);
+  for (const column of totalled) totalGroups(column, data, filtered, groups, tree.ids);
+  const g = groups.length;
+  let byId: Map<string, number> | undefined;
+  return {
+    ...tree,
+    size,
+    groups: g,
+    filtered,
+    groupRows: Array.from({ length: g }, (_, k) => size + k),
+    indexOf(id) {
+      if (!id.startsWith('\u0000')) return dataIndexOf(id);
+      // Group rows and their hidden children: the only reserved ids here.
+      byId ??= new Map(tree.ids.slice(size).map((rowId, k) => [rowId, size + k]));
+      return byId.get(id);
+    },
+    info: (row) => groups[row - size]?.info,
+    key(row, columnId) {
+      const info = groups[row - size]?.info;
+      if (!info) return undefined;
+      return info.groupColumnId === columnId ? info.value : info.totals[columnId];
+    },
+  };
+}
+
+/** A group being built and the data rows under it: a level's groups, or the innermost. */
+interface Level {
+  /** Its source index; `-1` for the root. */
+  group: number;
+  members: readonly number[];
+  path: unknown[];
+}
+
+/**
+ * The groups, outermost level first, each level in value order (the empty
+ * group last), numbered from `data.length` on; and the innermost groups with
+ * the data rows under them.
+ */
+function groupLevels<TData>(
+  data: readonly TData[],
+  filtered: readonly number[],
+  grouping: readonly Column<TData>[],
+): { groups: Group[]; innermost: Level[] } {
+  const size = data.length;
   const groups: Group[] = [];
-  // The groups of the level being built, and the data rows' innermost groups.
-  let level: { group: number; members: readonly number[]; path: unknown[] }[] = [
-    { group: -1, members: filtered, path: [] },
-  ];
+  let level: Level[] = [{ group: -1, members: filtered, path: [] }];
   grouping.forEach((column, depth) => {
-    const next: typeof level = [];
+    const next: Level[] = [];
     for (const parent of level) {
-      const buckets = new Map<unknown, { value: unknown; members: number[] }>();
-      for (const i of parent.members) {
-        const value = column.getValue(data[i] as TData, i);
-        const key = groupingKey(value);
-        let bucket = buckets.get(key);
-        if (!bucket)
-          buckets.set(key, (bucket = { value: key === null ? undefined : value, members: [] }));
-        bucket.members.push(i);
-      }
-      const entries = [...buckets];
-      const { resolve, compare } = autoSortFn(entries.slice(0, 10).map(([, b]) => b.value));
-      const sortable = (v: unknown) => (resolve ? resolve(v) : v);
-      entries.sort(([a, x], [b, y]) =>
-        a === null
-          ? b === null
-            ? 0
-            : 1
-          : b === null
-            ? -1
-            : compare(sortable(x.value), sortable(y.value)),
-      );
-      for (const [key, { value, members }] of entries) {
+      for (const [key, { value, members }] of bucketsByValue(data, column, parent.members)) {
         const path = [...parent.path, column.id, key];
         const row = size + groups.length;
         groups.push({
@@ -151,7 +172,56 @@ export function buildGroups<TData>(
     }
     level = next;
   });
+  return { groups, innermost: level };
+}
 
+/**
+ * `members` bucketed by their value in a column (by `groupingKey`, each value
+ * read once), the buckets in value order with the empty one last.
+ */
+function bucketsByValue<TData>(
+  data: readonly TData[],
+  column: Column<TData>,
+  members: readonly number[],
+): [unknown, { value: unknown; members: number[] }][] {
+  const buckets = new Map<unknown, { value: unknown; members: number[] }>();
+  for (const i of members) {
+    const value = column.getValue(data[i] as TData, i);
+    const key = groupingKey(value);
+    let bucket = buckets.get(key);
+    if (!bucket)
+      buckets.set(key, (bucket = { value: key === null ? undefined : value, members: [] }));
+    bucket.members.push(i);
+  }
+  const entries = [...buckets];
+  const { resolve, compare } = autoSortFn(entries.slice(0, 10).map(([, b]) => b.value));
+  const sortable = (v: unknown) => (resolve ? resolve(v) : v);
+  entries.sort(([a, x], [b, y]) =>
+    a === null
+      ? b === null
+        ? 0
+        : 1
+      : b === null
+        ? -1
+        : compare(sortable(x.value), sortable(y.value)),
+  );
+  return entries;
+}
+
+/**
+ * The `RowTree` arrays over the data rows, the group rows after them and one
+ * hidden child per group (which keeps the group's id out of branch selection).
+ */
+function groupTree<TData>(
+  data: readonly TData[],
+  dataIds: readonly string[],
+  groups: readonly Group[],
+  innermost: readonly Level[],
+  leafDepth: number,
+): Pick<GroupedRows<TData>, 'rows' | 'ids' | 'parent' | 'depth' | 'childCount'> & {
+  ids: string[];
+} {
+  const size = data.length;
   const g = groups.length;
   const total = size + 2 * g;
   const rows = data.concat(new Array<TData>(2 * g));
@@ -159,8 +229,7 @@ export function buildGroups<TData>(
   const parent = new Int32Array(total).fill(-1);
   const depth = new Int32Array(total);
   const childCount = new Int32Array(total);
-  const leafDepth = grouping.length;
-  for (const { group, members } of level) {
+  for (const { group, members } of innermost) {
     for (const i of members) {
       parent[i] = group;
       depth[i] = leafDepth;
@@ -180,44 +249,26 @@ export function buildGroups<TData>(
     childCount[row] = 1 + (info.depth === leafDepth - 1 ? members.length : 0);
     if (up !== -1) childCount[up] = (childCount[up] ?? 0) + 1;
   });
+  return { rows, ids, parent, depth, childCount };
+}
 
-  for (const column of totalled) {
-    const kind = column.aggregate;
-    if (!kind) continue;
-    const values = new Array<unknown>(size);
-    for (const i of filtered) values[i] = column.getValue(data[i] as TData, i);
-    for (const { info, members } of groups) {
-      (info.totals as Record<string, unknown>)[column.id] = aggregate(
-        kind,
-        members.map((i) => values[i]),
-        () => members.map((i) => ids[i] ?? ''),
-      );
-    }
+/** Each group's total in a column with an `aggregate`, each value read once per row. */
+function totalGroups<TData>(
+  column: Column<TData>,
+  data: readonly TData[],
+  filtered: readonly number[],
+  groups: readonly Group[],
+  ids: readonly string[],
+): void {
+  const kind = column.aggregate;
+  if (!kind) return;
+  const values = new Array<unknown>(data.length);
+  for (const i of filtered) values[i] = column.getValue(data[i] as TData, i);
+  for (const { info, members } of groups) {
+    (info.totals as Record<string, unknown>)[column.id] = aggregate(
+      kind,
+      members.map((i) => values[i]),
+      () => members.map((i) => ids[i] ?? ''),
+    );
   }
-
-  let byId: Map<string, number> | undefined;
-  const groupRows = Array.from({ length: g }, (_, k) => size + k);
-  return {
-    rows,
-    ids,
-    parent,
-    depth,
-    childCount,
-    size,
-    groups: g,
-    filtered,
-    groupRows,
-    indexOf(id) {
-      if (!id.startsWith('\u0000')) return dataIndexOf(id);
-      // Group rows and their hidden children: the only reserved ids here.
-      byId ??= new Map(ids.slice(size).map((rowId, k) => [rowId, size + k]));
-      return byId.get(id);
-    },
-    info: (row) => groups[row - size]?.info,
-    key(row, columnId) {
-      const info = groups[row - size]?.info;
-      if (!info) return undefined;
-      return info.groupColumnId === columnId ? info.value : info.totals[columnId];
-    },
-  };
 }

@@ -34,6 +34,23 @@ export function sortRows<TData>(
   columnOf: (id: string) => SortColumn<TData> | undefined,
 ): readonly number[] {
   if (rows.length === 0) return rows;
+  const sortKeys = sortKeysFor(data, rows, sorting, columnOf);
+  if (!sortKeys.length) return rows;
+  // Ties keep the order of `data`: the radix sort keeps the order of `rows`.
+  const order =
+    rows.length >= RADIX_MIN && rows.every((r, i) => i === 0 || r > (rows[i - 1] ?? r))
+      ? radixOrder(sortKeys, rows.length)
+      : undefined;
+  return order ? gather(rows, order) : compareSort(rows, sortKeys);
+}
+
+/** The sortable columns' keys: each row's value read once, resolved for its sort function. */
+function sortKeysFor<TData>(
+  data: readonly TData[],
+  rows: readonly number[],
+  sorting: Sorting,
+  columnOf: (id: string) => SortColumn<TData> | undefined,
+): SortKey[] {
   const sortKeys: SortKey[] = [];
   for (const { id, desc } of sorting) {
     const column = columnOf(id);
@@ -48,19 +65,19 @@ export function sortRows<TData>(
       sign: desc ? -1 : 1,
     });
   }
-  if (!sortKeys.length) return rows;
-  // Ties keep the order of `data`: the radix sort keeps the order of `rows`.
-  const order =
-    rows.length >= RADIX_MIN && rows.every((r, i) => i === 0 || r > (rows[i - 1] ?? r))
-      ? radixOrder(sortKeys, rows.length)
-      : undefined;
-  if (order) {
-    // A loop: `Array.from(order, …)` takes six times as long.
-    const sorted = new Array<number>(order.length);
-    for (let i = 0; i < order.length; i++) sorted[i] = rows[order[i] ?? i] ?? i;
-    return sorted;
-  }
+  return sortKeys;
+}
 
+/** `rows` in the order of their positions in `order`. */
+function gather(rows: readonly number[], order: Uint32Array): number[] {
+  // A loop: `Array.from(order, …)` takes six times as long.
+  const sorted = new Array<number>(order.length);
+  for (let i = 0; i < order.length; i++) sorted[i] = rows[order[i] ?? i] ?? i;
+  return sorted;
+}
+
+/** Sorts with the comparator: keys in turn, `undefined` last, ties in `rows`' order. */
+function compareSort(rows: readonly number[], sortKeys: readonly SortKey[]): number[] {
   const compare = (i: number, j: number): number => {
     for (const { keys, compare, sign } of sortKeys) {
       const a = keys[i];
@@ -74,7 +91,6 @@ export function sortRows<TData>(
     }
     return (rows[i] ?? i) - (rows[j] ?? j);
   };
-
   return rows
     .map((_, i) => i)
     .sort(compare)
@@ -102,57 +118,87 @@ function radixOrder(sortKeys: readonly SortKey[], n: number): Uint32Array | unde
   let next = new Uint32Array(n);
   for (let i = 0; i < n; i++) order[i] = i;
   for (const { keys, sign } of [...sortKeys].reverse()) {
-    for (let i = 0; i < n; i++) {
-      const v = keys[i];
-      let h = -1;
-      let l = -1;
-      if (v !== undefined) {
-        if (typeof v !== 'number' || Number.isNaN(v)) return undefined;
-        // `+ 0`: -0 is 0, as the comparator has them.
-        view.setFloat64(0, v + 0);
-        h = view.getUint32(0);
-        l = view.getUint32(4);
-        if (h >>> 31) {
-          h = ~h;
-          l = ~l;
-        } else h |= 1 << 31;
-        if (sign < 0) {
-          h = ~h;
-          l = ~l;
-        }
-      }
-      hi[i] = h;
-      lo[i] = l;
-    }
+    if (!writeBits(keys, sign, hi, lo, view)) return undefined;
     for (const [word, shift] of [
       [lo, 0],
       [lo, 16],
       [hi, 0],
       [hi, 16],
     ] as const) {
-      const digit = (i: number) => ((word[i] ?? 0) >>> shift) & 0xffff;
-      count.fill(0);
-      for (let i = 0; i < n; i++) {
-        const d = digit(i);
-        count[d] = (count[d] ?? 0) + 1;
-      }
-      // One digit for every row: nothing moves.
-      if (count[digit(0)] === n) continue;
-      let sum = 0;
-      for (let d = 0; d < 65536; d++) {
-        const c = count[d] ?? 0;
-        count[d] = sum;
-        sum += c;
-      }
-      for (let i = 0; i < n; i++) {
-        const p = order[i] ?? 0;
-        const d = digit(p);
-        const at = count[d] ?? 0;
-        next[at] = p;
-        count[d] = at + 1;
-      }
-      [order, next] = [next, order];
+      if (radixPass(word, shift, order, next, count)) [order, next] = [next, order];
     }
   }
   return order;
+}
+
+/**
+ * Writes each key's sortable bits into `hi` and `lo` (see `radixOrder`);
+ * `false` when a key is neither a number nor `undefined`.
+ */
+function writeBits(
+  keys: readonly unknown[],
+  sign: number,
+  hi: Uint32Array,
+  lo: Uint32Array,
+  view: DataView,
+): boolean {
+  for (let i = 0; i < hi.length; i++) {
+    const v = keys[i];
+    let h = -1;
+    let l = -1;
+    if (v !== undefined) {
+      if (typeof v !== 'number' || Number.isNaN(v)) return false;
+      // `+ 0`: -0 is 0, as the comparator has them.
+      view.setFloat64(0, v + 0);
+      h = view.getUint32(0);
+      l = view.getUint32(4);
+      if (h >>> 31) {
+        h = ~h;
+        l = ~l;
+      } else h |= 1 << 31;
+      if (sign < 0) {
+        h = ~h;
+        l = ~l;
+      }
+    }
+    hi[i] = h;
+    lo[i] = l;
+  }
+  return true;
+}
+
+/**
+ * One stable counting pass over 16 bits of `word` (from bit `shift`): `order`'s
+ * positions into `next` by that digit. `false` when every row has the same
+ * digit: nothing moves, and `next` is left as it was.
+ */
+function radixPass(
+  word: Uint32Array,
+  shift: number,
+  order: Uint32Array,
+  next: Uint32Array,
+  count: Uint32Array,
+): boolean {
+  const n = order.length;
+  const digit = (i: number) => ((word[i] ?? 0) >>> shift) & 0xffff;
+  count.fill(0);
+  for (let i = 0; i < n; i++) {
+    const d = digit(i);
+    count[d] = (count[d] ?? 0) + 1;
+  }
+  if (count[digit(0)] === n) return false;
+  let sum = 0;
+  for (let d = 0; d < 65536; d++) {
+    const c = count[d] ?? 0;
+    count[d] = sum;
+    sum += c;
+  }
+  for (let i = 0; i < n; i++) {
+    const p = order[i] ?? 0;
+    const d = digit(p);
+    const at = count[d] ?? 0;
+    next[at] = p;
+    count[d] = at + 1;
+  }
+  return true;
 }
