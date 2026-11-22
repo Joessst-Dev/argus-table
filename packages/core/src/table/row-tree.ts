@@ -156,7 +156,28 @@ function flatTree<TData>(
   // Filled from the end, so the first row with an id wins, as a search would find it.
   const byId = new Map<string, number>();
   for (let i = n - 1; i >= 0; i--) byId.set(ids[i] ?? '', i);
+  const { parent, missing } = parentsOf(data, getParentId, ids, byId);
+  const { depth, cycled } = depthsBreakingCycles(parent, ids);
+  if (missing.length > 0 || cycled.length > 0) {
+    const reasons: string[] = [];
+    if (missing.length > 0) reasons.push(`a parent id that matches no row (${listed(missing)})`);
+    if (cycled.length > 0) reasons.push(`parents that form a cycle (${listed(cycled)})`);
+    warn(`argus-table: rows with ${reasons.join(' or ')} are shown as top-level rows.`);
+  }
+  return makeTree(data, ids, parent, depth, countChildren(parent), byId);
+}
 
+/**
+ * Each row's parent index (`-1` at the top level), and the ids of rows whose
+ * parent id matches no row (top-level too).
+ */
+function parentsOf<TData>(
+  data: readonly TData[],
+  getParentId: (row: TData) => string | null | undefined,
+  ids: readonly string[],
+  byId: ReadonlyMap<string, number>,
+): { parent: Int32Array; missing: string[] } {
+  const n = data.length;
   const parent = new Int32Array(n);
   const missing: string[] = [];
   for (let i = 0; i < n; i++) {
@@ -170,12 +191,21 @@ function flatTree<TData>(
     if (index === undefined) missing.push(ids[i] ?? '');
     parent[i] = index ?? -1;
   }
+  return { parent, missing };
+}
 
-  // Depths, and cycles on the way: follow each row's parents up to a row whose
-  // depth is known or a top-level row, then fill the depths back down the path,
-  // so every row is walked over once. Meeting a row of the current walk closes
-  // a cycle: every row of it becomes top-level, and the rows leading into it
-  // keep their parents.
+/**
+ * Depths, and cycles on the way: follow each row's parents up to a row whose
+ * depth is known or a top-level row, then fill the depths back down the path,
+ * so every row is walked over once. Meeting a row of the current walk closes
+ * a cycle: every row of it becomes top-level (`parent` is changed in place),
+ * and the rows leading into it keep their parents. `cycled`: those rows' ids.
+ */
+function depthsBreakingCycles(
+  parent: Int32Array,
+  ids: readonly string[],
+): { depth: Int32Array; cycled: string[] } {
+  const n = parent.length;
   const depth = new Int32Array(n).fill(-1);
   const walk: number[] = [];
   const cycled: string[] = [];
@@ -204,21 +234,17 @@ function flatTree<TData>(
     }
     walk.length = 0;
   }
+  return { depth, cycled };
+}
 
-  if (missing.length > 0 || cycled.length > 0) {
-    const reasons: string[] = [];
-    if (missing.length > 0) reasons.push(`a parent id that matches no row (${listed(missing)})`);
-    if (cycled.length > 0) reasons.push(`parents that form a cycle (${listed(cycled)})`);
-    warn(`argus-table: rows with ${reasons.join(' or ')} are shown as top-level rows.`);
-  }
-
+function countChildren(parent: Int32Array): Int32Array {
+  const n = parent.length;
   const childCount = new Int32Array(n);
   for (let i = 0; i < n; i++) {
     const p = parent[i] ?? -1;
     if (p !== -1) childCount[p] = (childCount[p] ?? 0) + 1;
   }
-
-  return makeTree(data, ids, parent, depth, childCount, byId);
+  return childCount;
 }
 
 function makeTree<TData>(

@@ -187,12 +187,9 @@ function stretchedWidths<TData, TContent>(
     options.columnSizing[def.id] !== undefined;
   // An unresized flex column takes the free space through its grid track.
   if (center.some((def) => def.flex !== undefined && !resized(def))) return new Map();
-  const systemPx =
-    (options.selectionColumn ? SELECTION_COLUMN_WIDTH : 0) +
-    (options.detail ? EXPAND_COLUMN_WIDTH : 0);
   const total = [...start, ...center, ...end].reduce((sum, def) => sum + own(def.id), 0);
   // Whole px, so fractional own widths never overflow the width.
-  const free = Math.floor(stretch.width - systemPx - total);
+  const free = Math.floor(stretch.width - systemWidth(options) - total);
   if (free <= 0) return new Map();
   // The unresized columns share the space in proportion, up to their maxWidth.
   const spread = center
@@ -204,10 +201,31 @@ function stretchedWidths<TData, TContent>(
   const widths = spread.length
     ? spreadWidth(spread, spread.reduce((sum, c) => sum + c.width, 0) + free)
     : new Map<string, number>();
-  let left = free - spread.reduce((sum, c) => sum + (widths.get(c.id) ?? c.width) - c.width, 0);
-  // What they can't take goes to the last columns that can, skipping the ones
-  // resized last (they keep the width they were given).
-  const keep = new Set(stretch.keep);
+  const left = free - spread.reduce((sum, c) => sum + (widths.get(c.id) ?? c.width) - c.width, 0);
+  giveLeftover(center, widths, left, own, new Set(stretch.keep));
+  return widths;
+}
+
+/** The system columns' width: the checkbox column's and the toggle column's. */
+function systemWidth<TData, TContent>(options: TableModelOptions<TData, TContent>): number {
+  return (
+    (options.selectionColumn ? SELECTION_COLUMN_WIDTH : 0) +
+    (options.detail ? EXPAND_COLUMN_WIDTH : 0)
+  );
+}
+
+/**
+ * What the spread columns can't take goes to the last columns that can, up to
+ * their `maxWidth`, skipping the ones resized last (`keep`: they keep the width
+ * they were given).
+ */
+function giveLeftover<TData, TContent>(
+  center: readonly ResolvedColumn<TData, TContent>[],
+  widths: Map<string, number>,
+  left: number,
+  own: (id: string) => number,
+  keep: ReadonlySet<string>,
+): void {
   for (let i = center.length - 1; i >= 0 && left > 0; i--) {
     const def = center[i];
     if (!def || keep.has(def.id)) continue;
@@ -216,7 +234,6 @@ function stretchedWidths<TData, TContent>(
     if (add > 0) widths.set(def.id, now + add);
     left -= add;
   }
-  return widths;
 }
 
 /**
@@ -229,6 +246,36 @@ export function buildViews<TData, TContent>(
   order: ColumnOrderState,
   sizing: ColumnSizingState,
 ): ColumnView<TData, TContent>[] {
+  const { start, center, end } = shownByPin(options, byId, order);
+  const system = systemKinds(options, byId);
+  const lead = system.length;
+  const stretched = stretchedWidths(options, byId, sizing, start, center, end);
+  const list = systemViews<TData, TContent>(system, start.length === 0);
+  // Offsets: start columns from the start edge (after the system columns), the
+  // scrolling ones within the scrolling area, end columns from the end edge.
+  let x = list.reduce((sum, v) => sum + v.width, 0);
+  for (const [i, def] of start.entries()) {
+    const v = view(options, byId, sizing, def, lead + i + 1, x, i === start.length - 1);
+    list.push(v);
+    x += v.width;
+  }
+  x = 0;
+  for (const [i, def] of center.entries()) {
+    const at = lead + start.length + i + 1;
+    const v = view(options, byId, sizing, def, at, x, false, stretched.get(def.id));
+    list.push(v);
+    x += v.width;
+  }
+  list.push(...endViews(options, byId, sizing, end, lead + start.length + center.length));
+  return list;
+}
+
+/** The shown columns in the column order, by the pin in effect. */
+function shownByPin<TData, TContent>(
+  options: TableModelOptions<TData, TContent>,
+  byId: ById<TData, TContent>,
+  order: ColumnOrderState,
+): Record<ColumnPin | 'center', ResolvedColumn<TData, TContent>[]> {
   const groups: Record<ColumnPin | 'center', ResolvedColumn<TData, TContent>[]> = {
     start: [],
     center: [],
@@ -240,9 +287,18 @@ export function buildViews<TData, TContent>(
       groups[pinIn(def, options.columnPinning) ?? 'center'].push(def);
     }
   }
-  const { start, center, end } = groups;
-  // The system columns come first (the selection column, then the toggle column):
-  // they shift every column on, and the start-pinned ones by their widths.
+  return groups;
+}
+
+/**
+ * The system columns, first (the selection column, then the toggle column):
+ * they shift every column on, and the start-pinned ones by their widths. Their
+ * ids are reserved while they show.
+ */
+function systemKinds<TData, TContent>(
+  options: TableModelOptions<TData, TContent>,
+  byId: ById<TData, TContent>,
+): ('selection' | 'expand')[] {
   const system: ('selection' | 'expand')[] = [];
   if (options.selectionColumn) system.push('selection');
   if (options.detail) system.push('expand');
@@ -251,40 +307,40 @@ export function buildViews<TData, TContent>(
       throw new Error(`argus-table: the column id '${id}' is reserved.`);
     }
   }
-  const lead = system.length;
-  const stretched = stretchedWidths(options, byId, sizing, start, center, end);
-  const systemViews: ColumnView<TData, TContent>[] = [];
+  return system;
+}
+
+/** The system columns' views, at the start edge; the last is the pinned edge when no column is start-pinned. */
+function systemViews<TData, TContent>(
+  system: readonly ('selection' | 'expand')[],
+  noStart: boolean,
+): ColumnView<TData, TContent>[] {
+  const views: ColumnView<TData, TContent>[] = [];
   let x = 0;
   for (const [i, kind] of system.entries()) {
-    const v = systemView<TData, TContent>(kind, i + 1, x, i === lead - 1 && start.length === 0);
-    systemViews.push(v);
+    const v = systemView<TData, TContent>(kind, i + 1, x, i === system.length - 1 && noStart);
+    views.push(v);
     x += v.width;
   }
-  // Offsets: start columns from the start edge (after the system columns), the
-  // scrolling ones within the scrolling area, end columns from the end edge.
-  const list = start.map((def, i) => {
-    const v = view(options, byId, sizing, def, lead + i + 1, x, i === start.length - 1);
-    x += v.width;
-    return v;
-  });
-  x = 0;
-  for (const [i, def] of center.entries()) {
-    const at = lead + start.length + i + 1;
-    const v = view(options, byId, sizing, def, at, x, false, stretched.get(def.id));
-    list.push(v);
-    x += v.width;
-  }
+  return views;
+}
+
+/** The end-pinned columns' views, offset from the end edge; `before`: the columns before them. */
+function endViews<TData, TContent>(
+  options: TableModelOptions<TData, TContent>,
+  byId: ById<TData, TContent>,
+  sizing: ColumnSizingState,
+  end: readonly ResolvedColumn<TData, TContent>[],
+  before: number,
+): ColumnView<TData, TContent>[] {
   const ends: ColumnView<TData, TContent>[] = [];
-  x = 0;
+  let x = 0;
   for (const [i, def] of [...end.entries()].reverse()) {
-    const at = lead + start.length + center.length + i + 1;
-    const v = view(options, byId, sizing, def, at, x, i === 0);
+    const v = view(options, byId, sizing, def, before + i + 1, x, i === 0);
     ends.unshift(v);
     x += v.width;
   }
-  list.push(...ends);
-  list.unshift(...systemViews);
-  return list;
+  return ends;
 }
 
 /** Every column's view in the column order: the shown ones, and hidden ones with `hidden: true`. */

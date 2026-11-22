@@ -688,15 +688,30 @@ export class RemoteTree<TData> implements RemoteRows<TData>, RowStructure {
     const version = this.version;
     if (this.#built === version) return this.#index;
     this.#built = version;
+    this.#sorted = this.#expandedTops();
+    const index = this.#openIndex(this.#sorted);
+    // Loaded rows moved: a new `order` object.
+    if (!sameOpenIndex(this.#index, index)) this.#order = Object.freeze({});
+    this.#index = index;
+    return index;
+  }
 
+  /** The expanded top-level rows found in the cache, by top-level index. */
+  #expandedTops(): { top: number; id: string }[] {
     const found: { top: number; id: string }[] = [];
     for (const id of this.#expanded) {
       if (this.#known.has(id)) continue;
       const top = this.#topIndex(id);
       if (top !== undefined) found.push({ top, id });
     }
-    this.#sorted = found.sort((a, b) => a.top - b.top);
+    return found.sort((a, b) => a.top - b.top);
+  }
 
+  /**
+   * The open top-level rows with shown descendants, their subtrees and the
+   * prefix sums of their sizes, and the parents whose children are wanted.
+   */
+  #openIndex(sorted: readonly { top: number; id: string }[]): OpenIndex<TData> {
     const index: OpenIndex<TData> = {
       tops: [],
       subtrees: [],
@@ -705,7 +720,7 @@ export class RemoteTree<TData> implements RemoteRows<TData>, RowStructure {
       wanted: [],
     };
     let total = 0;
-    for (const { top, id } of this.#sorted) {
+    for (const { top, id } of sorted) {
       const subtree = this.#subtree(id);
       for (const parentId of subtree.wanted) {
         // The top-level row itself needs to be loaded to be requested.
@@ -718,15 +733,6 @@ export class RemoteTree<TData> implements RemoteRows<TData>, RowStructure {
       total += subtree.nodes.length;
       index.before.push(total);
     }
-
-    const old = this.#index;
-    const same =
-      old.tops.length === index.tops.length &&
-      old.tops.every(
-        (top, m) => top === index.tops[m] && old.subtrees[m]?.nodes === index.subtrees[m]?.nodes,
-      );
-    if (!same) this.#order = Object.freeze({});
-    this.#index = index;
     return index;
   }
 
@@ -867,6 +873,16 @@ export class RemoteTree<TData> implements RemoteRows<TData>, RowStructure {
     const { top, m } = this.#at(position);
     return top ?? this.#index.tops[m] ?? 0;
   }
+}
+
+/** Whether two open indexes show the same rows: the same open top-level rows with the same subtrees. */
+function sameOpenIndex<TData>(old: OpenIndex<TData>, index: OpenIndex<TData>): boolean {
+  return (
+    old.tops.length === index.tops.length &&
+    old.tops.every(
+      (top, m) => top === index.tops[m] && old.subtrees[m]?.nodes === index.subtrees[m]?.nodes,
+    )
+  );
 }
 
 /**

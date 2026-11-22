@@ -456,55 +456,8 @@ export class RemoteGroups<TData> implements RemoteRows<TData>, RowStructure {
     if (this.#built === this.#version) return this.#nodes;
     this.#built = this.#version;
     const nodes = new Map<string, Node>();
-    const build = (level: Level, start: number): Node => {
-      const { cache } = level;
-      // An id the server sent twice (groups whose values share a key) opens once.
-      const children = new Set<Level>();
-      if (level.groups) {
-        for (const id of cache.loadedIds()) {
-          if (!this.#expanded.has(id)) continue;
-          const at = cache.indexOf(id) ?? 0;
-          const group = cache.entryAt(at)?.row as GroupData;
-          const column = this.#grouping[level.depth] ?? '';
-          const open = this.#levels.get(id);
-          if (open) open.at = at;
-          children.add(
-            open ??
-              this.#level(
-                id,
-                [...level.path, { columnId: column, value: group.value }],
-                level.depth,
-                level.key,
-                at,
-                group.count,
-              ),
-          );
-        }
-        // Open levels whose group row was evicted keep their place, unless
-        // another group has loaded there.
-        for (const other of this.#levels.values()) {
-          if (other.parent === level.key && cache.entryAt(other.at) === undefined) {
-            children.add(other);
-          }
-        }
-      }
-      const shown = [...children]
-        .filter((c) => c.at < cache.rowCount && this.#expanded.has(c.key))
-        .sort((a, b) => a.at - b.at);
-      const node: Node = { level, open: [], before: [0], size: cache.rowCount, start };
-      nodes.set(level.key, node);
-      let below = 0;
-      for (const child of shown) {
-        const childNode = build(child, start + child.at + below + 1);
-        node.open.push(childNode);
-        below += childNode.size;
-        node.before.push(below);
-      }
-      node.size += below;
-      return node;
-    };
     const root = this.#levels.get('');
-    if (root) build(root, 0);
+    if (root) this.#layoutLevel(root, 0, nodes);
     this.#nodes = nodes;
     const layout = JSON.stringify([...nodes.values()].map((n) => [n.level.key, n.start, n.size]));
     if (layout !== this.#layout) {
@@ -512,6 +465,65 @@ export class RemoteGroups<TData> implements RemoteRows<TData>, RowStructure {
       this.#order = Object.freeze({});
     }
     return nodes;
+  }
+
+  /**
+   * Lays out a level shown from position `start` and, depth first, its open
+   * levels below it, adding their nodes to `nodes` (in preorder).
+   */
+  #layoutLevel(level: Level, start: number, nodes: Map<string, Node>): Node {
+    const { cache } = level;
+    const shown = [...this.#openChildren(level)]
+      .filter((c) => c.at < cache.rowCount && this.#expanded.has(c.key))
+      .sort((a, b) => a.at - b.at);
+    const node: Node = { level, open: [], before: [0], size: cache.rowCount, start };
+    nodes.set(level.key, node);
+    let below = 0;
+    for (const child of shown) {
+      const childNode = this.#layoutLevel(child, start + child.at + below + 1, nodes);
+      node.open.push(childNode);
+      below += childNode.size;
+      node.before.push(below);
+    }
+    node.size += below;
+    return node;
+  }
+
+  /**
+   * The levels open under a level of groups: those of its loaded, expanded
+   * group rows (opened here, at their row), and open levels whose group row was
+   * evicted, which keep their place unless another group has loaded there.
+   */
+  #openChildren(level: Level): Set<Level> {
+    const { cache } = level;
+    // An id the server sent twice (groups whose values share a key) opens once.
+    const children = new Set<Level>();
+    if (!level.groups) return children;
+    for (const id of cache.loadedIds()) {
+      if (!this.#expanded.has(id)) continue;
+      const at = cache.indexOf(id) ?? 0;
+      const group = cache.entryAt(at)?.row as GroupData;
+      const column = this.#grouping[level.depth] ?? '';
+      const open = this.#levels.get(id);
+      if (open) open.at = at;
+      children.add(
+        open ??
+          this.#level(
+            id,
+            [...level.path, { columnId: column, value: group.value }],
+            level.depth,
+            level.key,
+            at,
+            group.count,
+          ),
+      );
+    }
+    for (const other of this.#levels.values()) {
+      if (other.parent === level.key && cache.entryAt(other.at) === undefined) {
+        children.add(other);
+      }
+    }
+    return children;
   }
 
   /** The level and index of a shown index, remembered for the next call (a row's cells). */

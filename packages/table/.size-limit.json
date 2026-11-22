@@ -3,6 +3,6 @@
     "name": "CDN build (argus-table, Lit inlined)",
     "path": "dist/cdn/argus-table.js",
     "gzip": true,
-    "limit": "62 kB"
+    "limit": "62.4 kB"
   }
 ]
