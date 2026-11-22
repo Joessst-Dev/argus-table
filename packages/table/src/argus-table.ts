@@ -120,6 +120,23 @@ function attachGridInternals(host: HTMLElement): ElementInternals {
   return internals;
 }
 
+/** The columns a data source groups by: `grouping`'s groupable ones, once each. */
+function serverGroupingOf<T>(
+  grouping: readonly string[],
+  columns: readonly ColumnDef<T>[],
+): string[] {
+  return grouping.filter(
+    (id, i, all) =>
+      all.indexOf(id) === i && columns.some((c) => c.id === id && c.groupable === true),
+  );
+}
+
+type Stretch = { width: number; keep: readonly string[] | undefined } | undefined;
+
+function stretchKey(stretch: Stretch): string {
+  return stretch ? `${String(stretch.width)}|${stretch.keep?.join('\u0001') ?? ''}` : '';
+}
+
 /**
  * A virtualized data table.
  *
@@ -941,7 +958,7 @@ export class ArgusTable<T = unknown> extends LitElement {
   /** The scroller's inner width, for `stretchColumns`. */
   #viewWidth = 0;
   /** What `stretchColumns` passed to the model last, kept while it's the same. */
-  #stretch: { width: number; keep: readonly string[] | undefined } | undefined;
+  #stretch: Stretch;
   /** The stretched widths changed: the pinned columns' scroll range is measured again. */
   #stretchChanged = false;
   readonly #columnWindow = new ColumnWindowController<T>(this, () => this.#scroller());
@@ -1259,6 +1276,22 @@ export class ArgusTable<T = unknown> extends LitElement {
   }
 
   protected override willUpdate(changed: PropertyValues<this>): void {
+    const columns = this.#runPlugins(changed);
+    this.#syncDataSource(changed, columns);
+    if (this.#modelInputsChanged(changed)) this.#updateModel(columns);
+    this.#updateLayoutInputs();
+    const model = this.#table.model;
+    this.#nav.reconcile(model);
+    const layout = layoutOf(model);
+    this.#syncAria(model, layout, columns);
+    this.#configureVirtual(model, layout, changed);
+    // Before the window: a table without a maximum that just got its layout (it was
+    // in a hidden tab) is capped now, rather than after rendering every row.
+    this.#fit.check(this.#contentPx);
+  }
+
+  /** Runs the plugins' `willUpdate` and their column and group transforms. */
+  #runPlugins(changed: PropertyValues<this>): readonly ColumnDef<T>[] {
     if (changed.has('plugins')) this.#plugins.set(this.plugins);
     // Property names: the keys are strings.
     this.#plugins.willUpdate(new Set(changed.keys()) as ReadonlySet<string>);
@@ -1268,17 +1301,17 @@ export class ArgusTable<T = unknown> extends LitElement {
     const groups = this.#plugins.transformGroups(this.#effectiveGroups());
     this.#groupsChanged = groups !== this.#groups;
     this.#groups = groups;
+    return columns;
+  }
+
+  /**
+   * Passes the data source what its requests carry. A new source, order, filter
+   * or grouping starts over: from the first row, without a restored position.
+   */
+  #syncDataSource(changed: PropertyValues<this>, columns: readonly ColumnDef<T>[]): void {
     const filtersChanged = changed.has('columnFilters') || changed.has('quickFilter');
-    // The columns a data source groups by: `grouping`'s groupable ones, once each.
-    const grouping = this.dataSource
-      ? this.#grouping.value.filter(
-          (id, i, all) =>
-            all.indexOf(id) === i && columns.some((c) => c.id === id && c.groupable === true),
-        )
-      : [];
-    const pushed = this.#serverGrouping;
-    const groupingChanged =
-      grouping.length !== pushed.length || grouping.some((id, i) => id !== pushed[i]);
+    const grouping = this.dataSource ? serverGroupingOf(this.#grouping.value, columns) : [];
+    const groupingChanged = !sameItems(grouping, this.#serverGrouping);
     if (groupingChanged) this.#serverGrouping = grouping;
     const sourceChanged =
       changed.has('dataSource') ||
@@ -1311,7 +1344,11 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.#scroll.drop();
     }
     if (filtersChanged && this.hasUpdated) this.#announceRows = true;
-    if (
+  }
+
+  /** Whether anything the core model reads changed: properties, or the plugins' columns or groups. */
+  #modelInputsChanged(changed: PropertyValues<this>): boolean {
+    return (
       this.#columnsChanged ||
       this.#groupsChanged ||
       changed.has('data') ||
@@ -1331,48 +1368,54 @@ export class ArgusTable<T = unknown> extends LitElement {
       changed.has('getParentId') ||
       changed.has('treeExpanded') ||
       changed.has('grouping')
-    ) {
-      if (this.#columnsChanged) {
-        this.#autoWidths.sync(columns.filter((c) => c.width === 'auto').map((c) => c.id));
-      }
-      this.#table.update({
-        columns,
-        columnGroups: groups,
-        data: this.data,
-        getRowId: this.getRowId,
-        sorting: this.#sorting.value,
-        columnSizing: this.#resize.state.value,
-        columnOrder: this.#reorder.state.value,
-        columnPinning: this.#pinning.value,
-        columnVisibility: this.#visibility.value,
-        columnFilters: this.#filters.value,
-        quickFilter: this.#quickFilter,
-        pinnedRows: this.pinnedRows,
-        detail: this.rowDetail !== undefined,
-        expanded: this.#expanded.value,
-        rowExpandable: this.rowExpandable,
-        getSubRows: this.getSubRows,
-        getParentId: this.getParentId,
-        treeExpanded: this.#treeExpanded.value,
-        grouping: this.#grouping.value,
-      });
+    );
+  }
+
+  /** Passes the properties (and the plugins' columns and groups) to the core model. */
+  #updateModel(columns: readonly ColumnDef<T>[]): void {
+    if (this.#columnsChanged) {
+      this.#autoWidths.sync(columns.filter((c) => c.width === 'auto').map((c) => c.id));
     }
-    // A new page cache (new source, sort order or refresh) or none, new measured
-    // widths, and whether the checkbox column shows.
+    this.#table.update({
+      columns,
+      columnGroups: this.#groups,
+      data: this.data,
+      getRowId: this.getRowId,
+      sorting: this.#sorting.value,
+      columnSizing: this.#resize.state.value,
+      columnOrder: this.#reorder.state.value,
+      columnPinning: this.#pinning.value,
+      columnVisibility: this.#visibility.value,
+      columnFilters: this.#filters.value,
+      quickFilter: this.#quickFilter,
+      pinnedRows: this.pinnedRows,
+      detail: this.rowDetail !== undefined,
+      expanded: this.#expanded.value,
+      rowExpandable: this.rowExpandable,
+      getSubRows: this.getSubRows,
+      getParentId: this.getParentId,
+      treeExpanded: this.#treeExpanded.value,
+      grouping: this.#grouping.value,
+    });
+  }
+
+  /**
+   * Passes the model what the element works out itself: a new page cache (new
+   * source, sort order or refresh) or none, measured widths, whether the checkbox
+   * column shows, and the width the scrolling columns fill (`stretchColumns`).
+   */
+  #updateLayoutInputs(): void {
     const autoWidths = this.#autoWidths.widths;
     this.#autoWidthsChanged = autoWidths !== this.#pushedAutoWidths;
     this.#pushedAutoWidths = autoWidths;
     const selectionColumn = this.#select.column;
     this.#selectionColumnChanged = selectionColumn !== this.#selectionColumn;
     this.#selectionColumn = selectionColumn;
-    // The scrolling columns fill the table's width (`stretchColumns`).
-    const stretch =
+    const stretch: Stretch =
       this.stretchColumns && this.#viewWidth > 0
         ? { width: this.#viewWidth, keep: this.#resize.kept }
         : undefined;
-    const keyOf = (s: typeof stretch) =>
-      s ? `${String(s.width)}|${s.keep?.join('\u0001') ?? ''}` : '';
-    this.#stretchChanged = keyOf(stretch) !== keyOf(this.#stretch);
+    this.#stretchChanged = stretchKey(stretch) !== stretchKey(this.#stretch);
     if (this.#stretchChanged) this.#stretch = stretch;
     this.#table.update({
       remote: this.#data.rows,
@@ -1380,11 +1423,16 @@ export class ArgusTable<T = unknown> extends LitElement {
       selectionColumn,
       stretch: this.#stretch,
     });
-    const model = this.#table.model;
-    this.#nav.reconcile(model);
+  }
+
+  /** The grid's row and column counts, roles and states on the host. */
+  #syncAria(
+    model: TableModel<T, CellContent>,
+    layout: RowLayout,
+    columns: readonly ColumnDef<T>[],
+  ): void {
     // -1 tells assistive tech the total is unknown (a data source still growing).
     const unknownTotal = this.#data.cache?.totalKnown === false;
-    const layout = layoutOf(model);
     this.#internals.ariaRowCount = unknownTotal ? '-1' : String(layout.total);
     this.#internals.ariaColCount = String(model.columns.length);
     this.#internals.ariaMultiSelectable = this.#select.mode === 'multi' ? 'true' : null;
@@ -1392,6 +1440,14 @@ export class ArgusTable<T = unknown> extends LitElement {
     this.#editable = this.#plugins.editable(columns);
     // Without an editing plugin nothing can be edited: say so once, on the grid.
     this.#internals.ariaReadOnly = this.#editable ? null : 'true';
+  }
+
+  /** Whether rows are measured, and what the virtualizer lays out. */
+  #configureVirtual(
+    model: TableModel<T, CellContent>,
+    layout: RowLayout,
+    changed: PropertyValues<this>,
+  ): void {
     // The header and pinned rows scroll with the body.
     const aroundPx = this.#headerAndPinnedPx(layout);
     const auto = this.rowHeight === 'auto';
@@ -1413,9 +1469,6 @@ export class ArgusTable<T = unknown> extends LitElement {
     );
     this.#laidOut = laidOut;
     this.#virtual.configure(config);
-    // Before the window: a table without a maximum that just got its layout (it was
-    // in a hidden tab) is capped now, rather than after rendering every row.
-    this.#fit.check(this.#contentPx);
   }
 
   protected override update(changed: PropertyValues<this>): void {
@@ -1466,35 +1519,13 @@ export class ArgusTable<T = unknown> extends LitElement {
     const rendered = this.#rendered;
     const pinStart = pinnedWidth(columns, 'start');
     const pinEnd = pinnedWidth(columns, 'end');
-    const cols = columns.map(track).join(' ');
     const layout = layoutOf(model);
-    const style: Record<string, string> = {
-      '--_cols': cols,
-      '--_width': `${String(model.totalWidth)}px`,
-      '--_pin-start': `${String(pinStart)}px`,
-      '--_pin-end': `${String(pinEnd)}px`,
-      '--_header-rows': String(layout.header),
-      '--_pin-top-rows': String(layout.top),
-      '--_pin-bottom-rows': String(layout.bottom),
-    };
+    const style = this.#tableStyle(model, layout, pinStart, pinEnd);
     const auto = this.rowHeight === 'auto';
-    if (auto) {
-      // New column widths or a new row height rewrap rows: read them all again.
-      const key = `${cols}|${String(this.#rowPx)}`;
-      if (key !== this.#rowsKey) {
-        this.#rowsKey = key;
-        this.#rowMeasure.invalidate();
-      }
-      style['--_pin-top-h'] = `${String(this.#pinnedPx('top', layout))}px`;
-      style['--_pin-bottom-h'] = `${String(this.#pinnedPx('bottom', layout))}px`;
-    }
     const active = this.#nav.active;
     const activeIn = (section: GridRow['section']): ActiveCell | undefined =>
       active?.section === section ? { index: active.index, col: active.col } : undefined;
     const firstIndex = (section: GridRow['section']) => layout.ariaRowIndex({ section, index: 0 });
-    if (typeof this.rowHeight === 'number' && this.rowHeight > 0) {
-      style['--_row-height'] = `${String(this.rowHeight)}px`;
-    }
     // The header, the pinned rows and the body: what the pinned-column shadows cover.
     const contentPx =
       this.#headerAndPinnedPx(layout) + (model.rowCount === 0 ? 0 : this.#window.totalSize);
@@ -1566,6 +1597,43 @@ export class ArgusTable<T = unknown> extends LitElement {
       ${pinShadow('end', pinEnd, contentPx, bands)}`;
   }
 
+  /**
+   * The grid's private custom properties: column tracks, widths, header and
+   * pinned row counts, and the row height. With `rowHeight: 'auto'` also the
+   * pinned rows' heights, and new tracks or a new row height (rows rewrap) make
+   * every row be measured again.
+   */
+  #tableStyle(
+    model: TableModel<T, CellContent>,
+    layout: RowLayout,
+    pinStart: number,
+    pinEnd: number,
+  ): Record<string, string> {
+    const cols = model.columns.map(track).join(' ');
+    const style: Record<string, string> = {
+      '--_cols': cols,
+      '--_width': `${String(model.totalWidth)}px`,
+      '--_pin-start': `${String(pinStart)}px`,
+      '--_pin-end': `${String(pinEnd)}px`,
+      '--_header-rows': String(layout.header),
+      '--_pin-top-rows': String(layout.top),
+      '--_pin-bottom-rows': String(layout.bottom),
+    };
+    if (this.rowHeight === 'auto') {
+      const key = `${cols}|${String(this.#rowPx)}`;
+      if (key !== this.#rowsKey) {
+        this.#rowsKey = key;
+        this.#rowMeasure.invalidate();
+      }
+      style['--_pin-top-h'] = `${String(this.#pinnedPx('top', layout))}px`;
+      style['--_pin-bottom-h'] = `${String(this.#pinnedPx('bottom', layout))}px`;
+    }
+    if (typeof this.rowHeight === 'number' && this.rowHeight > 0) {
+      style['--_row-height'] = `${String(this.rowHeight)}px`;
+    }
+    return style;
+  }
+
   protected override firstUpdated(): void {
     this.#observeProbe();
     this.#measureRowHeight();
@@ -1573,12 +1641,7 @@ export class ArgusTable<T = unknown> extends LitElement {
 
   protected override updated(changed: PropertyValues<this>): void {
     const model = this.#table.model;
-    this.#syncDetails(model);
-    // Foreign content is committed before anything measures it.
-    flushContent(this);
-    this.#measureAutoWidths(model);
-    // Rows of different heights: placed by the update this requests.
-    const resized = this.#measuring && this.#measureRows();
+    const resized = this.#measureRendered(model);
     if (this.#scrollToTop) {
       this.#scrollToTop = false;
       const scroller = this.#scroller();
@@ -1586,6 +1649,7 @@ export class ArgusTable<T = unknown> extends LitElement {
     }
     this.#scroll.chase(model.rowCount);
     this.#fit.check(this.#contentPx);
+    // The pinned columns' scroll range may have moved (widths, order, columns).
     if (
       this.#columnsChanged ||
       this.#groupsChanged ||
@@ -1612,6 +1676,27 @@ export class ArgusTable<T = unknown> extends LitElement {
       this.#announceRowCount(model);
     }
     this.#events.flush();
+    this.#reportWindow(model);
+  }
+
+  /**
+   * Renders detail panels, commits framework content, then measures what it
+   * changed: auto column widths, and rows of different heights. `true` if a
+   * row's height changed (the update this requests places it).
+   */
+  #measureRendered(model: TableModel<T, CellContent>): boolean {
+    this.#syncDetails(model);
+    // Foreign content is committed before anything measures it.
+    flushContent(this);
+    this.#measureAutoWidths(model);
+    return this.#measuring && this.#measureRows();
+  }
+
+  /**
+   * Fires `argus-range-change` for new visible rows, requests the rendered rows
+   * from a data source, and fires `argus-load-error` for failed requests.
+   */
+  #reportWindow(model: TableModel<T, CellContent>): void {
     const { range } = this.#window;
     const display = model.display;
     // Positions to data rows: panels in view don't count.
