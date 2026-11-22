@@ -32,6 +32,9 @@ export interface WindowRow {
 /** How long scrolling has to be quiet before a held correction is written (see `#hold`). */
 const HOLD_MS = 150;
 
+/** Window rows by row id, before they get pool slots. */
+type WindowEntries = Map<string, Omit<WindowRow, 'slot'>>;
+
 export interface VirtualWindow {
   /** Rendered data rows, in pool order (ADR 0001 addendum). */
   rows: WindowRow[];
@@ -356,7 +359,7 @@ export class VirtualController implements ReactiveController {
    * in range. With `idle`, every slot the pool has made is returned, the unused
    * ones as idle, so none is removed while scrolling.
    */
-  #pooled(pool: RowPool, byId: Map<string, Omit<WindowRow, 'slot'>>, idle: boolean): WindowRow[] {
+  #pooled(pool: RowPool, byId: WindowEntries, idle: boolean): WindowRow[] {
     const bySlot = new Map<number, WindowRow>();
     for (const { id, slot } of pool.update(byId.keys())) {
       const item = byId.get(id);
@@ -372,67 +375,88 @@ export class VirtualController implements ReactiveController {
 
   /** Computes the rendered window and updates the pools. Call once per render. */
   computeWindow(): VirtualWindow {
-    const { count, overscan, rowHeight, keep, rowIdAt, details } = this.#config;
-    const sizes = this.#sizes;
-    const scale = this.#scale;
     const element = this.#element;
     const visible = this.#visible();
     this.#rendered = visible;
     this.#follow = false;
-    // Fixed heights: rows take theirs from CSS.
-    const measured = (size: number) => (this.#config.measure ? size : undefined);
-    const rowOf = (index: number) => (details ? details.dataIndexAt(index) : index);
     // Scaled: rows render relative to the scroll position. Unscaled: shifted by the held correction.
     const shift = visible && element ? visible.top - element.scrollTop : 0;
-    const byId = new Map<string, Omit<WindowRow, 'slot'>>();
-    if (visible && element) {
-      const indexes = steadyWindow(
-        { startIndex: visible.start, endIndex: visible.end, overscan, count },
-        maxVisibleRows(element.clientHeight, rowHeight),
-      );
-      const first = indexes[0];
-      let start = first === undefined ? 0 : sizes.startOf(first);
-      for (const index of indexes) {
-        const size = sizes.sizeOf(index);
-        byId.set(rowIdAt(index), {
-          index,
-          row: rowOf(index),
-          start: start - shift,
-          size: measured(size),
-        });
-        start += size;
-      }
-    }
-    const keepDetail = keep !== undefined && details?.isDetail(keep.index) === true;
-    this.#pool.pin(keepDetail ? undefined : keep?.id);
-    this.#detailPool.pin(keepDetail ? keep.id : undefined);
-    if (keep && !byId.has(keep.id) && keep.index < count) {
-      // Scaled, it is out of view: keep it inside the body (or just above it).
-      const size = sizes.sizeOf(keep.index);
-      const start = sizes.startOf(keep.index) - shift;
-      byId.set(keep.id, {
-        index: keep.index,
-        row: rowOf(keep.index),
-        start: scale.scaled ? Math.min(Math.max(start, -size), scale.size) : start,
-        size: measured(size),
-      });
-    }
-    let rows: WindowRow[];
-    let panels: WindowRow[] = [];
-    if (details) {
-      const data = new Map<string, Omit<WindowRow, 'slot'>>();
-      const detail = new Map<string, Omit<WindowRow, 'slot'>>();
-      for (const [id, item] of byId) (details.isDetail(item.index) ? detail : data).set(id, item);
-      rows = this.#pooled(this.#pool, data, true);
-      panels = this.#pooled(this.#detailPool, detail, true);
-    } else {
-      rows = this.#pooled(this.#pool, byId, false);
-    }
+    const byId = this.#windowRows(visible, element, shift);
+    this.#keepActive(byId, shift);
+    const [rows, panels] = this.#fillPools(byId);
+    const scale = this.#scale;
     return {
       rows,
       details: panels,
-      totalSize: scale.scaled ? scale.size : sizes.total,
+      totalSize: scale.scaled ? scale.size : this.#sizes.total,
       range: visible ? { start: visible.start, end: visible.end } : null,
+    };
+  }
+
+  /** The rows in the window: the visible ones plus the overscan, in a steady window. */
+  #windowRows(
+    visible: { start: number; end: number } | undefined,
+    element: HTMLElement | undefined,
+    shift: number,
+  ): WindowEntries {
+    const byId: WindowEntries = new Map();
+    if (!visible || !element) return byId;
+    const { count, overscan, rowHeight, rowIdAt } = this.#config;
+    const sizes = this.#sizes;
+    const indexes = steadyWindow(
+      { startIndex: visible.start, endIndex: visible.end, overscan, count },
+      maxVisibleRows(element.clientHeight, rowHeight),
+    );
+    const first = indexes[0];
+    let start = first === undefined ? 0 : sizes.startOf(first);
+    for (const index of indexes) {
+      const size = sizes.sizeOf(index);
+      byId.set(rowIdAt(index), this.#entry(index, start - shift, size));
+      start += size;
+    }
+    return byId;
+  }
+
+  /**
+   * Keeps the active row (`keep`) rendered on its pool slot, out of the window
+   * too, so focus survives scrolling. Scaled, it is out of view: kept inside the
+   * body (or just above it).
+   */
+  #keepActive(byId: WindowEntries, shift: number): void {
+    const { count, keep, details } = this.#config;
+    const keepDetail = keep !== undefined && details?.isDetail(keep.index) === true;
+    this.#pool.pin(keepDetail ? undefined : keep?.id);
+    this.#detailPool.pin(keepDetail ? keep.id : undefined);
+    if (!keep || byId.has(keep.id) || keep.index >= count) return;
+    const sizes = this.#sizes;
+    const size = sizes.sizeOf(keep.index);
+    const start = sizes.startOf(keep.index) - shift;
+    const scale = this.#scale;
+    const at = scale.scaled ? Math.min(Math.max(start, -size), scale.size) : start;
+    byId.set(keep.id, this.#entry(keep.index, at, size));
+  }
+
+  /** The window's rows from the row pool, and its detail panels from theirs. */
+  #fillPools(byId: WindowEntries): [rows: WindowRow[], panels: WindowRow[]] {
+    const { details } = this.#config;
+    if (!details) return [this.#pooled(this.#pool, byId, false), []];
+    const data: WindowEntries = new Map();
+    const detail: WindowEntries = new Map();
+    for (const [id, item] of byId) (details.isDetail(item.index) ? detail : data).set(id, item);
+    return [this.#pooled(this.#pool, data, true), this.#pooled(this.#detailPool, detail, true)];
+  }
+
+  /**
+   * A row's place in the window: its position, data index and offset, and its
+   * size when rows are measured (fixed heights come from CSS).
+   */
+  #entry(index: number, start: number, size: number): Omit<WindowRow, 'slot'> {
+    const { details, measure } = this.#config;
+    return {
+      index,
+      row: details ? details.dataIndexAt(index) : index,
+      start,
+      size: measure ? size : undefined,
     };
   }
 

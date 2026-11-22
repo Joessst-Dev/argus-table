@@ -1,4 +1,9 @@
-import { EXPAND_COLUMN_ID, SELECTION_COLUMN_ID, type TableModel } from '@argus-table/core';
+import {
+  EXPAND_COLUMN_ID,
+  SELECTION_COLUMN_ID,
+  type RowPin,
+  type TableModel,
+} from '@argus-table/core';
 import type { NavigationController } from './controllers/navigation.js';
 import { CELL_CLICK, fire, ROW_CLICK } from './events.js';
 import { dataIndexOf, gridCell, gridRowOf, gridRowOfCell, layoutOf } from './grid.js';
@@ -31,44 +36,57 @@ export function activate<T>(
     if (columnId === SELECTION_COLUMN_ID || columnId === EXPAND_COLUMN_ID) return;
     if (role !== 'row') continue;
     const at = gridRowOf(target, layoutOf(model));
-    if (!at || at.section === 'header') return;
-    if (at.section === 'body') {
-      // A panel's row fires nothing; a data row's events carry its data index.
-      const index = dataIndexOf(model, at.index);
-      if (index === undefined) return;
-      const row = model.rowAt(index);
-      if (!row) return;
-      const detail: RowClickDetail<T> = { row: row.original, rowId: row.id, index };
-      // No `depth` key without a tree: details stay as they were.
-      const depth = model.treeRow(index)?.depth;
-      if (depth !== undefined) detail.depth = depth;
-      if (columnId !== undefined) {
-        fire(element, CELL_CLICK, {
-          ...detail,
-          columnId,
-          value: model.valueAt(index, columnId),
-        });
-      }
-      fire(element, ROW_CLICK, detail);
-      return;
+    if (at?.section === 'body') fireBodyClicks(element, model, at.index, columnId);
+    else if (at && at.section !== 'header') {
+      firePinnedClicks(element, model, at.section, at.index, columnId);
     }
-    const pinned = at.section;
-    const { index } = at;
-    const row = model.pinnedRowAt(pinned, index);
-    if (!row) return;
-    if (columnId !== undefined) {
-      fire(element, CELL_CLICK, {
-        row: row.original,
-        rowId: row.id,
-        index,
-        columnId,
-        value: model.pinnedValueAt(pinned, index, columnId),
-        pinned,
-      });
-    }
-    fire(element, ROW_CLICK, { row: row.original, rowId: row.id, index, pinned });
     return;
   }
+}
+
+/** The click events for a body row at a position: none for a panel's row or a row not loaded. */
+function fireBodyClicks<T>(
+  element: HTMLElement,
+  model: TableModel<T, CellContent>,
+  position: number,
+  columnId: string | undefined,
+): void {
+  // A data row's events carry its data index.
+  const index = dataIndexOf(model, position);
+  if (index === undefined) return;
+  const row = model.rowAt(index);
+  if (!row) return;
+  const detail: RowClickDetail<T> = { row: row.original, rowId: row.id, index };
+  // No `depth` key without a tree: details stay as they were.
+  const depth = model.treeRow(index)?.depth;
+  if (depth !== undefined) detail.depth = depth;
+  if (columnId !== undefined) {
+    fire(element, CELL_CLICK, { ...detail, columnId, value: model.valueAt(index, columnId) });
+  }
+  fire(element, ROW_CLICK, detail);
+}
+
+/** The click events for a pinned row. */
+function firePinnedClicks<T>(
+  element: HTMLElement,
+  model: TableModel<T, CellContent>,
+  pinned: RowPin,
+  index: number,
+  columnId: string | undefined,
+): void {
+  const row = model.pinnedRowAt(pinned, index);
+  if (!row) return;
+  if (columnId !== undefined) {
+    fire(element, CELL_CLICK, {
+      row: row.original,
+      rowId: row.id,
+      index,
+      columnId,
+      value: model.pinnedValueAt(pinned, index, columnId),
+      pinned,
+    });
+  }
+  fire(element, ROW_CLICK, { row: row.original, rowId: row.id, index, pinned });
 }
 
 /** The header or cell an event happened in, for plugins. */

@@ -276,6 +276,12 @@ export class DataController<T> implements ReactiveController {
     return errors;
   }
 
+  /**
+   * Drops what was loaded and in flight, and starts over with what a new
+   * configuration needs: a grouped source's `RemoteGroups`, else a page cache
+   * (`carry`: what it keeps of the old one; none without a source), with a
+   * `RemoteTree` over it when the source loads children.
+   */
   #reset(carry: Carry | undefined): void {
     clearTimeout(this.#timer);
     this.#timer = undefined;
@@ -283,47 +289,65 @@ export class DataController<T> implements ReactiveController {
     this.#range = undefined;
     this.#rangesKey = '';
     this.#errors = [];
-    const { source, getRowId, filters, quickFilter, treeExpanded, grouping } = this.#config;
+    const { source } = this.#config;
     const hasChildren = source?.hasChildren?.bind(source);
     this.#loadChildren = source && getChildrenLoader(source);
     const tree = hasChildren !== undefined && this.#loadChildren !== undefined;
-    if (tree && grouping.length && !this.#warnedGrouping) {
-      this.#warnedGrouping = true;
-      console.warn(
-        'argus-table: grouping is ignored with a dataSource that has hasChildren and getChildren.',
-      );
-    }
-    this.#groups =
-      source && carry && grouping.length && !tree
-        ? new RemoteGroups<T>({
-            grouping,
-            pageSize: source.pageSize ?? DEFAULT_PAGE_SIZE,
-            getRowId,
-            expanded: treeExpanded,
-          })
-        : undefined;
+    const grouped = !this.#ignoresGrouping(tree);
+    this.#groups = source && carry && grouped ? this.#newGroups(source) : undefined;
     // While grouped, the top-level groups' cache (for paging state).
     this.#cache = this.#groups
       ? (this.#groups.root as PageCache<T>)
       : source && carry
         ? new PageCache<T>({
             pageSize: source.pageSize ?? DEFAULT_PAGE_SIZE,
-            getRowId,
+            getRowId: this.#config.getRowId,
             rowCount: carry.rowCount,
             totalKnown: carry.totalKnown,
           })
         : undefined;
     this.#tree =
       this.#cache && !this.#groups && hasChildren && this.#loadChildren
-        ? new RemoteTree<T>(this.#cache, {
-            hasChildren,
-            getRowId,
-            keepCounts: carry?.counts,
-            warn: this.#warn,
-            filtered: filtersRows(filters, quickFilter),
-            expanded: treeExpanded,
-          })
+        ? this.#newTree(this.#cache, hasChildren, carry)
         : undefined;
+  }
+
+  /** Whether there's no grouping to do: none asked for, or (with a warning, once) a tree source. */
+  #ignoresGrouping(tree: boolean): boolean {
+    if (!this.#config.grouping.length) return true;
+    if (tree && !this.#warnedGrouping) {
+      this.#warnedGrouping = true;
+      console.warn(
+        'argus-table: grouping is ignored with a dataSource that has hasChildren and getChildren.',
+      );
+    }
+    return tree;
+  }
+
+  #newGroups(source: DataSource<T>): RemoteGroups<T> {
+    const { getRowId, treeExpanded, grouping } = this.#config;
+    return new RemoteGroups<T>({
+      grouping,
+      pageSize: source.pageSize ?? DEFAULT_PAGE_SIZE,
+      getRowId,
+      expanded: treeExpanded,
+    });
+  }
+
+  #newTree(
+    cache: PageCache<T>,
+    hasChildren: NonNullable<DataSource<T>['hasChildren']>,
+    carry: Carry | undefined,
+  ): RemoteTree<T> {
+    const { getRowId, filters, quickFilter, treeExpanded } = this.#config;
+    return new RemoteTree<T>(cache, {
+      hasChildren,
+      getRowId,
+      keepCounts: carry?.counts,
+      warn: this.#warn,
+      filtered: filtersRows(filters, quickFilter),
+      expanded: treeExpanded,
+    });
   }
 
   readonly #warn = (message: string) => {
