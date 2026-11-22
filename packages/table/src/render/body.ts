@@ -229,10 +229,6 @@ function renderRow<T>(
   const index = row.row;
   const state = idle ? 'loaded' : (loading?.stateAt(index) ?? 'loaded');
   const open = !idle && (toggles?.open(index) ?? false);
-  let parts = index % 2 === 0 ? 'row row-even' : 'row row-odd';
-  if (state !== 'loaded') parts += state === 'error' ? ' row-loading row-error' : ' row-loading';
-  if (selected) parts += ' row-selected';
-  if (open) parts += ' row-expanded';
   const retry = state === 'error' ? loading?.retry.get(index) : undefined;
   // The Retry button goes in the first data column, after a selection column.
   const retryCol = retry === undefined ? undefined : firstDataColumn(columns);
@@ -240,9 +236,24 @@ function renderRow<T>(
   // A row not loaded has only a level: no toggle state, no place among its siblings yet.
   const depth = node ? node.depth : idle || state === 'loaded' ? undefined : tree?.depth(index);
   const group = node && tree?.group?.(index);
-  if (group) parts += ' row-group';
+  // What goes ahead of a cell's slot: the row's checkbox or chevron in their
+  // columns; in the tree column the toggle (or, for a row not loaded, its indent
+  // and skeleton); elsewhere a row not loaded's skeleton bar or Retry button.
+  const lead = (c: RenderedColumn<T>) => {
+    if (c.kind === 'selection') return rowCheckbox(index, selected, checkboxes);
+    if (c.kind === 'expand')
+      return rowToggle(index, open, state === 'loaded' ? toggles : undefined);
+    const retryHere = c.id === retryCol ? retry : undefined;
+    if (depth === undefined || tree?.column !== c.id)
+      return placeholder(state, retryHere, index, loading);
+    if (node) return treeToggle(index, node, tree);
+    return treeIndent(
+      depth,
+      html`<span class="tree-spacer"></span>${placeholder(state, retryHere, index, loading)}`,
+    );
+  };
   return html`<div
-    part=${idle ? nothing : parts}
+    part=${idle ? nothing : rowParts(index, state, selected, open, group !== undefined)}
     class="row"
     role="row"
     ?hidden=${idle}
@@ -253,14 +264,7 @@ function renderRow<T>(
     aria-expanded=${node?.hasChildren ? String(node.open) : nothing}
     aria-setsize=${node?.setSize ?? nothing}
     aria-posinset=${node?.posInSet ?? nothing}
-    style=${styleMap(
-      inset
-        ? {
-            insetBlockStart: `${String(row.start)}px`,
-            minBlockSize: row.size === undefined ? undefined : `${String(row.size)}px`,
-          }
-        : { transform: `translateY(${String(row.start)}px)` },
-    )}
+    style=${styleMap(rowPlacement(row, inset))}
   >
     ${repeat(
       columns,
@@ -271,23 +275,7 @@ function renderRow<T>(
           c.id === activeCol,
           cellSlot(row.slot, c.slot),
           false,
-          c.kind === 'selection'
-            ? rowCheckbox(index, selected, checkboxes)
-            : c.kind === 'expand'
-              ? rowToggle(index, open, state === 'loaded' ? toggles : undefined)
-              : depth !== undefined && tree?.column === c.id
-                ? node
-                  ? treeToggle(index, node, tree)
-                  : treeIndent(
-                      depth,
-                      html`<span class="tree-spacer"></span>${placeholder(
-                          state,
-                          c.id === retryCol ? retry : undefined,
-                          index,
-                          loading,
-                        )}`,
-                    )
-                : placeholder(state, c.id === retryCol ? retry : undefined, index, loading),
+          lead(c),
           // A group row's count, after its value in the tree column.
           group && tree?.column === c.id
             ? html`<span part="group-count">${tree.groupCount(group.count)}</span>`
@@ -296,6 +284,35 @@ function renderRow<T>(
         ),
     )}
   </div>`;
+}
+
+/** A body row's part names: parity, then loading, selected, expanded and group states. */
+function rowParts(
+  index: number,
+  state: RowState,
+  selected: boolean | undefined,
+  open: boolean,
+  group: boolean,
+): string {
+  let parts = index % 2 === 0 ? 'row row-even' : 'row row-odd';
+  if (state !== 'loaded') parts += state === 'error' ? ' row-loading row-error' : ' row-loading';
+  if (selected) parts += ' row-selected';
+  if (open) parts += ' row-expanded';
+  if (group) parts += ' row-group';
+  return parts;
+}
+
+/**
+ * Where a body row sits: rows of different heights at an inset, at least their
+ * measured size; rows of one height moved with a transform.
+ */
+function rowPlacement(row: WindowRow, inset: boolean) {
+  return inset
+    ? {
+        insetBlockStart: `${String(row.start)}px`,
+        minBlockSize: row.size === undefined ? undefined : `${String(row.size)}px`,
+      }
+    : { transform: `translateY(${String(row.start)}px)` };
 }
 
 /**
