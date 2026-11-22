@@ -165,7 +165,7 @@ export class NavigationController<T> {
     }
     const col = columns.findIndex((c) => c.id === (onPanel ? (this.#lastCol ?? id) : id));
     const to = this.#keyTarget(key, corner, layout.position(from), Math.max(col, 0), id, scroller);
-    if (!to) return;
+    if (to === false) return;
     event.preventDefault();
     let row = layout.at(to.pos) ?? layout.leafHeader;
     const target = columns[Math.min(Math.max(to.col, 0), columns.length - 1)];
@@ -184,8 +184,8 @@ export class NavigationController<T> {
 
   /**
    * The grid position and column index a navigation key moves to from grid
-   * position `pos` and column index `col` (on column `id`); `undefined` for
-   * keys that aren't navigation keys.
+   * position `pos` and column index `col` (on column `id`); `false` for keys
+   * that aren't navigation keys (as `#groupTarget`).
    */
   #keyTarget(
     key: string,
@@ -194,7 +194,7 @@ export class NavigationController<T> {
     col: number,
     id: string,
     scroller: HTMLElement,
-  ): { pos: number; col: number } | undefined {
+  ): { pos: number; col: number } | false {
     const model = this.#model();
     const layout = layoutOf(model);
     const columns = model.columns;
@@ -217,7 +217,7 @@ export class NavigationController<T> {
       case 'End':
         return { pos: corner ? layout.total - 1 : pos, col: columns.length - 1 };
       default:
-        return undefined;
+        return false;
     }
   }
 
