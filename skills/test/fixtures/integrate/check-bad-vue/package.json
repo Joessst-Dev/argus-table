@@ -2,9 +2,9 @@
   "name": "check-bad-vue",
   "private": true,
   "dependencies": {
-    "@argus-table/react": "^1.3.0",
-    "@argus-table/themes": "^1.3.0",
-    "@argus-table/vue": "^1.3.0",
+    "@argus-table/react": "^1.4.0",
+    "@argus-table/themes": "^1.4.0",
+    "@argus-table/vue": "^1.4.0",
     "vue": "^3.5.13"
   }
 }

@@ -106,22 +106,22 @@ describe('check.mjs', () => {
   it('passes the references’ full examples', async () => {
     const deps = {
       argus: {
-        'argus-table': '^1.3.0',
-        '@argus-table/themes': '^1.3.0',
-        '@argus-table/header-menu': '^1.3.0',
+        'argus-table': '^1.4.0',
+        '@argus-table/themes': '^1.4.0',
+        '@argus-table/header-menu': '^1.4.0',
       },
     };
     const examples = {
       react: {
-        deps: { react: '^19.1.0', 'react-dom': '^19.1.0', '@argus-table/react': '^1.3.0' },
+        deps: { react: '^19.1.0', 'react-dom': '^19.1.0', '@argus-table/react': '^1.4.0' },
         theme: ['src/main.tsx', "import '@argus-table/themes/default.css';\n"],
       },
       vue: {
-        deps: { vue: '^3.5.0', '@argus-table/vue': '^1.3.0' },
+        deps: { vue: '^3.5.0', '@argus-table/vue': '^1.4.0' },
         theme: ['src/main.ts', "import '@argus-table/themes/default.css';\n"],
       },
       angular: {
-        deps: { '@angular/core': '^20.1.0', '@argus-table/angular': '^1.3.0' },
+        deps: { '@angular/core': '^20.1.0', '@argus-table/angular': '^1.4.0' },
         theme: ['src/styles.css', "@import '@argus-table/themes/default.css';\n"],
       },
       vanilla: { deps: {}, theme: null },
@@ -198,7 +198,7 @@ describe('check.mjs', () => {
           dependencies: Object.fromEntries(
             ['argus-table', 'themes', 'formulas', 'header-menu', 'export'].map((p) => [
               p === 'argus-table' ? p : `@argus-table/${p}`,
-              '^1.3.0',
+              '^1.4.0',
             ]),
           ),
         },
@@ -231,8 +231,8 @@ describe('check.mjs', () => {
       'package.json': {
         dependencies: {
           react: '^19.1.0',
-          '@argus-table/react': '^1.3.0',
-          '@argus-table/themes': '^1.3.0',
+          '@argus-table/react': '^1.4.0',
+          '@argus-table/themes': '^1.4.0',
         },
       },
       'src/main.tsx': "import '@argus-table/themes/default.css';\n",
@@ -270,8 +270,8 @@ describe('check.mjs', () => {
       'package.json': {
         dependencies: {
           react: '^19.1.0',
-          '@argus-table/react': '^1.3.0',
-          '@argus-table/themes': '^1.3.0',
+          '@argus-table/react': '^1.4.0',
+          '@argus-table/themes': '^1.4.0',
         },
       },
       'src/main.tsx': "import '@argus-table/themes/default.css';\n",
@@ -309,8 +309,8 @@ describe('check.mjs', () => {
       'package.json': {
         dependencies: {
           '@angular/core': '^20.1.0',
-          '@argus-table/angular': '^1.3.0',
-          '@argus-table/themes': '^1.3.0',
+          '@argus-table/angular': '^1.4.0',
+          '@argus-table/themes': '^1.4.0',
         },
       },
       'src/styles.css': "@import '@argus-table/themes/default.css';\n",
@@ -339,7 +339,7 @@ describe('check.mjs', () => {
 
     const vanilla = project(undefined, {
       'package.json': {
-        dependencies: { 'argus-table': '^1.3.0', '@argus-table/themes': '^1.3.0' },
+        dependencies: { 'argus-table': '^1.4.0', '@argus-table/themes': '^1.4.0' },
       },
       'index.html':
         '<h2 id="title">Orders</h2>\n<argus-table id="t" aria-labelledby="heading"></argus-table>\n',
@@ -362,14 +362,50 @@ describe('check.mjs', () => {
     ]);
   });
 
+  it('names 1.4 features a project on 1.3 uses, and not their look-alikes', async () => {
+    const files = (code) => ({
+      'package.json': {
+        dependencies: { 'argus-table': '^1.3.0', '@argus-table/themes': '^1.3.0' },
+      },
+      'main.js': [
+        "import 'argus-table';",
+        "import '@argus-table/themes/default.css';",
+        code,
+        '',
+      ].join('\n'),
+    });
+    const newer = (found) =>
+      found.filter((f) => f.rule === 'feature-needs-newer-version').map((f) => f.message);
+    assert.deepEqual(
+      newer(await findings(project(undefined, files("const c = { id: 'r', groupable: true };")))),
+      ['row grouping needs argus-table 1.4.0; the project has 1.3.0.'],
+    );
+    assert.deepEqual(
+      newer(await findings(project(undefined, files('table.rowDetail = (row) => row.note;')))),
+      ['detail rows (rowDetail) needs argus-table 1.4.0; the project has 1.3.0.'],
+    );
+    // TanStack's getSubRows and a DOM-ish getChildren() alone aren't argus tree rows.
+    assert.deepEqual(
+      newer(
+        await findings(
+          project(
+            undefined,
+            files('const t = { getSubRows: (r) => r.kids };\nnode.getChildren();'),
+          ),
+        ),
+      ),
+      [],
+    );
+  });
+
   it('names columns that stopped sorting, and accepts add-ons used through an alias', async () => {
     const dir = project(undefined, {
       'package.json': {
         dependencies: {
           '@angular/core': '^20.1.0',
-          '@argus-table/angular': '^1.3.0',
-          '@argus-table/header-menu': '^1.3.0',
-          '@argus-table/themes': '^1.3.0',
+          '@argus-table/angular': '^1.4.0',
+          '@argus-table/header-menu': '^1.4.0',
+          '@argus-table/themes': '^1.4.0',
         },
       },
       'src/styles.css': "@import '@argus-table/themes/default.css';\n",
@@ -411,7 +447,7 @@ describe('check.mjs', () => {
     writeFileSync(scanFile, JSON.stringify(scan));
     // Half-way through: argus-table is installed and used next to the old grid.
     const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
-    pkg.dependencies['@argus-table/react'] = '^1.3.0';
+    pkg.dependencies['@argus-table/react'] = '^1.4.0';
     writeFileSync(join(dir, 'package.json'), JSON.stringify(pkg));
     writeFileSync(
       join(dir, 'app/orders/new-grid.tsx'),

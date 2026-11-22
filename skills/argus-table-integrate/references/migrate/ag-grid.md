@@ -55,29 +55,29 @@ Covers `ag-grid-community` and `ag-grid-enterprise` (v31 to v36) with `ag-grid-r
 
 ## Columns
 
-| AG Grid `ColDef`                                                              | argus-table `ColumnDef`                                                                                                     |
-| ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `field: 'country'`                                                            | `id: 'country', accessor: 'country'`                                                                                        |
-| `field: 'athlete.name'`                                                       | `accessor: 'athlete.name'`                                                                                                  |
-| `colId` + `valueGetter: (p) => p.data.a + p.data.b`                           | `id`, `accessor: (row) => row.a + row.b`                                                                                    |
-| `headerName: 'Country'`                                                       | `header: 'Country'`                                                                                                         |
-| `width: 150`, `minWidth`, `maxWidth`                                          | the same                                                                                                                    |
-| `flex: 1`                                                                     | `width: { flex: 1 }`                                                                                                        |
-| `pinned: 'left'`                                                              | `pin: 'start'`                                                                                                              |
-| `hide: true`                                                                  | `hidden: true`                                                                                                              |
-| `sortable: false` (or default on)                                             | `sortable: true` where it should sort                                                                                       |
-| `filter: 'agNumberColumnFilter'`                                              | `filter: 'number'`                                                                                                          |
-| `filter: true` (the default filter)                                           | `filter: 'text'`, or the kind that fits the values                                                                          |
-| `filter: 'agSetColumnFilter'`, `filterParams.values`                          | `filter: 'set'`, `filterOptions`                                                                                            |
-| `type: 'numericColumn'`, `cellClass: 'ag-right-aligned-cell'`                 | `align: 'end'`                                                                                                              |
-| `valueFormatter: (p) => fmt(p.value)`                                         | `cell: (row, ctx) => fmt(ctx.value)`                                                                                        |
-| `cellRenderer: StatusBadge` (component)                                       | `cell: (row) => <StatusBadge value={row.status} />` (React), a `#cell-status` slot (Vue), an `argusCell` template (Angular) |
-| `cellRenderer: 'agGroupCellRenderer'`                                         | a gap (grouping)                                                                                                            |
-| `wrapText: true, autoHeight: true`                                            | `wrap: true` and the table's `rowHeight: 'auto'`                                                                            |
-| `suppressMovable: true`                                                       | `reorderable: false`                                                                                                        |
-| `lockPinned: true`                                                            | `pinnable: false`                                                                                                           |
-| `checkboxSelection: true` (deprecated since v32.2), `rowSelection.checkboxes` | delete it: `selectionCheckboxes` on the table                                                                               |
-| `defaultColDef: { sortable, resizable, filter }`                              | spread a shared object into each column: `{ ...defaults, id, … }`                                                           |
+| AG Grid `ColDef`                                                              | argus-table `ColumnDef`                                                                                                                      |
+| ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `field: 'country'`                                                            | `id: 'country', accessor: 'country'`                                                                                                         |
+| `field: 'athlete.name'`                                                       | `accessor: 'athlete.name'`                                                                                                                   |
+| `colId` + `valueGetter: (p) => p.data.a + p.data.b`                           | `id`, `accessor: (row) => row.a + row.b`                                                                                                     |
+| `headerName: 'Country'`                                                       | `header: 'Country'`                                                                                                                          |
+| `width: 150`, `minWidth`, `maxWidth`                                          | the same                                                                                                                                     |
+| `flex: 1`                                                                     | `width: { flex: 1 }`                                                                                                                         |
+| `pinned: 'left'`                                                              | `pin: 'start'`                                                                                                                               |
+| `hide: true`                                                                  | `hidden: true`                                                                                                                               |
+| `sortable: false` (or default on)                                             | `sortable: true` where it should sort                                                                                                        |
+| `filter: 'agNumberColumnFilter'`                                              | `filter: 'number'`                                                                                                                           |
+| `filter: true` (the default filter)                                           | `filter: 'text'`, or the kind that fits the values                                                                                           |
+| `filter: 'agSetColumnFilter'`, `filterParams.values`                          | `filter: 'set'`, `filterOptions`                                                                                                             |
+| `type: 'numericColumn'`, `cellClass: 'ag-right-aligned-cell'`                 | `align: 'end'`                                                                                                                               |
+| `valueFormatter: (p) => fmt(p.value)`                                         | `cell: (row, ctx) => fmt(ctx.value)`                                                                                                         |
+| `cellRenderer: StatusBadge` (component)                                       | `cell: (row) => <StatusBadge value={row.status} />` (React), a `#cell-status` slot (Vue), an `argusCell` template (Angular)                  |
+| `cellRenderer: 'agGroupCellRenderer'`                                         | delete it: a tree's or grouped table's first data column gets the toggle (`getSubRows`, `grouping`), and `rowDetail` adds the chevron column |
+| `wrapText: true, autoHeight: true`                                            | `wrap: true` and the table's `rowHeight: 'auto'`                                                                                             |
+| `suppressMovable: true`                                                       | `reorderable: false`                                                                                                                         |
+| `lockPinned: true`                                                            | `pinnable: false`                                                                                                                            |
+| `checkboxSelection: true` (deprecated since v32.2), `rowSelection.checkboxes` | delete it: `selectionCheckboxes` on the table                                                                                                |
+| `defaultColDef: { sortable, resizable, filter }`                              | spread a shared object into each column: `{ ...defaults, id, … }`                                                                            |
 
 ## State and events
 
