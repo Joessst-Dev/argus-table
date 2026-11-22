@@ -118,7 +118,7 @@ export class ColumnState<TData, TContent> {
   }
 
   /** The pin in effect: the state's, else the column's own. */
-  pinOf(
+  #pinOf(
     column: ResolvedColumn<TData, TContent>,
     pinning = this.#options().columnPinning,
   ): ColumnPin | undefined {
@@ -141,7 +141,11 @@ export class ColumnState<TData, TContent> {
 
   /** What ordering needs, with the pin in effect. */
   orderable() {
-    return this.resolved.map((c) => ({ id: c.id, pin: this.pinOf(c), reorderable: c.reorderable }));
+    return this.resolved.map((c) => ({
+      id: c.id,
+      pin: this.#pinOf(c),
+      reorderable: c.reorderable,
+    }));
   }
 
   orderState(): ColumnOrderState {
@@ -152,7 +156,7 @@ export class ColumnState<TData, TContent> {
     ));
   }
 
-  sizingState(): ColumnSizingState {
+  #sizingState(): ColumnSizingState {
     return (this.#sizing ??= sizingOf(this.#options(), this.resolved));
   }
 
@@ -162,7 +166,7 @@ export class ColumnState<TData, TContent> {
       this.#options(),
       this.byId,
       this.orderState(),
-      this.sizingState(),
+      this.#sizingState(),
     ));
   }
 
@@ -172,7 +176,7 @@ export class ColumnState<TData, TContent> {
       this.#options(),
       this.byId,
       this.orderState(),
-      this.sizingState(),
+      this.#sizingState(),
       this.views(),
     ));
   }
