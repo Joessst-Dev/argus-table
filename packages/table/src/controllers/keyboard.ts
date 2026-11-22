@@ -22,6 +22,28 @@ import type { PluginController } from './plugins.js';
 /** The element the keys are for: its shadow root holds the grid. */
 type KeyHost = HTMLElement & { readonly renderRoot: HTMLElement | DocumentFragment };
 
+function hasModifier(event: KeyboardEvent): boolean {
+  return event.altKey || event.shiftKey || event.ctrlKey || event.metaKey;
+}
+
+/**
+ * Shift+Tab out of the grid. Firefox makes the scroll container a tab stop, so
+ * Shift+Tab would stop on it before leaving the grid. Take it out of the tab
+ * order for this one move only: a tabindex there for good would expose it as a
+ * node of its own between the grid and its rows.
+ */
+function leaveBackward(cell: HTMLElement, scroller: HTMLElement): void {
+  scroller.tabIndex = -1;
+  // Put it back once focus has actually moved (a timer can run first).
+  cell.addEventListener(
+    'focusout',
+    () => {
+      scroller.removeAttribute('tabindex');
+    },
+    { once: true },
+  );
+}
+
 /**
  * The table's keydown handler: which of its own keys a key is (and which
  * controller handles it), before the rest move the active cell.
@@ -66,12 +88,16 @@ export class KeyboardRouter<T> {
   }
 
   /**
-   * Keys on a focused cell or header. The table's own come first: Shift+Tab out
-   * of the grid, plugins' keys, Right and Left in a tree's first data column
-   * (`#treeKey`), Alt+Arrow on a header (resize; with Shift, move), Enter or
-   * Space on a sortable header, Enter on a body cell (a click, or Retry on a
-   * failed row). The rest move the active cell (`NavigationController`).
-   * Keys from content inside a cell (an input, a button) are left to that content.
+   * Keys on a focused cell or header. The table's own come first, in this order:
+   * Escape from a detail panel's content back to its cell, Shift+Tab out of the
+   * grid, group headers' keys (`#groupKey`), a detail panel's cell (`#panelKey`),
+   * then on other cells (`#cellKey`): Enter or Space on the chevron column,
+   * plugins' keys, and a header's keys (`#headerKey`: Alt+Arrow resizes, with
+   * Shift moves, Enter or Space sorts) or a body cell's (`#treeKey`: Right and
+   * Left in a tree's first data column; `#bodyEnter`: a click, Retry on a failed
+   * row, or a group row's toggle). The rest move the active cell
+   * (`NavigationController`). Keys from content inside a cell (an input, a
+   * button) are left to that content.
    */
   readonly onKeydown = (event: KeyboardEvent) => {
     const path = event.composedPath();
@@ -87,103 +113,109 @@ export class KeyboardRouter<T> {
     const id = cell?.dataset.col;
     if (!cell || (id === undefined && !group)) return;
     const scroller = event.currentTarget as HTMLElement;
-    if (event.key === 'Tab' && event.shiftKey) {
-      // Firefox makes the scroll container a tab stop, so Shift+Tab would stop
-      // on it before leaving the grid. Take it out of the tab order for this
-      // one move only: a tabindex there for good would expose it as a node of
-      // its own between the grid and its rows.
-      scroller.tabIndex = -1;
-      // Put it back once focus has actually moved (a timer can run first).
-      cell.addEventListener(
-        'focusout',
-        () => {
-          scroller.removeAttribute('tabindex');
-        },
-        { once: true },
-      );
+    if (event.key === 'Tab' && event.shiftKey) leaveBackward(cell, scroller);
+    else if (group || id === undefined) this.#groupKey(event, cell, scroller);
+    else if (id === PANEL_COLUMN) this.#panelKey(event, cell, scroller);
+    else this.#cellKey(event, cell, id, scroller);
+  };
+
+  /** Keys on a detail panel's cell: Enter or F2 goes into its content; arrows move between rows. */
+  #panelKey(event: KeyboardEvent, cell: HTMLElement, scroller: HTMLElement): void {
+    if (event.key !== 'Enter' && event.key !== 'F2') {
+      this.#nav.key(event, cell, PANEL_COLUMN, false, scroller);
       return;
     }
-    if (group || id === undefined) {
-      this.#groupKey(event, cell, scroller);
-      return;
+    const content = cell.querySelector('slot')?.assignedElements() ?? [];
+    const target = firstFocusable(content);
+    if (target) {
+      event.preventDefault();
+      target.focus();
     }
-    if (id === PANEL_COLUMN) {
-      // A detail panel's cell: Enter or F2 goes into its content; arrows move between rows.
-      if (event.key === 'Enter' || event.key === 'F2') {
-        const content = cell.querySelector('slot')?.assignedElements() ?? [];
-        const target = firstFocusable(content);
-        if (target) {
-          event.preventDefault();
-          target.focus();
-        }
-        return;
-      }
-      this.#nav.key(event, cell, id, false, scroller);
-      return;
-    }
-    if (id === EXPAND_COLUMN_ID && (event.key === 'Enter' || event.key === ' ')) {
-      // Enter or Space on a chevron cell opens or closes its row's panel.
-      const model = this.#model();
-      const at = gridRowOfCell(cell, layoutOf(model));
-      const index = at?.section === 'body' ? dataIndexOf(model, at.index) : undefined;
-      if (index === undefined) return;
-      // A group row has no panel: its keys do what they do on its other cells
-      // (Enter opens or closes the group, Space ticks its rows).
-      if (!(model.rows.grouped && model.rows.groupAt(index))) {
-        event.preventDefault();
-        this.#toggle(index);
-        return;
-      }
-    }
-    const pluginTarget =
-      id === SELECTION_COLUMN_ID || id === EXPAND_COLUMN_ID
-        ? undefined
-        : cellTargetOf(event, root, this.#model(), this.#nav);
-    if (pluginTarget && this.#plugins.keydown(event, pluginTarget)) return;
+  }
+
+  /**
+   * Keys on a column header or a body or pinned-row cell: the chevron column's,
+   * then plugins', then the header's or the body's own; the rest move the active cell.
+   */
+  #cellKey(event: KeyboardEvent, cell: HTMLElement, id: string, scroller: HTMLElement): void {
+    if (id === EXPAND_COLUMN_ID && this.#expandKey(event, cell)) return;
+    if (this.#pluginKey(event, id)) return;
     const inHeader = cell.getAttribute('role') === 'columnheader';
+    const took = inHeader
+      ? this.#headerKey(event, cell, id)
+      : this.#treeKey(event, cell, id) || this.#bodyEnter(event, cell);
+    if (!took) this.#nav.key(event, cell, id, inHeader, scroller);
+  }
+
+  /**
+   * Enter or Space on a chevron cell opens or closes its row's panel. A group row
+   * has no panel: its keys do what they do on its other cells (Enter opens or
+   * closes the group, Space ticks its rows). `true` if the key is done with.
+   */
+  #expandKey(event: KeyboardEvent, cell: HTMLElement): boolean {
+    if (event.key !== 'Enter' && event.key !== ' ') return false;
+    const model = this.#model();
+    const at = gridRowOfCell(cell, layoutOf(model));
+    const index = at?.section === 'body' ? dataIndexOf(model, at.index) : undefined;
+    if (index === undefined) return true;
+    if (model.rows.grouped && model.rows.groupAt(index)) return false;
+    event.preventDefault();
+    this.#toggle(index);
+    return true;
+  }
+
+  /** Offers the key to plugins (not on the checkbox and chevron columns). `true` if one took it. */
+  #pluginKey(event: KeyboardEvent, id: string): boolean {
+    if (id === SELECTION_COLUMN_ID || id === EXPAND_COLUMN_ID) return false;
+    const target = cellTargetOf(event, this.#host.renderRoot, this.#model(), this.#nav);
+    return target !== undefined && this.#plugins.keydown(event, target);
+  }
+
+  /**
+   * A column header's own keys: Alt+Arrow resizes the column, or moves it with
+   * Shift; Enter or Space sorts a sortable column. `true` if it took the key.
+   */
+  #headerKey(event: KeyboardEvent, cell: HTMLElement, id: string): boolean {
     const { key } = event;
-    const arrow = key === 'ArrowLeft' || key === 'ArrowRight';
-    if (!inHeader && arrow && this.#treeKey(event, cell, id)) return;
-    if (inHeader && arrow && event.altKey) {
+    if ((key === 'ArrowLeft' || key === 'ArrowRight') && event.altKey) {
       event.preventDefault();
       // Logical: the arrow pointing toward the inline end grows the column, or
       // moves it that way with Shift.
       const towardEnd = (key === 'ArrowRight') === (directionOf(this.#host) === 1);
       if (event.shiftKey) this.#reorder.byKey({ kind: 'column', id }, towardEnd ? 1 : -1);
       else this.#resize.step(id, cell, towardEnd);
-      return;
+      return true;
     }
-    if (inHeader && (key === 'Enter' || key === ' ') && cell.dataset.sortCol !== undefined) {
+    if ((key === 'Enter' || key === ' ') && cell.dataset.sortCol !== undefined) {
       event.preventDefault();
       this.#sort(id);
-      return;
+      return true;
     }
-    if (
-      !inHeader &&
-      key === 'Enter' &&
-      !event.altKey &&
-      !event.shiftKey &&
-      !event.ctrlKey &&
-      !event.metaKey
-    ) {
-      // Enter on a body cell does what a click does; on a failed row, it retries;
-      // on a group row (which has no clicks), it opens or closes the group.
-      const from = gridRowOfCell(cell, layoutOf(this.#model()));
-      if (!from) return;
-      event.preventDefault();
-      const failed = from.section === 'body' ? dataIndexOf(this.#model(), from.index) : undefined;
-      const { rows } = this.#model();
-      if (failed !== undefined && rows.grouped && rows.groupAt(failed)) {
-        this.#toggleTree(failed);
-      } else if (failed !== undefined && rows.stateAt(failed) === 'error') {
-        this.#data.retry(failed);
-      } else {
-        activate(this.#host, this.#host.renderRoot, this.#model(), event.composedPath());
-      }
-      return;
+    return false;
+  }
+
+  /**
+   * Enter (no modifier keys) on a body or pinned-row cell does what a click does;
+   * on a failed row, it retries; on a group row (which has no clicks), it opens or
+   * closes the group. `true` if it took the key.
+   */
+  #bodyEnter(event: KeyboardEvent, cell: HTMLElement): boolean {
+    if (event.key !== 'Enter' || hasModifier(event)) return false;
+    const model = this.#model();
+    const from = gridRowOfCell(cell, layoutOf(model));
+    if (!from) return true;
+    event.preventDefault();
+    const index = from.section === 'body' ? dataIndexOf(model, from.index) : undefined;
+    const { rows } = model;
+    if (index !== undefined && rows.grouped && rows.groupAt(index)) {
+      this.#toggleTree(index);
+    } else if (index !== undefined && rows.stateAt(index) === 'error') {
+      this.#data.retry(index);
+    } else {
+      activate(this.#host, this.#host.renderRoot, model, event.composedPath());
     }
-    this.#nav.key(event, cell, id, inHeader, scroller);
-  };
+    return true;
+  }
 
   /**
    * Right or Left (logical, no modifier keys) on a body cell of a tree's first
@@ -195,7 +227,9 @@ export class KeyboardRouter<T> {
    * toward the start on a top-level row that can't collapse.
    */
   #treeKey(event: KeyboardEvent, cell: HTMLElement, id: string): boolean {
-    if (event.altKey || event.shiftKey || event.ctrlKey || event.metaKey) return false;
+    if ((event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') || hasModifier(event)) {
+      return false;
+    }
     const model = this.#model();
     if (!model.tree || id !== firstDataColumn(model.columns)) return false;
     const at = gridRowOfCell(cell, layoutOf(model));
