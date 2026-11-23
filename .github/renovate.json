@@ -66,6 +66,27 @@
       "groupName": "Storybook"
     },
     {
+      "description": "Vue, Angular and React: one PR each, whatever the dependency type. The docs app has them as dependencies and the wrappers as dev dependencies, and two PRs would each leave two copies in the lockfile (the docs examples don't mount, Angular's types don't match; #215, #217, #219). A human merges them. The starters keep their own group (the rules below). Nothing published depends on them at runtime: no changeset",
+      "matchPackageNames": ["vue", "@vue/**"],
+      "groupName": "Vue",
+      "automerge": false,
+      "addLabels": ["no-changeset"]
+    },
+    {
+      "description": "Angular (see Vue): the framework and its CLI move together",
+      "matchPackageNames": ["@angular/**", "@angular-devkit/**"],
+      "groupName": "Angular",
+      "automerge": false,
+      "addLabels": ["no-changeset"]
+    },
+    {
+      "description": "React (see Vue)",
+      "matchPackageNames": ["react", "react-dom", "@types/react", "@types/react-dom"],
+      "groupName": "React",
+      "automerge": false,
+      "addLabels": ["no-changeset"]
+    },
+    {
       "description": "Starters (apps/examples/*): the frameworks and tooling in one PR, merged automatically when the smoke test is green. The default ignorePaths skip **/examples/**; the list above keeps the rest of it",
       "matchFileNames": ["apps/examples/*/package.json"],
       "groupName": "starters",
