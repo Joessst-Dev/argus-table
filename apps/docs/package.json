@@ -125,7 +125,7 @@
   "devDependencies": {
     "@argus-table/generate-wrappers": "workspace:*",
     "@astrojs/check": "^0.9.12",
-    "@axe-core/playwright": "^4.14.0",
+    "@axe-core/playwright": "^4.14.1",
     "@playwright/test": "1.63.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
