@@ -12,7 +12,7 @@ export default defineConfig({
       entry: { index: 'src/index.ts' },
       formats: ['es'],
     },
-    rollupOptions: {
+    rolldownOptions: {
       external: [/^lit(\/.*)?$/, /^@lit\//, /^argus-table$/],
       output: {
         preserveModules: true,

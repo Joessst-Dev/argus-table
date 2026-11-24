@@ -16,7 +16,7 @@ export default defineConfig({
       entry: { index: 'src/index.ts' },
       formats: ['es'],
     },
-    rollupOptions: {
+    rolldownOptions: {
       external: [/^lit(\/.*)?$/, /^@lit\//],
       output: {
         preserveModules: true,

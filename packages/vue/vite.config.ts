@@ -13,7 +13,7 @@ export default defineConfig({
       entry: { index: 'src/index.ts' },
       formats: ['es'],
     },
-    rollupOptions: {
+    rolldownOptions: {
       external: [/^vue$/, /^argus-table$/],
       output: {
         preserveModules: true,
